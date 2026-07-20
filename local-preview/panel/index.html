@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Yönetim Paneli | LEE DBP</title>
+  <link rel="stylesheet" href="/preview.css">
+  <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/panel-local.css">
+  <link rel="stylesheet" href="/program-local.css">
+  <link rel="stylesheet" href="/program-tyyc-local.css?v=20260719-tr1">
+  <link rel="stylesheet" href="/course-local.css">
+  <link rel="stylesheet" href="/entry-fields-local.css">
+  <link rel="stylesheet" href="/course-typography-local.css">
+  <link rel="stylesheet" href="/matrix-alignment-local.css">
+  <link rel="stylesheet" href="/course-list-local.css">
+  <link rel="stylesheet" href="/course-columns-local.css">
+  <link rel="stylesheet" href="/course-columns-v2-local.css">
+  <link rel="stylesheet" href="/course-columns-v3-local.css">
+  <link rel="stylesheet" href="/publish-control-local.css?v=20260719-accordion2">
+  <link rel="stylesheet" href="/course-create-local.css">
+  <script src="/theme.js?v=20260719-tr1" defer></script>
+  <script src="/program-data-local.js?v=20260719-tr1"></script>
+</head>
+<body>
+  <main class="role-dashboard">
+    <aside class="panel-sidebar">
+      <a class="panel-brand" href="/">
+        <img src="/oku-logo.png" alt="OKÜ logosu">
+        <span>
+          <b>LEE DBP</b>
+          <small>YÖNETİM PANELİ</small>
+        </span>
+      </a>
+      <nav id="panel-nav"></nav>
+      <button id="logout" class="logout" type="button">↪ Çıkış Yap</button>
+    </aside>
+    <section class="panel-main">
+      <header class="panel-header">
+        <div>
+          <small id="department">LEE</small>
+          <h1 id="page-title">Çalışma Alanı</h1>
+        </div>
+        <div class="panel-user">
+          <span id="avatar">KU</span>
+          <div>
+            <b id="user-name">Kullanıcı</b>
+            <small id="role-name">Rol</small>
+          </div>
+        </div>
+      </header>
+      <div id="panel-content"></div>
+    </section>
+  </main>
+  <script>
+    (() => {
+      const nav = document.getElementById("panel-nav");
+      const content = document.getElementById("panel-content");
+      const title = document.getElementById("page-title");
+      if (!nav || !content || !title) return;
+
+      const roleLabels = {
+        akademisyen: "Akademisyen",
+        abd_asd_baskani: "ABD / ASD Başkanı",
+        lee_ogrenci_isleri: "LEE Öğrenci İşleri",
+        enstitu_sekreteri: "Enstitü Sekreteri",
+        enstitu_yoneticisi: "Enstitü Yöneticisi",
+        admin: "Admin"
+      };
+      const roleByUsername = {
+        "demo.akademisyen": "akademisyen",
+        "demo.abd.baskani": "abd_asd_baskani",
+        "demo.ogrenci.isleri": "lee_ogrenci_isleri",
+        "demo.enstitu.sekreteri": "enstitu_sekreteri",
+        "demo.enstitu.yoneticisi": "enstitu_yoneticisi",
+        "demo.admin": "admin"
+      };
+      const repairText = (value) => String(value || "")
+        .replaceAll("Ä°", "İ").replaceAll("Ä±", "ı").replaceAll("ÅŸ", "ş")
+        .replaceAll("Åž", "Ş").replaceAll("ÄŸ", "ğ").replaceAll("Äž", "Ğ")
+        .replaceAll("Ã¼", "ü").replaceAll("Ãœ", "Ü").replaceAll("Ã¶", "ö")
+        .replaceAll("Ã–", "Ö").replaceAll("Ã§", "ç").replaceAll("Ã‡", "Ç")
+        .replaceAll("Ã‡", "Ç").replaceAll("Ãœ", "Ü").replaceAll("Ã–", "Ö");
+      const access = {
+        akademisyen: [["courses", "Ders Bilgi Paketlerim"]],
+        abd_asd_baskani: [["program", "Program Bilgileri"], ["review", "Kontrol ve Düzeltme"]],
+        lee_ogrenci_isleri: [["courses", "Ders Bilgi Paketleri"], ["program", "Program Bilgileri"]],
+        enstitu_sekreteri: [["courses", "Ders Bilgi Paketleri"], ["program", "Program Bilgileri"], ["publish", "Yayın Kontrolü"]],
+        enstitu_yoneticisi: [["courses", "Ders Bilgi Paketleri"], ["program", "Program Bilgileri"], ["publish", "Yayın Kontrolü"]],
+        admin: [["courses", "Ders Bilgi Paketleri"], ["program", "Program Bilgileri"], ["publish", "Yayın Kontrolü"], ["permissions", "Yetki Dağılımı"]]
+      };
+
+      const safeSession = () => {
+        try {
+          const session = JSON.parse(localStorage.getItem("lee-dbp-session") || "{}") || {};
+          const hint = repairText(`${session.role || ""} ${session.username || ""} ${session.name || ""} ${session.department || ""}`);
+          const role = access[session.role] ? session.role :
+            roleByUsername[session.username] ||
+            (/abd|asd|ba.*kan|baskan/i.test(hint) ? "abd_asd_baskani" :
+            /öğrenci|ogrenci|renci/i.test(hint) ? "lee_ogrenci_isleri" :
+            /sekreter/i.test(hint) ? "enstitu_sekreteri" :
+            /yönetici|yonetici|netici/i.test(hint) ? "enstitu_yoneticisi" :
+            /admin|sistem/i.test(hint) ? "admin" : "akademisyen");
+          return {
+            name: repairText(session.name || session.username || "Kullanıcı"),
+            username: session.username || "",
+            department: repairText(session.department || "LEE"),
+            role
+          };
+        } catch {
+          return { name: "Kullanıcı", username: "", department: "LEE", role: "akademisyen" };
+        }
+      };
+
+      const programSections = [
+        ["Program Tarihçesi (Kuruluş Tarihi, Programın Genel Yapısı)", "Program, Osmaniye Korkut Ata Üniversitesi Lisansüstü Eğitim Enstitüsü bünyesinde alanında uzman araştırmacılar yetiştirmek amacıyla yapılandırılmıştır. Eğitim-öğretim, bilimsel araştırma ve toplumsal katkı faaliyetleri enstitü kalite süreçleriyle uyumlu biçimde yürütülür."],
+        ["Program Profili (Programın Amacı, Programın Yapısı ve Süresi, Uzmanlık Alanları, Bölüm Olanakları)", "Program; kuramsal bilgi, araştırma yöntemi, uygulama becerisi ve etik sorumlulukları birlikte ele alan lisansüstü bir akademik yapı sunar. Öğrencilerin alanlarında derinleşmeleri, özgün araştırma yapmaları ve bilimsel üretime katkı sağlamaları hedeflenir."],
+        ["Kabul ve Kayıt Koşulları", "Programa kabul; diploma, ALES, yabancı dil, bilim sınavı veya mülakat gibi enstitü tarafından ilan edilen koşullar çerçevesinde yapılır. Kesin kayıt işlemleri ilgili mevzuata göre tamamlanır."],
+        ["Ders Yapısı ve Kredileri", "Programda zorunlu ve seçmeli dersler, seminer/uzmanlık alan dersleri ve ilgili düzeye göre proje ya da tez çalışmaları yer alır. Dersler güz ve bahar yarıyıllarında yürütülür; AKTS yükleri öğrenci iş yükü esas alınarak tanımlanır."],
+        ["Mezuniyet Koşulları", "Öğrencinin programda tanımlı dersleri, AKTS yükünü, seminer/proje/tez yükümlülüklerini ve enstitü yönetmeliğinde belirtilen başarı koşullarını tamamlaması gerekir."],
+        ["Sınavlar, Ölçme ve Değerlendirme", "Her ders için ölçme ve değerlendirme yöntemleri ders bilgi paketinde belirtilir. Ara sınav, yarıyıl sonu sınavı, ödev, proje, sunum ve uygulama çalışmaları ilgili öğretim elemanı tarafından tanımlanır."],
+        ["Üst Derece Programlarına Geçiş", "Programı başarıyla tamamlayan mezunlar, ilgili mevzuat ve başvuru koşullarını sağlamaları halinde üst derece programlara başvurabilir."],
+        ["Önceki Öğrenmenin Tanınması", "Muafiyet, intibak ve önceki öğrenmenin tanınmasına ilişkin işlemler enstitü mevzuatı, ilgili kurul kararları ve akademik birim değerlendirmeleri doğrultusunda yürütülür."],
+        ["Mezunların Mesleki Profilleri", "Mezunlar; akademi, kamu kurumları, özel sektör, araştırma merkezleri ve alanlarıyla ilişkili uzmanlık gerektiren görevlerde çalışabilir."]
+      ];
+      const defaultProgramOutcomes = [
+        "Alanındaki ileri düzey bilgileri değerlendirir.",
+        "Bilimsel araştırma yöntemlerini kullanır.",
+        "Alanındaki sorunlara disiplinler arası çözüm önerileri geliştirir.",
+        "Araştırma sonuçlarını etik ilkelere uygun biçimde raporlar.",
+        "Alanıyla ilgili verileri toplar, yorumlar ve değerlendirir.",
+        "Uzmanlık gerektiren bir çalışmayı bağımsız olarak yürütür.",
+        "Ekip çalışmalarında sorumluluk alır ve katkı sunar.",
+        "Alanındaki güncel gelişmeleri eleştirel yaklaşımla izler.",
+        "Bilimsel ve mesleki bilgilerini yazılı ve sözlü olarak aktarır.",
+        "Yaşam boyu öğrenme yaklaşımıyla mesleki gelişimini sürdürür.",
+        "Toplumsal, bilimsel ve etik değerlere uygun hareket eder.",
+        "Alanına ilişkin strateji, politika ve uygulama önerileri geliştirir."
+      ];
+      const programSectionHtml = ([title, text]) => `<section class="profile-card"><label>${title}</label><textarea>${text}</textarea></section>`;
+      const tyycHtml = `<section class="profile-card local-tyyc"><header><div><label>PÇ-TYYÇ İlişki Matrisi</label><small>Tezli/tezsiz yüksek lisans için Seviye 7, doktora için Seviye 8 yeterlilikleriyle program çıktılarının ilişkisini tanımlayın.</small></div><span>TYYÇ Seviye 7 · Yüksek Lisans</span></header><div class="local-tyyc-legend"><b>İlişki:</b><i class="l0">0</i> Yok <i class="l1">1</i> Düşük <i class="l2">2</i> Orta <i class="l3">3</i> Güçlü</div><div class="local-tyyc-scroll"><div class="local-tyyc-head"><b>TYYÇ yeterliliği</b>${Array.from({length:12},(_,i)=>`<b>PÇ${i+1}</b>`).join("")}</div>${["Bilgi","Beceriler","Bağımsız Çalışabilme ve Sorumluluk","Öğrenme Yetkinliği","İletişim ve Sosyal Yetkinlik","Alana Özgü Yetkinlik"].map((group,g)=>`<details ${g===0?"open":""}><summary><b>${group}</b><small>${g===0?2:g===1?3:g===2?3:g===3?2:g===4?4:3} yeterlilik</small><span>⌄</span></summary>${Array.from({length:g===0?2:g===1?3:g===2?3:g===3?2:g===4?4:3},(_,row)=>`<div class="local-tyyc-row"><div><b>${group.slice(0,2).toUpperCase()}${row+1}</b><span>${group} kapsamında ilgili TYYÇ yeterliliğini program çıktılarıyla ilişkilendirin.</span></div>${Array.from({length:12},(_,i)=>`<select><option>0</option><option>1</option><option selected>${(i+row+g)%4}</option><option>3</option></select>`).join("")}</div>`).join("")}</details>`).join("")}</div></section>`;
+      const allProgramRows = window.LEE_DBP_PROGRAM_ROWS || [];
+      const levelNames = (row) => window.LEE_DBP_LEVELS_FROM_FLAGS?.(row?.[3]) || ["Tezli YL"];
+      const centralRoles = ["lee_ogrenci_isleri", "enstitu_sekreteri", "enstitu_yoneticisi", "admin"];
+      const normalize = (value) => String(value || "").toLocaleLowerCase("tr-TR");
+      const programKeyFor = (row) => window.LEE_DBP_PROGRAM_KEY?.(row) || [row?.[0], row?.[1], row?.[2]].map((value)=>normalize(value).replace(/[^a-z0-9çğıöşü-]+/g, "-")).join("__");
+      const scopedRows = (session) => {
+        if (centralRoles.includes(session.role)) return allProgramRows;
+        if (session.role === "abd_asd_baskani") {
+          const scope = normalize(session.department).replace(/\sabd|\sasd/g, "").trim();
+          return allProgramRows.filter((row) => {
+            const department = normalize(row[1]).replace(/\sabd|\sasd/g, "").trim();
+            const program = normalize(row[2]).replace(/\sabd|\sasd/g, "").trim();
+            return department === scope || program === scope;
+          });
+        }
+        return [];
+      };
+      const prefixFor = (programName) => programName.split(/\s+/).slice(0, 3).map((word) => word[0]).join("").toLocaleUpperCase("tr-TR");
+      const demoCourseSet = (row) => levelNames(row).flatMap((level, levelIndex) => {
+        const prefix = prefixFor(row[2]);
+        return [
+          { code: `${prefix} ${501 + levelIndex * 100}`, name: `${row[2]} Bilimsel Araştırma`, level, status: "İncelemede" },
+          { code: `${prefix} ${503 + levelIndex * 100}`, name: `${row[2]} Kuramları`, level, status: "Taslak" },
+          { code: `${prefix} ${590 + levelIndex * 100}`, name: "Seminer", level, status: "Onaylandı" },
+        ];
+      });
+      const programForm = (row = ["LEE", "Biyoloji ABD", "Biyoloji", "-T-"], level = "Tezli YL", session = {role:"abd_asd_baskani"}) => {
+        const saveActions = session.role === "admin"
+          ? `<button type="button" onclick="window.LEE_DBP_OPEN_CORRECTION('Program bilgisi','${row[2]}','Admin → ABD/ASD Başkanı')">Düzeltme İste</button><button type="button">Kaydet</button>`
+          : session.role === "abd_asd_baskani"
+            ? '<button type="button">Kaydet</button>'
+            : `<button type="button" onclick="window.LEE_DBP_OPEN_CORRECTION('Program bilgisi','${row[2]}','${roleLabels[session.role]} → ABD/ASD Başkanı')">Düzeltme İste</button>`;
+        return `<div class="intro"><h2>Program Bilgileri</h2><p>${row[1]} / ${row[2]} programının public Bologna profilini ${session.role === "abd_asd_baskani" ? "düzenleyin" : "inceleyin ve gerekiyorsa düzeltme isteyin"}.</p><div class="program-level-strip">${levelNames(row).map((item)=>`<button type="button" class="${item === level ? "active" : ""}" data-action="switch-program-level" data-level="${item}">${item}</button>`).join("")}</div></div><form class="profile-editor"><section class="summary-card"><h2>${row[2]} ${level.includes("Doktora") ? "Doktora" : "Yüksek Lisans"}</h2><div><label><span>Program adı</span><input value="${row[2]} ${level.includes("Doktora") ? "Doktora" : "Yüksek Lisans"}"></label><label><span>Program düzeyi</span><select>${["Tezsiz Yüksek Lisans","Tezli Yüksek Lisans","Doktora"].map((option)=>`<option ${level.includes(option.split(" ")[0]) || level===option ? "selected" : ""}>${option}</option>`).join("")}</select></label><label><span>Kazanılan derece</span><input value="${row[2]} ${level.includes("Doktora") ? "Doktora" : "Yüksek Lisans"} Derecesi"></label><label><span>Program yöneticisi</span><input value="Prof. Dr. Program Yöneticisi"></label><label><span>Öğrenim dili</span><select><option>Türkçe</option><option>İngilizce</option></select></label><label class="wide"><span>Yeterlilik koşulları ve kuralları</span><input value="${level.includes("Doktora") ? "4 yıl, 8 yarıyıl ve doktora yeterlilik/tez süreçleri" : "2 yıl, 4 yarıyıl ve toplam 120 AKTS"}"></label></div></section>${programSections.slice(0,2).map(programSectionHtml).join("")}<section class="profile-card outcomes"><header><div><label>Program Çıktıları / Öğrenme Kazanımları</label><small>12 madde ile başlar; ekleme ve silme yapılabilir.</small></div><button type="button">+ Çıktı Ekle</button></header><ol id="outcome-list">${defaultProgramOutcomes.map((item,i)=>`<li><span>${i+1}</span><textarea>${item}</textarea><button type="button">Sil</button></li>`).join("")}</ol></section>${programSectionHtml(programSections[2])}${programSections.slice(3).map(programSectionHtml).join("")}${tyycHtml}<div class="save-bar"><span>${session.role === "admin" ? "Admin müdahalesi istisnai durumlar için kullanılmalıdır." : session.role === "abd_asd_baskani" ? "Değişiklikler taslak olarak kaydedilir." : "Enstitü rolleri program bilgisini doğrudan kaydetmez; düzeltme isteği oluşturur."}</span>${saveActions}</div></form>`;
+      };
+      const rowCards = (rows, action, label) => {
+        const indexedRows = rows.map((row, index) => ({ row, index }));
+        const mains = [...new Set(indexedRows.map((item) => item.row[0]))];
+        return `<div class="publish-department-list">${mains.map((main, mainIndex)=>{
+          const children = indexedRows.filter((item)=>item.row[0]===main);
+          return `<details class="publish-department" ${mainIndex === 0 ? "open" : ""}><summary><span>▦</span><b>${main}</b><i>⌄</i></summary><div>${children.map(({row,index})=>{
+            const isPublish = action === "toggle-public";
+            if (isPublish) {
+              return levelNames(row).map((level)=>{
+                const isVisible = window.LEE_DBP_IS_PROGRAM_LEVEL_PUBLIC?.(row, level) !== false;
+                return `<article class="${isVisible ? "is-public" : "is-hidden"}" role="button" tabindex="0" data-action="${action}" data-row="${index}" data-level="${level}" aria-label="${label}: ${row[2]} ${level}"><div><b>${row[1]}</b>${row[1]!==row[2]?`<small>${row[2]}</small>`:""}<em class="public-state">${isVisible ? "Publicte görünüyor" : "Publicte gizli"}</em></div><p><span>${level}</span></p><button type="button" tabindex="-1">${isVisible ? "Publicten Gizle" : "Publicte Göster"}</button></article>`;
+              }).join("");
+            }
+            return `<article role="button" tabindex="0" data-action="${action}" data-row="${index}" aria-label="${label}: ${row[2]}"><div><b>${row[1]}</b>${row[1]!==row[2]?`<small>${row[2]}</small>`:""}</div><p>${levelNames(row).map((level)=>`<span>${level}</span>`).join("")}</p></article>`;
+          }).join("")}</div></details>`;
+        }).join("")}</div>`;
+      };
+      const courseManagement = (session) => {
+        if (session.role === "akademisyen") return `<div class="intro"><h2>Ders Bilgi Paketlerim</h2><p>Görevlendirildiğiniz derslerin Bologna paketlerini düzenleyin.</p></div><div class="local-program-columns"><section class="local-tone-1"><header><h3>Tezsiz YL</h3></header><div><article><b>BLM 598</b><span><strong>Yüksek Lisans Semineri</strong><small>Onaylandı</small></span><button type="button">Güncelle</button></article></div></section><section class="local-tone-2"><header><h3>Tezli YL</h3></header><div><article><b>BLM 501</b><span><strong>Bilimsel Araştırma Yöntemleri</strong><small>Taslak</small></span><button type="button">Güncelle</button></article></div></section><section class="local-tone-3"><header><h3>Doktora</h3></header><div><article><b>BLM 512</b><span><strong>İleri Algoritma Analizi</strong><small>Düzeltme İstendi</small></span><button type="button">Güncelle</button></article></div></section></div>`;
+        return `<div class="intro"><h2>Ders Bilgi Paketleri</h2><p>Tüm ABD/ASD programları altındaki ders bilgi paketlerini görüntüleyin, kontrol edin veya düzeltin.</p><button class="local-create-course" type="button" data-action="create-course">+ ABD / ASD Adına Ders Ekle</button></div>${rowCards(scopedRows(session), "open-courses", "Dersleri Aç")}`;
+      };
+      const programDirectory = (session) => `<div class="intro"><h2>Program Bilgileri</h2><p>Yetkiniz dahilindeki ABD/ASD program bilgilerini seçip inceleyin.</p><button class="local-create-course" type="button" data-action="create-program">+ ABD / ASD veya Program Ekle</button></div>${rowCards(scopedRows(session), "open-program", "Programı Aç")}`;
+      const reviewDirectory = (session) => `<div class="intro"><h2>Kontrol ve Düzeltme</h2><p>Yetkiniz dahilindeki ders bilgi paketlerini ön izleyin ve düzeltme isteyin${session.role === "abd_asd_baskani" ? " veya onaylayın" : ""}.</p></div>${rowCards(scopedRows(session), "open-review", "İncele")}`;
+      const publishDirectory = (session) => {
+        const rows = scopedRows(session);
+        const levelTotal = rows.reduce((total,row)=>total + levelNames(row).length, 0);
+        const visibleTotal = rows.reduce((total,row)=>total + levelNames(row).filter((level)=>window.LEE_DBP_IS_PROGRAM_LEVEL_PUBLIC?.(row,level)!==false).length, 0);
+        return `<div class="intro"><h2>Public program görünürlüğü</h2><p>Programların public katalogda hangi düzeylerinin görünüp görünmeyeceğini belirleyin.</p></div><div class="publish-summary local"><div><b>${levelTotal}</b><span>Program Düzeyi</span></div><div><b>${visibleTotal}</b><span>Publicte Görünen Düzey</span></div></div>${rowCards(rows, "toggle-public", "Görünürlüğü Yönet")}`;
+      };
+      const coursesForRow = (row, session = {role:"admin"}) => {
+        const officialCourses = window.LEE_DBP_OFFICIAL_COURSES_FOR_ROW?.(row) || [];
+        const courses = officialCourses.length ? officialCourses : demoCourseSet(row);
+        return `<div class="intro"><h2>${row[2]} Dersleri</h2><p>${row[1]} altındaki ders bilgi paketleri program düzeyine göre ayrılmıştır.</p></div><div class="local-program-columns">${levelNames(row).map((level,index)=>`<section class="local-tone-${index+1}"><header><h3>${level}</h3></header><div>${courses.filter((course)=>course.level===level).map((course)=>`<article><b>${course.code}</b><span><strong>${course.name}</strong><small>${course.status}</small></span><p class="course-row-actions"><button type="button">Güncelle</button><button type="button" onclick="window.LEE_DBP_OPEN_CORRECTION('Ders bilgi paketi','${course.code} ${course.name}','${roleLabels[session.role]} → ABD/ASD Başkanı → Akademisyen')">Düzeltme İste</button></p></article>`).join("")}</div></section>`).join("")}</div>`;
+      };
+      const reviewForRow = (row, session) => { const officialCourses = window.LEE_DBP_OFFICIAL_COURSES_FOR_ROW?.(row) || []; const courses = officialCourses.length ? officialCourses : demoCourseSet(row); return `<div class="intro"><h2>${row[2]} İnceleme Kuyruğu</h2><p>${row[1]} altındaki paketler.</p></div><div class="review">${courses.map((course)=>`<div><b>${course.code} — ${course.name}</b><span>${course.status}</span><p><button type="button">Ön İzleme</button><button type="button">Düzeltme İste</button>${session.role==="abd_asd_baskani"?'<button type="button">Onayla</button>':""}</p></div>`).join("")}</div>`; };
+      const openCreateCourseModal = () => {
+        document.querySelector(".local-course-modal")?.remove();
+        const modal = document.createElement("div");
+        modal.className = "local-course-modal";
+        modal.innerHTML = `<section><header><div><small>ENSTİTÜ YETKİLİ İŞLEMİ</small><h2>ABD / ASD Adına Ders Ekle</h2></div><button type="button" data-close>×</button></header><form><label>ABD / ASD<select required>${allProgramRows.map((row,index)=>`<option value="${index}">${row[1]}</option>`).join("")}</select></label><label>Program düzeyi<select><option>Tezsiz YL</option><option>Tezli YL</option><option>Doktora</option></select></label><label class="wide">İlgili program<select>${allProgramRows.map((row,index)=>`<option value="${index}">${row[2]}</option>`).join("")}</select></label><label>Ders kodu<input required placeholder="Örn. BSV 505"></label><label>Ders adı<input required placeholder="Ders adını girin"></label><label class="wide">Görevlendirilen akademisyen<select><option>Dr. Öğr. Üyesi Ayşe Yılmaz</option><option>Prof. Dr. Mehmet Kaya</option><option>Doç. Dr. Demo Akademisyen</option></select></label><footer><button type="button" data-close>Vazgeç</button><button type="submit">Dersi Oluştur</button></footer></form></section>`;
+        document.body.appendChild(modal);
+        modal.querySelectorAll("[data-close]").forEach((item)=>item.addEventListener("click",()=>modal.remove()));
+        modal.querySelector("form").addEventListener("submit",(event)=>{event.preventDefault();alert("Ders ilgili ABD / ASD programı adına oluşturuldu.");modal.remove();});
+      };
+      const openCreateProgramModal = () => {
+        document.querySelector(".local-course-modal")?.remove();
+        const mains = [...new Set(allProgramRows.map((row)=>row[0]))];
+        const modal = document.createElement("div");
+        modal.className = "local-course-modal";
+        modal.innerHTML = `<section><header><div><small>PROGRAM YÖNETİMİ</small><h2>ABD / ASD veya Yeni Program Ekle</h2></div><button type="button" data-close>×</button></header><form><label class="wide">Ana ABD / ASD Başkanlığı<select required><option value="">Seçiniz</option>${mains.map((main)=>`<option>${main}</option>`).join("")}<option>Yeni Ana ABD / ASD</option></select></label><label>ABD / ASD adı<input required placeholder="Örn. Enerji Sistemleri Mühendisliği ABD"></label><label>Program adı<input required placeholder="Örn. Enerji Sistemleri Mühendisliği"></label><label>Program düzeyi<select><option>Tezsiz YL</option><option>Tezli YL</option><option>Doktora</option></select></label><label>Public başlangıç durumu<select><option>Enstitü onayından sonra görünsün</option><option>Şimdilik gizli kalsın</option></select></label><footer><button type="button" data-close>Vazgeç</button><button type="submit">Programı Oluştur</button></footer></form></section>`;
+        document.body.appendChild(modal);
+        modal.querySelectorAll("[data-close]").forEach((item)=>item.addEventListener("click",()=>modal.remove()));
+        modal.querySelector("form").addEventListener("submit",(event)=>{event.preventDefault();alert("Program ekleme talebi demo kayıt mantığına alındı.");modal.remove();});
+      };
+      window.LEE_DBP_OPEN_CORRECTION = (kind, target, route) => {
+        document.querySelector(".local-course-modal")?.remove();
+        const modal = document.createElement("div");
+        modal.className = "local-course-modal";
+        modal.innerHTML = `<section><header><div><small>DÜZELTME TALEBİ</small><h2>${kind}</h2></div><button type="button" data-close>×</button></header><form><label class="wide">Kayıt<input value="${target}" readonly></label><label class="wide">Bildirim zinciri<input value="${route}" readonly></label><label class="wide">Düzeltme nedeni ve açıklaması<textarea required placeholder="Hangi alanın neden düzeltilmesi gerektiğini açıkça yazın. Örn. Program çıktısı 4 ölçülebilir değil; AKTS iş yükü toplamı yeniden kontrol edilmeli."></textarea></label><footer><button type="button" data-close>Vazgeç</button><button type="submit">Düzeltme Talebini Gönder</button></footer></form></section>`;
+        document.body.appendChild(modal);
+        modal.querySelectorAll("[data-close]").forEach((item)=>item.addEventListener("click",()=>modal.remove()));
+        modal.querySelector("form").addEventListener("submit",(event)=>{
+          event.preventDefault();
+          const note = modal.querySelector("textarea").value.trim();
+          const notifications = JSON.parse(localStorage.getItem("lee-dbp-notifications") || "[]");
+          notifications.unshift({ kind, target, route, note, date: new Date().toISOString(), status: "Düzeltme istendi" });
+          localStorage.setItem("lee-dbp-notifications", JSON.stringify(notifications));
+          alert("Düzeltme talebi bildirim zincirine eklendi.");
+          modal.remove();
+        });
+      };
+
+      const renderView = (id, session) => ({
+        courses: courseManagement(session),
+        program: session.role === "abd_asd_baskani" ? programForm(scopedRows(session)[0], levelNames(scopedRows(session)[0])[0], session) : programDirectory(session),
+        review: reviewDirectory(session),
+        publish: publishDirectory(session),
+        permissions: `<div class="intro"><h2>Rol ve yetki dağılımı</h2><p>Modül erişimlerini rol bazında yönetin.</p></div><div class="matrix">${Object.values(roleLabels).map((x)=>`<div><b>${x}</b><label><input type="checkbox" checked> Görüntüle</label><label><input type="checkbox"> Düzenle</label><label><input type="checkbox"> Onayla</label><label><input type="checkbox"> Yetki ver</label></div>`).join("")}</div>`
+      }[id] || reviewDirectory(session));
+
+      const session = safeSession();
+      localStorage.setItem("lee-dbp-session", JSON.stringify(session));
+      document.getElementById("user-name").textContent = session.name;
+      document.getElementById("role-name").textContent = roleLabels[session.role] || "Akademisyen";
+      document.getElementById("department").textContent = session.department;
+      document.getElementById("avatar").textContent = String(session.name).slice(0, 2).toLocaleUpperCase("tr-TR");
+      document.getElementById("logout").onclick = () => {
+        localStorage.removeItem("lee-dbp-session");
+        location.href = "/yonetim/";
+      };
+
+      nav.innerHTML = "";
+      const bindContentActions = (label, button) => {
+        content.querySelectorAll("[data-action]:not([data-bound])").forEach((actionButton) => {
+          actionButton.dataset.bound = "true";
+          actionButton.addEventListener("click", () => {
+            const row = scopedRows(session)[Number(actionButton.dataset.row || content.dataset.currentProgramRow || 0)];
+            const action = actionButton.dataset.action;
+            if (action === "open-program" && row) {
+              title.textContent = `${row[2]} Program Bilgileri`;
+              content.dataset.currentProgramRow = String(Number(actionButton.dataset.row || 0));
+              content.innerHTML = programForm(row, levelNames(row)[0], session);
+              bindContentActions(label, button);
+            }
+            if (action === "open-courses" && row) {
+              title.textContent = `${row[2]} Ders Bilgi Paketleri`;
+              content.dataset.currentProgramRow = String(Number(actionButton.dataset.row || 0));
+              content.innerHTML = coursesForRow(row, session);
+              bindContentActions(label, button);
+            }
+            if (action === "open-review" && row) {
+              title.textContent = `${row[2]} Kontrol ve Düzeltme`;
+              content.dataset.currentProgramRow = String(Number(actionButton.dataset.row || 0));
+              content.innerHTML = reviewForRow(row, session);
+              bindContentActions(label, button);
+            }
+            if (action === "switch-program-level") {
+              const currentRow = scopedRows(session)[Number(content.dataset.currentProgramRow || 0)];
+              if (currentRow) {
+                content.innerHTML = programForm(currentRow, actionButton.dataset.level || levelNames(currentRow)[0], session);
+                bindContentActions(label, button);
+              }
+            }
+            if (action === "toggle-public" && row) {
+              const storageKey = window.LEE_DBP_PUBLIC_VISIBILITY_KEY || "lee-dbp-public-program-visibility";
+              let visibility = {};
+              try { visibility = JSON.parse(localStorage.getItem(storageKey) || "{}") || {}; } catch { visibility = {}; }
+              const level = actionButton.dataset.level;
+              const key = level && window.LEE_DBP_PROGRAM_LEVEL_KEY ? window.LEE_DBP_PROGRAM_LEVEL_KEY(row, level) : programKeyFor(row);
+              const current = level && window.LEE_DBP_IS_PROGRAM_LEVEL_PUBLIC ? window.LEE_DBP_IS_PROGRAM_LEVEL_PUBLIC(row, level, visibility) : visibility[key] !== false;
+              visibility[key] = !current;
+              localStorage.setItem(storageKey, JSON.stringify(visibility));
+              window.dispatchEvent(new Event("lee-dbp-public-visibility-change"));
+              open("publish", label, button);
+            }
+            if (action === "create-course") openCreateCourseModal();
+            if (action === "create-program") openCreateProgramModal();
+            window.LEE_DBP_RENDER_OUTCOME_QUALITY?.();
+          });
+          actionButton.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              actionButton.click();
+            }
+          });
+        });
+      };
+      const open = (id, label, button) => {
+        title.textContent = label;
+        nav.querySelectorAll("button").forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        content.innerHTML = renderView(id, session);
+        content.dataset.currentProgramRow = "0";
+        bindContentActions(label, button);
+        window.LEE_DBP_RENDER_OUTCOME_QUALITY?.();
+      };
+      access[session.role].forEach(([id, label], index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = label;
+        button.onclick = () => open(id, label, button);
+        nav.appendChild(button);
+        if (index === 0) open(id, label, button);
+      });
+    })();
+  </script>
+</body>
+</html>

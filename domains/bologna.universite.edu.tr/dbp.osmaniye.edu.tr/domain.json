@@ -1,0 +1,13 @@
+{
+  "siteId": "lee-dbp-osmaniye",
+  "repository": "lee_dbp",
+  "publicHost": "dbp.osmaniye.edu.tr",
+  "parentPortal": "bologna.universite.edu.tr",
+  "locale": "tr-TR",
+  "publicCatalog": true,
+  "adminPath": "/yonetim",
+  "integration": {
+    "eEnstitu": "api-only",
+    "directDatabaseAccess": false
+  }
+}

@@ -1,0 +1,95 @@
+.local-create-course {
+  display: block;
+  margin: 14px 0 -8px auto;
+  padding: 10px 13px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--primary);
+  color: white;
+  font-weight: 750;
+}
+.local-course-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: color-mix(in srgb, var(--foreground) 52%, transparent);
+}
+.local-course-modal > section {
+  width: min(650px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: 0 28px 70px -22px color-mix(in srgb, var(--foreground) 65%, transparent);
+}
+.local-course-modal header {
+  display: flex;
+  justify-content: space-between;
+  padding: 21px 23px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--primary) 9%, var(--card));
+}
+.local-course-modal h2 {
+  margin: 4px 0;
+}
+.local-course-modal header button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--foreground);
+}
+.local-course-modal form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 21px 23px;
+  background: var(--card);
+}
+.local-course-modal label {
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+}
+.local-course-modal label.wide,
+.local-course-modal footer {
+  grid-column: 1/-1;
+}
+.local-course-modal input,
+.local-course-modal select {
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+  border-radius: 9px;
+  background: var(--background);
+  color: var(--foreground);
+}
+.local-course-modal footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.local-course-modal footer button {
+  padding: 10px 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--foreground);
+}
+.local-course-modal footer button[type="submit"] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: white;
+}
+@media (max-width: 600px) {
+  .local-course-modal form {
+    grid-template-columns: 1fr;
+  }
+  .local-course-modal label.wide,
+  .local-course-modal footer {
+    grid-column: auto;
+  }
+}

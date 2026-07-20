@@ -1,0 +1,21 @@
+.oku-header{
+  position:fixed!important;
+  top:0;
+  left:0;
+  right:0;
+  z-index:80;
+}
+.public-local-left{
+  top:108px!important;
+}
+.public-local-main{
+  margin-top:108px!important;
+}
+@media(max-width:760px){
+  .public-local-left{
+    top:108px!important;
+  }
+  .public-local-main{
+    margin-top:24px!important;
+  }
+}

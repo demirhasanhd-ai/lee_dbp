@@ -1,0 +1,12 @@
+.outcome-quality-local{display:grid;grid-template-columns:max-content 1fr;gap:6px;margin-top:5px;padding:6px 8px;border:1px solid var(--border,var(--line));border-radius:8px;background:var(--panel,var(--card));font-size:8px;line-height:1.35}
+.outcome-quality-local strong{font-weight:800}
+.outcome-quality-local span{color:var(--muted-foreground)}
+.outcome-quality-local.empty{opacity:.72}
+.outcome-quality-local.good{border-color:color-mix(in srgb,var(--success,#328b5b) 38%,var(--border,var(--line)));background:color-mix(in srgb,var(--success,#328b5b) 8%,var(--panel,var(--card)))}
+.outcome-quality-local.good strong{color:var(--success,#328b5b)}
+.outcome-quality-local.warning{border-color:color-mix(in srgb,#d98200 42%,var(--border,var(--line)));background:color-mix(in srgb,#d98200 8%,var(--panel,var(--card)))}
+.outcome-quality-local.warning strong{color:#a96500}
+.outcome-quality-local.error{border-color:color-mix(in srgb,var(--primary) 42%,var(--border,var(--line)));background:color-mix(in srgb,var(--primary) 7%,var(--panel,var(--card)))}
+.outcome-quality-local.error strong{color:var(--primary)}
+#outcome-list li{align-items:start}
+#outcome-list li textarea,#cf-outcomes textarea{width:100%}

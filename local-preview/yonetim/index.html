@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Giriş Yap | LEE DBP</title>
+  <link rel="stylesheet" href="/preview.css">
+  <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/login-local.css">
+  <link rel="stylesheet" href="/login-modes.css">
+  <script src="/theme.js?v=20260719-tr1" defer></script>
+</head>
+<body>
+  <main class="management-page">
+    <header class="management-header">
+      <a class="oku-brand" href="/">
+        <span class="logo-box"><img src="/oku-logo.png" alt="OKÜ logosu"></span>
+        <span>
+          <b>LEE <em>Ders Bilgi Paketi</em></b>
+          <small>BOLOGNA BİLGİ SİSTEMİ</small>
+        </span>
+      </a>
+      <a class="back-link" href="/">← Ders Kataloğuna dön</a>
+    </header>
+
+    <div class="role-login-layout">
+      <section class="role-selector">
+        <span class="eyebrow">YETKİ TÜRÜ</span>
+        <h1>Görevinizi seçin</h1>
+        <p>e-Enstitü hesabınıza tanımlanmış rol ile devam edin.</p>
+
+        <div class="role-grid">
+          <button class="role-option selected" data-role="Akademisyen" type="button">
+            <span>AK</span>
+            <div><b>Akademisyen</b><small>Yetkili olduğu derslerin Bologna bilgilerini hazırlar ve onaya gönderir.</small></div>
+          </button>
+          <button class="role-option" data-role="ABD / ASD Başkanı" type="button">
+            <span>AB</span>
+            <div><b>ABD / ASD Başkanı</b><small>Anabilim veya anasanat dalındaki dersleri inceler ve program onayı verir.</small></div>
+          </button>
+          <button class="role-option" data-role="LEE Öğrenci İşleri" type="button">
+            <span>Öİ</span>
+            <div><b>LEE Öğrenci İşleri</b><small>Ders, program ve görevlendirme kayıtlarının idari kontrolünü yürütür.</small></div>
+          </button>
+          <button class="role-option" data-role="Enstitü Sekreteri" type="button">
+            <span>ES</span>
+            <div><b>Enstitü Sekreteri</b><small>Enstitü genelindeki idari işleyişi ve yayın hazırlığını denetler.</small></div>
+          </button>
+          <button class="role-option" data-role="Enstitü Yöneticisi" type="button">
+            <span>EY</span>
+            <div><b>Enstitü Yöneticisi</b><small>Onaylı ders bilgi paketlerini yayımlar ve kalite sürecini yönetir.</small></div>
+          </button>
+          <button class="role-option" data-role="Admin" type="button">
+            <span>AD</span>
+            <div><b>Admin</b><small>Kullanıcı, rol, entegrasyon ve sistem ayarlarını yönetir.</small></div>
+          </button>
+        </div>
+      </section>
+
+      <section class="signin-card">
+        <div class="login-mode-tabs">
+          <button id="ldap-tab" class="active" type="button">Kurumsal LDAP</button>
+          <button id="demo-tab" type="button">Demo Kullanıcı Seç</button>
+        </div>
+        <div class="signin-icon">↪</div>
+        <span class="eyebrow">LEE DBP YÖNETİM ALANI</span>
+        <h2 id="login-title">Kurumsal Giriş</h2>
+        <div class="selected-role">
+          <span>SEÇİLİ YETKİ</span>
+          <strong id="selected-role">Akademisyen</strong>
+        </div>
+
+        <div id="demo-picker" class="demo-picker" hidden>
+          <label for="demo-user">Demo kullanıcı</label>
+          <select id="demo-user">
+            <option value="">Kullanıcı seçin</option>
+            <option data-role="Akademisyen" data-user="demo.akademisyen">Dr. Öğr. Üyesi Ayşe Yılmaz</option>
+            <option data-role="ABD / ASD Başkanı" data-user="demo.abd.baskani">Prof. Dr. Mehmet Kaya — İşletme ABD</option>
+            <option data-role="LEE Öğrenci İşleri" data-user="demo.ogrenci.isleri">LEE Öğrenci İşleri</option>
+            <option data-role="Enstitü Sekreteri" data-user="demo.enstitu.sekreteri">Enstitü Sekreteri</option>
+            <option data-role="Enstitü Yöneticisi" data-user="demo.enstitu.yoneticisi">Enstitü Yöneticisi</option>
+            <option data-role="Admin" data-user="demo.admin">Sistem Yöneticisi</option>
+          </select>
+          <small>Seçim yaptığınızda demo bilgileri otomatik doldurulur.</small>
+        </div>
+
+        <form>
+          <label id="identity-label" for="identity">T.C. kimlik numarası / kurumsal kullanıcı adı</label>
+          <input id="identity" autocomplete="username" placeholder="Kullanıcı bilginizi girin">
+          <label for="password">Parola</label>
+          <input id="password" type="password" autocomplete="current-password" placeholder="Parolanızı girin">
+          <button id="login-submit" type="button">LDAP ile Giriş Yap</button>
+        </form>
+        <p id="signin-note" class="signin-note">Üniversite kurumsal hesabınız LDAP servisi üzerinden doğrulanacaktır.</p>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const ldapTab = document.getElementById("ldap-tab");
+    const demoTab = document.getElementById("demo-tab");
+    const picker = document.getElementById("demo-picker");
+    const identity = document.getElementById("identity");
+    const password = document.getElementById("password");
+    const roleText = document.getElementById("selected-role");
+    const submit = document.getElementById("login-submit");
+    const demoUser = document.getElementById("demo-user");
+    const roleByUsername = {
+      "demo.akademisyen": "akademisyen",
+      "demo.abd.baskani": "abd_asd_baskani",
+      "demo.ogrenci.isleri": "lee_ogrenci_isleri",
+      "demo.enstitu.sekreteri": "enstitu_sekreteri",
+      "demo.enstitu.yoneticisi": "enstitu_yoneticisi",
+      "demo.admin": "admin"
+    };
+    const roleSlugs = {
+      "Akademisyen": "akademisyen",
+      "ABD / ASD Başkanı": "abd_asd_baskani",
+      "LEE Öğrenci İşleri": "lee_ogrenci_isleri",
+      "Enstitü Sekreteri": "enstitu_sekreteri",
+      "Enstitü Yöneticisi": "enstitu_yoneticisi",
+      "Admin": "admin"
+    };
+
+    function setMode(mode) {
+      const demo = mode === "demo";
+      ldapTab.classList.toggle("active", !demo);
+      demoTab.classList.toggle("active", demo);
+      picker.hidden = !demo;
+      document.getElementById("login-title").textContent = demo ? "Demo Kullanıcı Seç" : "Kurumsal Giriş";
+      document.getElementById("identity-label").textContent = demo ? "Demo kullanıcı adı" : "T.C. kimlik numarası / kurumsal kullanıcı adı";
+      submit.textContent = demo ? "Demo Giriş Yap" : "LDAP ile Giriş Yap";
+      document.getElementById("signin-note").textContent = demo
+        ? "Demo hesaplar yalnızca geliştirme ve eğitim amacıyla kullanılacaktır."
+        : "Üniversite kurumsal hesabınız LDAP servisi üzerinden doğrulanacaktır.";
+      identity.value = "";
+      password.value = "";
+    }
+
+    ldapTab.addEventListener("click", () => setMode("ldap"));
+    demoTab.addEventListener("click", () => setMode("demo"));
+    demoUser.addEventListener("change", function () {
+      const option = this.options[this.selectedIndex];
+      identity.value = option.dataset.user || "";
+      password.value = option.dataset.user ? "1453" : "";
+      if (option.dataset.role) roleText.textContent = option.dataset.role;
+    });
+    document.querySelectorAll(".role-option").forEach((button) => button.addEventListener("click", () => {
+      document.querySelectorAll(".role-option").forEach((item) => item.classList.remove("selected"));
+      button.classList.add("selected");
+      roleText.textContent = button.dataset.role || "Akademisyen";
+    }));
+    submit.addEventListener("click", () => {
+      const selectedOption = demoUser.options[demoUser.selectedIndex];
+      const username = identity.value || selectedOption.dataset.user || "demo.akademisyen";
+      const label = selectedOption.dataset.role || roleText.textContent || "Akademisyen";
+      const parts = (selectedOption.textContent || "Kullanıcı").split(" — ");
+      localStorage.setItem("lee-dbp-session", JSON.stringify({
+        name: parts[0] || "Kullanıcı",
+        username,
+        role: roleByUsername[username] || roleSlugs[label] || "akademisyen",
+        department: parts[1] || "LEE"
+      }));
+      location.href = "/panel/";
+    });
+  </script>
+</body>
+</html>

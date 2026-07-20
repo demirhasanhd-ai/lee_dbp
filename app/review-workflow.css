@@ -1,0 +1,159 @@
+.review-head-v2,
+.review-row-v2 {
+  grid-template-columns: 1.35fr 0.8fr 0.65fr 1.6fr;
+}
+.review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.review-actions button,
+.review-preview-modal footer button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.review-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: color-mix(in srgb, var(--foreground) 40%, transparent);
+}
+.review-preview-modal,
+.correction-modal {
+  width: min(760px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: 0 25px 65px -24px
+    color-mix(in srgb, var(--foreground) 55%, transparent);
+}
+.review-preview-modal > header,
+.correction-modal > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  padding: 20px 23px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+}
+.review-preview-modal h2,
+.correction-modal h2 {
+  margin: 4px 0 0;
+  font-size: 19px;
+}
+.review-preview-modal header small,
+.correction-modal header small {
+  font-size: 8px;
+  color: var(--primary);
+  font-weight: 800;
+}
+.review-preview-modal header button,
+.correction-modal header button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--foreground);
+}
+.preview-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 20px 23px;
+}
+.preview-summary article {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+}
+.preview-summary span {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--primary);
+}
+.preview-summary p,
+.preview-summary li {
+  font-size: 11px;
+  line-height: 1.55;
+}
+.review-preview-modal footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  padding: 0 23px 20px;
+}
+.review-preview-modal footer button,
+.correction-modal footer button {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 10px;
+  font-weight: 750;
+}
+.review-preview-modal footer .approve {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+.correction-modal form {
+  padding: 20px 23px;
+}
+.correction-modal label {
+  display: grid;
+  gap: 7px;
+}
+.correction-modal label span {
+  font-size: 10px;
+  font-weight: 800;
+}
+.correction-modal textarea {
+  min-height: 140px;
+  padding: 13px;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--primary) 6%, var(--background));
+  color: var(--foreground);
+  font: 11px/1.55 var(--font-sans);
+  resize: vertical;
+}
+.correction-modal form > small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+}
+.correction-modal footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 17px;
+}
+.correction-modal footer .request {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+@media (max-width: 800px) {
+  .review-head-v2,
+  .review-row-v2 {
+    min-width: 850px;
+  }
+  .preview-summary {
+    grid-template-columns: 1fr;
+  }
+}

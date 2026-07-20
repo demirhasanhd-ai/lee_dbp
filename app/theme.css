@@ -1,0 +1,49 @@
+:root[data-theme="dark"] {
+  --background: color-mix(in srgb, #000 30%, #fff8f7);
+  --foreground: #ffffff;
+  --card: color-mix(in srgb, #000 24%, #fff8f7);
+  --secondary: color-mix(in srgb, #000 30%, #fff4f2);
+  --secondary-foreground: #ffffff;
+  --muted: color-mix(in srgb, #000 22%, #f7ecea);
+  --muted-foreground: #ffffff;
+  --primary: #c8162a;
+  --primary-foreground: #ffffff;
+  --accent: #c8162a;
+  --border: color-mix(in srgb, #fff 22%, transparent);
+}
+:root[data-theme="dark"] body { background: var(--background); color: var(--foreground); }
+:root[data-theme="dark"] .navigation-bar,
+:root[data-theme="dark"] .institution-bar,
+:root[data-theme="dark"] .scroll-content,
+:root[data-theme="dark"] .top-banner { background: var(--background); }
+:root[data-theme="dark"] .banner-board,
+:root[data-theme="dark"] .dbp-card,
+:root[data-theme="dark"] .notice-list article,
+:root[data-theme="dark"] .quick-panel,
+:root[data-theme="dark"] .banner-search,
+:root[data-theme="dark"] .period-menu summary,
+:root[data-theme="dark"] .period-options,
+:root[data-theme="dark"] .course-row,
+:root[data-theme="dark"] .login-card { background: var(--card); color: var(--foreground); }
+:root[data-theme="dark"] .banner-search input { color: var(--foreground); }
+:root[data-theme="dark"] .banner-search input::placeholder { color: var(--muted-foreground); }
+:root[data-theme="dark"] .logo-box,
+:root[data-theme="dark"] .footer-logo { background: color-mix(in srgb, #fff 88%, transparent); }
+:root[data-theme="dark"] .board-heading strong,
+:root[data-theme="dark"] .board-stats b,
+:root[data-theme="dark"] h1,
+:root[data-theme="dark"] h2,
+:root[data-theme="dark"] h3 { color: var(--foreground); }
+:root[data-theme="dark"] .banner-copy h1 span,
+:root[data-theme="dark"] .board-main strong,
+:root[data-theme="dark"] .eyebrow,
+:root[data-theme="dark"] .course-code,
+:root[data-theme="dark"] .back-link { color: var(--primary); }
+:root[data-theme="dark"] .banner-copy > p,
+:root[data-theme="dark"] .board-main span,
+:root[data-theme="dark"] .board-stats span,
+:root[data-theme="dark"] .dbp-card > small,
+:root[data-theme="dark"] .notice-list p,
+:root[data-theme="dark"] .quick-panel small,
+:root[data-theme="dark"] .oku-footer p { color: #ffffff; }
+.theme-toggle { display: inline-flex; align-items: center; gap: 5px; }

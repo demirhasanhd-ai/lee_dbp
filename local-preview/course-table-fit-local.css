@@ -1,0 +1,3 @@
+.public-local-table-wrap{overflow-x:hidden;scrollbar-gutter:auto}.public-local-table-wrap table{min-width:100%}
+.public-local-main{width:min(1120px,calc(100% - 262px));margin-left:calc(230px + max(16px,(100% - 1350px)/2));margin-right:auto}.public-local-course-main{width:100%;min-width:0}@media(max-width:1050px){.public-local-main{width:calc(100% - 222px);margin-left:206px}}@media(max-width:760px){.public-local-main{width:calc(100% - 32px);margin:24px auto 0}}
+.public-local-left{top:108px}.public-local-sidebar{top:128px}

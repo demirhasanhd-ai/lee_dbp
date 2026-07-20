@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Demo Ders Bilgi Paketi</title>
+  <link rel="stylesheet" href="/preview.css">
+  <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/demo-package-local.css">
+  <link rel="stylesheet" href="/package-instructor-local.css">
+  <script src="/theme.js" defer></script>
+  <script src="/program-data-local.js" defer></script>
+  <script src="/public-sidebar-local.js" defer></script>
+</head>
+<body>
+  <header class="oku-header">
+    <div class="institution-bar">
+      <div class="header-container institution-inner">
+        <span></span>
+        <strong>OSMANİYE KORKUT ATA ÜNİVERSİTESİ</strong>
+        <div class="header-tools">
+          <button>TR / EN</button>
+          <button id="theme-toggle" class="theme-toggle">
+            <span class="theme-icon">●</span>
+            <span class="theme-label">Koyu Tema</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="navigation-bar">
+      <div class="header-container navigation-inner">
+        <a class="oku-brand" href="/">
+          <span class="logo-box"><img src="/oku-logo.png" alt="OKÜ"></span>
+          <span><b>LEE <em>Ders Bilgi Paketi</em></b><small>BOLOGNA BİLGİ SİSTEMİ</small></span>
+        </a>
+        <nav>
+          <a class="active" href="/">⌂ Ana Sayfa</a>
+          <a href="/katalog/">▤ Ders Kataloğu</a>
+          <a href="/#programlar">♟ Programlar</a>
+          <a href="/#duyurular">◇ Duyurular</a>
+          <a href="/#yardim">◉ Yardım</a>
+        </nav>
+        <a class="login-button" href="/yonetim/">⇥ Giriş Yap</a>
+      </div>
+    </div>
+  </header>
+  <main class="demo-local-shell">
+    <div class="demo-crumb"><a href="/">Ana Sayfa</a><span>/</span><a href="javascript:history.back()">Program Dersleri</a><span>/</span><b>Demo Paket</b></div>
+    <header class="demo-title"><div><small>2026–2027 DERS BİLGİ PAKETİ</small><h1>ADV 501 — Bilimsel Araştırma ve Alan Uygulamaları</h1></div></header>
+    <section class="demo-card"><h2>Ders Genel Bilgileri</h2><div class="demo-fields"><div class="wide"><span>Dersin Adı</span><b>Bilimsel Araştırma ve Alan Uygulamaları</b></div><div><span>Ders Kodu</span><b>ADV 501</b></div><div><span>Dil</span><b>Türkçe</b></div><div><span>Zorunlu / Seçmeli</span><b>Seçmeli</b></div><div><span>T</span><b>3</b></div><div><span>U</span><b>0</b></div><div><span>Kredi</span><b>3</b></div><div><span>AKTS</span><b>6</b></div></div></section>
+    <section class="demo-card two"><article><h2>Dersin Amacı</h2><p>Bilimsel araştırma sürecini planlama, uygulama, değerlendirme ve sonuçlarını akademik ölçütlere uygun raporlama yetkinliği kazandırmaktır.</p></article><article><h2>Dersin İçeriği</h2><p>Araştırma problemi, literatür taraması, yöntem, örnekleme, veri toplama, analiz, bilimsel etik ve akademik raporlama.</p></article></section>
+    <section class="demo-card"><h2>Dersin Öğrenme Çıktıları</h2><ol id="demo-outcomes"></ol></section>
+    <section class="demo-card"><h2>Haftalık Ders Planı</h2><div id="demo-weeks" class="demo-weeks"></div></section>
+    <section class="demo-card"><h2>Değerlendirme Sistemi</h2><table><thead><tr><th>Değerlendirme</th><th>Adet</th><th>Katkı</th></tr></thead><tbody><tr><td>Ara Sınav</td><td>1</td><td>%40</td></tr><tr><td>Yarıyıl Sonu Sınavı</td><td>1</td><td>%60</td></tr></tbody></table></section>
+    <section class="demo-card"><h2>AKTS İş Yükü</h2><table><thead><tr><th>Etkinlik</th><th>Adet</th><th>Süre</th><th>Toplam</th></tr></thead><tbody><tr><td>Ders Süresi</td><td>15</td><td>3</td><td>45</td></tr><tr><td>Sınıf Dışı Çalışma</td><td>15</td><td>6</td><td>90</td></tr><tr><td>Sınavlar</td><td>2</td><td>22,5</td><td>45</td></tr></tbody><tfoot><tr><th colspan="3">Toplam İş Yükü / AKTS</th><th>180 saat / 6 AKTS</th></tr></tfoot></table></section>
+    <section class="demo-card"><h2>Sürdürülebilir Kalkınma Amaçları</h2><div class="demo-sdgs"><span>4 · Nitelikli Eğitim</span><span>9 · Sanayi, Yenilikçilik ve Altyapı</span><span>17 · Amaçlar için Ortaklıklar</span></div></section>
+  </main>
+  <script>
+    const o = ["Bilimsel araştırma sürecini açıklar.","Uygun araştırma yöntemini seçer.","Alan yazınını değerlendirir.","Verileri analiz ederek yorumlar.","Sonuçları etik ilkelere uygun raporlar."];
+    document.getElementById("demo-outcomes").innerHTML = o.map((x,i)=>`<li><b>ÖÇ${i+1}</b><span>${x}</span></li>`).join("");
+    const w = ["Bilim ve araştırma","Araştırma problemi","Literatür taraması","Araştırma desenleri","Evren ve örneklem","Veri toplama","Ara sınav","Nicel analiz","Nitel analiz","Geçerlik ve güvenirlik","Bilimsel etik","Bulguların yorumlanması","Akademik yazım","Rapor hazırlama","Yarıyıl sonu değerlendirmesi"];
+    document.getElementById("demo-weeks").innerHTML = w.map((x,i)=>`<div><b>${i+1}. Hafta</b><span>${x}</span></div>`).join("");
+  </script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const tr = (value) => value;
+      const params = new URLSearchParams(location.search);
+      const code = params.get("ders");
+      if (!code) return;
+      const name = params.get("ad") || tr("Bilimsel Ara\u015ft\u0131rma ve Alan Uygulamalar\u0131");
+      const department = params.get("bolum") || tr("Aile Dan\u0131\u015fmanl\u0131\u011f\u0131 ve E\u011fitimi ABD");
+      const program = params.get("program") || department.replace(/\sABD$/i, "");
+      const level = params.get("duzey") || "Tezsiz YL";
+      const type = params.get("tur") || tr("Se\u00e7meli");
+      const theory = params.get("t") || "3";
+      const practice = params.get("u") || "0";
+      const credit = params.get("kredi") || theory;
+      const ects = params.get("akts") || "6";
+      const instructor = params.get("ogretimElemani") || "";
+      const genericTerms = [
+        "bilimsel ara\u015ft\u0131rma",
+        "seminer",
+        "bitirme projesi",
+        "tez \u00e7al\u0131\u015fmas\u0131",
+        "uzmanl\u0131k alan",
+        "dan\u0131\u015fmanl\u0131k dersi",
+        "dan\u0131\u015fmanl\u0131k \u00e7al\u0131\u015fmas\u0131"
+      ];
+      const showInstructor = instructor.trim() && !genericTerms.some((term) => name.toLocaleLowerCase("tr-TR").includes(term));
+
+      document.title = `${code} ${name} | LEE DBP`;
+      const crumb = document.querySelector(".demo-crumb b");
+      if (crumb) crumb.textContent = `${program} / ${level}`;
+      const title = document.querySelector(".demo-title h1");
+      if (title) title.textContent = `${code} \u2014 ${name}`;
+      const label = document.querySelector(".demo-title small");
+      if (label) label.textContent = tr("2026\u20132027 DERS B\u0130LG\u0130 PAKET\u0130");
+      const tag = document.querySelector(".demo-title span");
+      if (tag) tag.remove();
+      document.querySelector(".demo-instructor-card")?.remove();
+      if (showInstructor) {
+        const instructorCard = document.createElement("section");
+        instructorCard.className = "demo-instructor-card";
+        instructorCard.setAttribute("aria-label", "Dersi veren \u00f6\u011fretim eleman\u0131");
+        instructorCard.innerHTML = `<span>Dersi Veren \u00d6\u011fretim Eleman\u0131</span><strong>${instructor}</strong>`;
+        document.querySelector(".demo-title")?.insertAdjacentElement("afterend", instructorCard);
+      }
+
+      const fields = [...document.querySelectorAll(".demo-fields > div")];
+      const setField = (label, value) => {
+        const field = fields.find((item) => {
+          const text = item.querySelector("span")?.textContent?.trim() || "";
+          return text === label;
+        });
+        const target = field?.querySelector("b");
+        if (target) target.textContent = value;
+      };
+      setField(tr("Dersin Ad\u0131"), name);
+      setField(tr("Ders Kodu"), code);
+      setField("Dil", tr("T\u00fcrk\u00e7e"));
+      setField(tr("Zorunlu / Se\u00e7meli"), type);
+      setField("T", theory);
+      setField("U", practice);
+      setField("Kredi", credit);
+      setField("AKTS", ects);
+
+      const purpose = document.querySelector(".demo-card.two article:first-child p");
+      if (purpose) purpose.textContent = `${name} ${tr("kapsam\u0131nda \u00f6\u011frencinin bilimsel ara\u015ft\u0131rma, uygulama ve de\u011ferlendirme becerilerini geli\u015ftirmesi ama\u00e7lan\u0131r.")}`;
+      const content = document.querySelector(".demo-card.two article:last-child p");
+      if (content) content.textContent = `${program} ${tr("alan\u0131na ili\u015fkin kuramsal \u00e7er\u00e7eve, g\u00fcncel yakla\u015f\u0131mlar, uygulama \u00f6rnekleri, veri toplama, analiz ve akademik raporlama konular\u0131 i\u015flenir.")}`;
+
+      const outcomes = [
+        `${name} ${tr("kapsam\u0131ndaki temel kavramlar\u0131 a\u00e7\u0131klar.")}`,
+        `${program} ${tr("alan\u0131ndaki problemleri bilimsel y\u00f6ntemlerle de\u011ferlendirir.")}`,
+        tr("Uygun ara\u015ft\u0131rma ve uygulama y\u00f6ntemini se\u00e7er."),
+        tr("Elde etti\u011fi sonu\u00e7lar\u0131 etik ilkelere uygun bi\u00e7imde raporlar."),
+        tr("Alan yaz\u0131n\u0131n\u0131 ele\u015ftirel yakla\u015f\u0131mla yorumlar.")
+      ];
+      document.getElementById("demo-outcomes").innerHTML = outcomes.map((item,index)=>`<li><b>\u00d6\u00c7${index+1}</b><span>${item}</span></li>`).join("");
+    });
+  </script>
+</body>
+</html>

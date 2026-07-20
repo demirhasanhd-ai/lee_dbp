@@ -1,0 +1,14 @@
+.outcome-input-wrap{display:grid;gap:5px;min-width:0}
+.outcome-input-wrap textarea{width:100%}
+.outcome-quality{display:grid;grid-template-columns:max-content 1fr;gap:6px;align-items:start;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--card);font-size:8px;line-height:1.35}
+.outcome-quality strong{font-weight:800}
+.outcome-quality span{color:var(--muted-foreground)}
+.outcome-quality.empty{opacity:.72}
+.outcome-quality.good{border-color:color-mix(in srgb,var(--success,#328b5b) 38%,var(--border));background:color-mix(in srgb,var(--success,#328b5b) 8%,var(--card))}
+.outcome-quality.good strong{color:var(--success,#328b5b)}
+.outcome-quality.warning{border-color:color-mix(in srgb,#d98200 42%,var(--border));background:color-mix(in srgb,#d98200 8%,var(--card))}
+.outcome-quality.warning strong{color:#a96500}
+.outcome-quality.error{border-color:color-mix(in srgb,var(--primary) 42%,var(--border));background:color-mix(in srgb,var(--primary) 7%,var(--card))}
+.outcome-quality.error strong{color:var(--primary)}
+.outcomes-card li{align-items:start}
+.learning-outcomes>div{align-items:start}
