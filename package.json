@@ -11,7 +11,12 @@
     "start": "vinext start",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "dbp:generate-data": "python scripts/generate_course_data.py",
+    "dbp:validate": "python scripts/validate_course_data.py",
+    "dbp:generate-pdfs": "python scripts/generate_public_course_pdfs.py",
+    "dbp:refresh": "npm run dbp:generate-data && npm run dbp:validate && npm run dbp:generate-pdfs",
+    "dbp:import": "python scripts/import_curriculum_excel.py"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

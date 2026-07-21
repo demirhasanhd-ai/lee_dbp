@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import json
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -21,6 +22,7 @@ PUBLIC_DIR = ROOT / "public" / "pdf" / "dbp"
 OUTPUT_DIR = ROOT / "output" / "pdf" / "dbp"
 FONT_DIR = ROOT / "public" / "fonts" / "noto-sans"
 LOGO = ROOT / "public" / "oku-logo.png"
+COURSE_DATA = ROOT / "data" / "courses" / "2026-2027.json"
 OFFICIAL_COURSES = ROOT / "lib" / "data" / "officialCourses.ts"
 
 RED = colors.HexColor("#cf142b")
@@ -87,6 +89,26 @@ def repair_text(value: object) -> str:
 
 
 def load_official_courses() -> list[Course]:
+    if COURSE_DATA.exists():
+        rows = json.loads(COURSE_DATA.read_text(encoding="utf-8"))
+        return [
+            Course(
+                code=row["code"],
+                name=row["name"],
+                department=row["department"],
+                program=row["programName"],
+                level=row["level"].replace("Yüksek Lisans", "YL"),
+                term=row["term"],
+                course_type=row["type"],
+                credit=int(row["credit"]),
+                theory=int(row["theory"]),
+                practice=int(row["practice"]),
+                ects=int(row["ects"]),
+                instructor=row.get("instructor", ""),
+            )
+            for row in rows
+        ]
+
     text = OFFICIAL_COURSES.read_text(encoding="utf-8")
     blocks = re.findall(r"\{\s*academicYear:[\s\S]*?\s*\}", text)
     courses: list[Course] = []

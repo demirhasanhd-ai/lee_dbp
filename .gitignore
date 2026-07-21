@@ -29,6 +29,7 @@ yarn-error.log*
 .pnpm-debug.log*
 __pycache__/
 *.pyc
+data/import-reports/*.json
 
 # env files (can opt-in for committing if needed)
 .env*

@@ -1,0 +1,22 @@
+{
+  "Beden tezsiz YL": {
+    "department": "Beden Eğitimi ve Spor ABD",
+    "programName": "Beden Eğitimi ve Spor",
+    "level": "Tezsiz Yüksek Lisans"
+  },
+  "Beden tezli YL": {
+    "department": "Beden Eğitimi ve Spor ABD",
+    "programName": "Beden Eğitimi ve Spor",
+    "level": "Tezli Yüksek Lisans"
+  },
+  "ekoturizm tezli YL": {
+    "department": "Ekoturizm Rehberliği ABD",
+    "programName": "Ekoturizm Rehberliği",
+    "level": "Tezli Yüksek Lisans"
+  },
+  "Felsefe ve Din Bilimleri": {
+    "department": "Felsefe ve Din Bilimleri ABD",
+    "programName": "Felsefe ve Din Bilimleri",
+    "level": "Tezli Yüksek Lisans"
+  }
+}
