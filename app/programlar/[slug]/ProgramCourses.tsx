@@ -117,14 +117,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
     if (course.instructor) query.set("ogretimElemani", course.instructor);
     return `/katalog?${query.toString()}`;
   };
-  const slugify = (value: string) =>
-    value.toLocaleLowerCase("tr-TR")
-      .replace(/[çÇ]/g, "c").replace(/[ğĞ]/g, "g").replace(/[ıİ]/g, "i")
-      .replace(/[öÖ]/g, "o").replace(/[şŞ]/g, "s").replace(/[üÜ]/g, "u")
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "ders";
-  const pdfUrl = (course: PublicCourse) =>
-    `/pdf/dbp/${slugify(course.code)}-${slugify(programName)}-${slugify(course.name)}.pdf`;
+  const printUrl = (course: PublicCourse) => `${packageUrl(course)}&print=1`;
 
   if (!visibleLevels.length) {
     return (
@@ -165,7 +158,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
                           <td><span className={`course-type ${course.type === "Zorunlu" ? "required" : "elective"}`}>{course.type}</span></td>
                           <td>{course.theory}</td><td>{course.practice}</td><td><b>{course.ects}</b></td>
                           <td><a className="table-action primary" href={packageUrl(course)}><FileText size={15}/><span>Görüntüle</span></a></td>
-                          <td><a className="table-action" href={pdfUrl(course)} target="_blank" rel="noreferrer" aria-label={`${course.code} ders bilgi paketini PDF olarak aç`}><Printer size={15}/><span>Yazdır</span></a></td>
+                          <td><a className="table-action" href={printUrl(course)} target="_blank" rel="noreferrer" aria-label={`${course.code} ders bilgi paketini yazdır`}><Printer size={15}/><span>Yazdır</span></a></td>
                         </tr>
                       ))}
                     </tbody>

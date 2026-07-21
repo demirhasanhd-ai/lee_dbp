@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AutoPrint } from "./AutoPrint";
 import { DemoCoursePackage } from "./DemoCoursePackage";
 import { PackageNavigation } from "./PackageNavigation";
 
@@ -20,6 +21,7 @@ type CatalogSearchParams = {
   kredi?: string;
   akts?: string;
   ogretimElemani?: string;
+  print?: string;
 };
 
 export default async function Catalog({ searchParams }: { searchParams: Promise<CatalogSearchParams> }) {
@@ -28,6 +30,7 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
     const known = courses.find(([code]) => code === params.ders);
     return (
       <div className="package-with-sidebar">
+        <AutoPrint enabled={params.print === "1"} />
         <PackageNavigation code={params.ders} />
         <DemoCoursePackage
           code={params.ders}
