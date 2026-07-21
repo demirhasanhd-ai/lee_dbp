@@ -47,9 +47,31 @@ const genericInstructorCourseTerms = [
   "danışmanlık çalışması",
 ];
 
+const repairText = (value: string) =>
+  value
+    .replaceAll("Ä°", "İ")
+    .replaceAll("Ä±", "ı")
+    .replaceAll("ÅŸ", "ş")
+    .replaceAll("Åž", "Ş")
+    .replaceAll("ÄŸ", "ğ")
+    .replaceAll("Äž", "Ğ")
+    .replaceAll("Å", "Ş")
+    .replaceAll("Å", "ş")
+    .replaceAll("Ä", "Ğ")
+    .replaceAll("Ä", "ğ")
+    .replaceAll("Ã¼", "ü")
+    .replaceAll("Ãœ", "Ü")
+    .replaceAll("Ã", "Ü")
+    .replaceAll("Ã¶", "ö")
+    .replaceAll("Ã–", "Ö")
+    .replaceAll("Ã", "Ö")
+    .replaceAll("Ã§", "ç")
+    .replaceAll("Ã‡", "Ç")
+    .replaceAll("Ã", "Ç");
+
 const shouldShowInstructor = (name: string, instructor?: string) => {
   if (!instructor?.trim()) return false;
-  const normalized = name.toLocaleLowerCase("tr-TR");
+  const normalized = repairText(name).toLocaleLowerCase("tr-TR");
   return !genericInstructorCourseTerms.some((term) => normalized.includes(term));
 };
 
@@ -63,30 +85,34 @@ export function DemoCoursePackage({
   ects = "6",
   instructor,
 }: DemoCoursePackageProps) {
-  const showInstructor = shouldShowInstructor(name, instructor);
+  const displayCode = repairText(code);
+  const displayName = repairText(name);
+  const displayType = repairText(type);
+  const displayInstructor = instructor ? repairText(instructor) : "";
+  const showInstructor = shouldShowInstructor(displayName, displayInstructor);
   return (
     <main className="demo-package-page">
       <PublicSiteHeader />
       <div className="demo-package-shell">
         <div className="package-breadcrumb">
-          <a href="/">Ana Sayfa</a><span>/</span><a href="/katalog">Ders Kataloğu</a><span>/</span><b>{code}</b>
+          <a href="/">Ana Sayfa</a><span>/</span><a href="/katalog">Ders Kataloğu</a><span>/</span><b>{displayCode}</b>
         </div>
         <header className="package-title">
-          <div><small>2026–2027 DERS BİLGİ PAKETİ</small><h1>{code} — {name}</h1></div>
+          <div><small>2026–2027 DERS BİLGİ PAKETİ</small><h1>{displayCode} — {displayName}</h1></div>
         </header>
         {showInstructor && (
           <section className="package-instructor-card" aria-label="Dersi veren öğretim elemanı">
             <span>Dersi Veren Öğretim Elemanı</span>
-            <strong>{instructor}</strong>
+            <strong>{displayInstructor}</strong>
           </section>
         )}
         <section className="package-card">
           <h2>Ders Genel Bilgileri</h2>
           <div className="package-fields">
-            <Field label="Dersin Adı" value={name} wide />
-            <Field label="Ders Kodu" value={code} />
+            <Field label="Dersin Adı" value={displayName} wide />
+            <Field label="Ders Kodu" value={displayCode} />
             <Field label="Öğrenim Dili" value="Türkçe" />
-            <Field label="Zorunlu / Seçmeli" value={type} />
+            <Field label="Zorunlu / Seçmeli" value={displayType} />
             <Field label="Teorik" value={theory} />
             <Field label="Uygulama" value={practice} />
             <Field label="Kredi" value={credit} />
@@ -94,7 +120,7 @@ export function DemoCoursePackage({
           </div>
         </section>
         <section className="package-card two">
-          <TextBlock title="Dersin Amacı" text={`${name} kapsamında öğrencinin bilimsel araştırma, uygulama ve değerlendirme becerilerini geliştirmesi amaçlanır.`} />
+          <TextBlock title="Dersin Amacı" text={`${displayName} kapsamında öğrencinin bilimsel araştırma, uygulama ve değerlendirme becerilerini geliştirmesi amaçlanır.`} />
           <TextBlock title="Dersin İçeriği" text="Ders alanına ilişkin kuramsal çerçeve, güncel yaklaşımlar, uygulama örnekleri, veri toplama, analiz ve akademik raporlama konuları işlenir." />
         </section>
         <section className="package-card"><h2>Dersin Öğrenme Çıktıları</h2><ol className="outcome-list">{outcomes.map((item, index) => <li key={item}><b>ÖÇ{index + 1}</b><span>{item}</span></li>)}</ol></section>

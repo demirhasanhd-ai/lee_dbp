@@ -58,6 +58,34 @@ def field(block: str, key: str) -> str:
     return ""
 
 
+def repair_text(value: object) -> str:
+    text = str(value)
+    replacements = {
+        "Ä°": "İ",
+        "Ä±": "ı",
+        "ÅŸ": "ş",
+        "Åž": "Ş",
+        "ÄŸ": "ğ",
+        "Äž": "Ğ",
+        "Ã¼": "ü",
+        "Ãœ": "Ü",
+        "Ã": "Ü",
+        "Ã¶": "ö",
+        "Ã–": "Ö",
+        "Ã": "Ö",
+        "Ã§": "ç",
+        "Ã‡": "Ç",
+        "Ã": "Ç",
+        "Ä": "Ğ",
+        "Ä": "ğ",
+        "Å": "Ş",
+        "Å": "ş",
+    }
+    for bad, good in replacements.items():
+        text = text.replace(bad, good)
+    return text
+
+
 def load_official_courses() -> list[Course]:
     text = OFFICIAL_COURSES.read_text(encoding="utf-8")
     blocks = re.findall(r"\{\s*academicYear:[\s\S]*?\s*\}", text)
@@ -90,17 +118,19 @@ TR_MAP = str.maketrans("çÇğĞıİöÖşŞüÜ", "cCgGiIoOsSuU")
 
 
 def slugify(value: str) -> str:
+    value = repair_text(value)
     value = unicodedata.normalize("NFKD", value.translate(TR_MAP)).encode("ascii", "ignore").decode("ascii")
     value = re.sub(r"[^a-zA-Z0-9]+", "-", value.lower()).strip("-")
     return value or "ders"
 
 
 def tr_upper(value: str) -> str:
+    value = repair_text(value)
     return value.translate(str.maketrans({"i": "İ", "ı": "I"})).upper()
 
 
 def is_generic_instructor_course(course: Course) -> bool:
-    normalized = course.name.casefold()
+    normalized = repair_text(course.name).casefold()
     generic_terms = [
         "bilimsel araştırma",
         "seminer",
@@ -127,7 +157,7 @@ styles.add(ParagraphStyle(name="LeftTR", parent=styles["CellTR"], alignment=TA_L
 
 
 def para(text: object, style: str = "CellTR") -> Paragraph:
-    return Paragraph(html.escape(str(text)), styles[style])
+    return Paragraph(html.escape(repair_text(text)), styles[style])
 
 
 def split_header_title(course: Course) -> tuple[str, str]:

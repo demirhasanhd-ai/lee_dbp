@@ -43,6 +43,28 @@ const profileSections = [
   ["Kabul ve Kayıt Koşulları", "Programa kabul; diploma, ALES, yabancı dil, bilim sınavı veya mülakat gibi enstitü tarafından ilan edilen koşullar çerçevesinde yapılır. Kesin kayıt işlemleri ilgili mevzuata göre tamamlanır."],
 ] as const;
 
+const repairText = (value: string) =>
+  value
+    .replaceAll("Ä°", "İ")
+    .replaceAll("Ä±", "ı")
+    .replaceAll("ÅŸ", "ş")
+    .replaceAll("Åž", "Ş")
+    .replaceAll("ÄŸ", "ğ")
+    .replaceAll("Äž", "Ğ")
+    .replaceAll("Å", "Ş")
+    .replaceAll("Å", "ş")
+    .replaceAll("Ä", "Ğ")
+    .replaceAll("Ä", "ğ")
+    .replaceAll("Ã¼", "ü")
+    .replaceAll("Ãœ", "Ü")
+    .replaceAll("Ã", "Ü")
+    .replaceAll("Ã¶", "ö")
+    .replaceAll("Ã–", "Ö")
+    .replaceAll("Ã", "Ö")
+    .replaceAll("Ã§", "ç")
+    .replaceAll("Ã‡", "Ç")
+    .replaceAll("Ã", "Ç");
+
 function ProgramProfile({ department, programName, activeLevel }: { department: string; programName: string; activeLevel: string }) {
   const isDoctorate = activeLevel === "Doktora";
   return (
@@ -118,7 +140,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
     return `/katalog?${query.toString()}`;
   };
   const slugify = (value: string) =>
-    value.toLocaleLowerCase("tr-TR")
+    repairText(value).toLocaleLowerCase("tr-TR")
       .replace(/[çÇ]/g, "c").replace(/[ğĞ]/g, "g").replace(/[ıİ]/g, "i")
       .replace(/[öÖ]/g, "o").replace(/[şŞ]/g, "s").replace(/[üÜ]/g, "u")
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "")

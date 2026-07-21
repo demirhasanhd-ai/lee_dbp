@@ -18,6 +18,12 @@ const parts=(params.get("program")||"İşletme|İşletme").split("|");
 const department=parts[0];
 const program=parts[1]||parts[0];
 const normalizeText=(value)=>String(value||"").trim().toLocaleLowerCase("tr-TR");
+const repairText=(value)=>String(value||"")
+  .replaceAll("Ä°","İ").replaceAll("Ä±","ı").replaceAll("ÅŸ","ş").replaceAll("Åž","Ş")
+  .replaceAll("ÄŸ","ğ").replaceAll("Äž","Ğ").replaceAll("Å","Ş").replaceAll("Å","ş")
+  .replaceAll("Ä","Ğ").replaceAll("Ä","ğ").replaceAll("Ã¼","ü").replaceAll("Ãœ","Ü")
+  .replaceAll("Ã","Ü").replaceAll("Ã¶","ö").replaceAll("Ã–","Ö").replaceAll("Ã","Ö")
+  .replaceAll("Ã§","ç").replaceAll("Ã‡","Ç").replaceAll("Ã","Ç");
 const programRows=window.LEE_DBP_PROGRAM_ROWS||[];
 const programRow=programRows.find((row)=>
   normalizeText(row[1])===normalizeText(department)&&normalizeText(row[2])===normalizeText(program)
@@ -84,7 +90,7 @@ function courseUrl(course){
   return `/katalog/?${q.toString()}`;
 }
 function slugify(value){
-  return String(value||"").toLocaleLowerCase("tr-TR")
+  return repairText(value).toLocaleLowerCase("tr-TR")
     .replace(/[çÇ]/g,"c").replace(/[ğĞ]/g,"g").replace(/[ıİ]/g,"i")
     .replace(/[öÖ]/g,"o").replace(/[şŞ]/g,"s").replace(/[üÜ]/g,"u")
     .normalize("NFD").replace(/[\u0300-\u036f]/g,"")

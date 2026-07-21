@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Demo Ders Bilgi Paketi</title>
+  <title>Ders Bilgi Paketi</title>
   <link rel="stylesheet" href="/preview.css">
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/demo-package-local.css">
@@ -45,7 +45,7 @@
     </div>
   </header>
   <main class="demo-local-shell">
-    <div class="demo-crumb"><a href="/">Ana Sayfa</a><span>/</span><a href="javascript:history.back()">Program Dersleri</a><span>/</span><b>Demo Paket</b></div>
+    <div class="demo-crumb"><a href="/">Ana Sayfa</a><span>/</span><a href="javascript:history.back()">Program Dersleri</a><span>/</span><b>Ders Bilgi Paketi</b></div>
     <header class="demo-title"><div><small>2026–2027 DERS BİLGİ PAKETİ</small><h1>ADV 501 — Bilimsel Araştırma ve Alan Uygulamaları</h1></div></header>
     <section class="demo-card"><h2>Ders Genel Bilgileri</h2><div class="demo-fields"><div class="wide"><span>Dersin Adı</span><b>Bilimsel Araştırma ve Alan Uygulamaları</b></div><div><span>Ders Kodu</span><b>ADV 501</b></div><div><span>Dil</span><b>Türkçe</b></div><div><span>Zorunlu / Seçmeli</span><b>Seçmeli</b></div><div><span>T</span><b>3</b></div><div><span>U</span><b>0</b></div><div><span>Kredi</span><b>3</b></div><div><span>AKTS</span><b>6</b></div></div></section>
     <section class="demo-card two"><article><h2>Dersin Amacı</h2><p>Bilimsel araştırma sürecini planlama, uygulama, değerlendirme ve sonuçlarını akademik ölçütlere uygun raporlama yetkinliği kazandırmaktır.</p></article><article><h2>Dersin İçeriği</h2><p>Araştırma problemi, literatür taraması, yöntem, örnekleme, veri toplama, analiz, bilimsel etik ve akademik raporlama.</p></article></section>
@@ -64,20 +64,26 @@
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
-      const tr = (value) => value;
+      const tr = (value) => String(value || "")
+        .replaceAll("Ä°", "İ").replaceAll("Ä±", "ı").replaceAll("ÅŸ", "ş")
+        .replaceAll("Åž", "Ş").replaceAll("ÄŸ", "ğ").replaceAll("Äž", "Ğ")
+        .replaceAll("Å", "Ş").replaceAll("Å", "ş").replaceAll("Ä", "Ğ").replaceAll("Ä", "ğ")
+        .replaceAll("Ã¼", "ü").replaceAll("Ãœ", "Ü").replaceAll("Ã¶", "ö")
+        .replaceAll("Ã", "Ü").replaceAll("Ã", "Ö").replaceAll("Ã", "Ç")
+        .replaceAll("Ã–", "Ö").replaceAll("Ã§", "ç").replaceAll("Ã‡", "Ç");
       const params = new URLSearchParams(location.search);
       const code = params.get("ders");
       if (!code) return;
-      const name = params.get("ad") || tr("Bilimsel Ara\u015ft\u0131rma ve Alan Uygulamalar\u0131");
-      const department = params.get("bolum") || tr("Aile Dan\u0131\u015fmanl\u0131\u011f\u0131 ve E\u011fitimi ABD");
-      const program = params.get("program") || department.replace(/\sABD$/i, "");
+      const name = tr(params.get("ad") || "Bilimsel Ara\u015ft\u0131rma ve Alan Uygulamalar\u0131");
+      const department = tr(params.get("bolum") || "Aile Dan\u0131\u015fmanl\u0131\u011f\u0131 ve E\u011fitimi ABD");
+      const program = tr(params.get("program") || department.replace(/\sABD$/i, ""));
       const level = params.get("duzey") || "Tezsiz YL";
-      const type = params.get("tur") || tr("Se\u00e7meli");
+      const type = tr(params.get("tur") || "Se\u00e7meli");
       const theory = params.get("t") || "3";
       const practice = params.get("u") || "0";
       const credit = params.get("kredi") || theory;
       const ects = params.get("akts") || "6";
-      const instructor = params.get("ogretimElemani") || "";
+      const instructor = tr(params.get("ogretimElemani") || "");
       const genericTerms = [
         "bilimsel ara\u015ft\u0131rma",
         "seminer",
