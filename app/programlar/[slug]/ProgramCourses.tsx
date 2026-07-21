@@ -125,11 +125,11 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
   const packageUrl = (course: PublicCourse) => {
     const query = new URLSearchParams({
       ders: course.code,
-      ad: course.name,
+      ad: repairText(course.name),
       bolum: department,
       program: programName,
       duzey: course.level,
-      tur: course.type,
+      tur: repairText(course.type),
       t: String(course.theory),
       u: String(course.practice),
       kredi: String(course.credit ?? course.theory + course.practice),
@@ -181,10 +181,10 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
                     <colgroup>{columns.map((width, index) => <col style={{ width }} key={index} />)}</colgroup>
                     <thead><tr><th>Dersin Kodu</th><th>Dersin Adı</th><th>Zorunlu / Seçmeli</th><th>T</th><th>U</th><th>AKTS</th><th>Bilgi Paketi</th><th>Yazdır</th></tr></thead>
                     <tbody>
-                      {visible.filter((course) => course.term === term).map((course) => (
+                      {visible.filter((course) => repairText(course.term) === repairText(term)).map((course) => (
                         <tr key={course.code}>
-                          <td><b>{course.code}</b></td><td>{course.name}</td>
-                          <td><span className={`course-type ${course.type === "Zorunlu" ? "required" : "elective"}`}>{course.type}</span></td>
+                          <td><b>{course.code}</b></td><td>{repairText(course.name)}</td>
+                          <td><span className={`course-type ${repairText(course.type) === "Zorunlu" ? "required" : "elective"}`}>{repairText(course.type)}</span></td>
                           <td>{course.theory}</td><td>{course.practice}</td><td><b>{course.ects}</b></td>
                           <td><a className="table-action primary" href={packageUrl(course)}><FileText size={15}/><span>Görüntüle</span></a></td>
                           <td><a className="table-action" href={pdfUrl(course)} target="_blank" rel="noreferrer" aria-label={`${course.code} ders bilgi paketini PDF olarak aç`}><Printer size={15}/><span>Yazdır</span></a></td>
