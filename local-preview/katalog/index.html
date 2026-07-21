@@ -139,9 +139,6 @@
       ];
       document.getElementById("demo-outcomes").innerHTML = outcomes.map((item,index)=>`<li><b>\u00d6\u00c7${index+1}</b><span>${item}</span></li>`).join("");
 
-      if (params.get("print") === "1") {
-        window.setTimeout(() => window.print(), 450);
-      }
     });
   </script>
 </body>

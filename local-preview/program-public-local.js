@@ -93,20 +93,17 @@ function slugify(value){
 function coursePdfUrl(course){
   return `/pdf/dbp/${slugify(course.code)}-${slugify(program)}-${slugify(course.name)}.pdf`;
 }
-function coursePrintUrl(course){
-  return `${courseUrl(course)}&print=1`;
-}
 function rows(term,index){
   const official=officialCourses.filter((course)=>course.level===(levels[index]||levels[0])&&course.term===term);
   if(official.length){
-    return official.map((course)=>`<tr><td><b>${course.code}</b></td><td>${course.name}</td><td><span class="course-type ${course.type==="Zorunlu"?"required":"elective"}">${course.type}</span></td><td>${course.theory}</td><td>${course.practice}</td><td><b>${course.ects}</b></td><td><a class="local-table-action primary" href="${courseUrl(course)}">▣ <span>Görüntüle</span></a></td><td><a class="local-table-action" href="${coursePrintUrl(course)}" target="_blank" rel="noreferrer">▧ <span>Yazdır</span></a></td></tr>`).join("");
+    return official.map((course)=>`<tr><td><b>${course.code}</b></td><td>${course.name}</td><td><span class="course-type ${course.type==="Zorunlu"?"required":"elective"}">${course.type}</span></td><td>${course.theory}</td><td>${course.practice}</td><td><b>${course.ects}</b></td><td><a class="local-table-action primary" href="${courseUrl(course)}">▣ <span>Görüntüle</span></a></td><td><a class="local-table-action" href="${coursePdfUrl(course)}" target="_blank" rel="noreferrer">▧ <span>Yazdır</span></a></td></tr>`).join("");
   }
   const defs=term==="Güz"?[[501,"Bilimsel Araştırma","Zorunlu",3,0,6],[503,"Kuramları","Seçmeli",3,0,6],[590,"Seminer","Zorunlu",0,2,3]]:[[502,"Güncel Yaklaşımlar","Seçmeli",3,0,6],[504,"Uygulamaları","Seçmeli",2,2,6],[592,"Uzmanlık Alan Dersi","Zorunlu",4,0,8]];
   return defs.map(([number,name,type,theory,practice,ects])=>{
     const code=`${prefix} ${Number(number)+index*100}`;
     const courseName=["Seminer","Uzmanlık Alan Dersi"].includes(String(name))?String(name):`${program} ${name}`;
     const course={code,name:courseName,level:levels[index]||levels[0],type,theory,practice,ects};
-    return `<tr><td><b>${code}</b></td><td>${courseName}</td><td><span class="course-type ${type==="Zorunlu"?"required":"elective"}">${type}</span></td><td>${theory}</td><td>${practice}</td><td><b>${ects}</b></td><td><a class="local-table-action primary" href="${courseUrl(course)}">▣ <span>Görüntüle</span></a></td><td><a class="local-table-action" href="${coursePrintUrl(course)}" target="_blank" rel="noreferrer">▧ <span>Yazdır</span></a></td></tr>`;
+    return `<tr><td><b>${code}</b></td><td>${courseName}</td><td><span class="course-type ${type==="Zorunlu"?"required":"elective"}">${type}</span></td><td>${theory}</td><td>${practice}</td><td><b>${ects}</b></td><td><a class="local-table-action primary" href="${courseUrl(course)}">▣ <span>Görüntüle</span></a></td><td><a class="local-table-action" href="${coursePdfUrl(course)}" target="_blank" rel="noreferrer">▧ <span>Yazdır</span></a></td></tr>`;
   }).join("");
 }
 function coursesHtml(level){
