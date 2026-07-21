@@ -1,0 +1,167 @@
+:root {
+  --lee-type-micro: clamp(10px, 0.16vw + 8.4px, 11.5px);
+  --lee-type-small: clamp(11.5px, 0.22vw + 8.8px, 13px);
+  --lee-type-body: clamp(13px, 0.3vw + 9.5px, 15px);
+  --lee-type-button: clamp(12px, 0.26vw + 9px, 14px);
+  --lee-type-nav: clamp(14px, 0.32vw + 10px, 17px);
+  --lee-type-title: clamp(21px, 0.6vw + 14px, 27px);
+}
+
+.navigation-inner nav a,
+.login-button {
+  font-size: var(--lee-type-nav);
+  line-height: 1.15;
+}
+
+.header-tools button {
+  font-size: var(--lee-type-micro);
+  line-height: 1.15;
+}
+
+.package-title h1 {
+  font-size: clamp(25px, 1.1vw + 13px, 34px);
+  line-height: 1.18;
+}
+
+.package-title small {
+  font-size: var(--lee-type-small);
+}
+
+.package-card > h2,
+.package-text h2 {
+  font-size: clamp(17px, 0.45vw + 12px, 22px);
+  line-height: 1.25;
+}
+
+.package-text p {
+  font-size: clamp(15px, 0.42vw + 10px, 19px);
+  line-height: 1.65;
+}
+
+.package-field {
+  min-height: 64px;
+  padding: 12px 13px;
+}
+
+.package-field span {
+  font-size: var(--lee-type-micro);
+  line-height: 1.2;
+}
+
+.package-field strong {
+  font-size: var(--lee-type-small);
+  line-height: 1.28;
+}
+
+.outcome-list li b {
+  font-size: var(--lee-type-small);
+}
+
+.outcome-list li span {
+  font-size: var(--lee-type-body);
+  line-height: 1.5;
+}
+
+.week-grid > div,
+.package-table th,
+.package-table td,
+.sdg-list span {
+  font-size: var(--lee-type-small);
+  line-height: 1.35;
+}
+
+.public-local-left .public-local-sidebar > h2,
+.demo-package-left.program-context > h2,
+.public-left-sidebar.merged .left-program-block > h2,
+.package-left-menu.program-context > h2 {
+  font-size: clamp(20px, 0.5vw + 13px, 24px) !important;
+  line-height: 1.22 !important;
+}
+
+.public-local-left .public-local-sidebar > strong,
+.demo-package-left.program-context > strong,
+.public-left-sidebar.merged .left-program-block > strong,
+.package-left-menu.program-context > strong {
+  font-size: clamp(20px, 0.42vw + 13px, 23px) !important;
+  line-height: 1.2 !important;
+}
+
+.public-local-left .program-menu-title b,
+.demo-package-left.program-context .program-menu-title b,
+.public-left-sidebar.merged .program-menu-title b,
+.package-left-menu.program-context .program-menu-title b {
+  font-size: clamp(13.5px, 0.24vw + 10px, 15.5px) !important;
+  line-height: 1.2 !important;
+}
+
+.public-local-left .program-menu-actions button,
+.demo-package-left.program-context .program-menu-actions a,
+.public-left-sidebar.merged .program-menu-actions button,
+.public-left-sidebar.merged .program-menu-actions a,
+.package-left-menu.program-context .program-menu-actions a {
+  min-height: clamp(46px, 2.4vw, 54px) !important;
+  padding: 9px 10px !important;
+  font-size: var(--lee-type-button) !important;
+  font-weight: 800 !important;
+  line-height: 1.16 !important;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.public-local-left .program-menu-actions button.active,
+.demo-package-left.program-context .program-menu-actions a.active,
+.public-left-sidebar.merged .program-menu-actions button.active,
+.public-left-sidebar.merged .program-menu-actions a.active,
+.package-left-menu.program-context .program-menu-actions a.active {
+  color: var(--primary-foreground) !important;
+}
+
+.public-local-left .program-menu-actions button.active *,
+.demo-package-left.program-context .program-menu-actions a.active *,
+.public-left-sidebar.merged .program-menu-actions button.active *,
+.public-left-sidebar.merged .program-menu-actions a.active *,
+.package-left-menu.program-context .program-menu-actions a.active * {
+  color: var(--primary-foreground) !important;
+}
+
+.program-course-list button,
+.local-program-columns article button,
+.course-row-actions button,
+.review button,
+.publish-department article button,
+.institute-course-action button,
+.course-save-bar button {
+  font-size: var(--lee-type-button) !important;
+  line-height: 1.15 !important;
+}
+
+.program-course-list b,
+.local-program-columns strong,
+.course-level-group b,
+.course-level-list b {
+  font-size: var(--lee-type-small) !important;
+  line-height: 1.25 !important;
+}
+
+.program-course-list small,
+.local-program-columns article small,
+.course-level-group small,
+.course-level-list small {
+  font-size: var(--lee-type-micro) !important;
+}
+
+.course-code,
+.program-course-list .course-code,
+.local-program-columns article > b {
+  font-size: var(--lee-type-small) !important;
+}
+
+@media (max-width: 760px) {
+  .public-local-left .program-menu-actions button,
+  .demo-package-left.program-context .program-menu-actions a,
+  .public-left-sidebar.merged .program-menu-actions button,
+  .public-left-sidebar.merged .program-menu-actions a,
+  .package-left-menu.program-context .program-menu-actions a {
+    white-space: normal;
+  }
+}

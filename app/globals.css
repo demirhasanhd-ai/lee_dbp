@@ -40,6 +40,7 @@
 @import "./package-sidebar.css";
 @import "./package-program-context.css";
 @import "./sidebar-consistency.css";
+@import "./responsive-type-scale.css";
 
 :where(a,button,summary,select,[role="button"],[role="link"]){cursor:pointer}
 @font-face {

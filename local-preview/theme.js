@@ -3,6 +3,7 @@
   document.head.insertAdjacentHTML("beforeend", '<link rel="stylesheet" href="/header-typography-v2-local.css">');
   document.head.insertAdjacentHTML("beforeend", '<link rel="stylesheet" href="/header-icons-local.css">');
   document.head.insertAdjacentHTML("beforeend", '<link rel="stylesheet" href="/sidebar-consistency-local.css">');
+  document.head.insertAdjacentHTML("beforeend", '<link rel="stylesheet" href="/responsive-type-scale-local.css">');
   const key = "lee-dbp-theme";
   const root = document.documentElement;
   const button = document.getElementById("theme-toggle");
