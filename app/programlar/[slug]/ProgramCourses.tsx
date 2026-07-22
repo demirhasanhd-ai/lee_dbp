@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FileText, Printer } from "lucide-react";
 import { readProgramVisibility } from "../../../lib/data/publicVisibility";
 import { PublicProgramSidebar } from "../../PublicProgramSidebar";
@@ -19,7 +19,21 @@ export type PublicCourse = {
   programCode?: string;
 };
 
-type Props = { visibilityKey: string; department: string; programName: string; levels: string[]; courses: PublicCourse[] };
+type Props = {
+  visibilityKey: string;
+  department: string;
+  programName: string;
+  levels: string[];
+  courses: PublicCourse[];
+  programItems?: PublicProgramMenuItem[];
+};
+type PublicProgramMenuItem = {
+  visibilityKey: string;
+  programName: string;
+  levels: string[];
+  courses: PublicCourse[];
+};
+type ViewState = { programKey: string; level: string; tab: "profile" | "courses" };
 
 const columns = ["12%", "36%", "14%", "5%", "5%", "6%", "12%", "10%"];
 const outcomes = [
@@ -96,20 +110,34 @@ function ProgramProfile({ department, programName, activeLevel }: { department: 
   );
 }
 
-export function ProgramCourses({ visibilityKey, department, programName, levels, courses }: Props) {
-  const [activeView, setActiveView] = useState<{ level: string; tab: "profile" | "courses" }>({ level: levels[0], tab: "profile" });
-  const [visibleLevels, setVisibleLevels] = useState<string[]>(levels);
-  const levelVisibilityKey = (level: string) => `${visibilityKey}__${level.toLocaleLowerCase("tr-TR").replace(/\s+/g, "-")}`;
+export function ProgramCourses({ visibilityKey, department, programName, levels, courses, programItems }: Props) {
+  const allProgramItems = useMemo(
+    () => (programItems?.length ? programItems : [{ visibilityKey, programName, levels, courses }]),
+    [courses, levels, programItems, programName, visibilityKey],
+  );
+  const [activeView, setActiveView] = useState<ViewState>({ programKey: visibilityKey, level: levels[0], tab: "profile" });
+  const [visibleLevelsByProgram, setVisibleLevelsByProgram] = useState<Record<string, string[]>>(
+    Object.fromEntries(allProgramItems.map((item) => [item.visibilityKey, item.levels])),
+  );
+  const activeProgram = allProgramItems.find((item) => item.visibilityKey === activeView.programKey) ?? allProgramItems[0];
+  const levelVisibilityKey = (itemKey: string, level: string) => `${itemKey}__${level.toLocaleLowerCase("tr-TR").replace(/\s+/g, "-")}`;
   useEffect(() => {
     const sync = () => {
       const visibility = readProgramVisibility();
-      const nextLevels = levels.filter((level) => {
-        const key = levelVisibilityKey(level);
-        return key in visibility ? visibility[key] !== false : visibility[visibilityKey] !== false;
-      });
-      setVisibleLevels(nextLevels);
-      if (!nextLevels.some((level) => level === activeView.level) && nextLevels[0]) {
-        setActiveView((current) => ({ ...current, level: nextLevels[0] }));
+      const nextByProgram = Object.fromEntries(allProgramItems.map((item) => [
+        item.visibilityKey,
+        item.levels.filter((level) => {
+          const key = levelVisibilityKey(item.visibilityKey, level);
+          return key in visibility ? visibility[key] !== false : visibility[item.visibilityKey] !== false;
+        }),
+      ]));
+      setVisibleLevelsByProgram(nextByProgram);
+      const currentLevels = nextByProgram[activeView.programKey] ?? [];
+      if (!currentLevels.some((level) => level === activeView.level)) {
+        const fallbackProgram = allProgramItems.find((item) => (nextByProgram[item.visibilityKey] ?? [])[0]);
+        if (fallbackProgram) {
+          setActiveView((current) => ({ ...current, programKey: fallbackProgram.visibilityKey, level: nextByProgram[fallbackProgram.visibilityKey][0] }));
+        }
       }
     };
     sync();
@@ -119,15 +147,28 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       window.removeEventListener("storage", sync);
       window.removeEventListener("lee-dbp-public-visibility-change", sync);
     };
-  }, [activeView.level, levels, visibilityKey]);
+  }, [activeView.level, activeView.programKey, allProgramItems]);
   const activeLevel = activeView.level;
-  const visible = courses.filter((course) => course.level === activeLevel);
+  const activeVisibleLevels = visibleLevelsByProgram[activeProgram.visibilityKey] ?? [];
+  const visible = activeProgram.courses.filter((course) => course.level === activeLevel);
+  const sidebarItems = allProgramItems.flatMap((item) =>
+    (visibleLevelsByProgram[item.visibilityKey] ?? []).map((level) => ({
+      level,
+      label: level
+        .replace("Tezsiz Yüksek Lisans", "Tezsiz YL")
+        .replace("Tezli Yüksek Lisans", "Tezli YL")
+        .replace("Tezsiz YÃ¼ksek Lisans", "Tezsiz YL")
+        .replace("Tezli YÃ¼ksek Lisans", "Tezli YL"),
+      caption: allProgramItems.length > 1 ? repairText(item.programName) : undefined,
+      programKey: item.visibilityKey,
+    })),
+  );
   const packageUrl = (course: PublicCourse) => {
     const query = new URLSearchParams({
       ders: course.code,
       ad: repairText(course.name),
       bolum: department,
-      program: programName,
+      program: activeProgram.programName,
       duzey: course.level,
       tur: repairText(course.type),
       t: String(course.theory),
@@ -146,9 +187,9 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "ders";
   const pdfUrl = (course: PublicCourse) =>
-    `/pdf/dbp/${slugify(course.code)}-${slugify(programName)}-${slugify(course.name)}.pdf`;
+    `/pdf/dbp/${slugify(course.code)}-${slugify(activeProgram.programName)}-${slugify(course.name)}.pdf`;
 
-  if (!visibleLevels.length) {
+  if (!sidebarItems.length) {
     return (
       <div className="public-program-layout">
         <section className="public-program-main">
@@ -167,7 +208,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
     <div className="public-program-layout">
       <section className="public-program-main">
         {activeView.tab === "profile" ? (
-          <ProgramProfile department={department} programName={programName} activeLevel={activeLevel}/>
+          <ProgramProfile department={department} programName={activeProgram.programName} activeLevel={activeLevel}/>
         ) : (
           <>
             <div className="public-course-title">
@@ -200,11 +241,13 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       </section>
       <PublicProgramSidebar
         department={department}
-        levels={visibleLevels}
+        levels={activeVisibleLevels}
         activeLevel={activeLevel}
+        activeProgramKey={activeProgram.visibilityKey}
+        items={sidebarItems}
         view={activeView}
         programHref={`/programlar/${visibilityKey}`}
-        onViewChange={setActiveView}
+        onViewChange={(next) => setActiveView({ programKey: next.programKey ?? activeProgram.visibilityKey, level: next.level, tab: next.tab })}
       />
     </div>
   );
