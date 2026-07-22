@@ -1,0 +1,12 @@
+{
+  "Ekonomi_ve_Finas_Tezsiz_YL": {
+    "department": "İktisat ABD",
+    "programName": "Ekonomi ve Finans",
+    "level": "Tezsiz Yüksek Lisans"
+  },
+  "İktisat_Tezli_YL": {
+    "department": "İktisat ABD",
+    "programName": "İktisat",
+    "level": "Tezli Yüksek Lisans"
+  }
+}
