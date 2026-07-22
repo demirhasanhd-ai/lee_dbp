@@ -9,14 +9,14 @@ const extraSheets=[
   "/program-public-sidebar-fix-local.css",
   "/program-public-fixed-header-local.css",
 ];
-extraSheets.forEach((href)=>{const link=document.createElement("link");link.rel="stylesheet";link.href=`${href}?v=20260719-sidebar-4`;document.head.appendChild(link)});
+extraSheets.forEach((href)=>{const link=document.createElement("link");link.rel="stylesheet";link.href=`${href}?v=20260722-iktisat-menu`;document.head.appendChild(link)});
 document.documentElement.style.overflowX="hidden";
 document.body.style.overflowX="hidden";
 
 const params=new URLSearchParams(location.search);
 const parts=(params.get("program")||"İşletme|İşletme").split("|");
 const department=parts[0];
-const program=parts[1]||parts[0];
+let program=parts[1]||parts[0];
 const normalizeText=(value)=>String(value||"").trim().toLocaleLowerCase("tr-TR");
 const repairText=(value)=>String(value||"")
   .replaceAll("Ä°","İ").replaceAll("Ä±","ı").replaceAll("ÅŸ","ş").replaceAll("Åž","Ş")
@@ -25,7 +25,7 @@ const repairText=(value)=>String(value||"")
   .replaceAll("Ã","Ü").replaceAll("Ã¶","ö").replaceAll("Ã–","Ö").replaceAll("Ã","Ö")
   .replaceAll("Ã§","ç").replaceAll("Ã‡","Ç").replaceAll("Ã","Ç");
 const programRows=window.LEE_DBP_PROGRAM_ROWS||[];
-const programRow=programRows.find((row)=>
+let programRow=programRows.find((row)=>
   normalizeText(row[1])===normalizeText(department)&&normalizeText(row[2])===normalizeText(program)
 )||programRows.find((row)=>
   normalizeText(row[0])===normalizeText(department)&&normalizeText(row[2])===normalizeText(program)
@@ -34,14 +34,38 @@ const programRow=programRows.find((row)=>
 )||programRows.find((row)=>
   normalizeText(row[2])===normalizeText(program)
 );
-const allLevels=(window.LEE_DBP_LEVELS_FROM_FLAGS?.(programRow?.[3])||["Tezli YL"]);
-const levels=programRow?(window.LEE_DBP_PUBLIC_LEVELS?.(programRow)||allLevels):allLevels;
-const publicVisible=levels.length>0;
+let allLevels=(window.LEE_DBP_LEVELS_FROM_FLAGS?.(programRow?.[3])||["Tezli YL"]);
+let levels=programRow?(window.LEE_DBP_PUBLIC_LEVELS?.(programRow)||allLevels):allLevels;
+let publicVisible=levels.length>0;
 const prefix=program.split(/\s+/).slice(0,3).map((word)=>word[0]).join("").toLocaleUpperCase("tr-TR");
-const officialCourses=programRow?(window.LEE_DBP_OFFICIAL_COURSES_FOR_ROW?.(programRow)||[]):[];
+let officialCourses=programRow?(window.LEE_DBP_OFFICIAL_COURSES_FOR_ROW?.(programRow)||[]):[];
 const left=document.querySelector(".public-local-left");
 document.title=`${program} | LEE DBP`;
 document.getElementById("crumb").textContent=program;
+const programKeyOf=(row)=>window.LEE_DBP_PROGRAM_KEY?.(row)||`${row?.[1]}|${row?.[2]}`;
+const levelsForRow=(row)=>{
+  const raw=window.LEE_DBP_LEVELS_FROM_FLAGS?.(row?.[3])||["Tezli YL"];
+  return row?(window.LEE_DBP_PUBLIC_LEVELS?.(row)||raw):raw;
+};
+const siblingRows=programRow?programRows.filter((row)=>normalizeText(row[1])===normalizeText(programRow[1])):[programRow].filter(Boolean);
+const menuItems=(siblingRows.length?siblingRows:[programRow].filter(Boolean)).flatMap((row)=>levelsForRow(row).map((level)=>({
+  key:programKeyOf(row),
+  row,
+  level,
+  programName:row[2],
+  caption:siblingRows.length>1?row[2]:"",
+})));
+function setActiveProgram(row){
+  if(!row)return;
+  programRow=row;
+  program=row[2]||program;
+  allLevels=window.LEE_DBP_LEVELS_FROM_FLAGS?.(programRow?.[3])||["Tezli YL"];
+  levels=levelsForRow(programRow);
+  publicVisible=levels.length>0;
+  officialCourses=window.LEE_DBP_OFFICIAL_COURSES_FOR_ROW?.(programRow)||[];
+  document.title=`${program} | LEE DBP`;
+  document.getElementById("crumb").textContent=program;
+}
 
 const outcomes=[
   "Alanındaki ileri düzey bilgileri bilimsel araştırma süreçlerinde kullanır.",
@@ -67,6 +91,11 @@ function normalizeLevel(level){return level==="Doktora"?"Doktora":level==="Tezsi
 function renderSidebar(active){
   left.innerHTML=`<div class="public-local-sidebar"><h2>${department}</h2><hr><strong>Programlar</strong><nav>${levels.map((level)=>`<div class="program-menu-card ${active.level===level?"active":""}"><div class="program-menu-title"><b>${level}</b></div><div class="program-menu-actions"><button data-level="${level}" data-tab="profile" class="${active.level===level&&active.tab==="profile"?"active":""}">ⓘ Bilgiler</button><button data-level="${level}" data-tab="courses" class="${active.level===level&&active.tab==="courses"?"active":""}">▤ Dersler</button></div></div>`).join("")}</nav></div><a class="demo-package-home" href="/#programlar">← Programlara Dön</a>`;
   left.querySelectorAll("button").forEach((button)=>button.onclick=()=>show({level:button.dataset.level,tab:button.dataset.tab}));
+}
+function renderSidebarGrouped(active){
+  const items=menuItems.length?menuItems:levels.map((level)=>({key:programKeyOf(programRow),row:programRow,level,programName:program,caption:""}));
+  left.innerHTML=`<div class="public-local-sidebar"><h2>${department}</h2><hr><strong>Programlar</strong><nav>${items.map((item,index)=>`<div class="program-menu-card ${active.key===item.key&&active.level===item.level?"active":""}"><div class="program-menu-title"><b>${item.level}</b>${item.caption?`<small>${item.caption}</small>`:""}</div><div class="program-menu-actions"><button data-index="${index}" data-tab="profile" class="${active.key===item.key&&active.level===item.level&&active.tab==="profile"?"active":""}">ⓘ Bilgiler</button><button data-index="${index}" data-tab="courses" class="${active.key===item.key&&active.level===item.level&&active.tab==="courses"?"active":""}">▤ Dersler</button></div></div>`).join("")}</nav></div><a class="demo-package-home" href="/#programlar">← Programlara Dön</a>`;
+  left.querySelectorAll("button").forEach((button)=>button.onclick=()=>{const item=items[Number(button.dataset.index)]||items[0];show({key:item.key,row:item.row,level:item.level,tab:button.dataset.tab})});
 }
 function profileHtml(rawLevel){
   const level=normalizeLevel(rawLevel);
@@ -116,13 +145,15 @@ function coursesHtml(level){
   const index=levels.indexOf(level);
   return `<section class="public-local-course-main"><div class="public-local-heading"><small>2026-2027 AKADEMİK YILI</small><h2>${level} Dersleri</h2></div><div id="course-groups">${["Güz","Bahar"].map((term)=>`<section><h3>${term} Yarıyılı</h3><div class="public-local-table-wrap"><table><thead><tr><th>Dersin Kodu</th><th>Dersin Adı</th><th>Zorunlu / Seçmeli</th><th>T</th><th>U</th><th>AKTS</th><th>Bilgi Paketi</th><th>Yazdır</th></tr></thead><tbody>${rows(term,index)}</tbody></table></div></section>`).join("")}</div></section>`;
 }
-function show(view={level:levels[0],tab:"profile"}){
-  renderSidebar(view);
+function show(view={key:programKeyOf(programRow),row:programRow,level:levels[0],tab:"profile"}){
+  setActiveProgram(view.row);
+  renderSidebarGrouped(view);
   document.getElementById("program-dersleri").innerHTML=view.tab==="profile"?profileHtml(view.level):coursesHtml(view.level);
 }
 if(!publicVisible){
   left.innerHTML="";
   document.getElementById("program-dersleri").innerHTML=`<div class="public-hidden-notice"><small>PUBLIC YAYIN KONTROLÜ</small><h2>${program} şu anda kamuya açık yayında değil</h2><p>Bu program Enstitü Sekreteri / Enstitü Yöneticisi / Admin tarafından public katalogdan gizlenmiştir.</p><a href="/#programlar">Programlara dön</a></div>`;
 }else{
-  show({level:levels[0],tab:"profile"});
+  const first=menuItems[0]||{key:programKeyOf(programRow),row:programRow,level:levels[0]};
+  show({key:first.key,row:first.row,level:first.level,tab:"profile"});
 }
