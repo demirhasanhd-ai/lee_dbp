@@ -16,23 +16,25 @@ ROOT = Path(__file__).resolve().parents[1]
 COURSE_DATA = ROOT / "data" / "courses" / "2026-2027.json"
 REPORT_DIR = ROOT / "data" / "import-reports"
 
-COLUMN_PREFIXES = {
-    "code": "Ders Kodu",
-    "name": "Ders Adı",
-    "type": "Z",
-    "credit": "Krd",
-    "ects": "AKTS",
-    "theory": "Teo",
-    "practice": "Uyg",
-    "term": "D",
-    "instructor": "Öğretim Elemanı",
+COLUMN_ALIASES = {
+    "code": ["Ders Kodu"],
+    "name": ["Ders Adı", "Ders AdÄ±"],
+    "type": ["Z"],
+    "credit": ["Krd"],
+    "ects": ["AKTS"],
+    "theory": ["Teo"],
+    "practice": ["Uyg"],
+    "term": ["D"],
+    "instructor": ["Öğretim Elemanı", "Ã–ÄŸretim ElemanÄ±"],
 }
 
 LEVEL_ALIASES = {
     "tezsiz yl": "Tezsiz Yüksek Lisans",
     "tezsiz yüksek lisans": "Tezsiz Yüksek Lisans",
+    "tezsiz yÃ¼ksek lisans": "Tezsiz Yüksek Lisans",
     "tezli yl": "Tezli Yüksek Lisans",
     "tezli yüksek lisans": "Tezli Yüksek Lisans",
+    "tezli yÃ¼ksek lisans": "Tezli Yüksek Lisans",
     "doktora": "Doktora",
     "dr": "Doktora",
 }
@@ -58,13 +60,18 @@ def norm_key(value: str) -> str:
 
 def find_columns(columns: list[str]) -> dict[str, str]:
     mapping: dict[str, str] = {}
-    for key, prefix in COLUMN_PREFIXES.items():
-        matches = [col for col in columns if col == prefix or col.startswith(prefix + "_")]
+    for key, prefixes in COLUMN_ALIASES.items():
+        matches = [
+            col
+            for col in columns
+            for prefix in prefixes
+            if col == prefix or col.startswith(prefix + "_")
+        ]
         if matches:
             mapping[key] = matches[0]
-    missing = [key for key in COLUMN_PREFIXES if key not in mapping]
+    missing = [key for key in COLUMN_ALIASES if key not in mapping]
     if missing:
-        readable = ", ".join(COLUMN_PREFIXES[key] for key in missing)
+        readable = ", ".join(COLUMN_ALIASES[key][0] for key in missing)
         raise ValueError(f"Eksik kolon: {readable}")
     return mapping
 
@@ -73,14 +80,14 @@ def normalize_type(value: Any) -> str:
     text = norm_key(clean(value))
     if text in {"z", "zorunlu"}:
         return "Zorunlu"
-    if text in {"s", "seçmeli", "seçmeli", "secmeli"}:
+    if text in {"s", "seçmeli", "seÃ§meli", "seçmeli", "secmeli"}:
         return "Seçmeli"
     return "Zorunlu" if text.startswith("z") else "Seçmeli"
 
 
 def normalize_term(value: Any) -> str:
     text = norm_key(clean(value))
-    if text in {"g", "güz", "guz"}:
+    if text in {"g", "güz", "gÃ¼z", "guz"}:
         return "Güz"
     if text in {"b", "bahar"}:
         return "Bahar"

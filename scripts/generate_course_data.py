@@ -12,7 +12,9 @@ LOCAL_PREVIEW_DATA = ROOT / "local-preview" / "program-data-local.js"
 
 FULL_TO_SHORT_LEVEL = {
     "Tezsiz Yüksek Lisans": "Tezsiz YL",
+    "Tezsiz YÃ¼ksek Lisans": "Tezsiz YL",
     "Tezli Yüksek Lisans": "Tezli YL",
+    "Tezli YÃ¼ksek Lisans": "Tezli YL",
     "Doktora": "Doktora",
 }
 

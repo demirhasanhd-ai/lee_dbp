@@ -1,0 +1,12 @@
+{
+  "gastronomi_tezsiz_YL": {
+    "department": "Gastronomi ve Mutfak Sanatları ABD",
+    "programName": "Gastronomi ve Mutfak Sanatları",
+    "level": "Tezsiz Yüksek Lisans"
+  },
+  "gastronomi_tezli_YL": {
+    "department": "Gastronomi ve Mutfak Sanatları ABD",
+    "programName": "Gastronomi ve Mutfak Sanatları",
+    "level": "Tezli Yüksek Lisans"
+  }
+}
