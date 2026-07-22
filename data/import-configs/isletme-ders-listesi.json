@@ -1,0 +1,37 @@
+{
+  "İşletme_Tezsiz_YL": {
+    "department": "İşletme",
+    "programName": "İşletme",
+    "level": "Tezsiz Yüksek Lisans"
+  },
+  "İşletme_Tezli_YL": {
+    "department": "İşletme",
+    "programName": "İşletme",
+    "level": "Tezli Yüksek Lisans"
+  },
+  "İşletme_Dr": {
+    "department": "İşletme",
+    "programName": "İşletme",
+    "level": "Doktora"
+  },
+  "Muhasebe_Tezsiz_YL": {
+    "department": "Muhasebe ve Finansman",
+    "programName": "Muhasebe ve Finansman",
+    "level": "Tezsiz Yüksek Lisans"
+  },
+  "Muhasebe_Tezli_YL": {
+    "department": "Muhasebe ve Finansman",
+    "programName": "Muhasebe ve Finansman",
+    "level": "Tezli Yüksek Lisans"
+  },
+  "Yönetim_Tezsiz_YL": {
+    "department": "Yönetim Organizasyon",
+    "programName": "Yönetim Organizasyon",
+    "level": "Tezsiz Yüksek Lisans"
+  },
+  "Yönetim_Tezli_YL": {
+    "department": "Yönetim Organizasyon",
+    "programName": "Yönetim Organizasyon",
+    "level": "Tezli Yüksek Lisans"
+  }
+}
