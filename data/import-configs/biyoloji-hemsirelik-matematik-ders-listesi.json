@@ -1,0 +1,27 @@
+{
+  "Biyoloji_Tezsiz_YL": {
+    "department": "Biyoloji ABD",
+    "programName": "Biyoloji",
+    "level": "Tezsiz Y\u00fcksek Lisans"
+  },
+  "Biyoloji_Tezli_YL": {
+    "department": "Biyoloji ABD",
+    "programName": "Biyoloji",
+    "level": "Tezli Y\u00fcksek Lisans"
+  },
+  "Biyoloji_DR": {
+    "department": "Biyoloji ABD",
+    "programName": "Biyoloji",
+    "level": "Doktora"
+  },
+  "\u0130\u00e7_Hastal\u0131klar\u0131_Tezli_YL": {
+    "department": "Hem\u015firelik ABD",
+    "programName": "\u0130\u00e7 Hastal\u0131klar\u0131 Hem\u015fireli\u011fi",
+    "level": "Tezli Y\u00fcksek Lisans"
+  },
+  "Matematik_Tezli_YL": {
+    "department": "Matematik ABD",
+    "programName": "Matematik",
+    "level": "Tezli Y\u00fcksek Lisans"
+  }
+}

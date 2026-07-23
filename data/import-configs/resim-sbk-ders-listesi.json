@@ -1,0 +1,27 @@
+{
+  "Resim_tezsiz_YL": {
+    "department": "Resim ASD",
+    "programName": "Resim",
+    "level": "Tezsiz Yüksek Lisans"
+  },
+  "Resim_Tezli_YL": {
+    "department": "Resim ASD",
+    "programName": "Resim",
+    "level": "Tezli Yüksek Lisans"
+  },
+  "SBK_Tezsiz_YL": {
+    "department": "Siyaset Bilimi ve Kamu Yönetimi ABD",
+    "programName": "Siyaset Bilimi ve Kamu Yönetimi",
+    "level": "Tezsiz Yüksek Lisans"
+  },
+  "SBK_Tezli_YL": {
+    "department": "Siyaset Bilimi ve Kamu Yönetimi ABD",
+    "programName": "Siyaset Bilimi ve Kamu Yönetimi",
+    "level": "Tezli Yüksek Lisans"
+  },
+  "SBK_DR": {
+    "department": "Siyaset Bilimi ve Kamu Yönetimi ABD",
+    "programName": "Siyaset Bilimi ve Kamu Yönetimi",
+    "level": "Doktora"
+  }
+}

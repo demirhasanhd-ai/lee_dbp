@@ -1,0 +1,37 @@
+{
+  "Enerji_Tezsiz_YL": {
+    "department": "Enerji Sistemleri M\u00fchendisli\u011fi ABD",
+    "programName": "Enerji Sistemleri M\u00fchendisli\u011fi",
+    "level": "Tezsiz Y\u00fcksek Lisans"
+  },
+  "Enerji_Tezli_YL": {
+    "department": "Enerji Sistemleri M\u00fchendisli\u011fi ABD",
+    "programName": "Enerji Sistemleri M\u00fchendisli\u011fi",
+    "level": "Tezli Y\u00fcksek Lisans"
+  },
+  "Enerji_DR": {
+    "department": "Enerji Sistemleri M\u00fchendisli\u011fi ABD",
+    "programName": "Enerji Sistemleri M\u00fchendisli\u011fi",
+    "level": "Doktora"
+  },
+  "Fizik_Tezli_YL": {
+    "department": "Fizik ABD",
+    "programName": "Fizik",
+    "level": "Tezli Y\u00fcksek Lisans"
+  },
+  "Fizik_DR": {
+    "department": "Fizik ABD",
+    "programName": "Fizik",
+    "level": "Doktora"
+  },
+  "Kimya_Tezli_YL": {
+    "department": "Kimya ABD",
+    "programName": "Kimya",
+    "level": "Tezli Y\u00fcksek Lisans"
+  },
+  "Kimya_DR": {
+    "department": "Kimya ABD",
+    "programName": "Kimya",
+    "level": "Doktora"
+  }
+}

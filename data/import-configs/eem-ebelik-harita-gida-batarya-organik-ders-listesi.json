@@ -1,0 +1,42 @@
+{
+  "Elektronik_Tezli_YL": {
+    "department": "Elektrik Elektronik M\u00fchendisli\u011fi ABD",
+    "programName": "Elektrik Elektronik M\u00fchendisli\u011fi",
+    "level": "Tezli Y\u00fcksek Lisans"
+  },
+  "Ebelik_tezli_YL": {
+    "department": "Ebelik ABD",
+    "programName": "Ebelik",
+    "level": "Tezli Y\u00fcksek Lisans"
+  },
+  "Harita_Tezli_YL": {
+    "department": "Harita M\u00fchendisli\u011fi ABD",
+    "programName": "Harita M\u00fchendisli\u011fi",
+    "level": "Tezli Y\u00fcksek Lisans"
+  },
+  "G\u0131da_Teknolojisi_Tezsiz_YL": {
+    "department": "G\u0131da Teknolojisi ABD",
+    "programName": "G\u0131da Teknolojisi",
+    "level": "Tezsiz Y\u00fcksek Lisans"
+  },
+  "G\u0131da_Teknolojisi_Tezli_YL": {
+    "department": "G\u0131da Teknolojisi ABD",
+    "programName": "G\u0131da Teknolojisi",
+    "level": "Tezli Y\u00fcksek Lisans"
+  },
+  "Batarya_Tezli_YL": {
+    "department": "Batarya Sistemleri ve Hidrojen Teknolojileri ABD",
+    "programName": "Batarya Sistemleri ve Hidrojen Teknolojileri",
+    "level": "Tezli Y\u00fcksek Lisans"
+  },
+  "Organik_Tar\u0131m_Tezsiz_YL": {
+    "department": "Organik Tar\u0131m \u0130\u015fletmecili\u011fi ABD",
+    "programName": "Organik Tar\u0131m \u0130\u015fletmecili\u011fi",
+    "level": "Tezsiz Y\u00fcksek Lisans"
+  },
+  "Organik_Tar\u0131m_Tezli_YL": {
+    "department": "Organik Tar\u0131m \u0130\u015fletmecili\u011fi ABD",
+    "programName": "Organik Tar\u0131m \u0130\u015fletmecili\u011fi",
+    "level": "Tezli Y\u00fcksek Lisans"
+  }
+}

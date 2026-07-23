@@ -12,6 +12,7 @@ import {
 export function ProgramDirectory() {
   const [query, setQuery] = useState("");
   const [visibility, setVisibility] = useState<ProgramVisibilityMap>({});
+  const [openDepartment, setOpenDepartment] = useState<string | null>(null);
 
   useEffect(() => {
     const sync = () => setVisibility(readProgramVisibility());
@@ -21,6 +22,20 @@ export function ProgramDirectory() {
     return () => {
       window.removeEventListener("storage", sync);
       window.removeEventListener("lee-dbp-public-visibility-change", sync);
+    };
+  }, []);
+
+  useEffect(() => {
+    setOpenDepartment(null);
+  }, [query]);
+
+  useEffect(() => {
+    const closeDepartments = () => setOpenDepartment(null);
+    window.addEventListener("hashchange", closeDepartments);
+    window.addEventListener("popstate", closeDepartments);
+    return () => {
+      window.removeEventListener("hashchange", closeDepartments);
+      window.removeEventListener("popstate", closeDepartments);
     };
   }, []);
 
@@ -57,11 +72,14 @@ export function ProgramDirectory() {
         <label><Search size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ABD, program veya düzey ara..."/></label>
       </div>
       <div className="department-accordion">
-        {visibleDepartments.map((main, index) => {
+        {visibleDepartments.map((main) => {
           const children = publicPrograms.filter((item) => item.mainDepartment === main);
           return (
-            <details key={main} open={index < 2 && query === ""}>
-              <summary>
+            <details key={main} open={openDepartment === main}>
+              <summary onClick={(event) => {
+                event.preventDefault();
+                setOpenDepartment((current) => current === main ? null : main);
+              }}>
                 <span className="department-icon"><Building2 size={18}/></span>
                 <span><b>{main}</b><small>{children.length} public program birimi</small></span>
                 <ChevronDown size={17}/>

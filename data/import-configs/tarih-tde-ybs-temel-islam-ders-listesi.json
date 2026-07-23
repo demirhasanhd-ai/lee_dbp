@@ -1,0 +1,47 @@
+{
+  "Tarih_Tezsiz_YL": {
+    "department": "Tarih ABD",
+    "programName": "Tarih",
+    "level": "Tezsiz Yüksek Lisans"
+  },
+  "Tarih_Tezli_YL": {
+    "department": "Tarih ABD",
+    "programName": "Tarih",
+    "level": "Tezli Yüksek Lisans"
+  },
+  "Türk_Dili_Tezsiz_YL": {
+    "department": "Türk Dili ve Edebiyatı ABD",
+    "programName": "Türk Dili ve Edebiyatı",
+    "level": "Tezsiz Yüksek Lisans"
+  },
+  "Türk_Dili_Tezli_YL": {
+    "department": "Türk Dili ve Edebiyatı ABD",
+    "programName": "Türk Dili ve Edebiyatı",
+    "level": "Tezli Yüksek Lisans"
+  },
+  "Türk_Dili_DR": {
+    "department": "Türk Dili ve Edebiyatı ABD",
+    "programName": "Türk Dili ve Edebiyatı",
+    "level": "Doktora"
+  },
+  "Yönetim_Tezsiz_YL": {
+    "department": "Yönetim Bilişim Sistemleri ABD",
+    "programName": "Yönetim Bilişim Sistemleri",
+    "level": "Tezsiz Yüksek Lisans"
+  },
+  "Yönetim_Tezli_YL": {
+    "department": "Yönetim Bilişim Sistemleri ABD",
+    "programName": "Yönetim Bilişim Sistemleri",
+    "level": "Tezli Yüksek Lisans"
+  },
+  "Yönetim_DR": {
+    "department": "Yönetim Bilişim Sistemleri ABD",
+    "programName": "Yönetim Bilişim Sistemleri",
+    "level": "Doktora"
+  },
+  "Temel_islam_tezli_YL": {
+    "department": "Temel İslam Bilimleri ABD",
+    "programName": "Temel İslam Bilimleri",
+    "level": "Tezli Yüksek Lisans"
+  }
+}

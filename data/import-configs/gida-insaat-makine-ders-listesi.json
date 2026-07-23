@@ -1,0 +1,32 @@
+{
+  "G\u0131da_m\u00fch_Tezli_YL": {
+    "department": "G\u0131da M\u00fchendisli\u011fi ABD",
+    "programName": "G\u0131da M\u00fchendisli\u011fi",
+    "level": "Tezli Y\u00fcksek Lisans"
+  },
+  "G\u0131da_m\u00fch_DR": {
+    "department": "G\u0131da M\u00fchendisli\u011fi ABD",
+    "programName": "G\u0131da M\u00fchendisli\u011fi",
+    "level": "Doktora"
+  },
+  "\u0130n\u015faat_Tezli_YL": {
+    "department": "\u0130n\u015faat M\u00fchendisli\u011fi ABD",
+    "programName": "\u0130n\u015faat M\u00fchendisli\u011fi",
+    "level": "Tezli Y\u00fcksek Lisans"
+  },
+  "\u0130n\u015faat_DR": {
+    "department": "\u0130n\u015faat M\u00fchendisli\u011fi ABD",
+    "programName": "\u0130n\u015faat M\u00fchendisli\u011fi",
+    "level": "Doktora"
+  },
+  "Makine_TEzli_YL": {
+    "department": "Makine M\u00fchendisli\u011fi ABD",
+    "programName": "Makine M\u00fchendisli\u011fi",
+    "level": "Tezli Y\u00fcksek Lisans"
+  },
+  "Makine_DR": {
+    "department": "Makine M\u00fchendisli\u011fi ABD",
+    "programName": "Makine M\u00fchendisli\u011fi",
+    "level": "Doktora"
+  }
+}
