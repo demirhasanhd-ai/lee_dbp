@@ -32,7 +32,7 @@
   const boardStats = document.querySelector(".board-stats");
   const boardHeading = document.querySelector(".board-heading > span");
   if (boardNumber) boardNumber.textContent = formatter.format(stats.totalCourses);
-  if (boardLabel) boardLabel.textContent = "Excel importlarından gelen ders kaydı";
+  if (boardLabel) boardLabel.textContent = "2026–2027 müfredatı ders sayısı";
   if (boardHeading) boardHeading.textContent = "Resmi müfredat";
   if (boardStats) {
     boardStats.innerHTML = `

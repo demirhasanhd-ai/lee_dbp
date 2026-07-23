@@ -37,8 +37,9 @@ document.head.insertAdjacentHTML(
 document.head.insertAdjacentHTML("beforeend", '<link rel="stylesheet" href="/course-publish-local.css">');
 const cf = (label, area = false) =>
   `<label><span>${label}</span>${area ? "<textarea></textarea>" : "<input>"}</label>`;
+const fixedOutcomeCount = 5;
 const state = {
-  outcomes: 5,
+  outcomes: fixedOutcomeCount,
   assessments: [
     { name: "Ara Sınav", fixed: true },
     { name: "Yarıyıl Sonu Sınavı", fixed: true },
@@ -54,7 +55,7 @@ function renderDynamic() {
   outcomes.innerHTML = Array.from(
     { length: state.outcomes },
     (_, i) =>
-      `<tr><th>ÖÇ${i + 1}</th><td><textarea></textarea></td><td><button type="button" data-remove-outcome="${i}">Sil</button></td></tr>`,
+      `<tr><th>ÖÇ${i + 1}</th><td><textarea></textarea></td><td><button type="button" data-remove-outcome="${i}" ${state.outcomes <= fixedOutcomeCount ? "disabled" : ""} title="LEE DBP standardında ders öğrenme çıktısı 5 maddede tutulur.">Sil</button></td></tr>`,
   ).join("");
   const assessment = form.querySelector("#cf-assessments");
   assessment.innerHTML = state.assessments
@@ -110,7 +111,7 @@ function courseForm() {
   return `<form class="word-course-editor"><header><div><small>AKADEMİSYEN DERS BİLGİ GİRİŞİ</small><h2>BLM 501 — Bilimsel Araştırma Yöntemleri</h2></div><span class="status">Taslak</span></header>
  <section><h3>Dersin Genel Bilgileri</h3><div class="field-grid">${["Dersin adı", "Ders kodu", "Teorik saat", "Uygulama saati", "Kredi"].map((x) => cf(x)).join("")}<label><span>AKTS</span><input id="cf-ects" readonly></label></div></section>
  <section><h3>Ders Bilgileri</h3><div class="field-grid">${cf("Ders düzeyi")}${cf("Ders türü")}<label><span>Öğrenim dili</span><select><option>Türkçe</option><option>İngilizce</option></select></label>${["Ders koordinatörü", "Dersi veren öğretim elemanları", "Yardımcı öğretim elemanları", "Ön koşullar"].map((x) => cf(x)).join("")}</div><div class="stack compact">${["Dersin amacı", "Dersin içeriği", "Öğretim yöntemleri", "Kaynaklar"].map((x) => cf(x, true)).join("")}</div></section>
- <section><div class="cf-title"><h3>Ders Öğrenme Çıktıları</h3><button type="button" id="add-outcome">+ ÖÇ Ekle</button></div>${table(["ÖÇ", "Öğrenme çıktısı", ""], "<tbody-placeholder>")}<script-placeholder></section>
+ <section><div class="cf-title"><h3>Ders Öğrenme Çıktıları</h3><button type="button" id="add-outcome" ${state.outcomes >= fixedOutcomeCount ? "disabled" : ""} title="LEE DBP standardında ders öğrenme çıktısı 5 maddede tutulur.">+ ÖÇ Ekle</button></div>${table(["ÖÇ", "Öğrenme çıktısı", ""], "<tbody-placeholder>")}<script-placeholder></section>
  <section><h3>Dersin Yapısı</h3><div class="compact-structure">${["Matematik ve temel bilimler", "Mühendislik bilimleri", "Mühendislik tasarımı", "Sosyal bilimler", "Eğitim bilimleri", "Fen bilimleri", "Sağlık bilimleri", "Alan bilgisi"].map((x) => `<label><span>${x}</span><input type="number" min="0" max="100"><b>%</b></label>`).join("")}</div></section>
  <section><div class="cf-title"><h3>Değerlendirme Sistemi</h3><button type="button" id="add-assessment">+ Değerlendirme Ekle</button></div><div class="table-scroll"><table><thead><tr><th>Etkinlik</th><th>Adet</th><th>Katkı (%)</th><th></th></tr></thead><tbody id="cf-assessments"></tbody></table></div></section>
  <section><h3>Haftalık Ders Planı</h3>${table(["Hafta", "Haftalık konu"], weeks)}</section>
@@ -130,11 +131,11 @@ function bindCourse() {
     if (t.id === "save-draft") { localStorage.setItem("lee-dbp-course-status", "taslak"); document.querySelector(".status").textContent = "Taslak"; alert("Taslak kaydedildi"); }
     if (t.id === "publish-course") { localStorage.setItem("lee-dbp-course-status", "abd_onayi_bekliyor"); localStorage.setItem("lee-dbp-review-queue", JSON.stringify({code:"BLM 501",status:"ABD Onayı Bekliyor",public:false})); document.querySelector(".status").textContent = "ABD Onayı Bekliyor"; document.getElementById("course-workflow-message").textContent = "Paket ABD/ASD başkanının onayını bekliyor; onaylanmadan public görünmez."; alert("Ders bilgi paketi ABD/ASD başkanının onayına gönderildi"); }
     if (t.id === "add-outcome") {
-      state.outcomes++;
+      state.outcomes = Math.min(fixedOutcomeCount, state.outcomes + 1);
       renderDynamic();
     }
     if (t.dataset.removeOutcome !== undefined) {
-      state.outcomes = Math.max(0, state.outcomes - 1);
+      state.outcomes = Math.max(fixedOutcomeCount, state.outcomes - 1);
       renderDynamic();
     }
     if (t.id === "add-assessment") {

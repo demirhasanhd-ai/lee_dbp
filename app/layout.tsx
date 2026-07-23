@@ -4,7 +4,14 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: { default: "LEE Ders Bilgi Paketi", template: "%s | LEE DBP" },
   description: "Lisansüstü Eğitim Enstitüsü Ders Bilgi Paketi ve Bologna kataloğu.",
-  icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+  icons: {
+    icon: [
+      { url: "/lee-favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/lee-favicon-48.png", sizes: "48x48", type: "image/png" },
+    ],
+    shortcut: "/lee-favicon-32.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

@@ -12,6 +12,7 @@ type Assessment = {
 };
 type Workload = { count: number; hours: number };
 const weeks = Array.from({ length: 15 }, (_, index) => index + 1);
+const fixedOutcomeCount = 5;
 const structures = [
   "Matematik ve Temel Bilimler",
   "Mühendislik Bilimleri",
@@ -25,7 +26,7 @@ const structures = [
 
 export function CourseBolognaEditor({ onSave, onPublish }: { onSave: () => void; onPublish: () => void }) {
   const [workflowStatus, setWorkflowStatus] = useState("Taslak");
-  const [outcomes, setOutcomes] = useState(["", "", "", "", ""]);
+  const [outcomes, setOutcomes] = useState(Array.from({ length: fixedOutcomeCount }, () => ""));
   const [assessments, setAssessments] = useState<Assessment[]>([
     { id: 1, name: "Ara Sınav", count: 1, weight: 40, fixed: true },
     { id: 2, name: "Yarıyıl Sonu Sınavı", count: 1, weight: 60, fixed: true },
@@ -179,7 +180,13 @@ export function CourseBolognaEditor({ onSave, onPublish }: { onSave: () => void;
           <h3>Dersin Öğrenme Çıktıları</h3>
           <button
             type="button"
-            onClick={() => setOutcomes((current) => [...current, ""])}
+            disabled={outcomes.length >= fixedOutcomeCount}
+            title="LEE DBP standardında ders öğrenme çıktısı 5 maddede tutulur."
+            onClick={() =>
+              setOutcomes((current) =>
+                current.length >= fixedOutcomeCount ? current : [...current, ""],
+              )
+            }
           >
             <Plus size={14} /> ÖÇ Ekle
           </button>
@@ -205,9 +212,13 @@ export function CourseBolognaEditor({ onSave, onPublish }: { onSave: () => void;
               <button
                 type="button"
                 aria-label={`ÖÇ ${index + 1} sil`}
+                disabled={outcomes.length <= fixedOutcomeCount}
+                title="LEE DBP standardında ders öğrenme çıktısı 5 maddede tutulur."
                 onClick={() =>
                   setOutcomes((current) =>
-                    current.filter((_, i) => i !== index),
+                    current.length <= fixedOutcomeCount
+                      ? current
+                      : current.filter((_, i) => i !== index),
                   )
                 }
               >

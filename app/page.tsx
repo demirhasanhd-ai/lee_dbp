@@ -86,7 +86,7 @@ export default function Home() {
           </div>
           <div className="banner-board">
             <div className="board-heading"><div><small>{stats.academicYear} AKADEMİK YILI</small><strong>Ders Kataloğu</strong></div><span>Resmi müfredat</span></div>
-            <div className="board-main"><strong>{stats.totalCourses.toLocaleString("tr-TR")}</strong><span>Excel importlarından gelen ders kaydı</span></div>
+            <div className="board-main"><strong>{stats.totalCourses.toLocaleString("tr-TR")}</strong><span>2026–2027 müfredatı ders sayısı</span></div>
             <div className="board-stats"><div><b>{stats.totalPrograms}</b><span>Program paketi</span></div><div><b>{stats.assignmentRate}%</b><span>Hoca atama oranı</span></div><div><b>{stats.instructors}</b><span>Akademisyen</span></div></div>
             <a href="/katalog">Kataloğu inceleyin <span>→</span></a>
           </div>

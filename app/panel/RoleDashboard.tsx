@@ -24,6 +24,7 @@ import { ProgramProfileEditor } from "./ProgramProfileEditor";
 import { CourseBolognaEditor } from "./CourseBolognaEditor";
 import { CourseCreateDialog } from "./CourseCreateDialog";
 import { ProgramPublishControl } from "./ProgramPublishControl";
+import { QualityReports } from "./QualityReports";
 import { ReviewQueue } from "./ReviewQueue";
 import { LEE_PROGRAMS, type LeeProgram } from "../../lib/data/programs";
 import { officialCoursesForProgram } from "../../lib/data/officialCourses";
@@ -297,6 +298,8 @@ export function RoleDashboard() {
                   <Settings size={16} />
                 ) : module === "user_roles" ? (
                   <Users size={16} />
+                ) : module === "quality_reports" ? (
+                  <ShieldCheck size={16} />
                 ) : (
                   <ShieldCheck size={16} />
                 )}
@@ -546,6 +549,7 @@ export function RoleDashboard() {
           </section>
         )}
         {active === "publish_control" && <ProgramPublishControl onSave={save} />}
+        {active === "quality_reports" && <QualityReports />}
         {(active === "permission_matrix" || active === "user_roles") && (
           <section>
             <div className="panel-intro">
