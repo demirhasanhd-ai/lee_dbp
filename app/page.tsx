@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import {
+  Bell,
   BellRing,
+  BookOpen,
   ChevronDown,
   ExternalLink,
   FileCheck,
@@ -13,6 +15,7 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { ProgramDirectory } from "./ProgramDirectory";
+import { COURSE_STATS } from "../lib/data/courseStats";
 
 export const metadata: Metadata = {
   title: "LEE Ders Bilgi Paketi",
@@ -26,6 +29,8 @@ const notices = [
 ];
 
 export default function Home() {
+  const stats = COURSE_STATS;
+
   return (
     <main className="dbp-page">
       <header className="oku-header">
@@ -80,10 +85,17 @@ export default function Home() {
             </form>
           </div>
           <div className="banner-board">
-            <div className="board-heading"><div><small>2026–2027 AKADEMİK YILI</small><strong>Ders Kataloğu</strong></div><span>Güncel</span></div>
-            <div className="board-main"><strong>1.248</strong><span>Yayımlanmış ders bilgi paketi</span></div>
-            <div className="board-stats"><div><b>42</b><span>Program</span></div><div><b>96%</b><span>Tamamlanma</span></div><div><b>214</b><span>Akademisyen</span></div></div>
+            <div className="board-heading"><div><small>{stats.academicYear} AKADEMİK YILI</small><strong>Ders Kataloğu</strong></div><span>Resmi müfredat</span></div>
+            <div className="board-main"><strong>{stats.totalCourses.toLocaleString("tr-TR")}</strong><span>Excel importlarından gelen ders kaydı</span></div>
+            <div className="board-stats"><div><b>{stats.totalPrograms}</b><span>Program paketi</span></div><div><b>{stats.assignmentRate}%</b><span>Hoca atama oranı</span></div><div><b>{stats.instructors}</b><span>Akademisyen</span></div></div>
             <a href="/katalog">Kataloğu inceleyin <span>→</span></a>
+          </div>
+          <div className="hero-stats" aria-label="2026–2027 müfredat istatistikleri">
+            <article><small>Ders havuzu</small><strong>{stats.totalCourses.toLocaleString("tr-TR")}</strong><span>{stats.mainDepartments} ABD / ASD</span></article>
+            <article><small>Program düzeyi</small><strong>{stats.totalPrograms}</strong><span>{stats.levels.tezsiz} tezsiz · {stats.levels.tezli} tezli · {stats.levels.doktora} doktora</span></article>
+            <article><small>Ders türü</small><strong>{stats.electiveCourses.toLocaleString("tr-TR")}</strong><span>{stats.compulsoryCourses.toLocaleString("tr-TR")} zorunlu · {stats.electiveCourses.toLocaleString("tr-TR")} seçmeli</span></article>
+            <article><small>Yarıyıl</small><strong>{stats.fallCourses.toLocaleString("tr-TR")}</strong><span>{stats.fallCourses.toLocaleString("tr-TR")} güz · {stats.springCourses.toLocaleString("tr-TR")} bahar</span></article>
+            <article><small>Öğretim elemanı</small><strong>{stats.instructors.toLocaleString("tr-TR")}</strong><span>{stats.unassignedCourses.toLocaleString("tr-TR")} atama bekliyor</span></article>
           </div>
         </div>
         <a className="scroll-cue" href="#icerik"><span>Sayfayı keşfet</span><i>↓</i></a>
