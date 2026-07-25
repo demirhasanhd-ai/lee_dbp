@@ -3,17 +3,19 @@
 import { CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
 import { useEffect } from "react";
 import { dbpPath } from "../../lib/dbpPath";
+import { getEEnstituUrl } from "../../lib/eEnstituUrl";
 import type { DbpSsoSession } from "../../lib/eEnstituSso";
 
 export function SsoLanding({
   session,
   error,
+  eEnstituUrl,
 }: {
   session?: DbpSsoSession;
   error?: string;
+  eEnstituUrl?: string;
 }) {
-  const eEnstituUrl = (process.env.NEXT_PUBLIC_EENSTITU_URL || "http://localhost:8080").replace(/\/$/, "");
-  const retryHref = `${eEnstituUrl}/modul/ders-bilgi-paketi`;
+  const retryHref = `${(eEnstituUrl || getEEnstituUrl()).replace(/\/$/, "")}/modul/ders-bilgi-paketi`;
 
   useEffect(() => {
     if (!session) return;

@@ -30,6 +30,7 @@ import { DatabaseAdminPanel } from "./DatabaseAdminPanel";
 import { LEE_PROGRAMS, type LeeProgram } from "../../lib/data/programs";
 import { officialCoursesForProgram } from "../../lib/data/officialCourses";
 import { dbpPath } from "../../lib/dbpPath";
+import { getEEnstituUrl } from "../../lib/eEnstituUrl";
 type Session = {
   name: string;
   username: string;
@@ -173,8 +174,7 @@ export function RoleDashboard() {
   const [selectedProgram, setSelectedProgram] = useState<LeeProgram | null>(null);
   const [showCourseCreate, setShowCourseCreate] = useState(false);
   const [showProgramCreate, setShowProgramCreate] = useState(false);
-  const eEnstituUrl = (process.env.NEXT_PUBLIC_EENSTITU_URL || "http://localhost:8080").replace(/\/$/, "");
-  const eEnstituDbpUrl = `${eEnstituUrl}/modul/ders-bilgi-paketi`;
+  const eEnstituDbpUrl = `${getEEnstituUrl()}/modul/ders-bilgi-paketi`;
   useEffect(() => {
     const raw = localStorage.getItem("lee-dbp-session");
     if (!raw) {

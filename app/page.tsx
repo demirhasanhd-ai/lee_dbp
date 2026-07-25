@@ -124,7 +124,7 @@ export default function Home() {
         </section>
       </div>
 
-      <footer className="oku-footer"><div><span className="footer-logo"><img src={dbpPath("/oku-logo.png")} alt="OKÜ"/></span><div><strong>LEE Ders Bilgi Paketi</strong><p>Osmaniye Korkut Ata Üniversitesi Lisansüstü Eğitim Enstitüsü</p></div></div><div><a href={dbpPath("/katalog")}>Ders Kataloğu</a><a href="https://osmaniye.edu.tr" target="_blank" rel="noopener noreferrer">OKÜ Web Sitesi</a><span className="version-text">Versiyon: {APP_VERSION}</span></div></footer>
+      <footer className="oku-footer"><div><span className="footer-logo"><img src={dbpPath("/oku-logo.png")} alt="OKÜ"/></span><div><strong>LEE Ders Bilgi Paketi</strong><p>Osmaniye Korkut Ata Üniversitesi Lisansüstü Eğitim Enstitüsü</p></div></div><div><a href={dbpPath("/katalog")}>Ders Kataloğu</a><a href="https://e-enstitu.osmaniye.edu.tr/" target="_blank" rel="noopener noreferrer">e-Enstitü</a><a href="https://osmaniye.edu.tr" target="_blank" rel="noopener noreferrer">OKÜ Web Sitesi</a><span className="version-text">Versiyon: {APP_VERSION}</span></div></footer>
     </main>
   );
 }
