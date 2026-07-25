@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { dbpPath } from "../lib/dbpPath";
 
 export const metadata: Metadata = {
   title: { default: "LEE Ders Bilgi Paketi", template: "%s | LEE DBP" },
   description: "Lisansüstü Eğitim Enstitüsü Ders Bilgi Paketi ve Bologna kataloğu.",
   icons: {
     icon: [
-      { url: "/lee-favicon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/lee-favicon-48.png", sizes: "48x48", type: "image/png" },
+      { url: dbpPath("/lee-favicon-32.png"), sizes: "32x32", type: "image/png" },
+      { url: dbpPath("/lee-favicon-48.png"), sizes: "48x48", type: "image/png" },
     ],
-    shortcut: "/lee-favicon-32.png",
-    apple: "/apple-touch-icon.png",
+    shortcut: dbpPath("/lee-favicon-32.png"),
+    apple: dbpPath("/apple-touch-icon.png"),
   },
 };
 

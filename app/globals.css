@@ -4,6 +4,7 @@
 @import "./theme.css";
 @import "./login.css";
 @import "./login-modes.css";
+@import "./sso.css";
 @import "./management-theme.css";
 @import "./panel.css";
 @import "./program-editor.css";
@@ -36,6 +37,7 @@
 @import "./program-hero-removed.css";
 @import "./publish-control.css";
 @import "./quality-reports.css";
+@import "./database-admin.css";
 @import "./demo-course-package.css";
 @import "./package-instructor.css";
 @import "./package-sidebar.css";
@@ -817,6 +819,13 @@ input {
   font-size: 10px;
   font-weight: 600;
   color: var(--muted-foreground);
+}
+.version-text {
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--foreground);
+  white-space: nowrap;
 }
 .simple-page {
   min-height: 100vh;

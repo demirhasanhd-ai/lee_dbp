@@ -1,0 +1,39 @@
+.sso-page {
+  display: grid;
+  place-items: center;
+}
+
+.sso-card {
+  width: min(440px, calc(100vw - 32px));
+}
+
+.sso-loading,
+.sso-action {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--muted);
+  color: var(--foreground);
+  font-size: 11px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.sso-loading svg {
+  animation: sso-spin 1s linear infinite;
+}
+
+.sso-action {
+  background: var(--primary);
+  color: #fff;
+}
+
+@keyframes sso-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

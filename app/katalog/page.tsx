@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DemoCoursePackage } from "./DemoCoursePackage";
 import { PackageNavigation } from "./PackageNavigation";
+import { dbpPath } from "../../lib/dbpPath";
 
 export const metadata: Metadata = { title: "Ders Kataloğu" };
 
@@ -46,14 +47,14 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
     <main className="simple-page">
       <div className="simple-shell">
         <header className="simple-nav">
-          <a className="brand" href="/"><span className="brand-mark">DBP</span><strong>LEE Ders Bilgi Paketi</strong></a>
-          <a className="back-link" href="/">← Ana sayfa</a>
+          <a className="brand" href={dbpPath("/")}><span className="brand-mark">DBP</span><strong>LEE Ders Bilgi Paketi</strong></a>
+          <a className="back-link" href={dbpPath("/")}>← Ana sayfa</a>
         </header>
         <span className="eyebrow">PUBLIC KATALOG</span>
         <h1 className="page-title">Onaylanmış ders bilgi paketleri</h1>
         <section className="catalog-list">
           {courses.map(([code, name, meta]) => (
-            <a className="course-row" href={`/katalog?ders=${encodeURIComponent(code)}`} key={code}>
+            <a className="course-row" href={dbpPath(`/katalog?ders=${encodeURIComponent(code)}`)} key={code}>
               <span className="course-code">{code}</span>
               <div><h3>{name}</h3><p>{meta}</p></div>
               <span className="badge">2026–2027</span>

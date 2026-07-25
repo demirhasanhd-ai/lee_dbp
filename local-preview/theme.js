@@ -31,10 +31,9 @@
 (() => {
   const submit=document.getElementById("login-submit"),select=document.getElementById("demo-user"),demoTab=document.getElementById("demo-tab");
   if(!submit||!select||!demoTab)return;
-  const roles={"Akademisyen":"akademisyen","ABD / ASD Başkanı":"abd_asd_baskani","LEE Öğrenci İşleri":"lee_ogrenci_isleri","Enstitü Sekreteri":"enstitu_sekreteri","Enstitü Yöneticisi":"enstitu_yoneticisi","Admin":"admin"};
-  const roleByUsername={"demo.akademisyen":"akademisyen","demo.abd.baskani":"abd_asd_baskani","demo.ogrenci.isleri":"lee_ogrenci_isleri","demo.enstitu.sekreteri":"enstitu_sekreteri","demo.enstitu.yoneticisi":"enstitu_yoneticisi","demo.admin":"admin"};
+  const roles={"Akademisyen":"akademisyen","ABD / ASD Başkanı":"abd_asd_baskani","ABD / ASD Sekreteri":"abd_sekreteri","LEE Öğrenci İşleri":"lee_ogrenci_isleri","Enstitü Sekreteri":"enstitu_sekreteri","Enstitü Yöneticisi":"enstitu_yoneticisi","Admin":"admin"};
+  const roleByUsername={"demo.akademisyen":"akademisyen","demo.abd.baskani":"abd_asd_baskani","demo.abd.sekreteri":"abd_sekreteri","demo.ogrenci.isleri":"lee_ogrenci_isleri","demo.enstitu.sekreteri":"enstitu_sekreteri","demo.enstitu.yoneticisi":"enstitu_yoneticisi","demo.admin":"admin"};
   submit.addEventListener("click",()=>{if(!demoTab.classList.contains("active")||!select.value)return;const option=select.options[select.selectedIndex];const label=option.dataset.role||"Akademisyen";const username=option.dataset.user||"";const parts=option.textContent.split(" — ");const role=roleByUsername[username]||roles[label]||"akademisyen";localStorage.setItem("lee-dbp-session",JSON.stringify({name:parts[0]||"Kullanıcı",username,role,department:parts[1]||"LEE"}));location.href="/panel/"});
 })();
-
 
 

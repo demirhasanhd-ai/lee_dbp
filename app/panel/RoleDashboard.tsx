@@ -6,7 +6,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ClipboardCheck,
-  LogOut,
+  HardDrive,
   Plus,
   Save,
   Settings,
@@ -26,13 +26,21 @@ import { CourseCreateDialog } from "./CourseCreateDialog";
 import { ProgramPublishControl } from "./ProgramPublishControl";
 import { QualityReports } from "./QualityReports";
 import { ReviewQueue } from "./ReviewQueue";
+import { DatabaseAdminPanel } from "./DatabaseAdminPanel";
 import { LEE_PROGRAMS, type LeeProgram } from "../../lib/data/programs";
 import { officialCoursesForProgram } from "../../lib/data/officialCourses";
+import { dbpPath } from "../../lib/dbpPath";
 type Session = {
   name: string;
   username: string;
   role: DbpRole;
   department: string;
+  departmentId?: string | null;
+  email?: string;
+  tcKimlik?: string;
+  readOnly?: boolean;
+  authProvider?: "e-enstitu";
+  expiresAt?: string;
 };
 type Course = {
   code: string;
@@ -111,6 +119,7 @@ const demoCoursesForProgram = (program: LeeProgram): Course[] => {
 const roleByUsername: Record<string, DbpRole> = {
   "demo.akademisyen": "akademisyen",
   "demo.abd.baskani": "abd_asd_baskani",
+  "demo.abd.sekreteri": "abd_sekreteri",
   "demo.ogrenci.isleri": "lee_ogrenci_isleri",
   "demo.enstitu.sekreteri": "enstitu_sekreteri",
   "demo.enstitu.yoneticisi": "enstitu_yoneticisi",
@@ -136,6 +145,11 @@ const normalizeSessionRole = (value: Session): DbpRole => {
   if (byUsername) return byUsername;
   const hint = repairText(`${value.name} ${value.department}`).toLocaleLowerCase("tr-TR");
   if (
+    (hint.includes("abd") || hint.includes("asd")) &&
+    (hint.includes("sekreter") || hint.includes("secretary"))
+  )
+    return "abd_sekreteri";
+  if (
     hint.includes("abd") ||
     hint.includes("asd") ||
     hint.includes("başkan") ||
@@ -159,14 +173,21 @@ export function RoleDashboard() {
   const [selectedProgram, setSelectedProgram] = useState<LeeProgram | null>(null);
   const [showCourseCreate, setShowCourseCreate] = useState(false);
   const [showProgramCreate, setShowProgramCreate] = useState(false);
+  const eEnstituUrl = (process.env.NEXT_PUBLIC_EENSTITU_URL || "http://localhost:8080").replace(/\/$/, "");
+  const eEnstituDbpUrl = `${eEnstituUrl}/modul/ders-bilgi-paketi`;
   useEffect(() => {
     const raw = localStorage.getItem("lee-dbp-session");
     if (!raw) {
-      location.href = "/yonetim";
+      location.replace(eEnstituDbpUrl);
       return;
     }
     try {
       const value = JSON.parse(raw) as Session;
+      if (value.expiresAt && Date.parse(value.expiresAt) <= Date.now()) {
+        localStorage.removeItem("lee-dbp-session");
+        location.replace(eEnstituDbpUrl);
+        return;
+      }
       const repairedValue = {
         ...value,
         name: repairText(value.name || value.username || "Kullanıcı"),
@@ -176,9 +197,9 @@ export function RoleDashboard() {
       setSession(normalizedValue);
       setActive(DEFAULT_ROLE_ACCESS[normalizedValue.role][0]);
     } catch {
-      location.href = "/yonetim";
+      location.replace(eEnstituDbpUrl);
     }
-  }, []);
+  }, [eEnstituDbpUrl]);
   if (!session)
     return <main className="panel-loading">Panel hazırlanıyor…</main>;
   const modules = DEFAULT_ROLE_ACCESS[session.role];
@@ -276,8 +297,8 @@ export function RoleDashboard() {
   return (
     <main className="role-dashboard">
       <aside className="panel-sidebar">
-        <a className="panel-brand" href="/">
-          <img src="/oku-logo.png" alt="OKÜ" />
+        <a className="panel-brand" href={dbpPath("/")}>
+          <img src={dbpPath("/oku-logo.png")} alt="OKÜ" />
           <span>
             <b>LEE DBP</b>
             <small>YÖNETİM PANELİ</small>
@@ -300,6 +321,8 @@ export function RoleDashboard() {
                   <Users size={16} />
                 ) : module === "quality_reports" ? (
                   <ShieldCheck size={16} />
+                ) : module === "database_admin" ? (
+                  <HardDrive size={16} />
                 ) : (
                   <ShieldCheck size={16} />
                 )}
@@ -317,16 +340,10 @@ export function RoleDashboard() {
             </Fragment>
           ))}
         </nav>
-        <button
-          className="logout"
-          onClick={() => {
-            localStorage.removeItem("lee-dbp-session");
-            location.href = "/yonetim";
-          }}
-        >
-          <LogOut size={15} />
-          Çıkış Yap
-        </button>
+        <a className="logout return-to-eenstitu" href={eEnstituDbpUrl}>
+          <ArrowLeft size={15} />
+          e-Enstitüye Dön
+        </a>
       </aside>
       <section className="panel-main">
         <header className="panel-header">
@@ -494,7 +511,16 @@ export function RoleDashboard() {
               <ArrowLeft size={15} />
               {isCentralRole ? "Ders Listesine Dön" : "Derslerime Dön"}
             </button>
-            <CourseBolognaEditor onSave={save} onPublish={() => { localStorage.setItem("lee-dbp-review-queue", JSON.stringify({ code: selectedCourse.code, status: "ABD Onayı Bekliyor", public: false })); save(); }} />
+            <CourseBolognaEditor
+              course={{
+                ...selectedCourse,
+                department: selectedProgram?.department ?? session.department,
+                programName: selectedProgram?.programName ?? session.department,
+              }}
+              session={session}
+              onSave={save}
+              onPublish={() => { localStorage.setItem("lee-dbp-review-queue", JSON.stringify({ code: selectedCourse.code, status: "ABD Onayı Bekliyor", public: false })); save(); }}
+            />
           </section>
         )}
         {active === "program_profile" && isCentralRole && !selectedProgram && (
@@ -550,6 +576,7 @@ export function RoleDashboard() {
         )}
         {active === "publish_control" && <ProgramPublishControl onSave={save} />}
         {active === "quality_reports" && <QualityReports />}
+        {active === "database_admin" && <DatabaseAdminPanel />}
         {(active === "permission_matrix" || active === "user_roles") && (
           <section>
             <div className="panel-intro">

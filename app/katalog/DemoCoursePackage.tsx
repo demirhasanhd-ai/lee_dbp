@@ -1,4 +1,5 @@
 import { PublicSiteHeader } from "../PublicSiteHeader";
+import { dbpPath } from "../../lib/dbpPath";
 
 type DemoCoursePackageProps = {
   code: string;
@@ -95,7 +96,7 @@ export function DemoCoursePackage({
       <PublicSiteHeader />
       <div className="demo-package-shell">
         <div className="package-breadcrumb">
-          <a href="/">Ana Sayfa</a><span>/</span><a href="/katalog">Ders Kataloğu</a><span>/</span><b>{displayCode}</b>
+          <a href={dbpPath("/")}>Ana Sayfa</a><span>/</span><a href={dbpPath("/katalog")}>Ders Kataloğu</a><span>/</span><b>{displayCode}</b>
         </div>
         <header className="package-title">
           <div><small>2026–2027 DERS BİLGİ PAKETİ</small><h1>{displayCode} — {displayName}</h1></div>

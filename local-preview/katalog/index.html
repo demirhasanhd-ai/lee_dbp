@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
@@ -43,7 +43,7 @@
           <a href="/#duyurular">◇ Duyurular</a>
           <a href="/#yardim">◉ Yardım</a>
         </nav>
-        <a class="login-button" href="/yonetim/">⇥ Giriş Yap</a>
+        
       </div>
     </div>
   </header>
@@ -67,13 +67,7 @@
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
-      const tr = (value) => String(value || "")
-        .replaceAll("Ä°", "İ").replaceAll("Ä±", "ı").replaceAll("ÅŸ", "ş")
-        .replaceAll("Åž", "Ş").replaceAll("ÄŸ", "ğ").replaceAll("Äž", "Ğ")
-        .replaceAll("Å", "Ş").replaceAll("Å", "ş").replaceAll("Ä", "Ğ").replaceAll("Ä", "ğ")
-        .replaceAll("Ã¼", "ü").replaceAll("Ãœ", "Ü").replaceAll("Ã¶", "ö")
-        .replaceAll("Ã", "Ü").replaceAll("Ã", "Ö").replaceAll("Ã", "Ç")
-        .replaceAll("Ã–", "Ö").replaceAll("Ã§", "ç").replaceAll("Ã‡", "Ç");
+      const tr = (value) => String(value || "");
       const params = new URLSearchParams(location.search);
       const code = params.get("ders");
       if (!code) return;
@@ -152,3 +146,4 @@
   </script>
 </body>
 </html>
+

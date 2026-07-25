@@ -18,12 +18,7 @@ const parts=(params.get("program")||"İşletme|İşletme").split("|");
 const department=parts[0];
 let program=parts[1]||parts[0];
 const normalizeText=(value)=>String(value||"").trim().toLocaleLowerCase("tr-TR");
-const repairText=(value)=>String(value||"")
-  .replaceAll("Ä°","İ").replaceAll("Ä±","ı").replaceAll("ÅŸ","ş").replaceAll("Åž","Ş")
-  .replaceAll("ÄŸ","ğ").replaceAll("Äž","Ğ").replaceAll("Å","Ş").replaceAll("Å","ş")
-  .replaceAll("Ä","Ğ").replaceAll("Ä","ğ").replaceAll("Ã¼","ü").replaceAll("Ãœ","Ü")
-  .replaceAll("Ã","Ü").replaceAll("Ã¶","ö").replaceAll("Ã–","Ö").replaceAll("Ã","Ö")
-  .replaceAll("Ã§","ç").replaceAll("Ã‡","Ç").replaceAll("Ã","Ç");
+const repairText=(value)=>String(value||"");
 const programRows=window.LEE_DBP_PROGRAM_ROWS||[];
 let programRow=programRows.find((row)=>
   normalizeText(row[1])===normalizeText(department)&&normalizeText(row[2])===normalizeText(program)

@@ -37,7 +37,7 @@
         </span>
       </a>
       <nav id="panel-nav"></nav>
-      <button id="logout" class="logout" type="button">↪ Çıkış Yap</button>
+      <a id="return-eenstitu" class="logout return-to-eenstitu" href="http://localhost:8080/modul/ders-bilgi-paketi">← e-Enstitüye Dön</a>
     </aside>
     <section class="panel-main">
       <header class="panel-header">
@@ -66,6 +66,7 @@
       const roleLabels = {
         akademisyen: "Akademisyen",
         abd_asd_baskani: "ABD / ASD Başkanı",
+        abd_sekreteri: "ABD / ASD Sekreteri",
         lee_ogrenci_isleri: "LEE Öğrenci İşleri",
         enstitu_sekreteri: "Enstitü Sekreteri",
         enstitu_yoneticisi: "Enstitü Yöneticisi",
@@ -74,24 +75,21 @@
       const roleByUsername = {
         "demo.akademisyen": "akademisyen",
         "demo.abd.baskani": "abd_asd_baskani",
+        "demo.abd.sekreteri": "abd_sekreteri",
         "demo.ogrenci.isleri": "lee_ogrenci_isleri",
         "demo.enstitu.sekreteri": "enstitu_sekreteri",
         "demo.enstitu.yoneticisi": "enstitu_yoneticisi",
         "demo.admin": "admin"
       };
-      const repairText = (value) => String(value || "")
-        .replaceAll("Ä°", "İ").replaceAll("Ä±", "ı").replaceAll("ÅŸ", "ş")
-        .replaceAll("Åž", "Ş").replaceAll("ÄŸ", "ğ").replaceAll("Äž", "Ğ")
-        .replaceAll("Ã¼", "ü").replaceAll("Ãœ", "Ü").replaceAll("Ã¶", "ö")
-        .replaceAll("Ã–", "Ö").replaceAll("Ã§", "ç").replaceAll("Ã‡", "Ç")
-        .replaceAll("Ã‡", "Ç").replaceAll("Ãœ", "Ü").replaceAll("Ã–", "Ö");
+      const repairText = (value) => String(value || "");
       const access = {
         akademisyen: [["courses", "Ders Bilgi Paketlerim"]],
         abd_asd_baskani: [["program", "Program Bilgileri"], ["review", "Kontrol ve Düzeltme"]],
+        abd_sekreteri: [["review", "Kontrol ve Düzeltme"]],
         lee_ogrenci_isleri: [["courses", "Ders Bilgi Paketleri"], ["program", "Program Bilgileri"]],
         enstitu_sekreteri: [["courses", "Ders Bilgi Paketleri"], ["program", "Program Bilgileri"], ["publish", "Yayın Kontrolü"]],
         enstitu_yoneticisi: [["courses", "Ders Bilgi Paketleri"], ["program", "Program Bilgileri"], ["publish", "Yayın Kontrolü"], ["quality", "Kalite Kontrol Raporları"]],
-        admin: [["courses", "Ders Bilgi Paketleri"], ["program", "Program Bilgileri"], ["publish", "Yayın Kontrolü"], ["quality", "Kalite Kontrol Raporları"], ["permissions", "Yetki Dağılımı"]]
+        admin: [["courses", "Ders Bilgi Paketleri"], ["database", "Veri Tabanı Yönetimi"], ["program", "Program Bilgileri"], ["publish", "Yayın Kontrolü"], ["quality", "Kalite Kontrol Raporları"], ["permissions", "Yetki Dağılımı"]]
       };
 
       const safeSession = () => {
@@ -100,7 +98,8 @@
           const hint = repairText(`${session.role || ""} ${session.username || ""} ${session.name || ""} ${session.department || ""}`);
           const role = access[session.role] ? session.role :
             roleByUsername[session.username] ||
-            (/abd|asd|ba.*kan|baskan/i.test(hint) ? "abd_asd_baskani" :
+            ((/abd|asd/i.test(hint) && /sekreter/i.test(hint)) ? "abd_sekreteri" :
+            /abd|asd|ba.*kan|baskan/i.test(hint) ? "abd_asd_baskani" :
             /öğrenci|ogrenci|renci/i.test(hint) ? "lee_ogrenci_isleri" :
             /sekreter/i.test(hint) ? "enstitu_sekreteri" :
             /yönetici|yonetici|netici/i.test(hint) ? "enstitu_yoneticisi" :
@@ -211,7 +210,7 @@
         const courses = officialCourses.length ? officialCourses : demoCourseSet(row);
         return `<div class="intro"><h2>${row[2]} Dersleri</h2><p>${row[1]} altındaki ders bilgi paketleri program düzeyine göre ayrılmıştır.</p></div><div class="local-program-columns">${levelNames(row).map((level,index)=>`<section class="local-tone-${index+1}"><header><h3>${level}</h3></header><div>${courses.filter((course)=>course.level===level).map((course)=>`<article><b>${course.code}</b><span><strong>${course.name}</strong><small>${course.status}</small></span><p class="course-row-actions"><button type="button">Güncelle</button><button type="button" onclick="window.LEE_DBP_OPEN_CORRECTION('Ders bilgi paketi','${course.code} ${course.name}','${roleLabels[session.role]} → ABD/ASD Başkanı → Akademisyen')">Düzeltme İste</button></p></article>`).join("")}</div></section>`).join("")}</div>`;
       };
-      const reviewForRow = (row, session) => { const officialCourses = window.LEE_DBP_OFFICIAL_COURSES_FOR_ROW?.(row) || []; const courses = officialCourses.length ? officialCourses : demoCourseSet(row); return `<div class="intro"><h2>${row[2]} İnceleme Kuyruğu</h2><p>${row[1]} altındaki paketler.</p></div><div class="review">${courses.map((course)=>`<div><b>${course.code} — ${course.name}</b><span>${course.status}</span><p><button type="button">Ön İzleme</button><button type="button">Düzeltme İste</button>${session.role==="abd_asd_baskani"?'<button type="button">Onayla</button>':""}</p></div>`).join("")}</div>`; };
+      const reviewForRow = (row, session) => { const officialCourses = window.LEE_DBP_OFFICIAL_COURSES_FOR_ROW?.(row) || []; const courses = officialCourses.length ? officialCourses : demoCourseSet(row); const canRequestCorrection = session.role !== "abd_sekreteri"; return `<div class="intro"><h2>${row[2]} İnceleme Kuyruğu</h2><p>${row[1]} altındaki paketler.</p></div><div class="review">${courses.map((course)=>`<div><b>${course.code} — ${course.name}</b><span>${course.status}</span><p><button type="button">Ön İzleme</button>${canRequestCorrection?'<button type="button">Düzeltme İste</button>':""}${session.role==="abd_asd_baskani"?'<button type="button">Onayla</button>':""}</p></div>`).join("")}</div>`; };
       const openCreateCourseModal = () => {
         document.querySelector(".local-course-modal")?.remove();
         const modal = document.createElement("div");
@@ -303,6 +302,7 @@
         review: reviewDirectory(session),
         publish: publishDirectory(session),
         quality: qualityReport(session),
+        database: `<section class="database-admin"><div class="intro"><h2>Veri Tabanı Yönetimi</h2><p>Bu modül Admin rolünde görünür. Canlı DBP server modunda yedek alma, geri yükleme, içe/dışa aktarma ve reset işlemlerini yönetir.</p></div><div class="database-grid"><section class="database-panel"><header><h3>Yerel önizleme modu</h3><small>Statik local preview veritabanı API'si çalıştırmaz.</small></header><div class="database-actions"><a href="/api/dbp/admin/summary" target="_blank" rel="noopener noreferrer">Server özetini kontrol et</a></div></section></div></section>`,
         permissions: `<div class="intro"><h2>Rol ve yetki dağılımı</h2><p>Modül erişimlerini rol bazında yönetin.</p></div><div class="matrix">${Object.values(roleLabels).map((x)=>`<div><b>${x}</b><label><input type="checkbox" checked> Görüntüle</label><label><input type="checkbox"> Düzenle</label><label><input type="checkbox"> Onayla</label><label><input type="checkbox"> Yetki ver</label></div>`).join("")}</div>`
       }[id] || reviewDirectory(session));
 
@@ -312,10 +312,10 @@
       document.getElementById("role-name").textContent = roleLabels[session.role] || "Akademisyen";
       document.getElementById("department").textContent = session.department;
       document.getElementById("avatar").textContent = String(session.name).slice(0, 2).toLocaleUpperCase("tr-TR");
-      document.getElementById("logout").onclick = () => {
-        localStorage.removeItem("lee-dbp-session");
-        location.href = "/yonetim/";
-      };
+      const returnLink = document.getElementById("return-eenstitu");
+      if (returnLink) {
+        returnLink.href = localStorage.getItem("lee-dbp-eenstitu-url") || "http://localhost:8080/modul/ders-bilgi-paketi";
+      }
 
       nav.innerHTML = "";
       const bindContentActions = (label, button) => {

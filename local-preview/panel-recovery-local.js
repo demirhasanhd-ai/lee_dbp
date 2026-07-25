@@ -1,7 +1,8 @@
-(() => {
+﻿(() => {
   const roleLabels = {
     akademisyen: "Akademisyen",
     abd_asd_baskani: "ABD / ASD Başkanı",
+    abd_sekreteri: "ABD / ASD Sekreteri",
     lee_ogrenci_isleri: "LEE Öğrenci İşleri",
     enstitu_sekreteri: "Enstitü Sekreteri",
     enstitu_yoneticisi: "Enstitü Yöneticisi",
@@ -10,14 +11,16 @@
   const access = {
     akademisyen: [["courses", "Ders Bilgi Paketlerim"]],
     abd_asd_baskani: [["program", "Program Bilgileri"], ["review", "Kontrol ve Düzeltme"]],
+    abd_sekreteri: [["review", "Kontrol ve Düzeltme"]],
     lee_ogrenci_isleri: [["review", "Kontrol ve Düzeltme"]],
     enstitu_sekreteri: [["review", "Kontrol ve Düzeltme"], ["publish", "Yayın Kontrolü"]],
     enstitu_yoneticisi: [["review", "Kontrol ve Düzeltme"], ["publish", "Yayın Kontrolü"]],
-    admin: [["courses", "Ders Bilgi Paketleri"], ["program", "Program Bilgileri"], ["review", "Kontrol ve Düzeltme"], ["publish", "Yayın Kontrolü"], ["permissions", "Yetki Dağılımı"]],
+    admin: [["courses", "Ders Bilgi Paketleri"], ["database", "Veri Tabanı Yönetimi"], ["program", "Program Bilgileri"], ["review", "Kontrol ve Düzeltme"], ["publish", "Yayın Kontrolü"], ["permissions", "Yetki Dağılımı"]],
   };
   const roleByUsername = {
     "demo.akademisyen": "akademisyen",
     "demo.abd.baskani": "abd_asd_baskani",
+    "demo.abd.sekreteri": "abd_sekreteri",
     "demo.ogrenci.isleri": "lee_ogrenci_isleri",
     "demo.enstitu.sekreteri": "enstitu_sekreteri",
     "demo.enstitu.yoneticisi": "enstitu_yoneticisi",
@@ -30,7 +33,7 @@
       const role =
         access[session.role] ? session.role :
         roleByUsername[session.username] ||
-        (hint.includes("abd") || hint.includes("asd") || hint.includes("başkan") || hint.includes("baskan") ? "abd_asd_baskani" :
+        ((hint.includes("abd") || hint.includes("asd")) && hint.includes("sekreter") ? "abd_sekreteri" : hint.includes("abd") || hint.includes("asd") || hint.includes("başkan") || hint.includes("baskan") ? "abd_asd_baskani" :
         hint.includes("öğrenci") || hint.includes("ogrenci") ? "lee_ogrenci_isleri" :
         hint.includes("sekreter") ? "enstitu_sekreteri" :
         hint.includes("admin") || hint.includes("sistem") ? "admin" :
@@ -50,6 +53,7 @@
   const program = () => `<div class="intro"><h2>Program genel bilgileri</h2><p>ABD/ASD programının public Bologna profilini düzenleyin.</p></div><form class="profile-editor"><section class="profile-card outcomes"><header><div><label>Program Çıktıları / Öğrenme Kazanımları</label><small>Çıktılar kural tabanlı olarak denetlenir.</small></div><button id="add-outcome" type="button">+ Çıktı Ekle</button></header><ol id="outcome-list">${Array.from({length:12},(_,i)=>`<li><span>${i+1}</span><textarea>${i===0?"Alanındaki ileri düzey bilgileri değerlendirir.":""}</textarea><button type="button">Sil</button></li>`).join("")}</ol></section><div class="save-bar"><span>Değişiklikler taslak olarak kaydedilir.</span><button type="button">Program Bilgilerini Kaydet</button></div></form>`;
   const review = (canApprove) => `<div class="intro"><h2>İnceleme kuyruğu</h2><p>Ön izleyin, düzeltme isteyin${canApprove ? " veya onaylayın" : ""}.</p></div><div class="review">${["BLM 501 — Bilimsel Araştırma","BLM 512 — İleri Algoritma","İŞL 603 — Stratejik Yönetim"].map((x)=>`<div><b>${x}</b><span>İncelemede</span><p><button type="button">Ön İzleme</button><button type="button">Düzeltme İste</button>${canApprove?'<button type="button" class="approve">Onayla</button>':""}</p></div>`).join("")}</div>`;
   const publish = () => `<div class="intro"><h2>Public program görünürlüğü</h2><p>Programların public katalogda görünüp görünmeyeceğini belirleyin.</p></div><div class="publish-summary local"><div><b>42</b><span>Publicte Görünen</span></div><div><b>0</b><span>Gizlenen</span></div></div>`;
+  const database = () => `<section class="database-admin"><div class="intro"><h2>Veri Tabanı Yönetimi</h2><p>Bu modül Admin rolünde görünür. Canlı DBP server modunda yedek alma, geri yükleme, içe/dışa aktarma ve reset işlemlerini yönetir.</p></div><div class="database-grid"><section class="database-panel"><header><h3>Yerel önizleme modu</h3><small>Statik local preview veritabanı API'si çalıştırmaz.</small></header><div class="database-actions"><a href="/api/dbp/admin/summary" target="_blank" rel="noopener noreferrer">Server özetini kontrol et</a></div></section></div></section>`;
   const permissions = () => `<div class="intro"><h2>Rol ve yetki dağılımı</h2><p>Modül erişimlerini rol bazında yönetin.</p></div><div class="matrix">${Object.values(roleLabels).map((x)=>`<div><b>${x}</b><label><input type="checkbox" checked> Görüntüle</label><label><input type="checkbox"> Düzenle</label><label><input type="checkbox"> Onayla</label></div>`).join("")}</div>`;
   const render = () => {
     const nav = document.getElementById("panel-nav");
@@ -63,15 +67,15 @@
     document.getElementById("role-name").textContent = roleLabels[session.role] || "Akademisyen";
     document.getElementById("department").textContent = session.department;
     document.getElementById("avatar").textContent = String(session.name).slice(0, 2).toUpperCase();
-    document.getElementById("logout").onclick = () => {
-      localStorage.removeItem("lee-dbp-session");
-      location.href = "/yonetim/";
-    };
+    const returnLink = document.getElementById("return-eenstitu");
+    if (returnLink) {
+      returnLink.href = localStorage.getItem("lee-dbp-eenstitu-url") || "http://localhost:8080/modul/ders-bilgi-paketi";
+    }
     const open = (id, label, button) => {
       title.textContent = label;
       nav.querySelectorAll("button").forEach((item) => item.classList.remove("active"));
       button.classList.add("active");
-      content.innerHTML = id === "courses" ? courses() : id === "program" ? program() : id === "publish" ? publish() : id === "permissions" ? permissions() : review(session.role === "abd_asd_baskani");
+      content.innerHTML = id === "courses" ? courses() : id === "program" ? program() : id === "publish" ? publish() : id === "database" ? database() : id === "permissions" ? permissions() : review(session.role === "abd_asd_baskani", session.role !== "abd_sekreteri");
       content.querySelectorAll("[data-recovery-course]").forEach((item) => item.onclick = () => {
         title.textContent = "BLM 501 Ders Bilgi Girişi";
         content.innerHTML = courseEditor();
@@ -91,3 +95,4 @@
   setTimeout(render, 300);
   setTimeout(render, 1200);
 })();
+

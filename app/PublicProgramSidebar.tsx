@@ -2,6 +2,7 @@
 
 import { BookOpenCheck, Info, ListChecks } from "lucide-react";
 import type { ReactNode } from "react";
+import { dbpPath } from "../lib/dbpPath";
 
 type SidebarView = { level: string; tab: "profile" | "courses" };
 type SidebarItem = {
@@ -60,7 +61,7 @@ export function PublicProgramSidebar({
       );
     }
     return (
-      <a className={active ? "active" : ""} href={programHref}>
+      <a className={active ? "active" : ""} href={dbpPath(programHref)}>
         {icon}
         {label}
       </a>
@@ -91,7 +92,7 @@ export function PublicProgramSidebar({
           ))}
         </nav>
       </div>
-      <a className="left-home-link" href="/#programlar">
+      <a className="left-home-link" href={dbpPath("/#programlar")}>
         <BookOpenCheck size={15} />
         {"Programlara d\u00f6n"}
       </a>

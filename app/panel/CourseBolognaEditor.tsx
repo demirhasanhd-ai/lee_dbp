@@ -2,6 +2,7 @@
 import { Plus, Save, Send, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { OutcomeQualityHint } from "./outcomeQuality";
+import { dbpPath } from "../../lib/dbpPath";
 
 type Assessment = {
   id: number;
@@ -11,6 +12,20 @@ type Assessment = {
   fixed?: boolean;
 };
 type Workload = { count: number; hours: number };
+type CourseIdentity = {
+  code: string;
+  name: string;
+  status: string;
+  level: string;
+  department?: string;
+  programName?: string;
+};
+type SessionIdentity = {
+  username: string;
+  name: string;
+  role: string;
+  readOnly?: boolean;
+};
 const weeks = Array.from({ length: 15 }, (_, index) => index + 1);
 const fixedOutcomeCount = 5;
 const structures = [
@@ -24,7 +39,37 @@ const structures = [
   "Alan Bilgisi",
 ];
 
-export function CourseBolognaEditor({ onSave, onPublish }: { onSave: () => void; onPublish: () => void }) {
+function sessionHeader(session: SessionIdentity) {
+  return JSON.stringify(session);
+}
+
+function serializeForm(form: HTMLFormElement) {
+  const fields: Record<string, string | boolean> = {};
+  Array.from(form.querySelectorAll("input, textarea, select")).forEach((control, index) => {
+    if (
+      !(control instanceof HTMLInputElement) &&
+      !(control instanceof HTMLTextAreaElement) &&
+      !(control instanceof HTMLSelectElement)
+    ) return;
+    if (control instanceof HTMLInputElement && ["button", "submit", "reset"].includes(control.type)) return;
+    const label = control.closest("label")?.querySelector("span")?.textContent?.trim();
+    const key = control.getAttribute("name") || control.getAttribute("aria-label") || label || `field_${index + 1}`;
+    fields[key] = control instanceof HTMLInputElement && control.type === "checkbox" ? control.checked : control.value;
+  });
+  return fields;
+}
+
+export function CourseBolognaEditor({
+  course,
+  session,
+  onSave,
+  onPublish,
+}: {
+  course: CourseIdentity;
+  session: SessionIdentity;
+  onSave: () => void;
+  onPublish: () => void;
+}) {
   const [workflowStatus, setWorkflowStatus] = useState("Taslak");
   const [outcomes, setOutcomes] = useState(Array.from({ length: fixedOutcomeCount }, () => ""));
   const [assessments, setAssessments] = useState<Assessment[]>([
@@ -75,11 +120,42 @@ export function CourseBolognaEditor({ onSave, onPublish }: { onSave: () => void;
       return copy;
     });
   };
+  const persistPackage = async (form: HTMLFormElement, status: string) => {
+    const response = await fetch(dbpPath("/api/dbp/course-package"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-DBP-Session": sessionHeader(session),
+      },
+      body: JSON.stringify({
+        code: course.code,
+        name: course.name,
+        department: course.department || "",
+        programName: course.programName || "",
+        level: course.level,
+        status,
+        package: {
+          fields: serializeForm(form),
+          outcomes,
+          assessments,
+          workloads,
+          sdgs,
+          ects,
+          savedAt: new Date().toISOString(),
+        },
+      }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Ders paketi kaydedilemedi." }));
+      throw new Error(error.message || "Ders paketi kaydedilemedi.");
+    }
+  };
   return (
     <form
       className="course-bologna-form"
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
+        await persistPackage(event.currentTarget, "ABD Onayı Bekliyor");
         setWorkflowStatus("ABD Onayı Bekliyor");
         localStorage.setItem("lee-dbp-course-status", "abd_onayi_bekliyor");
         onPublish();
@@ -88,8 +164,8 @@ export function CourseBolognaEditor({ onSave, onPublish }: { onSave: () => void;
       <section className="course-form-card">
         <header>
           <div>
-            <small>BLM 501</small>
-            <h2>Bilimsel Araştırma Yöntemleri</h2>
+            <small>{course.code}</small>
+            <h2>{course.name}</h2>
           </div>
           <span>{workflowStatus}</span>
         </header>
@@ -97,11 +173,11 @@ export function CourseBolognaEditor({ onSave, onPublish }: { onSave: () => void;
         <div className="course-general-grid">
           <label className="name">
             <span>Dersin Adı</span>
-            <input defaultValue="Bilimsel Araştırma Yöntemleri" />
+            <input defaultValue={course.name} />
           </label>
           <label>
             <span>Kodu</span>
-            <input defaultValue="BLM 501" />
+            <input defaultValue={course.code} />
           </label>
           <label>
             <span>Teorik saat</span>
@@ -449,7 +525,7 @@ export function CourseBolognaEditor({ onSave, onPublish }: { onSave: () => void;
       <div className="course-save-bar">
         <span>{workflowStatus === "Taslak" ? "Çalışmanızı taslak olarak kaydedebilir veya ABD/ASD onayına gönderebilirsiniz." : "Paket ABD/ASD başkanının onayını bekliyor; onaylanmadan public görünmez."}</span>
         <div className="course-submit-actions">
-          <button type="button" className="draft" onClick={() => { setWorkflowStatus("Taslak"); localStorage.setItem("lee-dbp-course-status", "taslak"); onSave(); }}><Save size={15} />Taslağı Kaydet</button>
+          <button type="button" className="draft" onClick={async (event) => { const form = event.currentTarget.form; if (!form) return; await persistPackage(form, "Taslak"); setWorkflowStatus("Taslak"); localStorage.setItem("lee-dbp-course-status", "taslak"); onSave(); }}><Save size={15} />Taslağı Kaydet</button>
           <button type="submit" className="publish"><Send size={15} />Yayınla</button>
         </div>
       </div>

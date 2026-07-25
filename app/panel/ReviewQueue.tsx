@@ -16,6 +16,7 @@ export function ReviewQueue({
   const [correction, setCorrection] = useState<ReviewCourse | null>(null);
   const [note, setNote] = useState("");
   const canApprove = role === "abd_asd_baskani";
+  const canRequestCorrection = role !== "abd_sekreteri";
   const approveCourse = (course: ReviewCourse) => { localStorage.setItem("lee-dbp-course-status", "public"); localStorage.setItem("lee-dbp-review-queue", JSON.stringify({ code: course.code, status: "Yayımlandı", public: true })); onAction(); };
   return (
     <section>
@@ -49,8 +50,9 @@ export function ReviewQueue({
                 <Eye size={14} />
                 Ön İzleme
               </button>
-              <button
+              <button style={{ display: canRequestCorrection ? undefined : "none" }}
                 onClick={() => {
+                  if (!canRequestCorrection) return;
                   setCorrection(course);
                   setNote("");
                 }}
@@ -119,9 +121,10 @@ export function ReviewQueue({
               <article className="wide"><span>Sürdürülebilir Kalkınma Amaçları</span><p>Nitelikli Eğitim · Sanayi, Yenilikçilik ve Altyapı · Amaçlar için Ortaklıklar</p></article>
             </div>
             <footer>
-              <button
+              <button style={{ display: canRequestCorrection ? undefined : "none" }}
                 onClick={() => {
                   setPreview(null);
+                  if (!canRequestCorrection) return;
                   setCorrection(preview);
                 }}
               >

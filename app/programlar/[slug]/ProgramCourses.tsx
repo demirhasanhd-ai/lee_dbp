@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText, Printer } from "lucide-react";
 import { readProgramVisibility } from "../../../lib/data/publicVisibility";
 import { PublicProgramSidebar } from "../../PublicProgramSidebar";
+import { dbpPath } from "../../../lib/dbpPath";
 
 export type PublicCourse = {
   code: string;
@@ -178,7 +179,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
     });
     if (course.programCode) query.set("programKodu", course.programCode);
     if (course.instructor) query.set("ogretimElemani", course.instructor);
-    return `/katalog?${query.toString()}`;
+    return dbpPath(`/katalog?${query.toString()}`);
   };
   const slugify = (value: string) =>
     repairText(value).toLocaleLowerCase("tr-TR")
@@ -187,7 +188,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "ders";
   const pdfUrl = (course: PublicCourse) =>
-    `/pdf/dbp/${slugify(course.code)}-${slugify(activeProgram.programName)}-${slugify(course.name)}.pdf`;
+    dbpPath(`/pdf/dbp/${slugify(course.code)}-${slugify(activeProgram.programName)}-${slugify(course.name)}.pdf`);
 
   if (!sidebarItems.length) {
     return (
@@ -197,7 +198,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
             <small>PUBLIC YAYIN KONTROLÜ</small>
             <h2>{programName} şu anda kamuya açık yayında değil</h2>
             <p>Bu program, Enstitü Sekreteri / Enstitü Yöneticisi / Admin tarafından public katalogdan gizlenmiştir.</p>
-            <a href="/#programlar">Programlara dön</a>
+            <a href={dbpPath("/#programlar")}>Programlara dön</a>
           </div>
         </section>
       </div>

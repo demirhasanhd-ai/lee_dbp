@@ -5,9 +5,7 @@ import {
   BookOpen,
   ChevronDown,
   ExternalLink,
-  FileCheck,
   CircleHelp,
-  DoorOpen,
   House,
   LibraryBig,
   School,
@@ -16,6 +14,8 @@ import {
 import { ThemeToggle } from "./ThemeToggle";
 import { ProgramDirectory } from "./ProgramDirectory";
 import { COURSE_STATS } from "../lib/data/courseStats";
+import { dbpPath } from "../lib/dbpPath";
+import { APP_VERSION } from "../lib/appVersion";
 
 export const metadata: Metadata = {
   title: "LEE Ders Bilgi Paketi",
@@ -43,18 +43,17 @@ export default function Home() {
         </div>
         <div className="navigation-bar">
           <div className="header-container navigation-inner">
-            <a className="oku-brand" href="/">
-              <span className="logo-box"><img src="/oku-logo.png" alt="Osmaniye Korkut Ata Üniversitesi logosu" /></span>
+            <a className="oku-brand" href={dbpPath("/")}>
+              <span className="logo-box"><img src={dbpPath("/oku-logo.png")} alt="Osmaniye Korkut Ata Üniversitesi logosu" /></span>
               <span><b>LEE <em>Ders Bilgi Paketi</em></b><small>BOLOGNA BİLGİ SİSTEMİ</small></span>
             </a>
             <nav aria-label="Ana menü">
-              <a className="active" href="/"><House size={18}/>Ana Sayfa</a>
-              <a href="/katalog"><LibraryBig size={18}/>Ders Kataloğu</a>
+              <a className="active" href={dbpPath("/")}><House size={18}/>Ana Sayfa</a>
+              <a href={dbpPath("/katalog")}><LibraryBig size={18}/>Ders Kataloğu</a>
               <a href="#programlar"><School size={18}/>Programlar<ChevronDown size={14}/></a>
               <a href="#duyurular"><BellRing size={18}/>Duyurular</a>
               <a href="#yardim"><CircleHelp size={18}/>Yardım</a>
             </nav>
-            <a className="login-button" href="/yonetim"><DoorOpen size={19}/>Giriş Yap</a>
           </div>
         </div>
       </header>
@@ -68,17 +67,17 @@ export default function Home() {
               <details className="period-menu">
                 <summary><span>Güncel Dönem</span><b>2026–2027</b><ChevronDown size={14}/></summary>
                 <div className="period-options">
-                  <a className="current" href="/katalog?donem=2026-2027"><span>Güncel dönem</span><b>2026–2027</b></a>
-                  <a href="/katalog?donem=2025-2026"><span>Müfredat bilgileri</span><b>2025–2026</b></a>
-                  <a href="/katalog?donem=2024-2025"><span>Müfredat bilgileri</span><b>2024–2025</b></a>
-                  <a href="/katalog?donem=2023-2024"><span>Müfredat bilgileri</span><b>2023–2024</b></a>
-                  <a href="/katalog?donem=2022-2023"><span>Müfredat bilgileri</span><b>2022–2023</b></a>
+                  <a className="current" href={dbpPath("/katalog?donem=2026-2027")}><span>Güncel dönem</span><b>2026–2027</b></a>
+                  <a href={dbpPath("/katalog?donem=2025-2026")}><span>Müfredat bilgileri</span><b>2025–2026</b></a>
+                  <a href={dbpPath("/katalog?donem=2024-2025")}><span>Müfredat bilgileri</span><b>2024–2025</b></a>
+                  <a href={dbpPath("/katalog?donem=2023-2024")}><span>Müfredat bilgileri</span><b>2023–2024</b></a>
+                  <a href={dbpPath("/katalog?donem=2022-2023")}><span>Müfredat bilgileri</span><b>2022–2023</b></a>
                 </div>
               </details>
             </div>
             <h1>LEE <span>Ders Bilgi Paketi</span></h1>
             <p>Derslerin Bologna bilgilerine, öğrenme çıktılarına, haftalık içeriklerine ve AKTS iş yüklerine tek noktadan ulaşın.</p>
-            <form className="banner-search" action="/katalog">
+            <form className="banner-search" action={dbpPath("/katalog")}>
               <Search size={19}/><label className="sr-only" htmlFor="home-search">Ders ara</label>
               <input id="home-search" name="q" placeholder="Ders kodu, ders adı veya program ara..."/>
               <button type="submit">Ders Ara</button>
@@ -88,7 +87,7 @@ export default function Home() {
             <div className="board-heading"><div><small>{stats.academicYear} AKADEMİK YILI</small><strong>Ders Kataloğu</strong></div><span>Resmi müfredat</span></div>
             <div className="board-main"><strong>{stats.totalCourses.toLocaleString("tr-TR")}</strong><span>2026–2027 müfredatı ders sayısı</span></div>
             <div className="board-stats"><div><b>{stats.totalPrograms}</b><span>Program paketi</span></div><div><b>{stats.assignmentRate}%</b><span>Hoca atama oranı</span></div><div><b>{stats.instructors}</b><span>Akademisyen</span></div></div>
-            <a href="/katalog">Kataloğu inceleyin <span>→</span></a>
+            <a href={dbpPath("/katalog")}>Kataloğu inceleyin <span>→</span></a>
           </div>
           <div className="hero-stats" aria-label="2026–2027 müfredat istatistikleri">
             <article><small>Ders havuzu</small><strong>{stats.totalCourses.toLocaleString("tr-TR")}</strong><span>{stats.mainDepartments} ABD / ASD</span></article>
@@ -103,7 +102,7 @@ export default function Home() {
 
       <div id="icerik" className="scroll-content">
         <section className="content-section" id="programlar">
-          <div className="section-title"><div><span className="title-line"/><div><small>AKADEMİK YAPI</small><h2>LEE ABD / ASD ve lisansüstü programları</h2></div></div><a href="/katalog">Ders kataloğu →</a></div>
+          <div className="section-title"><div><span className="title-line"/><div><small>AKADEMİK YAPI</small><h2>LEE ABD / ASD ve lisansüstü programları</h2></div></div><a href={dbpPath("/katalog")}>Ders kataloğu →</a></div>
           <ProgramDirectory/>
         </section>
 
@@ -114,9 +113,8 @@ export default function Home() {
           </div>
           <aside className="quick-panel">
             <div className="section-title compact"><div><span className="title-line"/><div><small>İŞLEMLER</small><h2>Hızlı erişim</h2></div></div></div>
-            <a href="/katalog"><Search size={18}/><span><b>Ders bilgi paketi ara</b><small>Public katalogda arama yapın</small></span><i>→</i></a>
-            <a href="/yonetim"><FileCheck size={18}/><span><b>Bologna bilgisi girişi</b><small>Yetkili derslerinizi düzenleyin</small></span><i>→</i></a>
-            <a href="https://osmaniye.edu.tr"><ExternalLink size={18}/><span><b>OKÜ ana sayfa</b><small>Üniversite web sitesine gidin</small></span><i>→</i></a>
+            <a href={dbpPath("/katalog")}><Search size={18}/><span><b>Ders bilgi paketi ara</b><small>Public katalogda arama yapın</small></span><i>→</i></a>
+            <a href="https://osmaniye.edu.tr" target="_blank" rel="noopener noreferrer"><ExternalLink size={18}/><span><b>OKÜ ana sayfa</b><small>Üniversite web sitesine gidin</small></span><i>→</i></a>
           </aside>
         </section>
 
@@ -126,7 +124,7 @@ export default function Home() {
         </section>
       </div>
 
-      <footer className="oku-footer"><div><span className="footer-logo"><img src="/oku-logo.png" alt="OKÜ"/></span><div><strong>LEE Ders Bilgi Paketi</strong><p>Osmaniye Korkut Ata Üniversitesi Lisansüstü Eğitim Enstitüsü</p></div></div><div><a href="/katalog">Ders Kataloğu</a><a href="/yonetim">Yönetim Alanı</a><a href="https://osmaniye.edu.tr">OKÜ Web Sitesi</a></div></footer>
+      <footer className="oku-footer"><div><span className="footer-logo"><img src={dbpPath("/oku-logo.png")} alt="OKÜ"/></span><div><strong>LEE Ders Bilgi Paketi</strong><p>Osmaniye Korkut Ata Üniversitesi Lisansüstü Eğitim Enstitüsü</p></div></div><div><a href={dbpPath("/katalog")}>Ders Kataloğu</a><a href="https://osmaniye.edu.tr" target="_blank" rel="noopener noreferrer">OKÜ Web Sitesi</a><span className="version-text">Versiyon: {APP_VERSION}</span></div></footer>
     </main>
   );
 }

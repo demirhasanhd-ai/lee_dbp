@@ -2,6 +2,7 @@ import { getProgramBySlug, LEE_PROGRAMS, programSlug, type LeeProgram, type Prog
 import { officialCoursesForProgram } from "../../../lib/data/officialCourses";
 import { ProgramCourses, type PublicCourse } from "./ProgramCourses";
 import { PublicSiteHeader } from "../../PublicSiteHeader";
+import { dbpPath } from "../../../lib/dbpPath";
 
 type PageProps={params:Promise<{slug:string}>};
 function coursePrefix(program:LeeProgram){return program.programName.split(/\s+/).slice(0,3).map(word=>word[0]).join("").toLocaleUpperCase("tr-TR")}
@@ -33,7 +34,7 @@ function programCourses(program:LeeProgram):PublicCourse[]{
 
 export default async function PublicProgramPage({params}:PageProps){
  const {slug}=await params;const program=getProgramBySlug(slug);
- if(!program)return <main className="public-program-page"><div className="public-program-content"><section className="public-empty"><h1>Program bulunamadı</h1><a href="/#programlar">Programlara dönün</a></section></div></main>;
+ if(!program)return <main className="public-program-page"><div className="public-program-content"><section className="public-empty"><h1>Program bulunamadı</h1><a href={dbpPath("/#programlar")}>Programlara dönün</a></section></div></main>;
  const siblingPrograms=LEE_PROGRAMS.filter((item)=>item.department===program.department);
  const programItems=siblingPrograms.map((item)=>({
   visibilityKey:programSlug(item),
@@ -43,6 +44,6 @@ export default async function PublicProgramPage({params}:PageProps){
  }));
  return <main className="public-program-page">
   <PublicSiteHeader/>
-  <div className="public-program-shell"><div className="public-program-content"><div className="public-breadcrumb"><a href="/">Ana Sayfa</a><span>/</span><a href="/#programlar">Programlar</a><span>/</span><b>{program.programName}</b></div><div id="program-dersleri"><ProgramCourses visibilityKey={programSlug(program)} department={program.department} programName={program.programName} levels={program.levels} courses={programCourses(program)} programItems={programItems}/></div></div></div>
+  <div className="public-program-shell"><div className="public-program-content"><div className="public-breadcrumb"><a href={dbpPath("/")}>Ana Sayfa</a><span>/</span><a href={dbpPath("/#programlar")}>Programlar</a><span>/</span><b>{program.programName}</b></div><div id="program-dersleri"><ProgramCourses visibilityKey={programSlug(program)} department={program.department} programName={program.programName} levels={program.levels} courses={programCourses(program)} programItems={programItems}/></div></div></div>
  </main>;
 }

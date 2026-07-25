@@ -4,6 +4,14 @@
   grid-template-columns: 230px 1fr;
   background: var(--background);
 }
+.role-dashboard :where(button, summary, [role="button"], [role="link"]),
+.local-course-modal :where(button, [role="button"], [role="link"]) {
+  cursor: pointer;
+}
+.role-dashboard :where(button:disabled, [aria-disabled="true"]),
+.local-course-modal :where(button:disabled, [aria-disabled="true"]) {
+  cursor: not-allowed;
+}
 .panel-sidebar {
   height: 100vh;
   position: sticky;

@@ -24,8 +24,9 @@ export function ProgramProfileEditor({
  programName = "Biyoloji",
  initialLevel = "Tezli Yüksek Lisans",
  mode = "edit",
+ allowCorrection = true,
  availableLevels = [initialLevel],
-}:{department:string;onSave:()=>void;programName?:string;initialLevel?:string;mode?:"edit"|"review"|"admin";availableLevels?:string[]}){
+}:{department:string;onSave:()=>void;programName?:string;initialLevel?:string;mode?:"edit"|"review"|"admin";allowCorrection?:boolean;availableLevels?:string[]}){
  const[outcomes,setOutcomes]=useState(initialOutcomes);
  const[programLevel,setProgramLevel]=useState(initialLevel);
  const[correctionOpen,setCorrectionOpen]=useState(false);

@@ -30,6 +30,18 @@ if not exist "%ROOT_DIR%node_modules" (
   )
 )
 
+powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalAddress '%HOST%' -LocalPort %PORT% -State Listen -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }" >nul 2>&1
+if not errorlevel 1 (
+  echo.
+  echo LEE Ders Bilgi Paketi zaten calisiyor.
+  echo Adres: %LOCAL_URL%
+  echo Mevcut sekme/pencere aciliyor...
+  echo.
+  start "" "%LOCAL_URL%"
+  pause
+  exit /b 0
+)
+
 echo.
 echo LEE Ders Bilgi Paketi baslatiliyor...
 echo Adres: %LOCAL_URL%

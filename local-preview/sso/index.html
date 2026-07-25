@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>e-Enstitu Gecisi | LEE DBP</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/lee-favicon-32.png">
+  <link rel="stylesheet" href="/preview.css">
+  <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/login-local.css">
+  <style>
+    .sso-page{min-height:100vh;display:grid;place-items:center;background:var(--background);padding:24px}
+    .sso-card{width:min(440px,calc(100vw - 32px));padding:30px;border:1px solid var(--border);border-radius:22px;background:var(--card);box-shadow:0 22px 50px -28px color-mix(in srgb,var(--primary) 55%,transparent)}
+    .sso-icon{width:46px;height:46px;margin-bottom:18px;display:grid;place-items:center;border-radius:13px;background:var(--primary);color:#fff;font-weight:800}
+    .sso-card h1{margin:8px 0 12px;font-size:30px}
+    .sso-card p{margin:0;color:var(--muted-foreground);font-size:13px;line-height:1.6}
+    .sso-action{margin-top:18px;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:10px;background:var(--primary);color:#fff;font-size:12px;font-weight:750;text-decoration:none}
+  </style>
+</head>
+<body>
+  <main class="sso-page">
+    <section class="sso-card">
+      <div class="sso-icon" id="sso-icon">...</div>
+      <span class="eyebrow">e-Enstitu DBP gecisi</span>
+      <h1 id="sso-title">Oturum dogrulaniyor</h1>
+      <p id="sso-message">DBP paneli e-Enstitu oturumunuzla hazirlaniyor.</p>
+      <a id="retry-link" class="sso-action" href="http://localhost:8080/modul/ders-bilgi-paketi" hidden>Tekrar dene</a>
+    </section>
+  </main>
+  <script>
+    const title = document.getElementById("sso-title");
+    const message = document.getElementById("sso-message");
+    const icon = document.getElementById("sso-icon");
+    const retry = document.getElementById("retry-link");
+    const ticket = new URLSearchParams(location.search).get("ticket") || "";
+    const apiBaseUrl = localStorage.getItem("lee-dbp-eenstitu-api") || "http://localhost:3001";
+    localStorage.setItem("lee-dbp-eenstitu-url", retry.href);
+
+    function fail(text) {
+      icon.textContent = "!";
+      title.textContent = "Gecis tamamlanamadi";
+      message.textContent = text || "DBP gecis bileti dogrulanamadi.";
+      retry.hidden = false;
+    }
+
+    async function verify() {
+      if (!ticket) {
+        fail("DBP gecis bileti bulunamadi.");
+        return;
+      }
+
+      try {
+        const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/api/auth/dbp-ticket/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticket }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          fail(payload.message || "DBP gecis bileti dogrulanamadi.");
+          return;
+        }
+
+        localStorage.setItem("lee-dbp-session", JSON.stringify({
+          name: payload.user.displayName,
+          username: payload.user.username,
+          role: payload.dbp.role,
+          department: payload.user.departmentLabel || "LEE",
+          departmentId: payload.user.departmentId || null,
+          email: payload.user.email || "",
+          tcKimlik: payload.user.tcKimlik || "",
+          readOnly: payload.dbp.readOnly === true,
+          authProvider: "e-enstitu",
+          expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+        }));
+        icon.textContent = "OK";
+        title.textContent = "Oturum dogrulandi";
+        message.textContent = "DBP paneli aciliyor.";
+        setTimeout(() => location.replace("/panel/"), 300);
+      } catch {
+        fail("e-Enstitu kimlik servisine ulasilamadi. E-Enstitu server penceresinin calistigini kontrol edin.");
+      }
+    }
+
+    verify();
+  </script>
+</body>
+</html>
