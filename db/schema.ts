@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -14,10 +14,18 @@ export const users = sqliteTable("users", {
 export const userRoles = sqliteTable("user_roles", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id),
-  role: text("role", { enum: ["akademisyen", "abd_asd_baskani", "lee_ogrenci_isleri", "enstitu_sekreteri", "enstitu_yoneticisi", "admin"] }).notNull(),
+  role: text("role", { enum: ["akademisyen", "abd_asd_baskani", "abd_sekreteri", "lee_ogrenci_isleri", "enstitu_sekreteri", "enstitu_yoneticisi", "admin"] }).notNull(),
   departmentId: text("department_id"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("user_roles_scope_idx").on(table.userId, table.role, table.departmentId)]);
+
+export const roleModuleAccess = sqliteTable("role_module_access", {
+  role: text("role", { enum: ["akademisyen", "abd_asd_baskani", "abd_sekreteri", "lee_ogrenci_isleri", "enstitu_sekreteri", "enstitu_yoneticisi", "admin"] }).notNull(),
+  module: text("module", { enum: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports", "database_admin", "user_roles", "permission_matrix"] }).notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedBy: text("updated_by"),
+}, (table) => [primaryKey({ columns: [table.role, table.module] })]);
 
 export const programs = sqliteTable("programs", {
   id: text("id").primaryKey(),

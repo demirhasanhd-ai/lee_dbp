@@ -1,12 +1,14 @@
 {
   "name": "lee_dbp",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "private": true,
   "engines": {
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "vinext dev",
+    "dev": "node scripts/start-local-dbp.mjs",
+    "dev:vinext": "vinext dev",
+    "start:local": "node scripts/start-local-dbp.mjs",
     "build": "vinext build",
     "start": "node server.mjs",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
@@ -19,6 +21,7 @@
     "dbp:import": "python scripts/import_curriculum_excel.py"
   },
   "dependencies": {
+    "cheerio": "^1.2.0",
     "drizzle-orm": "0.45.2",
     "lucide-react": "^1.24.0",
     "next": "16.2.6",

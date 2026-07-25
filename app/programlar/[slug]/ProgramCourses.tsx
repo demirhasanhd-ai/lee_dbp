@@ -207,6 +207,16 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
 
   return (
     <div className="public-program-layout">
+      <PublicProgramSidebar
+        department={department}
+        levels={activeVisibleLevels}
+        activeLevel={activeLevel}
+        activeProgramKey={activeProgram.visibilityKey}
+        items={sidebarItems}
+        view={activeView}
+        programHref={`/programlar/${visibilityKey}`}
+        onViewChange={(next) => setActiveView({ programKey: next.programKey ?? activeProgram.visibilityKey, level: next.level, tab: next.tab })}
+      />
       <section className="public-program-main">
         {activeView.tab === "profile" ? (
           <ProgramProfile department={department} programName={activeProgram.programName} activeLevel={activeLevel}/>
@@ -240,16 +250,6 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
           </>
         )}
       </section>
-      <PublicProgramSidebar
-        department={department}
-        levels={activeVisibleLevels}
-        activeLevel={activeLevel}
-        activeProgramKey={activeProgram.visibilityKey}
-        items={sidebarItems}
-        view={activeView}
-        programHref={`/programlar/${visibilityKey}`}
-        onViewChange={(next) => setActiveView({ programKey: next.programKey ?? activeProgram.visibilityKey, level: next.level, tab: next.tab })}
-      />
     </div>
   );
 }

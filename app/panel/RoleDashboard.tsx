@@ -49,6 +49,24 @@ type Course = {
   status: string;
   level: "Tezsiz Yüksek Lisans" | "Tezli Yüksek Lisans" | "Doktora";
 };
+type RoleAccess = Record<DbpRole, DbpModule[]>;
+const moduleKeys = Object.keys(DBP_MODULES) as DbpModule[];
+const cloneDefaultRoleAccess = (): RoleAccess =>
+  Object.fromEntries(
+    DBP_ROLE_KEYS.map((role) => [role, [...DEFAULT_ROLE_ACCESS[role]]]),
+  ) as RoleAccess;
+const normalizeRoleAccessPayload = (value: unknown): RoleAccess => {
+  const fallback = cloneDefaultRoleAccess();
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
+  const source = value as Partial<Record<DbpRole, unknown>>;
+  for (const role of DBP_ROLE_KEYS) {
+    const modules = Array.isArray(source[role]) ? source[role] : fallback[role];
+    fallback[role] = [...new Set(modules.filter((module): module is DbpModule =>
+      typeof module === "string" && moduleKeys.includes(module as DbpModule),
+    ))];
+  }
+  return fallback;
+};
 const courses: Course[] = [
   {
     code: "BLM 501",
@@ -169,6 +187,10 @@ const normalizeSessionRole = (value: Session): DbpRole => {
 export function RoleDashboard() {
   const [session, setSession] = useState<Session | null>(null);
   const [active, setActive] = useState<DbpModule>("my_courses");
+  const [roleAccess, setRoleAccess] = useState<RoleAccess>(() => cloneDefaultRoleAccess());
+  const [permissionDraft, setPermissionDraft] = useState<RoleAccess>(() => cloneDefaultRoleAccess());
+  const [permissionsBusy, setPermissionsBusy] = useState(false);
+  const [permissionMessage, setPermissionMessage] = useState("");
   const [saved, setSaved] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedProgram, setSelectedProgram] = useState<LeeProgram | null>(null);
@@ -176,6 +198,7 @@ export function RoleDashboard() {
   const [showProgramCreate, setShowProgramCreate] = useState(false);
   const eEnstituDbpUrl = `${getEEnstituUrl()}/modul/ders-bilgi-paketi`;
   useEffect(() => {
+    let cancelled = false;
     const raw = localStorage.getItem("lee-dbp-session");
     if (!raw) {
       location.replace(eEnstituDbpUrl);
@@ -195,17 +218,93 @@ export function RoleDashboard() {
       };
       const normalizedValue = { ...repairedValue, role: normalizeSessionRole(repairedValue) };
       setSession(normalizedValue);
-      setActive(DEFAULT_ROLE_ACCESS[normalizedValue.role][0]);
+      const fallbackAccess = cloneDefaultRoleAccess();
+      setRoleAccess(fallbackAccess);
+      setPermissionDraft(fallbackAccess);
+      setActive(fallbackAccess[normalizedValue.role][0] || "my_courses");
+      const accessEndpoint =
+        normalizedValue.role === "admin"
+          ? "/api/dbp/admin/role-module-access"
+          : "/api/dbp/access";
+      fetch(dbpPath(accessEndpoint), {
+        headers: { "X-DBP-Session": JSON.stringify(normalizedValue) },
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("Yetki bilgisi alinamadi.");
+          return response.json();
+        })
+        .then((data) => {
+          if (cancelled) return;
+          if (data.access) {
+            const normalizedAccess = normalizeRoleAccessPayload(data.access);
+            setRoleAccess(normalizedAccess);
+            setPermissionDraft(normalizedAccess);
+            setActive((current) =>
+              normalizedAccess[normalizedValue.role].includes(current)
+                ? current
+                : normalizedAccess[normalizedValue.role][0] || current,
+            );
+            return;
+          }
+          if (Array.isArray(data.modules)) {
+            const normalizedModules = data.modules.filter((module: unknown): module is DbpModule =>
+              typeof module === "string" && moduleKeys.includes(module as DbpModule),
+            );
+            setRoleAccess((current) => ({ ...current, [normalizedValue.role]: normalizedModules }));
+            setActive((current) =>
+              normalizedModules.includes(current) ? current : normalizedModules[0] || current,
+            );
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setPermissionMessage("Yetki bilgisi varsayilan ayarlarla acildi.");
+        });
     } catch {
       location.replace(eEnstituDbpUrl);
     }
+    return () => {
+      cancelled = true;
+    };
   }, [eEnstituDbpUrl]);
   if (!session)
     return <main className="panel-loading">Panel hazırlanıyor…</main>;
-  const modules = DEFAULT_ROLE_ACCESS[session.role];
+  const modules = roleAccess[session.role] ?? DEFAULT_ROLE_ACCESS[session.role];
   const save = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
+  };
+  const toggleRoleAccess = (role: DbpRole, module: DbpModule, checked: boolean) => {
+    setPermissionDraft((current) => {
+      const modulesForRole = new Set(current[role]);
+      if (checked) modulesForRole.add(module);
+      else modulesForRole.delete(module);
+      return { ...current, [role]: moduleKeys.filter((item) => modulesForRole.has(item)) };
+    });
+  };
+  const saveRoleAccess = async () => {
+    setPermissionsBusy(true);
+    setPermissionMessage("");
+    try {
+      const response = await fetch(dbpPath("/api/dbp/admin/role-module-access"), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-DBP-Session": JSON.stringify(session),
+        },
+        body: JSON.stringify({ access: permissionDraft }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || "Yetki matrisi kaydedilemedi.");
+      const normalizedAccess = normalizeRoleAccessPayload(data.access);
+      setRoleAccess(normalizedAccess);
+      setPermissionDraft(normalizedAccess);
+      setPermissionMessage("Yetki dagilimi veri tabanina kaydedildi.");
+      save();
+    } catch (error) {
+      setPermissionMessage(error instanceof Error ? error.message : "Yetki matrisi kaydedilemedi.");
+    } finally {
+      setPermissionsBusy(false);
+    }
   };
   const canCreateCourse = [
     "lee_ogrenci_isleri",
@@ -586,11 +685,12 @@ export function RoleDashboard() {
                   Modül erişimlerini rol bazında kontrol edin ve düzenleyin.
                 </p>
               </div>
-              <button className="primary-action" onClick={save}>
+              <button className="primary-action" onClick={saveRoleAccess} disabled={permissionsBusy}>
                 <Save size={14} />
-                Değişiklikleri Kaydet
+                {permissionsBusy ? "Kaydediliyor" : "Değişiklikleri Kaydet"}
               </button>
             </div>
+            {permissionMessage && <div className="database-message">{permissionMessage}</div>}
             <div className="permission-table">
               <div className="permission-head">
                 <span>Rol</span>
@@ -601,13 +701,13 @@ export function RoleDashboard() {
               {DBP_ROLE_KEYS.map((role) => (
                 <div className="permission-row" key={role}>
                   <b>{DBP_ROLES[role].label}</b>
-                  {(Object.keys(DBP_MODULES) as DbpModule[]).map((module) => (
+                  {moduleKeys.map((module) => (
                     <label key={module}>
                       <input
                         type="checkbox"
-                        defaultChecked={DEFAULT_ROLE_ACCESS[role].includes(
-                          module,
-                        )}
+                        checked={permissionDraft[role].includes(module)}
+                        onChange={(event) => toggleRoleAccess(role, module, event.currentTarget.checked)}
+                        disabled={permissionsBusy}
                       />
                       <span />
                     </label>

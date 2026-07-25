@@ -30,6 +30,8 @@ yarn-error.log*
 __pycache__/
 *.pyc
 data/import-reports/*.json
+data/*.sqlite
+data/*.sqlite-*
 
 # env files (can opt-in for committing if needed)
 .env*
@@ -49,6 +51,8 @@ next-env.d.ts
 /build/*
 !/build/sites-vite-plugin.ts
 /tmp/
+/local-volume/*
+!/local-volume/.gitkeep
 .dev-*.log
 .preview-*.log
 .preview-pid

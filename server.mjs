@@ -1,10 +1,12 @@
 import { createReadStream, readFileSync } from "node:fs";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
+import * as cheerio from "cheerio";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,6 +20,51 @@ const dbPath = process.env.DBP_SQLITE_PATH || path.join(dataDir, "dbp.sqlite");
 const backupDir = process.env.DBP_BACKUP_DIR || path.join(dataDir, "backups");
 const seedFile = process.env.DBP_SEED_FILE || path.join(__dirname, "seed", "program-data-local.js");
 let db;
+
+function openBrowser(url) {
+  const child =
+    process.platform === "win32"
+      ? spawn("cmd.exe", ["/d", "/s", "/c", "start", "", url], {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+        })
+      : process.platform === "darwin"
+        ? spawn("open", [url], { detached: true, stdio: "ignore" })
+        : spawn("xdg-open", [url], { detached: true, stdio: "ignore" });
+  child.unref();
+}
+
+const dbpRoles = [
+  "akademisyen",
+  "abd_asd_baskani",
+  "abd_sekreteri",
+  "lee_ogrenci_isleri",
+  "enstitu_sekreteri",
+  "enstitu_yoneticisi",
+  "admin",
+];
+
+const dbpModules = [
+  "my_courses",
+  "program_profile",
+  "review_queue",
+  "publish_control",
+  "quality_reports",
+  "database_admin",
+  "user_roles",
+  "permission_matrix",
+];
+
+const defaultRoleAccess = {
+  akademisyen: ["my_courses"],
+  abd_asd_baskani: ["program_profile", "review_queue"],
+  abd_sekreteri: ["review_queue"],
+  lee_ogrenci_isleri: ["my_courses", "program_profile"],
+  enstitu_sekreteri: ["my_courses", "program_profile", "publish_control"],
+  enstitu_yoneticisi: ["my_courses", "program_profile", "publish_control", "quality_reports"],
+  admin: ["my_courses", "database_admin", "program_profile", "publish_control", "quality_reports", "user_roles", "permission_matrix"],
+};
 
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
@@ -148,6 +195,36 @@ async function ensureDb() {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      external_id TEXT,
+      username TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      email TEXT,
+      department TEXT,
+      department_id TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_external_id ON users(external_id);
+    CREATE TABLE IF NOT EXISTS user_roles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      role TEXT NOT NULL,
+      department_id TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_user_roles_scope ON user_roles(user_id, role, department_id);
+    CREATE TABLE IF NOT EXISTS role_module_access (
+      role TEXT NOT NULL,
+      module TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      updated_by TEXT,
+      PRIMARY KEY (role, module)
+    );
     CREATE TABLE IF NOT EXISTS programs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       main_department TEXT NOT NULL,
@@ -217,6 +294,7 @@ async function ensureDb() {
     );
   `);
   seedInitialData();
+  seedDefaultRoleAccess();
   return db;
 }
 
@@ -229,10 +307,137 @@ function audit(action, actor, payload = {}) {
     .run(action, actor || null, JSON.stringify(payload), new Date().toISOString());
 }
 
+function isKnownRole(role) {
+  return dbpRoles.includes(role);
+}
+
+function isKnownModule(module) {
+  return dbpModules.includes(module);
+}
+
+function seedDefaultRoleAccess() {
+  const now = new Date().toISOString();
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO role_module_access(role, module, enabled, updated_at, updated_by)
+    VALUES (?, ?, ?, ?, 'system')
+  `);
+  db.exec("BEGIN");
+  try {
+    for (const role of dbpRoles) {
+      for (const module of dbpModules) {
+        insert.run(role, module, defaultRoleAccess[role]?.includes(module) ? 1 : 0, now);
+      }
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function roleAccessMap() {
+  seedDefaultRoleAccess();
+  const enabledByRole = Object.fromEntries(dbpRoles.map((role) => [role, new Set()]));
+  const rows = db.prepare(`
+    SELECT role, module, enabled
+    FROM role_module_access
+  `).all();
+  for (const row of rows) {
+    if (row.enabled && isKnownRole(row.role) && isKnownModule(row.module)) {
+      enabledByRole[row.role].add(row.module);
+    }
+  }
+  return Object.fromEntries(
+    dbpRoles.map((role) => [
+      role,
+      dbpModules.filter((module) => enabledByRole[role].has(module)),
+    ]),
+  );
+}
+
+function modulesForRole(role) {
+  const access = roleAccessMap();
+  return access[role] || [];
+}
+
+function normalizeRoleAccessPayload(payload) {
+  const source = payload?.access;
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    throw new Error("Gecersiz yetki matrisi.");
+  }
+  const normalized = {};
+  for (const role of dbpRoles) {
+    const modules = Array.isArray(source[role]) ? source[role] : [];
+    normalized[role] = [...new Set(modules.filter(isKnownModule))];
+  }
+  return normalized;
+}
+
+function replaceRoleAccess(access, actor) {
+  const now = new Date().toISOString();
+  const upsert = db.prepare(`
+    INSERT INTO role_module_access(role, module, enabled, updated_at, updated_by)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(role, module) DO UPDATE SET
+      enabled = excluded.enabled,
+      updated_at = excluded.updated_at,
+      updated_by = excluded.updated_by
+  `);
+  db.exec("BEGIN");
+  try {
+    for (const role of dbpRoles) {
+      const enabledModules = new Set(access[role] || []);
+      for (const module of dbpModules) {
+        upsert.run(role, module, enabledModules.has(module) ? 1 : 0, now, actor || "admin");
+      }
+    }
+    audit("role_module_access.update", actor, { access });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function upsertSessionUser(session) {
+  if (!session?.username || !session?.role || !isKnownRole(session.role)) return null;
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO users(external_id, username, display_name, email, department, department_id, is_active, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+    ON CONFLICT(username) DO UPDATE SET
+      external_id = COALESCE(excluded.external_id, users.external_id),
+      display_name = excluded.display_name,
+      email = excluded.email,
+      department = excluded.department,
+      department_id = excluded.department_id,
+      is_active = 1,
+      updated_at = excluded.updated_at
+  `).run(
+    session.tcKimlik || null,
+    session.username,
+    session.name || session.username,
+    session.email || null,
+    session.department || "",
+    session.departmentId || "",
+    now,
+    now,
+  );
+  const user = db.prepare("SELECT id FROM users WHERE username = ?").get(session.username);
+  if (!user?.id) return null;
+  db.prepare(`
+    INSERT OR IGNORE INTO user_roles(user_id, role, department_id, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run(user.id, session.role, session.departmentId || "", now);
+  return user.id;
+}
+
 function seedInitialData(force = false) {
   const seeded = db.prepare("SELECT value FROM metadata WHERE key = ?").get("seeded_from_current_data")?.value;
-  if (!force && seeded === "1") return;
-  if (!force && (countRows("programs") > 0 || countRows("courses") > 0)) {
+  const programCount = countRows("programs");
+  const courseCount = countRows("courses");
+  if (!force && seeded === "1" && (programCount > 0 || courseCount > 0)) return;
+  if (!force && (programCount > 0 || courseCount > 0)) {
     db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("seeded_from_current_data", "1");
     return;
   }
@@ -320,6 +525,9 @@ function exportData() {
     exportedAt: new Date().toISOString(),
     tables: {
       metadata: tableRows("metadata"),
+      users: tableRows("users"),
+      user_roles: tableRows("user_roles"),
+      role_module_access: tableRows("role_module_access"),
       programs: tableRows("programs"),
       courses: tableRows("courses"),
       public_visibility: tableRows("public_visibility"),
@@ -337,11 +545,26 @@ function replaceFromExport(payload, actor = "admin") {
   const now = new Date().toISOString();
   db.exec("BEGIN");
   try {
-    for (const table of ["metadata", "programs", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
+    for (const table of ["metadata", "user_roles", "users", "role_module_access", "programs", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
       db.exec(`DELETE FROM ${table}`);
     }
     const insertMetadata = db.prepare("INSERT INTO metadata(key, value) VALUES (?, ?)");
     for (const row of payload.tables.metadata || []) insertMetadata.run(row.key, String(row.value ?? ""));
+    const insertUser = db.prepare(`
+      INSERT INTO users(id, external_id, username, display_name, email, department, department_id, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const row of payload.tables.users || []) {
+      insertUser.run(row.id || null, row.external_id || null, row.username, row.display_name || row.username, row.email || null, row.department || "", row.department_id || "", row.is_active ?? 1, row.created_at || now, row.updated_at || now);
+    }
+    const insertUserRole = db.prepare("INSERT INTO user_roles(id, user_id, role, department_id, created_at) VALUES (?, ?, ?, ?, ?)");
+    for (const row of payload.tables.user_roles || []) {
+      if (isKnownRole(row.role)) insertUserRole.run(row.id || null, row.user_id, row.role, row.department_id || "", row.created_at || now);
+    }
+    const insertRoleAccess = db.prepare("INSERT INTO role_module_access(role, module, enabled, updated_at, updated_by) VALUES (?, ?, ?, ?, ?)");
+    for (const row of payload.tables.role_module_access || []) {
+      if (isKnownRole(row.role) && isKnownModule(row.module)) insertRoleAccess.run(row.role, row.module, row.enabled ? 1 : 0, row.updated_at || now, row.updated_by || "import");
+    }
     const insertProgram = db.prepare(`
       INSERT INTO programs(id, main_department, department, program_name, flags, levels_json, profile_json, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -370,6 +593,7 @@ function replaceFromExport(payload, actor = "admin") {
     db.exec("ROLLBACK");
     throw error;
   }
+  seedDefaultRoleAccess();
 }
 
 function resetDatabase(actor) {
@@ -421,6 +645,9 @@ async function adminSummary() {
     backupDir,
     size: await databaseSize(),
     counts: {
+      users: countRows("users"),
+      userRoles: countRows("user_roles"),
+      roleModuleAccess: countRows("role_module_access"),
       programs: countRows("programs"),
       courses: countRows("courses"),
       publicVisibility: countRows("public_visibility"),
@@ -457,6 +684,211 @@ async function restoreBackup(fileName, actor) {
   audit("backup.restore", actor, { fileName });
 }
 
+const obsCourseHost = "obs.osmaniye.edu.tr";
+const obsCoursePath = "/oibs/bologna/progCourseDetails.aspx";
+const obsStructureLabels = [
+  "Matematik ve Temel Bilimler",
+  "Mühendislik Bilimleri",
+  "Mühendislik Tasarımı",
+  "Sosyal Bilimler",
+  "Eğitim Bilimleri",
+  "Fen Bilimleri",
+  "Sağlık Bilimleri",
+  "Alan Bilgisi",
+];
+
+function cleanObsText(value = "") {
+  return String(value).replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function normalizeObsText(value = "") {
+  return cleanObsText(value)
+    .toLocaleLowerCase("tr-TR")
+    .replace(/ı/g, "i")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9%]+/g, " ")
+    .trim();
+}
+
+function obsNumber(value) {
+  const match = cleanObsText(value).replace(",", ".").match(/-?\d+(\.\d+)?/);
+  return match ? Number(match[0]) : 0;
+}
+
+function obsPercent(value) {
+  return Math.max(0, Math.min(100, obsNumber(value)));
+}
+
+function normalizeObsUrl(rawUrl) {
+  let url;
+  try {
+    url = new URL(String(rawUrl || "").trim());
+  } catch {
+    throw new Error("Geçerli bir OBS ders linki girin.");
+  }
+  if (url.hostname !== obsCourseHost || url.pathname !== obsCoursePath || !url.searchParams.get("curCourse")) {
+    throw new Error("Yalnızca OBS ders detay linki kullanılabilir.");
+  }
+  url.protocol = "https:";
+  url.searchParams.set("lang", url.searchParams.get("lang") || "tr");
+  return url;
+}
+
+async function fetchObsHtml(rawUrl) {
+  const url = normalizeObsUrl(rawUrl);
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": "LEE-DBP/1.0 (course-package draft import)",
+      "Accept-Language": "tr-TR,tr;q=0.9",
+    },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) throw new Error(`OBS sayfasına ulaşılamadı (${response.status}).`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const charset = response.headers.get("content-type")?.match(/charset=([^;\s]+)/i)?.[1] || "utf-8";
+  try {
+    return { html: new TextDecoder(charset).decode(buffer), url: url.toString() };
+  } catch {
+    return { html: new TextDecoder("utf-8").decode(buffer), url: url.toString() };
+  }
+}
+
+function obsRowsFromTable($, table) {
+  return $(table)
+    .find("tr")
+    .get()
+    .map((row) => $(row).children("th,td").get().map((cell) => cleanObsText($(cell).text())))
+    .filter((row) => row.some(Boolean));
+}
+
+function obsTables(html) {
+  const $ = cheerio.load(html);
+  return $("table").get().map((table) => obsRowsFromTable($, table)).filter((rows) => rows.length);
+}
+
+function findObsTable(tables, predicate) {
+  return tables.find((rows) => rows.some(predicate)) || [];
+}
+
+function findObsValue(tables, label) {
+  const target = normalizeObsText(label);
+  for (const rows of tables) {
+    for (const row of rows) {
+      if (normalizeObsText(row[0]) === target) return row[1] || "";
+    }
+  }
+  return "";
+}
+
+function normalizeObsAssessmentName(value) {
+  const normalized = normalizeObsText(value);
+  if (normalized.includes("ara sinav")) return "Ara Sınav";
+  if (normalized.includes("yariyil sonu") || normalized.includes("final")) return "Yarıyıl Sonu Sınavı";
+  return cleanObsText(value);
+}
+
+function normalizeObsWorkloadName(value) {
+  const normalized = normalizeObsText(value);
+  if (normalized.includes("ders suresi")) return "Ders Süresi";
+  if (normalized.includes("sinif disi")) return "Sınıf Dışı Çalışma";
+  if (normalized.includes("ara sinav")) return "Ara Sınav";
+  if (normalized.includes("yariyil sonu") || normalized.includes("final")) return "Yarıyıl Sonu Sınavı";
+  return cleanObsText(value);
+}
+
+function parseObsCourseDraft(html, sourceUrl) {
+  const tables = obsTables(html);
+  const detailTable = findObsTable(tables, (row) =>
+    row.some((cell) => normalizeObsText(cell) === "kodu") &&
+    row.some((cell) => normalizeObsText(cell).includes("akts")),
+  );
+  const detailHeader = detailTable[0] || [];
+  const detailValues = detailTable.find((row, index) => index > 0 && row.some(Boolean)) || [];
+  const detail = Object.fromEntries(detailHeader.map((key, index) => [cleanObsText(key), detailValues[index] || ""]));
+  const [theory = 0, practice = 0, lab = 0] = cleanObsText(detail["T+U+L"]).split("+").map(obsNumber);
+  const details = {
+    language: findObsValue(tables, "Dersin Dili"),
+    level: findObsValue(tables, "Dersin Düzeyi"),
+    program: findObsValue(tables, "Bölümü / Programı"),
+    type: findObsValue(tables, "Dersin Türü"),
+    teachingMode: findObsValue(tables, "Dersin Öğretim Şekli"),
+    purpose: findObsValue(tables, "Dersin Amacı"),
+    content: findObsValue(tables, "Dersin İçeriği"),
+    methods: findObsValue(tables, "Dersin Yöntem ve Teknikleri"),
+    prerequisites: findObsValue(tables, "Ön Koşulları"),
+    coordinator: findObsValue(tables, "Dersin Koordinatörü"),
+    instructors: findObsValue(tables, "Dersi Verenler"),
+    assistants: findObsValue(tables, "Dersin Yardımcıları"),
+  };
+  const resourceParts = [findObsValue(tables, "Kaynaklar"), findObsValue(tables, "Ders Notları")].filter(Boolean);
+  const structures = {};
+  for (const rows of tables) {
+    for (const row of rows) {
+      const label = obsStructureLabels.find((item) => normalizeObsText(item) === normalizeObsText(row[0]));
+      if (label) structures[label] = obsPercent(row[1]);
+    }
+  }
+  const assessmentTable = findObsTable(tables, (row) => normalizeObsText(row[0]).includes("yariyil calismalari"));
+  const assessments = assessmentTable
+    .slice(1)
+    .filter((row) => row[0] && !normalizeObsText(row[0]).includes("toplam"))
+    .map((row, index) => {
+      const name = normalizeObsAssessmentName(row[0]);
+      return { id: index + 1, name, count: obsNumber(row[1]), weight: obsPercent(row[2]), fixed: ["Ara Sınav", "Yarıyıl Sonu Sınavı"].includes(name) };
+    });
+  const workloadTable = findObsTable(tables, (row) => normalizeObsText(row[0]) === "is yuku");
+  const workloads = {};
+  for (const row of workloadTable.slice(1)) {
+    if (!row[0] || normalizeObsText(row[0]).includes("toplam")) continue;
+    workloads[normalizeObsWorkloadName(row[0])] = { count: obsNumber(row[1]), hours: obsNumber(row[2]) };
+  }
+  const outcomesTable = findObsTable(tables, (row) =>
+    normalizeObsText(row[0]).includes("sira no") && normalizeObsText(row[1]).includes("aciklama"),
+  );
+  const outcomes = outcomesTable.slice(1).filter((row) => /^\d+$/.test(row[0] || "") && row[1]).map((row) => row[1]);
+  const weeklyTable = findObsTable(tables, (row) =>
+    normalizeObsText(row[0]) === "hafta" && normalizeObsText(row[1]) === "konu",
+  );
+  const weeklyTopics = {};
+  for (const row of weeklyTable.slice(1)) {
+    const week = obsNumber(row[0]);
+    if (!week) continue;
+    const extra = [row[2] ? `Ön Hazırlık: ${row[2]}` : "", row[3] ? `Dokümanlar: ${row[3]}` : ""].filter(Boolean);
+    weeklyTopics[week] = [row[1] || "", ...extra].filter(Boolean).join("\n");
+  }
+  const contributionTable = findObsTable(tables, (row) => row.some((cell) => /^P\d+$/i.test(cleanObsText(cell))));
+  const contributionHeaders = contributionTable[0] || [];
+  const contributionMatrix = contributionTable
+    .slice(1)
+    .filter((row) => /^Ö?\d+$/i.test(cleanObsText(row[0])) || /^O?\d+$/i.test(cleanObsText(row[0])))
+    .map((row) => Object.fromEntries(contributionHeaders.slice(1).map((header, index) => [header, obsNumber(row[index + 1])])));
+  const totalWorkload = Object.values(workloads).reduce((sum, row) => sum + row.count * row.hours, 0);
+  const url = new URL(sourceUrl);
+  return {
+    sourceUrl,
+    obsCourseId: url.searchParams.get("curCourse") || "",
+    code: detail["Kodu"] || "",
+    name: detail["Adı"] || "",
+    semester: obsNumber(detail["Yarıyıl"]),
+    theory,
+    practice,
+    lab,
+    credit: obsNumber(detail["Kredi"]),
+    ects: obsNumber(detail["AKTS"]),
+    updatedAt: detail["Son Güncelleme Tarihi"] || "",
+    details,
+    resources: resourceParts.join("\n\n"),
+    structures,
+    assessments,
+    workloads,
+    outcomes,
+    weeklyTopics,
+    contributionMatrix,
+    totalWorkload,
+  };
+}
+
 async function handleDbpApi(request) {
   const url = new URL(request.url);
   const pathname = stripBasePath(url.pathname);
@@ -468,9 +900,37 @@ async function handleDbpApi(request) {
       return jsonResponse({ ok: true, dbPath, size: await databaseSize() });
     }
 
+    if (pathname === "/api/dbp/access" && request.method === "GET") {
+      const auth = requireDbpSession(request);
+      if (auth.error) return auth.error;
+      upsertSessionUser(auth.session);
+      return jsonResponse({
+        role: auth.session.role,
+        modules: modulesForRole(auth.session.role),
+      });
+    }
+
+    if (pathname === "/api/dbp/obs-course-draft" && request.method === "POST") {
+      const auth = requireDbpSession(request);
+      if (auth.error) return auth.error;
+      upsertSessionUser(auth.session);
+      const body = await readJsonBody(request);
+      const { html, url: sourceUrl } = await fetchObsHtml(body.url);
+      const draft = parseObsCourseDraft(html, sourceUrl);
+      if (!draft.code || !draft.name) {
+        return jsonResponse({ message: "OBS ders bilgileri okunamadı. Linkin ders detay sayfası olduğundan emin olun." }, { status: 422 });
+      }
+      audit("course.obs.fetch", auth.session?.username || auth.session?.name || "dbp-user", {
+        code: draft.code,
+        obsCourseId: draft.obsCourseId,
+      });
+      return jsonResponse({ ok: true, draft });
+    }
+
     if (pathname === "/api/dbp/course-package" && request.method === "POST") {
       const auth = requireDbpSession(request, { write: true });
       if (auth.error) return auth.error;
+      upsertSessionUser(auth.session);
       const body = await readJsonBody(request);
       const now = new Date().toISOString();
       const level = normalizeLevel(body.level);
@@ -544,10 +1004,22 @@ async function handleDbpApi(request) {
 
     const admin = requireAdmin(request);
     if (admin.error) return admin.error;
+    upsertSessionUser(admin.session);
     const actor = admin.session?.username || admin.session?.name || "admin";
 
     if (pathname === "/api/dbp/admin/summary" && request.method === "GET") {
       return jsonResponse(await adminSummary());
+    }
+
+    if (pathname === "/api/dbp/admin/role-module-access" && request.method === "GET") {
+      return jsonResponse({ access: roleAccessMap() });
+    }
+
+    if (pathname === "/api/dbp/admin/role-module-access" && request.method === "PUT") {
+      const body = await readJsonBody(request);
+      const access = normalizeRoleAccessPayload(body);
+      replaceRoleAccess(access, actor);
+      return jsonResponse({ ok: true, access: roleAccessMap() });
     }
 
     if (pathname === "/api/dbp/admin/export" && request.method === "GET") {
@@ -608,6 +1080,18 @@ function stripBasePath(pathname) {
   if (pathname === basePath) return "/";
   if (pathname.startsWith(`${basePath}/`)) return pathname.slice(basePath.length);
   return pathname;
+}
+
+function shouldRedirectToBasePath(pathname) {
+  if (pathname === "/" || pathname === basePath || pathname.startsWith(`${basePath}/`)) return false;
+  if (pathname.startsWith("/api/")) return false;
+  const publicRootPaths = new Set(["/sso", "/panel", "/yonetim", "/katalog"]);
+  if (publicRootPaths.has(pathname)) return true;
+  return pathname.startsWith("/sso/") ||
+    pathname.startsWith("/panel/") ||
+    pathname.startsWith("/yonetim/") ||
+    pathname.startsWith("/katalog/") ||
+    pathname.startsWith("/programlar/");
 }
 
 function safeClientFile(pathname) {
@@ -743,6 +1227,12 @@ createServer(async (req, res) => {
       return;
     }
 
+    if (shouldRedirectToBasePath(url.pathname)) {
+      res.writeHead(308, { Location: `${basePath}${url.pathname}${url.search}` });
+      res.end();
+      return;
+    }
+
     const apiResponse = await handleDbpApi(nodeRequestToWeb(req));
     if (apiResponse) {
       await sendWebResponse(res, apiResponse);
@@ -761,5 +1251,11 @@ createServer(async (req, res) => {
     res.end("Internal Server Error");
   }
 }).listen(port, host, () => {
+  const localUrl = `http://localhost:${port}${basePath}/`;
   console.log(`[dbp] Production server running at http://${host}:${port}${basePath}/`);
+  console.log(`[dbp] Browser URL: ${localUrl}`);
+  if (process.env.DBP_OPEN_BROWSER === "1") {
+    console.log("[dbp] Browser aciliyor...");
+    openBrowser(localUrl);
+  }
 });

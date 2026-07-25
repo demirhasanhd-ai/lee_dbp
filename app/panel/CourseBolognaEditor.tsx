@@ -1,6 +1,6 @@
 "use client";
-import { Plus, Save, Send, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { DownloadCloud, ExternalLink, Link2, Plus, Save, Send, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { OutcomeQualityHint } from "./outcomeQuality";
 import { dbpPath } from "../../lib/dbpPath";
 
@@ -26,8 +26,52 @@ type SessionIdentity = {
   role: string;
   readOnly?: boolean;
 };
+type ObsDraft = {
+  sourceUrl: string;
+  obsCourseId: string;
+  code: string;
+  name: string;
+  semester: number;
+  theory: number;
+  practice: number;
+  lab: number;
+  credit: number;
+  ects: number;
+  updatedAt: string;
+  details: {
+    language?: string;
+    level?: string;
+    type?: string;
+    teachingMode?: string;
+    purpose?: string;
+    content?: string;
+    methods?: string;
+    prerequisites?: string;
+    coordinator?: string;
+    instructors?: string;
+    assistants?: string;
+  };
+  resources?: string;
+  structures: Record<string, number>;
+  assessments: Assessment[];
+  workloads: Record<string, Workload>;
+  outcomes: string[];
+  weeklyTopics: Record<string, string>;
+  contributionMatrix: Record<string, number>[];
+};
+
 const weeks = Array.from({ length: 15 }, (_, index) => index + 1);
 const fixedOutcomeCount = 5;
+const defaultAssessments: Assessment[] = [
+  { id: 1, name: "Ara Sınav", count: 1, weight: 40, fixed: true },
+  { id: 2, name: "Yarıyıl Sonu Sınavı", count: 1, weight: 60, fixed: true },
+];
+const defaultWorkloads: Record<string, Workload> = {
+  "Ders Süresi": { count: 15, hours: 3 },
+  "Sınıf Dışı Çalışma": { count: 15, hours: 2 },
+  "Ara Sınav": { count: 1, hours: 2 },
+  "Yarıyıl Sonu Sınavı": { count: 1, hours: 2 },
+};
 const structures = [
   "Matematik ve Temel Bilimler",
   "Mühendislik Bilimleri",
@@ -38,6 +82,16 @@ const structures = [
   "Sağlık Bilimleri",
   "Alan Bilgisi",
 ];
+const longFields = [
+  ["purpose", "Dersin Amacı", "Bilimsel araştırma sürecinin temel kavramlarını kazandırmak."],
+  ["content", "Dersin İçeriği", "Araştırma problemi, literatür taraması, yöntem, analiz ve etik."],
+  ["methods", "Dersin Yöntem ve Teknikleri", "Anlatım, tartışma, örnek olay, uygulama ve proje."],
+  ["prerequisites", "Ön Koşulları", "Yok"],
+  ["coordinator", "Dersin Koordinatörü", "Dr. Öğr. Üyesi Ayşe Yılmaz"],
+  ["instructors", "Dersi Veren Öğretim Elemanı / Elemanları", "Dr. Öğr. Üyesi Ayşe Yılmaz"],
+  ["assistants", "Dersin Yardımcıları", "Yok"],
+  ["resources", "Ders Kaynakları", "Temel ve yardımcı kaynakları girin."],
+] as const;
 
 function sessionHeader(session: SessionIdentity) {
   return JSON.stringify(session);
@@ -59,6 +113,28 @@ function serializeForm(form: HTMLFormElement) {
   return fields;
 }
 
+const emptyOutcomes = () => Array.from({ length: fixedOutcomeCount }, () => "");
+const emptyWeeklyTopics = () => Object.fromEntries(weeks.map((week) => [week, ""])) as Record<number, string>;
+const emptyStructures = () => Object.fromEntries(structures.map((item) => [item, 0])) as Record<string, number>;
+const defaultDetailFields = () => Object.fromEntries(longFields.map(([key, , value]) => [key, value])) as Record<string, string>;
+
+function defaultIdentity(course: CourseIdentity) {
+  return {
+    name: course.name,
+    code: course.code,
+    theory: "3",
+    practice: "0",
+    credit: "3",
+    level: course.level.includes("Doktora") ? "Doktora" : course.level.includes("Tezsiz") ? "Tezsiz Yüksek Lisans" : "Yüksek Lisans",
+    type: "Zorunlu",
+    language: "Türkçe",
+  };
+}
+
+function shouldFill(current: string | number, initial: string | number, mode: "empty" | "overwrite") {
+  return mode === "overwrite" || String(current ?? "").trim() === "" || String(current) === String(initial);
+}
+
 export function CourseBolognaEditor({
   course,
   session,
@@ -71,19 +147,35 @@ export function CourseBolognaEditor({
   onPublish: () => void;
 }) {
   const [workflowStatus, setWorkflowStatus] = useState("Taslak");
-  const [outcomes, setOutcomes] = useState(Array.from({ length: fixedOutcomeCount }, () => ""));
-  const [assessments, setAssessments] = useState<Assessment[]>([
-    { id: 1, name: "Ara Sınav", count: 1, weight: 40, fixed: true },
-    { id: 2, name: "Yarıyıl Sonu Sınavı", count: 1, weight: 60, fixed: true },
-  ]);
+  const [identity, setIdentity] = useState(() => defaultIdentity(course));
+  const [detailFields, setDetailFields] = useState(defaultDetailFields);
+  const [outcomes, setOutcomes] = useState(emptyOutcomes);
+  const [assessments, setAssessments] = useState<Assessment[]>(defaultAssessments);
   const [nextAssessment, setNextAssessment] = useState(3);
-  const [workloads, setWorkloads] = useState<Record<string, Workload>>({
-    "Ders Süresi": { count: 15, hours: 3 },
-    "Sınıf Dışı Çalışma": { count: 15, hours: 2 },
-    "Ara Sınav": { count: 1, hours: 2 },
-    "Yarıyıl Sonu Sınavı": { count: 1, hours: 2 },
-  });
+  const [workloads, setWorkloads] = useState<Record<string, Workload>>(defaultWorkloads);
+  const [weeklyTopics, setWeeklyTopics] = useState<Record<number, string>>(emptyWeeklyTopics);
+  const [structureValues, setStructureValues] = useState<Record<string, number>>(emptyStructures);
+  const [contributionMatrix, setContributionMatrix] = useState<Record<string, number>[]>([]);
   const [sdgs, setSdgs] = useState(["", "", ""]);
+  const [obsOpen, setObsOpen] = useState(false);
+  const [obsUrl, setObsUrl] = useState("");
+  const [obsDraft, setObsDraft] = useState<ObsDraft | null>(null);
+  const [obsBusy, setObsBusy] = useState(false);
+  const [obsMessage, setObsMessage] = useState("");
+
+  useEffect(() => {
+    setIdentity(defaultIdentity(course));
+    setDetailFields(defaultDetailFields());
+    setOutcomes(emptyOutcomes());
+    setAssessments(defaultAssessments);
+    setWorkloads(defaultWorkloads);
+    setWeeklyTopics(emptyWeeklyTopics());
+    setStructureValues(emptyStructures());
+    setContributionMatrix([]);
+    setNextAssessment(3);
+    setWorkflowStatus("Taslak");
+  }, [course.code, course.name, course.level]);
+
   const workloadNames = useMemo(
     () => [
       "Ders Süresi",
@@ -120,6 +212,82 @@ export function CourseBolognaEditor({
       return copy;
     });
   };
+  const fetchObsDraft = async () => {
+    setObsBusy(true);
+    setObsMessage("");
+    setObsDraft(null);
+    try {
+      const response = await fetch(dbpPath("/api/dbp/obs-course-draft"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-DBP-Session": sessionHeader(session),
+        },
+        body: JSON.stringify({ url: obsUrl }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || "OBS ders bilgisi alınamadı.");
+      setObsDraft(data.draft);
+      setObsMessage(`${data.draft.code} - ${data.draft.name} bulundu.`);
+    } catch (error) {
+      setObsMessage(error instanceof Error ? error.message : "OBS ders bilgisi alınamadı.");
+    } finally {
+      setObsBusy(false);
+    }
+  };
+  const applyObsDraft = (mode: "empty" | "overwrite") => {
+    if (!obsDraft) return;
+    const initialIdentity = defaultIdentity(course);
+    const initialDetails = defaultDetailFields();
+    setIdentity((current) => ({
+      name: shouldFill(current.name, initialIdentity.name, mode) ? obsDraft.name || current.name : current.name,
+      code: shouldFill(current.code, initialIdentity.code, mode) ? obsDraft.code || current.code : current.code,
+      theory: shouldFill(current.theory, initialIdentity.theory, mode) ? String(obsDraft.theory || current.theory) : current.theory,
+      practice: shouldFill(current.practice, initialIdentity.practice, mode) ? String(obsDraft.practice || current.practice) : current.practice,
+      credit: shouldFill(current.credit, initialIdentity.credit, mode) ? String(obsDraft.credit || current.credit) : current.credit,
+      level: shouldFill(current.level, initialIdentity.level, mode) ? obsDraft.details.level || current.level : current.level,
+      type: shouldFill(current.type, initialIdentity.type, mode) ? obsDraft.details.type || current.type : current.type,
+      language: shouldFill(current.language, initialIdentity.language, mode) ? obsDraft.details.language || current.language : current.language,
+    }));
+    setDetailFields((current) => {
+      const next = { ...current };
+      const incoming: Record<string, string> = {
+        purpose: obsDraft.details.purpose || "",
+        content: obsDraft.details.content || "",
+        methods: obsDraft.details.methods || "",
+        prerequisites: obsDraft.details.prerequisites || "",
+        coordinator: obsDraft.details.coordinator || "",
+        instructors: obsDraft.details.instructors || "",
+        assistants: obsDraft.details.assistants || "",
+        resources: obsDraft.resources || "",
+      };
+      for (const key of Object.keys(incoming)) {
+        if (incoming[key] && shouldFill(next[key], initialDetails[key], mode)) next[key] = incoming[key];
+      }
+      return next;
+    });
+    if (mode === "overwrite" || outcomes.every((item) => !item.trim())) {
+      const imported = obsDraft.outcomes.length ? obsDraft.outcomes : [];
+      setOutcomes([...imported, ...Array.from({ length: Math.max(0, fixedOutcomeCount - imported.length) }, () => "")]);
+    }
+    if (obsDraft.assessments.length && (mode === "overwrite" || JSON.stringify(assessments) === JSON.stringify(defaultAssessments))) {
+      setAssessments(obsDraft.assessments.map((item, index) => ({ ...item, id: index + 1 })));
+      setNextAssessment(obsDraft.assessments.length + 1);
+    }
+    if (Object.keys(obsDraft.workloads).length && (mode === "overwrite" || JSON.stringify(workloads) === JSON.stringify(defaultWorkloads))) {
+      setWorkloads(obsDraft.workloads);
+    }
+    if (Object.keys(obsDraft.weeklyTopics).length && (mode === "overwrite" || Object.values(weeklyTopics).every((item) => !item.trim()))) {
+      setWeeklyTopics((current) => ({ ...current, ...obsDraft.weeklyTopics }));
+    }
+    if (Object.keys(obsDraft.structures).length && (mode === "overwrite" || Object.values(structureValues).every((item) => Number(item) === 0))) {
+      setStructureValues((current) => ({ ...current, ...obsDraft.structures }));
+    }
+    if (obsDraft.contributionMatrix.length && (mode === "overwrite" || contributionMatrix.length === 0)) {
+      setContributionMatrix(obsDraft.contributionMatrix);
+    }
+    setObsOpen(false);
+  };
   const persistPackage = async (form: HTMLFormElement, status: string) => {
     const response = await fetch(dbpPath("/api/dbp/course-package"), {
       method: "POST",
@@ -128,19 +296,24 @@ export function CourseBolognaEditor({
         "X-DBP-Session": sessionHeader(session),
       },
       body: JSON.stringify({
-        code: course.code,
-        name: course.name,
+        code: identity.code,
+        name: identity.name,
         department: course.department || "",
         programName: course.programName || "",
         level: course.level,
         status,
         package: {
           fields: serializeForm(form),
+          identity,
           outcomes,
           assessments,
           workloads,
+          weeklyTopics,
+          structureValues,
+          contributionMatrix,
           sdgs,
           ects,
+          obsSourceUrl: obsDraft?.sourceUrl || "",
           savedAt: new Date().toISOString(),
         },
       }),
@@ -164,36 +337,41 @@ export function CourseBolognaEditor({
       <section className="course-form-card">
         <header>
           <div>
-            <small>{course.code}</small>
-            <h2>{course.name}</h2>
+            <small>{identity.code}</small>
+            <h2>{identity.name}</h2>
           </div>
-          <span>{workflowStatus}</span>
+          <div className="course-header-actions">
+            <button type="button" className="obs-import-button" onClick={() => setObsOpen(true)}>
+              <DownloadCloud size={15} /> OBS'den Doldur
+            </button>
+            <span>{workflowStatus}</span>
+          </div>
         </header>
         <h3>Ders Genel Bilgileri</h3>
         <div className="course-general-grid">
           <label className="name">
             <span>Dersin Adı</span>
-            <input defaultValue={course.name} />
+            <input name="Dersin Adı" value={identity.name} onChange={(event) => setIdentity((current) => ({ ...current, name: event.target.value }))} />
           </label>
           <label>
             <span>Kodu</span>
-            <input defaultValue={course.code} />
+            <input name="Kodu" value={identity.code} onChange={(event) => setIdentity((current) => ({ ...current, code: event.target.value }))} />
           </label>
           <label>
             <span>Teorik saat</span>
-            <input type="number" defaultValue="3" />
+            <input name="Teorik saat" type="number" value={identity.theory} onChange={(event) => setIdentity((current) => ({ ...current, theory: event.target.value }))} />
           </label>
           <label>
             <span>Uygulama saat</span>
-            <input type="number" defaultValue="0" />
+            <input name="Uygulama saat" type="number" value={identity.practice} onChange={(event) => setIdentity((current) => ({ ...current, practice: event.target.value }))} />
           </label>
           <label>
             <span>Kredi</span>
-            <input type="number" defaultValue="3" />
+            <input name="Kredi" type="number" value={identity.credit} onChange={(event) => setIdentity((current) => ({ ...current, credit: event.target.value }))} />
           </label>
           <label>
             <span>AKTS</span>
-            <input value={ects} readOnly />
+            <input name="AKTS" value={ects} readOnly />
           </label>
         </div>
       </section>
@@ -202,7 +380,7 @@ export function CourseBolognaEditor({
         <div className="course-info-grid">
           <label>
             <span>Dersin seviyesi</span>
-            <select defaultValue="Yüksek Lisans">
+            <select name="Dersin seviyesi" value={identity.level} onChange={(event) => setIdentity((current) => ({ ...current, level: event.target.value }))}>
               <option>Yüksek Lisans</option>
               <option>Doktora</option>
               <option>Tezsiz Yüksek Lisans</option>
@@ -210,60 +388,30 @@ export function CourseBolognaEditor({
           </label>
           <label>
             <span>Dersin türü</span>
-            <select>
+            <select name="Dersin türü" value={identity.type} onChange={(event) => setIdentity((current) => ({ ...current, type: event.target.value }))}>
               <option>Zorunlu</option>
               <option>Seçmeli</option>
             </select>
           </label>
           <label>
             <span>Öğrenim dili</span>
-            <select defaultValue="Türkçe">
+            <select name="Öğrenim dili" value={identity.language} onChange={(event) => setIdentity((current) => ({ ...current, language: event.target.value }))}>
               <option>Türkçe</option>
               <option>İngilizce</option>
             </select>
           </label>
         </div>
-        {[
-          [
-            "Dersin Amacı",
-            "Bilimsel araştırma sürecinin temel kavramlarını kazandırmak.",
-          ],
-          [
-            "Dersin İçeriği",
-            "Araştırma problemi, literatür taraması, yöntem, analiz ve etik.",
-          ],
-          [
-            "Dersin Yöntem ve Teknikleri",
-            "Anlatım, tartışma, örnek olay, uygulama ve proje.",
-          ],
-          ["Ön Koşulları", "Yok"],
-          ["Dersin Koordinatörü", "Dr. Öğr. Üyesi Ayşe Yılmaz"],
-          [
-            "Dersi Veren Öğretim Elemanı / Elemanları",
-            "Dr. Öğr. Üyesi Ayşe Yılmaz",
-          ],
-          ["Dersin Yardımcıları", "Yok"],
-          ["Ders Kaynakları", "Temel ve yardımcı kaynakları girin."],
-        ].map(([label, value]) => (
-          <label className="long-field" key={label}>
+        {longFields.map(([key, label]) => (
+          <label className="long-field" key={key}>
             <span>{label}</span>
-            <textarea defaultValue={value} />
+            <textarea name={label} value={detailFields[key]} onChange={(event) => setDetailFields((current) => ({ ...current, [key]: event.target.value }))} />
           </label>
         ))}
       </section>
       <section className="course-form-card">
         <div className="section-title">
           <h3>Dersin Öğrenme Çıktıları</h3>
-          <button
-            type="button"
-            disabled={outcomes.length >= fixedOutcomeCount}
-            title="LEE DBP standardında ders öğrenme çıktısı 5 maddede tutulur."
-            onClick={() =>
-              setOutcomes((current) =>
-                current.length >= fixedOutcomeCount ? current : [...current, ""],
-              )
-            }
-          >
+          <button type="button" onClick={() => setOutcomes((current) => [...current, ""])}>
             <Plus size={14} /> ÖÇ Ekle
           </button>
         </div>
@@ -273,14 +421,9 @@ export function CourseBolognaEditor({
               <span>ÖÇ{index + 1}</span>
               <div className="outcome-input-wrap">
                 <textarea
+                  name={`ÖÇ${index + 1}`}
                   value={value}
-                  onChange={(event) =>
-                    setOutcomes((current) =>
-                      current.map((item, i) =>
-                        i === index ? event.target.value : item,
-                      ),
-                    )
-                  }
+                  onChange={(event) => setOutcomes((current) => current.map((item, i) => i === index ? event.target.value : item))}
                   placeholder="Öğrenme çıktısını yazın"
                 />
                 <OutcomeQualityHint text={value} kind="course" />
@@ -289,14 +432,8 @@ export function CourseBolognaEditor({
                 type="button"
                 aria-label={`ÖÇ ${index + 1} sil`}
                 disabled={outcomes.length <= fixedOutcomeCount}
-                title="LEE DBP standardında ders öğrenme çıktısı 5 maddede tutulur."
-                onClick={() =>
-                  setOutcomes((current) =>
-                    current.length <= fixedOutcomeCount
-                      ? current
-                      : current.filter((_, i) => i !== index),
-                  )
-                }
+                title="LEE DBP standardında ders öğrenme çıktısı en az 5 maddede tutulur."
+                onClick={() => setOutcomes((current) => current.length <= fixedOutcomeCount ? current : current.filter((_, i) => i !== index))}
               >
                 <Trash2 size={14} />
               </button>
@@ -311,7 +448,7 @@ export function CourseBolognaEditor({
             <label key={item}>
               <span>{item}</span>
               <div>
-                <input type="number" min="0" max="100" defaultValue="0" />
+                <input name={item} type="number" min="0" max="100" value={structureValues[item] ?? 0} onChange={(event) => setStructureValues((current) => ({ ...current, [item]: Number(event.target.value) }))} />
                 <b>%</b>
               </div>
             </label>
@@ -334,48 +471,13 @@ export function CourseBolognaEditor({
           </div>
           {assessments.map((item) => (
             <div key={item.id}>
-              <input
-                value={item.name}
-                readOnly={item.fixed}
-                onChange={(event) =>
-                  setAssessments((current) =>
-                    current.map((row) =>
-                      row.id === item.id
-                        ? { ...row, name: event.target.value }
-                        : row,
-                    ),
-                  )
-                }
-              />
-              <input
-                type="number"
-                min="0"
-                value={item.count}
-                onChange={(event) => {
-                  const count = Number(event.target.value);
-                  setAssessments((current) =>
-                    current.map((row) =>
-                      row.id === item.id ? { ...row, count } : row,
-                    ),
-                  );
-                  updateWorkload(item.name, "count", count);
-                }}
-              />
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={item.weight}
-                onChange={(event) =>
-                  setAssessments((current) =>
-                    current.map((row) =>
-                      row.id === item.id
-                        ? { ...row, weight: Number(event.target.value) }
-                        : row,
-                    ),
-                  )
-                }
-              />
+              <input name={`Değerlendirme ${item.id}`} value={item.name} readOnly={item.fixed} onChange={(event) => setAssessments((current) => current.map((row) => row.id === item.id ? { ...row, name: event.target.value } : row))} />
+              <input type="number" min="0" value={item.count} onChange={(event) => {
+                const count = Number(event.target.value);
+                setAssessments((current) => current.map((row) => row.id === item.id ? { ...row, count } : row));
+                updateWorkload(item.name, "count", count);
+              }} />
+              <input type="number" min="0" max="100" value={item.weight} onChange={(event) => setAssessments((current) => current.map((row) => row.id === item.id ? { ...row, weight: Number(event.target.value) } : row))} />
               {!item.fixed ? (
                 <button type="button" onClick={() => removeAssessment(item)}>
                   <Trash2 size={14} />
@@ -397,7 +499,7 @@ export function CourseBolognaEditor({
           {weeks.map((week) => (
             <div key={week}>
               <b>{week}</b>
-              <textarea aria-label={`${week}. hafta konusu`} />
+              <textarea name={`${week}. hafta konusu`} aria-label={`${week}. hafta konusu`} value={weeklyTopics[week] ?? ""} onChange={(event) => setWeeklyTopics((current) => ({ ...current, [week]: event.target.value }))} />
             </div>
           ))}
         </div>
@@ -416,22 +518,8 @@ export function CourseBolognaEditor({
             return (
               <div key={name}>
                 <b>{name}</b>
-                <input
-                  type="number"
-                  min="0"
-                  value={row.count}
-                  onChange={(event) =>
-                    updateWorkload(name, "count", Number(event.target.value))
-                  }
-                />
-                <input
-                  type="number"
-                  min="0"
-                  value={row.hours}
-                  onChange={(event) =>
-                    updateWorkload(name, "hours", Number(event.target.value))
-                  }
-                />
+                <input type="number" min="0" value={row.count} onChange={(event) => updateWorkload(name, "count", Number(event.target.value))} />
+                <input type="number" min="0" value={row.hours} onChange={(event) => updateWorkload(name, "hours", Number(event.target.value))} />
                 <input value={row.count * row.hours} readOnly />
               </div>
             );
@@ -440,47 +528,48 @@ export function CourseBolognaEditor({
             <b>Toplam İş Yükü / AKTS Kredisi</b>
             <span />
             <span />
-            <strong>
-              {totalWorkload} saat / {ects} AKTS
-            </strong>
+            <strong>{totalWorkload} saat / {ects} AKTS</strong>
           </div>
         </div>
       </section>
       <section className="course-form-card">
         <h3>Dersin Program Çıktılarına Katkısı</h3>
-        <p className="form-help">
-          Her öğrenme çıktısının P1–P13 program çıktılarına katkısını 0–5
-          arasında belirtin.
-        </p>
+        <p className="form-help">Her öğrenme çıktısının P1-P13 program çıktılarına katkısını 0-5 arasında belirtin.</p>
         <div className="contribution-wrap">
           <table>
             <thead>
               <tr>
                 <th>ÖÇ / PÇ</th>
-                {Array.from({ length: 13 }, (_, i) => (
-                  <th key={i}>P{i + 1}</th>
-                ))}
+                {Array.from({ length: 13 }, (_, i) => <th key={i}>P{i + 1}</th>)}
               </tr>
             </thead>
             <tbody>
               {outcomes.map((_, outcome) => (
                 <tr key={outcome}>
                   <th>ÖÇ{outcome + 1}</th>
-                  {Array.from({ length: 13 }, (_, i) => (
-                    <td key={i}>
-                      <select
-                        aria-label={`ÖÇ${outcome + 1} P${i + 1} katkısı`}
-                        defaultValue="0"
-                      >
-                        <option>0</option>
-                        <option>1</option>
-                        <option>2</option>
-                        <option>3</option>
-                        <option>4</option>
-                        <option>5</option>
-                      </select>
-                    </td>
-                  ))}
+                  {Array.from({ length: 13 }, (_, i) => {
+                    const key = `P${i + 1}`;
+                    return (
+                      <td key={i}>
+                        <select
+                          aria-label={`ÖÇ${outcome + 1} P${i + 1} katkısı`}
+                          value={String(contributionMatrix[outcome]?.[key] ?? 0)}
+                          onChange={(event) => setContributionMatrix((current) => {
+                            const next = [...current];
+                            next[outcome] = { ...(next[outcome] || {}), [key]: Number(event.target.value) };
+                            return next;
+                          })}
+                        >
+                          <option>0</option>
+                          <option>1</option>
+                          <option>2</option>
+                          <option>3</option>
+                          <option>4</option>
+                          <option>5</option>
+                        </select>
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -490,33 +579,15 @@ export function CourseBolognaEditor({
       <section className="course-form-card">
         <div className="section-title">
           <h3>Sürdürülebilir Kalkınma Amaçları</h3>
-          <button
-            type="button"
-            onClick={() => setSdgs((current) => [...current, ""])}
-          >
+          <button type="button" onClick={() => setSdgs((current) => [...current, ""])}>
             <Plus size={14} /> SKA Ekle
           </button>
         </div>
         {sdgs.map((value, index) => (
           <label className="sdg-row" key={index}>
             <span>{index + 1}</span>
-            <input
-              value={value}
-              onChange={(event) =>
-                setSdgs((current) =>
-                  current.map((item, i) =>
-                    i === index ? event.target.value : item,
-                  ),
-                )
-              }
-              placeholder="Sürdürülebilir kalkınma amacını seçin veya yazın"
-            />
-            <button
-              type="button"
-              onClick={() =>
-                setSdgs((current) => current.filter((_, i) => i !== index))
-              }
-            >
+            <input value={value} onChange={(event) => setSdgs((current) => current.map((item, i) => i === index ? event.target.value : item))} placeholder="Sürdürülebilir kalkınma amacını seçin veya yazın" />
+            <button type="button" onClick={() => setSdgs((current) => current.filter((_, i) => i !== index))}>
               <Trash2 size={14} />
             </button>
           </label>
@@ -529,6 +600,47 @@ export function CourseBolognaEditor({
           <button type="submit" className="publish"><Send size={15} />Yayınla</button>
         </div>
       </div>
+      {obsOpen && (
+        <div className="obs-import-backdrop" role="presentation">
+          <section className="obs-import-dialog" role="dialog" aria-modal="true" aria-labelledby="obs-import-title">
+            <header>
+              <div>
+                <small>CANLI OBS</small>
+                <h3 id="obs-import-title">OBS'den Ders Bilgisi Al</h3>
+              </div>
+              <button type="button" onClick={() => setObsOpen(false)} aria-label="Kapat"><X size={16} /></button>
+            </header>
+            <div className="obs-guide">
+              <p>OBS'den çağırılmak istenen ders seçildikten sonra açılan sayfanın en altında bulunan linki kopyalayın.</p>
+              <a className="obs-guide-link" href={dbpPath("/obs-link-guide.jpg")} target="_blank" rel="noopener noreferrer">
+                <ExternalLink size={15} />
+                Görsel için tıklayınız
+              </a>
+            </div>
+            <label>
+              <span>OBS ders detay linki</span>
+              <div className="obs-url-row">
+                <Link2 size={15} />
+                <input value={obsUrl} onChange={(event) => setObsUrl(event.target.value)} placeholder="https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=..." />
+              </div>
+            </label>
+            <button type="button" className="obs-fetch" disabled={obsBusy || !obsUrl.trim()} onClick={fetchObsDraft}>
+              {obsBusy ? "Getiriliyor..." : "Dersi Getir"}
+            </button>
+            {obsMessage && <p className={obsDraft ? "obs-success" : "obs-error"}>{obsMessage}</p>}
+            {obsDraft && (
+              <div className="obs-found">
+                <b>{obsDraft.code} - {obsDraft.name}</b>
+                <span>{obsDraft.details.level || "Ders bilgi paketi"} · {obsDraft.ects || "-"} AKTS · {obsDraft.updatedAt || "Güncelleme tarihi yok"}</span>
+                <footer>
+                  <button type="button" onClick={() => applyObsDraft("empty")}>Boş Alanları Doldur</button>
+                  <button type="button" className="primary" onClick={() => applyObsDraft("overwrite")}>Tümünü Değiştir</button>
+                </footer>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </form>
   );
 }

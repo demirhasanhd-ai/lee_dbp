@@ -15,6 +15,13 @@
       "when": 1784287383132,
       "tag": "0001_bouncy_blacklash",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784991301289,
+      "tag": "0002_clever_pet_avengers",
+      "breakpoints": true
     }
   ]
 }
