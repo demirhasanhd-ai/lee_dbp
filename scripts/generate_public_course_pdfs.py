@@ -299,9 +299,16 @@ def section(title: str):
     return [Spacer(1, 2 * mm), Paragraph(html.escape(title), styles["SectionTR"])]
 
 
-def table(data: list[list[object]], widths: list[float], header_rows: int = 1, alignments: dict[int, str] | None = None) -> Table:
+def table(
+    data: list[list[object]],
+    widths: list[float],
+    header_rows: int = 1,
+    alignments: dict[int, str] | None = None,
+    header_row_indices: set[int] | None = None,
+) -> Table:
+    styled_header_rows = header_row_indices if header_row_indices is not None else set(range(header_rows))
     converted = [
-        [value if hasattr(value, "wrapOn") else para(value, "CellBold" if row_index < header_rows else "CellTR") for value in row]
+        [value if hasattr(value, "wrapOn") else para(value, "CellBold" if row_index in styled_header_rows else "CellTR") for value in row]
         for row_index, row in enumerate(data)
     ]
     item = Table(converted, colWidths=widths, repeatRows=header_rows, hAlign="LEFT")
@@ -315,6 +322,11 @@ def table(data: list[list[object]], widths: list[float], header_rows: int = 1, a
         ("TOPPADDING", (0, 0), (-1, -1), 4.2),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4.2),
     ]
+    for row_index in sorted(styled_header_rows - set(range(header_rows))):
+        commands.extend([
+            ("BACKGROUND", (0, row_index), (-1, row_index), PALE_2),
+            ("TEXTCOLOR", (0, row_index), (-1, row_index), RED),
+        ])
     if alignments:
         for col, alignment in alignments.items():
             commands.append(("ALIGN", (col, 0), (col, -1), alignment))
@@ -355,11 +367,12 @@ def story(course: Course):
             [
                 ["Dersin Kodu", "Dersin Adı", "Program", "Dönem"],
                 [course.code, course.name, course.level, course.term],
-                ["Zorunlu / Seçmeli", "Öğrenim Dili", "T + U", "Kredi / AKTS"],
+                ["Ders Türü", "Öğrenim Dili", "T + U", "Kredi / AKTS"],
                 [course.course_type, "Türkçe", f"{course.theory} + {course.practice}", f"{course.credit} / {course.ects}"],
             ],
             [25 * mm, 79 * mm, 44 * mm, 27 * mm],
             header_rows=1,
+            header_row_indices={0, 2},
         )
     )
     if course.instructor and not is_generic_instructor_course(course):

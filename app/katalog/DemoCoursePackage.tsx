@@ -125,7 +125,7 @@ export function DemoCoursePackage({
             <Field label="Dersin Adı" value={displayName} wide />
             <Field label="Ders Kodu" value={displayCode} />
             <Field label="Öğrenim Dili" value="Türkçe" />
-            <Field label="Zorunlu / Seçmeli" value={displayType} />
+            <Field label="Ders Türü" value={displayType} />
             <Field label="Teorik" value={theory} />
             <Field label="Uygulama" value={practice} />
             <Field label="Kredi" value={credit} />

@@ -133,10 +133,11 @@ def section(title):
     return KeepTogether([Spacer(1, 2 * mm), Paragraph(title, styles["SectionTR"])])
 
 
-def table(data, widths, header_rows=1, alignments=None, font_size=7.4):
+def table(data, widths, header_rows=1, alignments=None, font_size=7.4, header_row_indices=None):
+    styled_header_rows = header_row_indices if header_row_indices is not None else set(range(header_rows))
     converted = []
     for r, row in enumerate(data):
-        converted.append([value if hasattr(value, "wrapOn") else p(value, "CellBold" if r < header_rows else "CellTR") for value in row])
+        converted.append([value if hasattr(value, "wrapOn") else p(value, "CellBold" if r in styled_header_rows else "CellTR") for value in row])
     t = Table(converted, colWidths=widths, repeatRows=header_rows, hAlign="LEFT")
     commands = [
         ("BACKGROUND", (0, 0), (-1, header_rows - 1), PALE_2),
@@ -149,6 +150,12 @@ def table(data, widths, header_rows=1, alignments=None, font_size=7.4):
         ("TOPPADDING", (0, 0), (-1, -1), 4.2),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4.2),
     ]
+    for row_index in sorted(styled_header_rows - set(range(header_rows))):
+        commands.extend([
+            ("BACKGROUND", (0, row_index), (-1, row_index), PALE_2),
+            ("TEXTCOLOR", (0, row_index), (-1, row_index), RED),
+            ("FONTNAME", (0, row_index), (-1, row_index), "Noto-SemiBold"),
+        ])
     if alignments:
         for col, alignment in alignments.items():
             commands.append(("ALIGN", (col, 0), (col, -1), alignment))
@@ -164,7 +171,7 @@ def build_story():
         ["LEE 501", "Bilimsel Araştırma Yöntemleri ve Etik", "Tezli Yüksek Lisans", "Güz"],
         ["Ders Türü", "Öğrenim Dili", "T + U", "AKTS"],
         ["Zorunlu", "Türkçe", "3 + 0", "6"],
-    ], [25*mm, 79*mm, 44*mm, 27*mm], header_rows=1)]
+    ], [25*mm, 79*mm, 44*mm, 27*mm], header_rows=1, header_row_indices={0, 2})]
     story += [section("Dersin Amacı"), p("Öğrencilere bilimsel araştırma sürecini planlama, uygulama, değerlendirme ve sonuçlarını akademik ölçütlere ve etik ilkelere uygun biçimde raporlama yetkinliği kazandırmaktır.", "BodyTR")]
     story += [section("Dersin İçeriği"), p("Bilimsel bilgi ve araştırma problemi; literatür taraması; nicel, nitel ve karma araştırma desenleri; evren ve örneklem; veri toplama araçları; geçerlik ve güvenirlik; veri analizi; araştırma ve yayın etiği; akademik raporlama.", "BodyTR")]
     story += [section("Öğretim Yöntem ve Teknikleri"), p("Anlatım, tartışma, örnek olay incelemesi, uygulama, bireysel çalışma, makale çözümlemesi ve proje sunumu.", "BodyTR")]
