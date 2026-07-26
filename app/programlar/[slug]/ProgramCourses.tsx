@@ -5,6 +5,7 @@ import { FileText, Printer } from "lucide-react";
 import { readProgramVisibility } from "../../../lib/data/publicVisibility";
 import { PublicProgramSidebar } from "../../PublicProgramSidebar";
 import { dbpPath } from "../../../lib/dbpPath";
+import { DEFAULT_COURSE_SDG_IDS } from "../../../lib/sdgGoals";
 
 export type PublicCourse = {
   code: string;
@@ -176,6 +177,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       u: String(course.practice),
       kredi: String(course.credit ?? course.theory + course.practice),
       akts: String(course.ects),
+      sdg: DEFAULT_COURSE_SDG_IDS.join(","),
     });
     if (course.programCode) query.set("programKodu", course.programCode);
     if (course.instructor) query.set("ogretimElemani", course.instructor);

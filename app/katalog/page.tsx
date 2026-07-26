@@ -21,6 +21,7 @@ type CatalogSearchParams = {
   kredi?: string;
   akts?: string;
   ogretimElemani?: string;
+  sdg?: string;
 };
 
 export default async function Catalog({ searchParams }: { searchParams: Promise<CatalogSearchParams> }) {
@@ -39,6 +40,7 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
           credit={params.kredi}
           ects={params.akts}
           instructor={params.ogretimElemani}
+          sdgs={params.sdg}
         />
       </div>
     );

@@ -14,7 +14,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import BaseDocTemplate, Frame, Image, PageTemplate, Paragraph, Spacer, Table, TableStyle
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +22,8 @@ PUBLIC_DIR = ROOT / "public" / "pdf" / "dbp"
 OUTPUT_DIR = ROOT / "output" / "pdf" / "dbp"
 FONT_DIR = ROOT / "public" / "fonts" / "noto-sans"
 LOGO = ROOT / "public" / "oku-logo.png"
+SDG_ASSET_DIR = ROOT / "public" / "sdg"
+SDG_LOGO = SDG_ASSET_DIR / "sdg_logo.png"
 COURSE_DATA = ROOT / "data" / "courses" / "2026-2027.json"
 OFFICIAL_COURSES = ROOT / "lib" / "data" / "officialCourses.ts"
 
@@ -32,6 +34,27 @@ LINE = colors.HexColor("#e4c9ce")
 PALE = colors.HexColor("#fff5f5")
 PALE_2 = colors.HexColor("#f9e7e9")
 WHITE = colors.white
+
+DEFAULT_SDG_IDS = ("4", "9", "17")
+SDG_GOALS = {
+    "1": "Yoksullu\u011fa Son",
+    "2": "A\u00e7l\u0131\u011fa Son",
+    "3": "Sa\u011fl\u0131k ve Kaliteli Ya\u015fam",
+    "4": "Nitelikli E\u011fitim",
+    "5": "Toplumsal Cinsiyet E\u015fitli\u011fi",
+    "6": "Temiz Su ve Sanitasyon",
+    "7": "Eri\u015filebilir ve Temiz Enerji",
+    "8": "\u0130nsana Yak\u0131\u015f\u0131r \u0130\u015f ve Ekonomik B\u00fcy\u00fcme",
+    "9": "Sanayi, Yenilik\u00e7ilik ve Altyap\u0131",
+    "10": "E\u015fitsizliklerin Azalt\u0131lmas\u0131",
+    "11": "S\u00fcrd\u00fcr\u00fclebilir \u015eehirler ve Topluluklar",
+    "12": "Sorumlu \u00dcretim ve T\u00fcketim",
+    "13": "\u0130klim Eylemi",
+    "14": "Sudaki Ya\u015fam",
+    "15": "Karasal Ya\u015fam",
+    "16": "Bar\u0131\u015f, Adalet ve G\u00fc\u00e7l\u00fc Kurumlar",
+    "17": "Ama\u00e7lar i\u00e7in Ortakl\u0131klar",
+}
 
 
 @dataclass(frozen=True)
@@ -136,7 +159,7 @@ def load_official_courses() -> list[Course]:
     return courses
 
 
-TR_MAP = str.maketrans("çÇğĞıİöÖşŞüÜ", "cCgGiIoOsSuU")
+TR_MAP = str.maketrans("\u00e7\u00c7\u011f\u011e\u0131\u0130\u00f6\u00d6\u015f\u015e\u00fc\u00dc", "cCgGiIoOsSuU")
 
 
 def slugify(value: str) -> str:
@@ -180,6 +203,34 @@ styles.add(ParagraphStyle(name="LeftTR", parent=styles["CellTR"], alignment=TA_L
 
 def para(text: object, style: str = "CellTR") -> Paragraph:
     return Paragraph(html.escape(repair_text(text)), styles[style])
+
+
+def pdf_image(path: Path, size: float) -> Image | str:
+    if not path.exists():
+        return ""
+    image = Image(str(path), width=size, height=size)
+    image.hAlign = "CENTER"
+    return image
+
+
+def sdg_title():
+    if not SDG_LOGO.exists():
+        return section("Sürdürülebilir Kalkınma Amaçları")
+    return [
+        Spacer(1, 2 * mm),
+        Table(
+            [[pdf_image(SDG_LOGO, 11 * mm), Paragraph("Sürdürülebilir Kalkınma Amaçları", styles["SectionTR"])]],
+            colWidths=[14 * mm, 161 * mm],
+            hAlign="LEFT",
+            style=TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ]),
+        ),
+    ]
 
 
 def split_header_title(course: Course) -> tuple[str, str]:
@@ -249,7 +300,10 @@ def section(title: str):
 
 
 def table(data: list[list[object]], widths: list[float], header_rows: int = 1, alignments: dict[int, str] | None = None) -> Table:
-    converted = [[para(value, "CellBold" if row_index < header_rows else "CellTR") for value in row] for row_index, row in enumerate(data)]
+    converted = [
+        [value if hasattr(value, "wrapOn") else para(value, "CellBold" if row_index < header_rows else "CellTR") for value in row]
+        for row_index, row in enumerate(data)
+    ]
     item = Table(converted, colWidths=widths, repeatRows=header_rows, hAlign="LEFT")
     commands = [
         ("BACKGROUND", (0, 0), (-1, header_rows - 1), PALE_2),
@@ -341,16 +395,24 @@ def story(course: Course):
     matrix = [["ÖÇ/PÇ"] + [f"P{i}" for i in range(1, 13)]]
     matrix += [[f"ÖÇ{i + 1}"] + [str((i + j) % 5) for j in range(12)] for i in range(5)]
     body.append(table(matrix, [19 * mm] + [13 * mm] * 12, alignments={i: "CENTER" for i in range(13)}))
-    body += section("Sürdürülebilir Kalkınma Amaçları")
+    body += sdg_title()
     body.append(
         table(
-            [
-                ["No", "Amaç", "Dersle İlişkisi"],
-                ["4", "Nitelikli Eğitim", "Araştırma okuryazarlığı ve yaşam boyu öğrenme becerilerini geliştirir."],
-                ["9", "Sanayi, Yenilikçilik ve Altyapı", "Bilimsel yöntemle yenilikçi çözüm üretme kapasitesini destekler."],
-                ["17", "Amaçlar İçin Ortaklıklar", "Disiplinler arası araştırma ve akademik iş birliğini teşvik eder."],
+            [["Görsel", "No", "Amaç", "Dersle İlişkisi"]]
+            + [
+                [
+                    pdf_image(SDG_ASSET_DIR / f"sdg_{goal_id}.png", 15 * mm),
+                    goal_id,
+                    SDG_GOALS[goal_id],
+                    {
+                        "4": "Araştırma okuryazarlığı ve yaşam boyu öğrenme becerilerini geliştirir.",
+                        "9": "Bilimsel yöntemle yenilikçi çözüm üretme kapasitesini destekler.",
+                        "17": "Disiplinler arası araştırma ve akademik iş birliğini teşvik eder.",
+                    }[goal_id],
+                ]
+                for goal_id in DEFAULT_SDG_IDS
             ],
-            [16 * mm, 60 * mm, 99 * mm],
+            [20 * mm, 12 * mm, 52 * mm, 91 * mm],
         )
     )
     return body

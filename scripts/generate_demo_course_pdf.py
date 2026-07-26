@@ -24,6 +24,8 @@ PUBLIC_PDF = ROOT / "public" / "pdf" / "LEE-501-Bilimsel-Arastirma-Yontemleri-ve
 OUTPUT_PDF = ROOT / "output" / "pdf" / PUBLIC_PDF.name
 FONT_DIR = ROOT / "public" / "fonts" / "noto-sans"
 LOGO = ROOT / "public" / "oku-logo.png"
+SDG_ASSET_DIR = ROOT / "public" / "sdg"
+SDG_LOGO = SDG_ASSET_DIR / "sdg_logo.png"
 
 RED = colors.HexColor("#cf142b")
 DARK = colors.HexColor("#281d20")
@@ -32,6 +34,13 @@ LINE = colors.HexColor("#e4c9ce")
 PALE = colors.HexColor("#fff5f5")
 PALE_2 = colors.HexColor("#f9e7e9")
 WHITE = colors.white
+
+DEFAULT_SDG_IDS = ("4", "9", "17")
+SDG_GOALS = {
+    "4": "Nitelikli E\u011fitim",
+    "9": "Sanayi, Yenilik\u00e7ilik ve Altyap\u0131",
+    "17": "Ama\u00e7lar i\u00e7in Ortakl\u0131klar",
+}
 
 pdfmetrics.registerFont(TTFont("Noto", str(FONT_DIR / "NotoSans-Regular.ttf")))
 pdfmetrics.registerFont(TTFont("Noto-Medium", str(FONT_DIR / "NotoSans-Medium.ttf")))
@@ -49,6 +58,34 @@ styles.add(ParagraphStyle(name="CenterTR", parent=styles["CellTR"], alignment=TA
 
 def p(text, style="CellTR"):
     return Paragraph(str(text), styles[style])
+
+
+def pdf_image(path: Path, size):
+    if not path.exists():
+        return ""
+    image = Image(str(path), width=size, height=size)
+    image.hAlign = "CENTER"
+    return image
+
+
+def sdg_section():
+    if not SDG_LOGO.exists():
+        return [section("Sürdürülebilir Kalkınma Amaçları")]
+    return [
+        Spacer(1, 2 * mm),
+        Table(
+            [[pdf_image(SDG_LOGO, 11 * mm), Paragraph("Sürdürülebilir Kalkınma Amaçları", styles["SectionTR"])]],
+            colWidths=[14 * mm, 161 * mm],
+            hAlign="LEFT",
+            style=TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ]),
+        ),
+    ]
 
 
 def header_footer(canvas, doc):
@@ -99,7 +136,7 @@ def section(title):
 def table(data, widths, header_rows=1, alignments=None, font_size=7.4):
     converted = []
     for r, row in enumerate(data):
-        converted.append([p(value, "CellBold" if r < header_rows else "CellTR") for value in row])
+        converted.append([value if hasattr(value, "wrapOn") else p(value, "CellBold" if r < header_rows else "CellTR") for value in row])
     t = Table(converted, colWidths=widths, repeatRows=header_rows, hAlign="LEFT")
     commands = [
         ("BACKGROUND", (0, 0), (-1, header_rows - 1), PALE_2),
@@ -171,12 +208,24 @@ def build_story():
     matrix += [[f"ÖÇ{i+1}"] + [str(v) for v in row] for i, row in enumerate(values)]
     story += [table(matrix, [19*mm] + [13*mm]*12, alignments={i:"CENTER" for i in range(13)})]
     story += [Spacer(1, 1.5*mm), p("Katkı düzeyi: 0 = katkı yok, 1 = çok düşük, 2 = düşük, 3 = orta, 4 = yüksek, 5 = çok yüksek", "SmallTR")]
-    story += [section("Sürdürülebilir Kalkınma Amaçları"), table([
-        ["No", "Amaç", "Dersle İlişkisi"],
-        ["4", "Nitelikli Eğitim", "Araştırma okuryazarlığı ve yaşam boyu öğrenme becerilerini geliştirir."],
-        ["9", "Sanayi, Yenilikçilik ve Altyapı", "Bilimsel yöntemle yenilikçi çözüm üretme kapasitesini destekler."],
-        ["17", "Amaçlar İçin Ortaklıklar", "Disiplinler arası araştırma ve akademik iş birliğini teşvik eder."],
-    ], [16*mm, 60*mm, 99*mm])]
+    story += sdg_section()
+    story += [table(
+        [["Görsel", "No", "Amaç", "Dersle İlişkisi"]]
+        + [
+            [
+                pdf_image(SDG_ASSET_DIR / f"sdg_{goal_id}.png", 15 * mm),
+                goal_id,
+                SDG_GOALS[goal_id],
+                {
+                    "4": "Araştırma okuryazarlığı ve yaşam boyu öğrenme becerilerini geliştirir.",
+                    "9": "Bilimsel yöntemle yenilikçi çözüm üretme kapasitesini destekler.",
+                    "17": "Disiplinler arası araştırma ve akademik iş birliğini teşvik eder.",
+                }[goal_id],
+            ]
+            for goal_id in DEFAULT_SDG_IDS
+        ],
+        [20*mm, 12*mm, 52*mm, 91*mm],
+    )]
     return story
 
 

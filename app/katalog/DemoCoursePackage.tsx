@@ -1,5 +1,6 @@
 import { PublicSiteHeader } from "../PublicSiteHeader";
 import { dbpPath } from "../../lib/dbpPath";
+import { SDG_LOGO_SRC, formatSdgGoal, resolveSdgGoals } from "../../lib/sdgGoals";
 
 type DemoCoursePackageProps = {
   code: string;
@@ -10,6 +11,7 @@ type DemoCoursePackageProps = {
   credit?: string;
   ects?: string;
   instructor?: string;
+  sdgs?: string;
 };
 
 const outcomes = [
@@ -85,12 +87,14 @@ export function DemoCoursePackage({
   credit = "3",
   ects = "6",
   instructor,
+  sdgs,
 }: DemoCoursePackageProps) {
   const displayCode = repairText(code);
   const displayName = repairText(name);
   const displayType = repairText(type);
   const displayInstructor = instructor ? repairText(instructor) : "";
   const showInstructor = shouldShowInstructor(displayName, displayInstructor);
+  const selectedSdgs = resolveSdgGoals(sdgs);
   return (
     <main className="demo-package-page">
       <PublicSiteHeader />
@@ -129,7 +133,20 @@ export function DemoCoursePackage({
         <section className="package-card two"><TextBlock title="Öğretim Yöntemleri" text="Anlatım, tartışma, örnek olay incelemesi, uygulama, bireysel çalışma ve proje sunumu." /><TextBlock title="Kaynaklar" text="Bilimsel araştırma yöntemleri temel kaynakları, güncel akademik makaleler ve ilgili etik yönergeler." /></section>
         <section className="package-card"><h2>Değerlendirme Sistemi</h2><table className="package-table"><thead><tr><th>Değerlendirme</th><th>Adet</th><th>Katkı</th></tr></thead><tbody><tr><td>Ara Sınav</td><td>1</td><td>%40</td></tr><tr><td>Yarıyıl Sonu Sınavı</td><td>1</td><td>%60</td></tr></tbody></table></section>
         <section className="package-card"><h2>AKTS İş Yükü</h2><table className="package-table"><thead><tr><th>Etkinlik</th><th>Adet</th><th>Süre</th><th>Toplam</th></tr></thead><tbody><tr><td>Ders Süresi</td><td>15</td><td>{theory}</td><td>{15 * Number(theory || 0)}</td></tr><tr><td>Sınıf Dışı Çalışma</td><td>15</td><td>6</td><td>90</td></tr><tr><td>Ara Sınav</td><td>1</td><td>15</td><td>15</td></tr><tr><td>Yarıyıl Sonu Sınavı</td><td>1</td><td>30</td><td>30</td></tr></tbody><tfoot><tr><th colSpan={3}>AKTS</th><th>{ects}</th></tr></tfoot></table></section>
-        <section className="package-card"><h2>Sürdürülebilir Kalkınma Amaçları</h2><div className="sdg-list"><span>4 · Nitelikli Eğitim</span><span>9 · Sanayi, Yenilikçilik ve Altyapı</span><span>17 · Amaçlar için Ortaklıklar</span></div></section>
+        <section className="package-card">
+          <div className="sdg-heading">
+            <img src={dbpPath(SDG_LOGO_SRC)} alt="" />
+            <h2>Sürdürülebilir Kalkınma Amaçları</h2>
+          </div>
+          <div className="sdg-list">
+            {selectedSdgs.map((goal) => (
+              <article className="sdg-card" key={goal.id}>
+                <img src={dbpPath(goal.imageSrc)} alt={formatSdgGoal(goal)} />
+                <span>{formatSdgGoal(goal)}</span>
+              </article>
+            ))}
+          </div>
+        </section>
       </div>
     </main>
   );

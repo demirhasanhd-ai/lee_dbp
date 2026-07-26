@@ -3,6 +3,7 @@ import { DownloadCloud, ExternalLink, Link2, Plus, Save, Send, Trash2, X } from 
 import { useEffect, useMemo, useState } from "react";
 import { OutcomeQualityHint } from "./outcomeQuality";
 import { dbpPath } from "../../lib/dbpPath";
+import { SDG_GOALS, findSdgGoal, formatSdgGoal } from "../../lib/sdgGoals";
 
 type Assessment = {
   id: number;
@@ -117,6 +118,7 @@ const emptyOutcomes = () => Array.from({ length: fixedOutcomeCount }, () => "");
 const emptyWeeklyTopics = () => Object.fromEntries(weeks.map((week) => [week, ""])) as Record<number, string>;
 const emptyStructures = () => Object.fromEntries(structures.map((item) => [item, 0])) as Record<string, number>;
 const defaultDetailFields = () => Object.fromEntries(longFields.map(([key, , value]) => [key, value])) as Record<string, string>;
+const emptySdgs = () => ["", "", ""];
 
 function defaultIdentity(course: CourseIdentity) {
   return {
@@ -156,7 +158,7 @@ export function CourseBolognaEditor({
   const [weeklyTopics, setWeeklyTopics] = useState<Record<number, string>>(emptyWeeklyTopics);
   const [structureValues, setStructureValues] = useState<Record<string, number>>(emptyStructures);
   const [contributionMatrix, setContributionMatrix] = useState<Record<string, number>[]>([]);
-  const [sdgs, setSdgs] = useState(["", "", ""]);
+  const [sdgs, setSdgs] = useState(emptySdgs);
   const [obsOpen, setObsOpen] = useState(false);
   const [obsUrl, setObsUrl] = useState("");
   const [obsDraft, setObsDraft] = useState<ObsDraft | null>(null);
@@ -172,6 +174,7 @@ export function CourseBolognaEditor({
     setWeeklyTopics(emptyWeeklyTopics());
     setStructureValues(emptyStructures());
     setContributionMatrix([]);
+    setSdgs(emptySdgs());
     setNextAssessment(3);
     setWorkflowStatus("Taslak");
   }, [course.code, course.name, course.level]);
@@ -586,7 +589,26 @@ export function CourseBolognaEditor({
         {sdgs.map((value, index) => (
           <label className="sdg-row" key={index}>
             <span>{index + 1}</span>
-            <input value={value} onChange={(event) => setSdgs((current) => current.map((item, i) => i === index ? event.target.value : item))} placeholder="Sürdürülebilir kalkınma amacını seçin veya yazın" />
+            <div className="sdg-preview" aria-hidden="true">
+              {findSdgGoal(value) ? <img src={dbpPath(findSdgGoal(value)!.imageSrc)} alt="" /> : <b>SKA</b>}
+            </div>
+            <select
+              name={`Sürdürülebilir Kalkınma Amacı ${index + 1}`}
+              value={value}
+              onChange={(event) => setSdgs((current) => current.map((item, i) => i === index ? event.target.value : item))}
+              aria-label={`${index + 1}. Sürdürülebilir Kalkınma Amacı`}
+            >
+              <option value="">Amaç seçin</option>
+              {SDG_GOALS.map((goal) => (
+                <option
+                  value={goal.id}
+                  disabled={sdgs.some((item, itemIndex) => itemIndex !== index && item === goal.id)}
+                  key={goal.id}
+                >
+                  {formatSdgGoal(goal)}
+                </option>
+              ))}
+            </select>
             <button type="button" onClick={() => setSdgs((current) => current.filter((_, i) => i !== index))}>
               <Trash2 size={14} />
             </button>
