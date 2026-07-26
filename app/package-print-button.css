@@ -1,0 +1,46 @@
+.package-title-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.package-print-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 10px 13px;
+  border: 1px solid var(--primary);
+  border-radius: 9px;
+  background: var(--primary);
+  color: var(--primary-foreground, #fff);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 10px 20px -16px color-mix(in srgb, var(--primary) 70%, transparent);
+}
+
+.package-print-button svg {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 600px) {
+  .package-title-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .package-print-button {
+    width: 100%;
+  }
+}
+
+@media print {
+  .package-print-button {
+    display: none !important;
+  }
+}

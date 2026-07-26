@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DemoCoursePackage } from "./DemoCoursePackage";
 import { PackageNavigation } from "./PackageNavigation";
 import { dbpPath } from "../../lib/dbpPath";
+import { coursePdfHref } from "../../lib/coursePdf";
 
 export const metadata: Metadata = { title: "Ders Kataloğu" };
 
@@ -22,18 +23,27 @@ type CatalogSearchParams = {
   akts?: string;
   ogretimElemani?: string;
   sdg?: string;
+  pdf?: string;
+  program?: string;
 };
 
 export default async function Catalog({ searchParams }: { searchParams: Promise<CatalogSearchParams> }) {
   const params = await searchParams;
   if (params.ders) {
     const known = courses.find(([code]) => code === params.ders);
+    const courseName = params.ad ?? known?.[1] ?? "Bilimsel Araştırma ve Alan Uygulamaları";
+    const pdfHref = coursePdfHref({
+      code: params.ders,
+      name: courseName,
+      program: params.program,
+      explicitHref: params.pdf,
+    });
     return (
       <div className="package-with-sidebar">
         <PackageNavigation code={params.ders} />
         <DemoCoursePackage
           code={params.ders}
-          name={params.ad ?? known?.[1] ?? "Bilimsel Araştırma ve Alan Uygulamaları"}
+          name={courseName}
           type={params.tur}
           theory={params.t}
           practice={params.u}
@@ -41,6 +51,7 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
           ects={params.akts}
           instructor={params.ogretimElemani}
           sdgs={params.sdg}
+          pdfHref={pdfHref}
         />
       </div>
     );

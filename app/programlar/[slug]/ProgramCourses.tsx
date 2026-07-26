@@ -5,6 +5,7 @@ import { FileText, Printer } from "lucide-react";
 import { readProgramVisibility } from "../../../lib/data/publicVisibility";
 import { PublicProgramSidebar } from "../../PublicProgramSidebar";
 import { dbpPath } from "../../../lib/dbpPath";
+import { coursePdfHref } from "../../../lib/coursePdf";
 import { DEFAULT_COURSE_SDG_IDS } from "../../../lib/sdgGoals";
 
 export type PublicCourse = {
@@ -179,18 +180,13 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       akts: String(course.ects),
       sdg: DEFAULT_COURSE_SDG_IDS.join(","),
     });
+    query.set("pdf", pdfUrl(course));
     if (course.programCode) query.set("programKodu", course.programCode);
     if (course.instructor) query.set("ogretimElemani", course.instructor);
     return dbpPath(`/katalog?${query.toString()}`);
   };
-  const slugify = (value: string) =>
-    repairText(value).toLocaleLowerCase("tr-TR")
-      .replace(/[çÇ]/g, "c").replace(/[ğĞ]/g, "g").replace(/[ıİ]/g, "i")
-      .replace(/[öÖ]/g, "o").replace(/[şŞ]/g, "s").replace(/[üÜ]/g, "u")
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "ders";
   const pdfUrl = (course: PublicCourse) =>
-    dbpPath(`/pdf/dbp/${slugify(course.code)}-${slugify(activeProgram.programName)}-${slugify(course.name)}.pdf`);
+    coursePdfHref({ code: course.code, name: repairText(course.name), program: repairText(activeProgram.programName) }) ?? "#";
 
   if (!sidebarItems.length) {
     return (

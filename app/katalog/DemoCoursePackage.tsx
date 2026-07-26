@@ -1,6 +1,7 @@
 import { PublicSiteHeader } from "../PublicSiteHeader";
 import { dbpPath } from "../../lib/dbpPath";
 import { SDG_LOGO_SRC, formatSdgGoal, resolveSdgGoals } from "../../lib/sdgGoals";
+import { PrintCourseButton } from "./PrintCourseButton";
 
 type DemoCoursePackageProps = {
   code: string;
@@ -12,6 +13,7 @@ type DemoCoursePackageProps = {
   ects?: string;
   instructor?: string;
   sdgs?: string;
+  pdfHref?: string;
 };
 
 const outcomes = [
@@ -88,6 +90,7 @@ export function DemoCoursePackage({
   ects = "6",
   instructor,
   sdgs,
+  pdfHref,
 }: DemoCoursePackageProps) {
   const displayCode = repairText(code);
   const displayName = repairText(name);
@@ -104,6 +107,11 @@ export function DemoCoursePackage({
         </div>
         <header className="package-title">
           <div><small>2026–2027 DERS BİLGİ PAKETİ</small><h1>{displayCode} — {displayName}</h1></div>
+          {pdfHref && (
+            <div className="package-title-actions">
+              <PrintCourseButton href={pdfHref} label={`${displayCode} ders bilgi paketi PDF dosyasını aç`} />
+            </div>
+          )}
         </header>
         {showInstructor && (
           <section className="package-instructor-card" aria-label="Dersi veren öğretim elemanı">
