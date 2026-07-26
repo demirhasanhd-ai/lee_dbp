@@ -47,6 +47,7 @@ type Course = {
   code: string;
   name: string;
   status: string;
+  instructor?: string;
   level: "Tezsiz Yüksek Lisans" | "Tezli Yüksek Lisans" | "Doktora";
 };
 type RoleAccess = Record<DbpRole, DbpModule[]>;
@@ -183,6 +184,18 @@ const normalizeSessionRole = (value: Session): DbpRole => {
     return "enstitu_yoneticisi";
   return "akademisyen";
 };
+const isLocalDevelopmentHost = () => {
+  if (typeof window === "undefined") return false;
+  return ["localhost", "127.0.0.1"].includes(window.location.hostname);
+};
+const createLocalDevelopmentSession = (): Session => ({
+  name: "LEE Öğrenci İşleri",
+  username: "demo.ogrenci.isleri",
+  role: "lee_ogrenci_isleri",
+  department: "LEE",
+  authProvider: "e-enstitu",
+  expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+});
 
 export function RoleDashboard() {
   const [session, setSession] = useState<Session | null>(null);
@@ -196,19 +209,32 @@ export function RoleDashboard() {
   const [selectedProgram, setSelectedProgram] = useState<LeeProgram | null>(null);
   const [showCourseCreate, setShowCourseCreate] = useState(false);
   const [showProgramCreate, setShowProgramCreate] = useState(false);
-  const eEnstituDbpUrl = `${getEEnstituUrl()}/modul/ders-bilgi-paketi`;
+  const [assignCourse, setAssignCourse] = useState<Course | null>(null);
+  const [assignmentMessage, setAssignmentMessage] = useState("");
+  const eEnstituDbpUrl = `${getEEnstituUrl()}/#/modul/ders-bilgi-paketi`;
   useEffect(() => {
     let cancelled = false;
-    const raw = localStorage.getItem("lee-dbp-session");
+    let raw = localStorage.getItem("lee-dbp-session");
     if (!raw) {
-      location.replace(eEnstituDbpUrl);
-      return;
+      if (!isLocalDevelopmentHost()) {
+        location.replace(eEnstituDbpUrl);
+        return;
+      }
+      const localSession = createLocalDevelopmentSession();
+      raw = JSON.stringify(localSession);
+      localStorage.setItem("lee-dbp-session", raw);
     }
     try {
       const value = JSON.parse(raw) as Session;
       if (value.expiresAt && Date.parse(value.expiresAt) <= Date.now()) {
         localStorage.removeItem("lee-dbp-session");
-        location.replace(eEnstituDbpUrl);
+        if (!isLocalDevelopmentHost()) {
+          location.replace(eEnstituDbpUrl);
+          return;
+        }
+        const localSession = createLocalDevelopmentSession();
+        localStorage.setItem("lee-dbp-session", JSON.stringify(localSession));
+        location.replace(dbpPath("/panel"));
         return;
       }
       const repairedValue = {
@@ -260,7 +286,14 @@ export function RoleDashboard() {
           if (!cancelled) setPermissionMessage("Yetki bilgisi varsayilan ayarlarla acildi.");
         });
     } catch {
-      location.replace(eEnstituDbpUrl);
+      localStorage.removeItem("lee-dbp-session");
+      if (!isLocalDevelopmentHost()) {
+        location.replace(eEnstituDbpUrl);
+        return;
+      }
+      const localSession = createLocalDevelopmentSession();
+      localStorage.setItem("lee-dbp-session", JSON.stringify(localSession));
+      location.replace(dbpPath("/panel"));
     }
     return () => {
       cancelled = true;
@@ -331,6 +364,7 @@ export function RoleDashboard() {
     setActive(module);
     setSelectedCourse(null);
     setSelectedProgram(null);
+    setAssignCourse(null);
   };
   const programPicker = (actionLabel: string) => (
     <section>
@@ -427,13 +461,13 @@ export function RoleDashboard() {
                 )}
                 <span>{DBP_MODULES[module]}</span>
               </button>
-              {module === "review_queue" && canCreateCourse && (
+              {module === "my_courses" && canCreateCourse && (
                 <button
                   className="sidebar-course-create"
                   onClick={() => setShowCourseCreate(true)}
                 >
                   <Plus size={15} />
-                  <span>ABD / ASD Ders Ekle</span>
+                  <span>Ders / Hoca Atama</span>
                 </button>
               )}
             </Fragment>
@@ -501,6 +535,71 @@ export function RoleDashboard() {
             </section>
           </div>
         )}
+        {assignCourse && (
+          <div className="course-dialog-backdrop" role="presentation">
+            <section
+              className="course-create-dialog course-assignment-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="course-assignment-title"
+            >
+              <header>
+                <div>
+                  <small>ÖĞRETİM ELEMANI ATAMA</small>
+                  <h2 id="course-assignment-title">Derse Hoca Ata / Güncelle</h2>
+                </div>
+                <button type="button" onClick={() => setAssignCourse(null)} aria-label="Kapat">
+                  ×
+                </button>
+              </header>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setAssignmentMessage(
+                    `${assignCourse.code} dersi için öğretim elemanı atama taslağı kaydedildi.`,
+                  );
+                  setAssignCourse(null);
+                  save();
+                }}
+              >
+                <div className="create-course-grid">
+                  <label className="wide">
+                    <span>Ders</span>
+                    <input readOnly value={`${assignCourse.code} — ${assignCourse.name}`} />
+                  </label>
+                  <label>
+                    <span>Mevcut öğretim elemanı</span>
+                    <input readOnly value={assignCourse.instructor?.trim() || "Atama bekliyor"} />
+                  </label>
+                  <label>
+                    <span>Yeni öğretim elemanı</span>
+                    <select required defaultValue="">
+                      <option value="" disabled>
+                        Akademisyeni seçin
+                      </option>
+                      <option>Prof. Dr. Mehmet Kaya</option>
+                      <option>Doç. Dr. Ayşe Yılmaz</option>
+                      <option>Dr. Öğr. Üyesi Fatma Demir</option>
+                      <option>Dr. Öğr. Üyesi Ali Çelik</option>
+                    </select>
+                  </label>
+                  <label className="wide">
+                    <span>Atama notu</span>
+                    <input placeholder="Örn. ders sorumlusu güncellendi" />
+                  </label>
+                </div>
+                <footer>
+                  <button type="button" onClick={() => setAssignCourse(null)}>
+                    Vazgeç
+                  </button>
+                  <button className="create" type="submit">
+                    Atamayı Kaydet
+                  </button>
+                </footer>
+              </form>
+            </section>
+          </div>
+        )}
         {active === "my_courses" && isCentralRole && !selectedProgram && (
           programPicker("Dersleri Aç")
         )}
@@ -518,7 +617,20 @@ export function RoleDashboard() {
                   görüntüleyin ve gerekiyorsa güncelleyin.
                 </p>
               </div>
+              {canCreateCourse && (
+                <button
+                  className="primary-action"
+                  type="button"
+                  onClick={() => setShowCourseCreate(true)}
+                >
+                  <Plus size={15} />
+                  Ders / Hoca Atama
+                </button>
+              )}
             </div>
+            {assignmentMessage && (
+              <div className="assignment-message">{assignmentMessage}</div>
+            )}
             <div className="course-program-columns">
               {selectedProgram.levels.map((level, index) => (
                 <section
@@ -537,6 +649,9 @@ export function RoleDashboard() {
                           <div>
                             <b>{course.name}</b>
                             <small>{course.status}</small>
+                            <small className="course-instructor-line">
+                              Öğretim elemanı: {course.instructor?.trim() || "Atama bekliyor"}
+                            </small>
                           </div>
                           <p className="course-row-actions">
                             <button onClick={() => setSelectedCourse(course)}>

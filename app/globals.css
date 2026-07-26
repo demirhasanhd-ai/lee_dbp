@@ -45,6 +45,7 @@
 @import "./package-program-context.css";
 @import "./sidebar-consistency.css";
 @import "./responsive-type-scale.css";
+@import "./course-columns-v4.css";
 
 :where(a,button,summary,select,[role="button"],[role="link"]){cursor:pointer}
 @font-face {
@@ -357,7 +358,7 @@ input {
   background: white;
   box-shadow: 0 28px 60px -34px
     color-mix(in srgb, var(--primary) 60%, transparent);
-  transform: rotate(1deg);
+  transform: none;
 }
 .board-heading {
   display: flex;

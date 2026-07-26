@@ -1,21 +1,25 @@
-function isLocalhostUrl(value?: string) {
-  if (!value) return false;
-  try {
-    const url = new URL(value);
-    return url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1";
-  } catch {
-    return false;
-  }
-}
-
-function liveOrigin() {
-  if (typeof window === "undefined") return "";
-  const origin = window.location.origin;
-  return isLocalhostUrl(origin) ? "" : origin;
-}
-
 export function getEEnstituUrl() {
-  const configuredUrl = process.env.NEXT_PUBLIC_EENSTITU_URL || "";
-  if (configuredUrl && !isLocalhostUrl(configuredUrl)) return configuredUrl.replace(/\/$/, "");
-  return (liveOrigin() || configuredUrl || "http://localhost:8080").replace(/\/$/, "");
+  const configuredUrl =
+    process.env.NEXT_PUBLIC_E_ENSTITU_URL?.trim() ||
+    process.env.DBP_E_ENSTITU_URL?.trim();
+  if (configuredUrl) return configuredUrl.replace(/\/+$/, "");
+
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") {
+      return "http://localhost:8080";
+    }
+  }
+
+  if (process.env.HOST === "127.0.0.1" || process.env.PORT === "8081") {
+    return "http://localhost:8080";
+  }
+
+  return process.env.NODE_ENV === "development"
+    ? "http://localhost:8080"
+    : "https://e-enstitu.osmaniye.edu.tr";
+}
+
+export function eEnstituUrl() {
+  return `${getEEnstituUrl()}/#`;
 }

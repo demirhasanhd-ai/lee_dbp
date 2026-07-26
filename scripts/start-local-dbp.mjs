@@ -11,6 +11,7 @@ const localBackupDir = path.join(localDataDir, "backups");
 process.env.HOST ??= "127.0.0.1";
 process.env.PORT ??= "8081";
 process.env.NODE_ENV ??= "production";
+process.env.NEXT_PUBLIC_E_ENSTITU_URL ??= "http://localhost:8080";
 process.env.DBP_DATA_DIR ??= localDataDir;
 process.env.DBP_SQLITE_PATH ??= path.join(localDataDir, "dbp.sqlite");
 process.env.DBP_BACKUP_DIR ??= localBackupDir;

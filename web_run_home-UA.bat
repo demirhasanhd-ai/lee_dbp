@@ -3,19 +3,29 @@ setlocal
 title LEE DBP - Local Web
 
 set "ROOT_DIR=%~dp0"
+set "RUN_ROOT=C:\lee_dbp"
+if not exist "%RUN_ROOT%\package.json" (
+  mklink /J "%RUN_ROOT%" "%ROOT_DIR%" >nul 2>&1
+)
+if exist "%RUN_ROOT%\package.json" (
+  set "APP_DIR=%RUN_ROOT%"
+) else (
+  set "APP_DIR=%ROOT_DIR%"
+)
 set "HOST=127.0.0.1"
 set "PORT=8081"
 set "LOCAL_URL=http://localhost:%PORT%/dbp/"
-set "LOCAL_VOLUME_DIR=%ROOT_DIR%local-volume"
+set "LOCAL_VOLUME_DIR=%APP_DIR%\local-volume"
 set "LOCAL_DATA_DIR=%LOCAL_VOLUME_DIR%\data"
 set "LOCAL_BACKUP_DIR=%LOCAL_DATA_DIR%\backups"
 set "DBP_DATA_DIR=%LOCAL_DATA_DIR%"
 set "DBP_SQLITE_PATH=%LOCAL_DATA_DIR%\dbp.sqlite"
 set "DBP_BACKUP_DIR=%LOCAL_BACKUP_DIR%"
 set "NODE_ENV=production"
+set "NEXT_PUBLIC_E_ENSTITU_URL=http://localhost:8080"
 set "DBP_OPEN_BROWSER=1"
 
-cd /d "%ROOT_DIR%"
+cd /d "%APP_DIR%"
 
 where node.exe >nul 2>&1
 if errorlevel 1 (
@@ -27,7 +37,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist "%ROOT_DIR%node_modules" (
+if not exist "%APP_DIR%\node_modules" (
   echo LEE DBP bagimliliklari ilk kez kuruluyor...
   call npm.cmd install
   if errorlevel 1 (
@@ -38,7 +48,7 @@ if not exist "%ROOT_DIR%node_modules" (
   )
 )
 
-node.exe "%ROOT_DIR%scripts\check-local-dbp-port.mjs" >nul 2>&1
+node.exe --preserve-symlinks --preserve-symlinks-main "%APP_DIR%\scripts\check-local-dbp-port.mjs" >nul 2>&1
 if errorlevel 2 (
   echo.
   echo [HATA] %PORT% portu acik ama canli DBP server yanit vermiyor.
@@ -71,7 +81,7 @@ echo Kapatmak icin bu pencerede Ctrl+C tuslarina basin.
 echo.
 
 echo Yerel DBP server aciliyor...
-call npm.cmd run dev
+node.exe --preserve-symlinks --preserve-symlinks-main "%APP_DIR%\scripts\start-local-dbp.mjs"
 
 echo.
 echo LEE DBP durduruldu.

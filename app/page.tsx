@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import {
   Bell,
-  BellRing,
   BookOpen,
   ChevronDown,
   ExternalLink,
@@ -15,6 +14,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { ProgramDirectory } from "./ProgramDirectory";
 import { COURSE_STATS } from "../lib/data/courseStats";
 import { dbpPath } from "../lib/dbpPath";
+import { eEnstituUrl } from "../lib/eEnstituUrl";
 import { APP_VERSION } from "../lib/appVersion";
 
 export const metadata: Metadata = {
@@ -48,10 +48,10 @@ export default function Home() {
               <span><b>LEE <em>Ders Bilgi Paketi</em></b><small>BOLOGNA BİLGİ SİSTEMİ</small></span>
             </a>
             <nav aria-label="Ana menü">
+              <a className="return-link" href={eEnstituUrl()}>e-Enstitü</a>
               <a className="active" href={dbpPath("/")}><House size={18}/>Ana Sayfa</a>
               <a href={dbpPath("/katalog")}><LibraryBig size={18}/>Ders Kataloğu</a>
               <a href="#programlar"><School size={18}/>Programlar<ChevronDown size={14}/></a>
-              <a href="#duyurular"><BellRing size={18}/>Duyurular</a>
               <a href="#yardim"><CircleHelp size={18}/>Yardım</a>
             </nav>
           </div>

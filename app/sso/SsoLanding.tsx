@@ -15,7 +15,7 @@ export function SsoLanding({
   error?: string;
   eEnstituUrl?: string;
 }) {
-  const retryHref = `${(eEnstituUrl || getEEnstituUrl()).replace(/\/$/, "")}/modul/ders-bilgi-paketi`;
+  const retryHref = `${(eEnstituUrl || getEEnstituUrl()).replace(/\/$/, "")}/#/modul/ders-bilgi-paketi`;
 
   useEffect(() => {
     if (!session) return;
