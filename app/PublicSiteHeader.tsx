@@ -1,9 +1,9 @@
-import { CircleHelp, House, LibraryBig, School } from "lucide-react";
+import { Bell, CircleHelp, House, LibraryBig } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { dbpPath } from "../lib/dbpPath";
 import { eEnstituUrl } from "../lib/eEnstituUrl";
 
-export function PublicSiteHeader() {
+export function PublicSiteHeader({ active = "home" }: { active?: "home" | "catalog" }) {
   return (
     <header className="oku-header">
       <div className="institution-bar">
@@ -29,9 +29,9 @@ export function PublicSiteHeader() {
           </a>
           <nav aria-label="Ana menü">
             <a className="return-link" href={eEnstituUrl()}>e-Enstitü</a>
-            <a className="active" href={dbpPath("/")}><House size={18} />Ana Sayfa</a>
-            <a href={dbpPath("/katalog")}><LibraryBig size={18} />Ders Kataloğu</a>
-            <a href={dbpPath("/#programlar")}><School size={18} />Programlar</a>
+            <a className={active === "home" ? "active" : undefined} href={dbpPath("/")}><House size={18} />Ana Sayfa</a>
+            <a className={active === "catalog" ? "active" : undefined} href={dbpPath("/#programlar")}><LibraryBig size={18} />Ders Kataloğu</a>
+            <a href={dbpPath("/#duyurular")}><Bell size={18} />Duyurular</a>
             <a href={dbpPath("/#yardim")}><CircleHelp size={18} />Yardım</a>
           </nav>
         </div>

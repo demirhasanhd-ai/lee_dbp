@@ -6,8 +6,8 @@ export const DBP_ROLES = {
   },
   abd_asd_baskani: {
     label: "ABD / ASD Baskani",
-    description: "Anabilim veya anasanat dalindaki dersleri inceler ve program onayi verir.",
-    permissions: ["course.read.department", "course.review.department", "course.approve.department"],
+    description: "Kendi ders paketlerini hazirlar; anabilim veya anasanat dalindaki dersleri inceler ve program onayi verir.",
+    permissions: ["course.read.assigned", "course.edit.assigned", "course.submit.assigned", "course.read.department", "course.review.department", "course.approve.department"],
   },
   abd_sekreteri: {
     label: "ABD / ASD Sekreteri",

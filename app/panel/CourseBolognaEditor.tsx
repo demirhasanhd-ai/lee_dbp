@@ -1,7 +1,7 @@
 "use client";
 import { DownloadCloud, ExternalLink, Link2, Plus, Save, Send, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { OutcomeQualityHint } from "./outcomeQuality";
+import { evaluateOutcomeQuality, OutcomeQualityHint } from "./outcomeQuality";
 import { dbpPath } from "../../lib/dbpPath";
 import { SDG_GOALS, findSdgGoal, formatSdgGoal } from "../../lib/sdgGoals";
 
@@ -137,6 +137,12 @@ function shouldFill(current: string | number, initial: string | number, mode: "e
   return mode === "overwrite" || String(current ?? "").trim() === "" || String(current) === String(initial);
 }
 
+function isMeaningfulText(value: string, minimumWords = 4, minimumLength = 20) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  const words = normalized.split(" ").filter((word) => /[\p{L}\p{N}]/u.test(word));
+  return normalized.length >= minimumLength && words.length >= minimumWords;
+}
+
 export function CourseBolognaEditor({
   course,
   session,
@@ -192,6 +198,76 @@ export function CourseBolognaEditor({
     return total + row.count * row.hours;
   }, 0);
   const ects = (totalWorkload / 30).toFixed(1);
+  const publishIssues = useMemo(() => {
+    const issues: string[] = [];
+    if (!identity.code.trim() || !identity.name.trim()) {
+      issues.push("Ders adı ve ders kodu doldurulmalıdır.");
+    }
+
+    const narrativeFields = [
+      ["purpose", "Dersin amacı"],
+      ["content", "Dersin içeriği"],
+      ["methods", "Dersin yöntem ve teknikleri"],
+      ["resources", "Ders kaynakları"],
+    ] as const;
+    for (const [key, label] of narrativeFields) {
+      if (!isMeaningfulText(detailFields[key] ?? "")) {
+        issues.push(`${label} en az dört kelimelik anlamlı bir açıklama içermelidir.`);
+      }
+    }
+    if (!detailFields.coordinator?.trim() || !detailFields.instructors?.trim()) {
+      issues.push("Ders koordinatörü ve dersi veren öğretim elemanı belirtilmelidir.");
+    }
+    if (!detailFields.prerequisites?.trim() || !detailFields.assistants?.trim()) {
+      issues.push("Ön koşul ve ders yardımcısı yoksa ilgili alanlara “Yok” yazılmalıdır.");
+    }
+
+    const requiredOutcomes = outcomes.slice(0, fixedOutcomeCount);
+    if (
+      requiredOutcomes.length < fixedOutcomeCount ||
+      requiredOutcomes.some((outcome) => evaluateOutcomeQuality(outcome, "course").status !== "good")
+    ) {
+      issues.push("En az beş öğrenme çıktısı açık, ölçülebilir ve öğrenci odaklı cümlelerle yazılmalıdır.");
+    }
+
+    if (weeks.some((week) => !isMeaningfulText(weeklyTopics[week] ?? "", 3, 12))) {
+      issues.push("15 haftanın her biri en az üç kelimelik anlamlı bir konu açıklaması içermelidir.");
+    }
+
+    const assessmentTotal = assessments.reduce((sum, item) => sum + Number(item.weight || 0), 0);
+    if (assessmentTotal !== 100) {
+      issues.push(`Değerlendirme katkılarının toplamı %100 olmalıdır (mevcut: %${assessmentTotal}).`);
+    }
+
+    const structureTotal = Object.values(structureValues).reduce((sum, value) => sum + Number(value || 0), 0);
+    if (structureTotal !== 100) {
+      issues.push(`Ders yapısı oranlarının toplamı %100 olmalıdır (mevcut: %${structureTotal}).`);
+    }
+
+    if (
+      requiredOutcomes.some((_, outcomeIndex) =>
+        !Object.values(contributionMatrix[outcomeIndex] ?? {}).some((value) => Number(value) > 0),
+      )
+    ) {
+      issues.push("Her öğrenme çıktısı en az bir program çıktısıyla 1–5 düzeyinde eşleştirilmelidir.");
+    }
+
+    if (totalWorkload <= 0 || Number(ects) <= 0) {
+      issues.push("AKTS iş yükü tablosunda geçerli etkinlik süreleri bulunmalıdır.");
+    }
+    return issues;
+  }, [
+    assessments,
+    contributionMatrix,
+    detailFields,
+    ects,
+    identity.code,
+    identity.name,
+    outcomes,
+    structureValues,
+    totalWorkload,
+    weeklyTopics,
+  ]);
   const updateWorkload = (name: string, key: keyof Workload, value: number) =>
     setWorkloads((current) => ({
       ...current,
@@ -331,6 +407,7 @@ export function CourseBolognaEditor({
       className="course-bologna-form"
       onSubmit={async (event) => {
         event.preventDefault();
+        if (publishIssues.length > 0) return;
         await persistPackage(event.currentTarget, "ABD Onayı Bekliyor");
         setWorkflowStatus("ABD Onayı Bekliyor");
         localStorage.setItem("lee-dbp-course-status", "abd_onayi_bekliyor");
@@ -616,10 +693,18 @@ export function CourseBolognaEditor({
         ))}
       </section>
       <div className="course-save-bar">
-        <span>{workflowStatus === "Taslak" ? "Çalışmanızı taslak olarak kaydedebilir veya ABD/ASD onayına gönderebilirsiniz." : "Paket ABD/ASD başkanının onayını bekliyor; onaylanmadan public görünmez."}</span>
+        <div className="course-publish-status">
+          <span>{workflowStatus === "Taslak" ? "Çalışmanızı taslak olarak kaydedebilir veya ABD/ASD onayına gönderebilirsiniz." : "Paket ABD/ASD başkanının onayını bekliyor; onaylanmadan public görünmez."}</span>
+          {publishIssues.length > 0 && (
+            <details className="publish-validation">
+              <summary>Yayın için {publishIssues.length} eksik veya hatalı bölüm var</summary>
+              <ul>{publishIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul>
+            </details>
+          )}
+        </div>
         <div className="course-submit-actions">
           <button type="button" className="draft" onClick={async (event) => { const form = event.currentTarget.form; if (!form) return; await persistPackage(form, "Taslak"); setWorkflowStatus("Taslak"); localStorage.setItem("lee-dbp-course-status", "taslak"); onSave(); }}><Save size={15} />Taslağı Kaydet</button>
-          <button type="submit" className="publish"><Send size={15} />Yayınla</button>
+          <button type="submit" className="publish" disabled={publishIssues.length > 0} title={publishIssues[0] ?? "ABD/ASD onayına gönder"}><Send size={15} />Yayınla</button>
         </div>
       </div>
       {obsOpen && (

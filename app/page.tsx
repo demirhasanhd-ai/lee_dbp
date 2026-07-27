@@ -7,7 +7,6 @@ import {
   CircleHelp,
   House,
   LibraryBig,
-  School,
   Search,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
@@ -50,8 +49,8 @@ export default function Home() {
             <nav aria-label="Ana menü">
               <a className="return-link" href={eEnstituUrl()}>e-Enstitü</a>
               <a className="active" href={dbpPath("/")}><House size={18}/>Ana Sayfa</a>
-              <a href={dbpPath("/katalog")}><LibraryBig size={18}/>Ders Kataloğu</a>
-              <a href="#programlar"><School size={18}/>Programlar<ChevronDown size={14}/></a>
+              <a href="#programlar"><LibraryBig size={18}/>Ders Kataloğu</a>
+              <a href="#duyurular"><Bell size={18}/>Duyurular</a>
               <a href="#yardim"><CircleHelp size={18}/>Yardım</a>
             </nav>
           </div>

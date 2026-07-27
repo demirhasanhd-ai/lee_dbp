@@ -28,7 +28,7 @@ import { QualityReports } from "./QualityReports";
 import { ReviewQueue } from "./ReviewQueue";
 import { DatabaseAdminPanel } from "./DatabaseAdminPanel";
 import { LEE_PROGRAMS, type LeeProgram } from "../../lib/data/programs";
-import { officialCoursesForProgram } from "../../lib/data/officialCourses";
+import { OFFICIAL_COURSES, officialCoursesForProgram } from "../../lib/data/officialCourses";
 import { dbpPath } from "../../lib/dbpPath";
 import { getEEnstituUrl } from "../../lib/eEnstituUrl";
 type Session = {
@@ -106,6 +106,12 @@ const shortLevel = (level: Course["level"]) =>
       ? "Tezli YL"
       : "Doktora";
 const normalizeText = (value: string) => value.toLocaleLowerCase("tr-TR");
+const normalizePersonName = (value: string) =>
+  normalizeText(value)
+    .replace(/\b(prof|doç|doc|dr|öğr|ogr|üyesi|uyesi|gör|gor)\b\.?/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 const coursePrefix = (programName: string) =>
   programName
     .split(/\s+/)
@@ -354,6 +360,26 @@ export function RoleDashboard() {
         const programName = normalizeText(program.programName).replace(/\sabd|\sasd/g, "").trim();
         return department === scope || programName === scope;
       });
+  const sessionPersonName = normalizePersonName(session.name);
+  const assignedOfficialCourses: Course[] = OFFICIAL_COURSES
+    .filter((course) => {
+      const instructorName = normalizePersonName(course.instructor ?? "");
+      return Boolean(
+        sessionPersonName &&
+        instructorName &&
+        (instructorName === sessionPersonName ||
+          instructorName.includes(sessionPersonName) ||
+          sessionPersonName.includes(instructorName)),
+      );
+    })
+    .map((course) => ({
+      code: course.code,
+      name: course.name,
+      status: course.status,
+      instructor: course.instructor,
+      level: course.level,
+    }));
+  const myAssignedCourses = assignedOfficialCourses.length > 0 ? assignedOfficialCourses : courses;
   const activeCourses = selectedProgram
     ? officialCoursesForProgram(selectedProgram).length
       ? officialCoursesForProgram(selectedProgram)
@@ -696,10 +722,10 @@ export function RoleDashboard() {
                     </h3>
                   </header>
                   <div className="program-course-list">
-                    {courses
+                    {myAssignedCourses
                       .filter((course) => course.level === level)
                       .map((course) => (
-                        <article key={course.code}>
+                        <article key={`${course.code}-${course.level}`}>
                           <span className="course-code">{course.code}</span>
                           <div>
                             <b>{course.name}</b>

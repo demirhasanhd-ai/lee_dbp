@@ -15,7 +15,7 @@ export type DbpModule = keyof typeof DBP_MODULES;
 
 export const DEFAULT_ROLE_ACCESS: Record<DbpRole, DbpModule[]> = {
   akademisyen: ["my_courses"],
-  abd_asd_baskani: ["program_profile", "review_queue"],
+  abd_asd_baskani: ["my_courses", "program_profile", "review_queue"],
   abd_sekreteri: ["review_queue"],
   lee_ogrenci_isleri: ["my_courses", "program_profile"],
   enstitu_sekreteri: ["my_courses", "program_profile", "publish_control"],

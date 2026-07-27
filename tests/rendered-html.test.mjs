@@ -10,25 +10,38 @@ async function packageVersion() {
   return packageJson.version;
 }
 
-async function render() {
+async function render(environment = {}) {
+  const previousEnvironment = new Map();
+  for (const [key, value] of Object.entries(environment)) {
+    previousEnvironment.set(key, process.env[key]);
+    process.env[key] = value;
+  }
+
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
+  try {
+    const { default: worker } = await import(workerUrl.href);
 
-  return worker.fetch(
-    new Request("http://localhost/dbp/", {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
+    return await worker.fetch(
+      new Request("http://localhost/dbp/", {
+        headers: { accept: "text/html" },
+      }),
+      {
+        ASSETS: {
+          fetch: async () => new Response("Not found", { status: 404 }),
+        },
       },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
+      {
+        waitUntil() {},
+        passThroughOnException() {},
+      },
+    );
+  } finally {
+    for (const [key, value] of previousEnvironment) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 }
 
 test("server-renders the public home page", async () => {
@@ -54,6 +67,17 @@ test("server footer renders the package version", async () => {
   const html = (await response.text()).replaceAll("<!-- -->", "");
   const escapedVersion = (await packageVersion()).replaceAll(".", "\\.");
   assert.match(html, new RegExp(`Versiyon:\\s*${escapedVersion}`));
+});
+
+test("production server port does not turn the e-Enstitu link into localhost", async () => {
+  const response = await render({ NODE_ENV: "production", PORT: "8081" });
+  const html = await response.text();
+
+  assert.match(
+    html,
+    /<a(?=[^>]*\bclass=["'][^"']*\breturn-link\b[^"']*["'])(?=[^>]*\bhref=["']https:\/\/e-enstitu\.osmaniye\.edu\.tr\/#["'])[^>]*>/i,
+  );
+  assert.doesNotMatch(html, /href=["']http:\/\/localhost:8080/i);
 });
 
 test("local preview footer OKÜ Web Sitesi link opens in a new tab", async () => {

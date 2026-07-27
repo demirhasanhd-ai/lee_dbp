@@ -58,7 +58,7 @@ const dbpModules = [
 
 const defaultRoleAccess = {
   akademisyen: ["my_courses"],
-  abd_asd_baskani: ["program_profile", "review_queue"],
+  abd_asd_baskani: ["my_courses", "program_profile", "review_queue"],
   abd_sekreteri: ["review_queue"],
   lee_ogrenci_isleri: ["my_courses", "program_profile"],
   enstitu_sekreteri: ["my_courses", "program_profile", "publish_control"],
@@ -328,6 +328,13 @@ function seedDefaultRoleAccess() {
         insert.run(role, module, defaultRoleAccess[role]?.includes(module) ? 1 : 0, now);
       }
     }
+    db.prepare(`
+      UPDATE role_module_access
+      SET enabled = 1, updated_at = ?, updated_by = 'system'
+      WHERE role = 'abd_asd_baskani'
+        AND module = 'my_courses'
+        AND updated_by = 'system'
+    `).run(now);
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
