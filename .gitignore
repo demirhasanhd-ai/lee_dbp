@@ -42,6 +42,7 @@ data/*.sqlite-*
 # typescript
 next-env.d.ts
 /dist/
+/public/pdf/dbp/
 /.wrangler/
 /outputs/
 /output/

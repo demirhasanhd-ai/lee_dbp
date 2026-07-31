@@ -19,6 +19,7 @@ ENV DBP_PDF_CACHE_DIR=/app/data/generated-pdfs
 RUN apk add --no-cache python3 py3-reportlab \
   && npm install --omit=dev --no-audit --no-fund --package-lock=false cheerio@1.2.0 \
   && npm cache clean --force
+COPY package.json ./package.json
 COPY server.mjs ./server.mjs
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/local-preview/program-data-local.js ./seed/program-data-local.js
