@@ -30,23 +30,15 @@ export function coursePdfSlug(value: string) {
   );
 }
 
-function catalogPdfHref(code: string, name: string) {
-  if (coursePdfSlug(code) !== "lee-501") {
-    return undefined;
+function coursePdfApiHref(code: string, name: string, program?: string) {
+  const params = new URLSearchParams({
+    code,
+    name,
+  });
+  if (program?.trim()) {
+    params.set("program", program);
   }
-
-  const codePart = code.trim().replace(/\s+/g, "-").toUpperCase();
-  const namePart = name
-    .trim()
-    .split(/\s+/)
-    .map((word) => {
-      const slug = coursePdfSlug(word);
-      return slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : "";
-    })
-    .filter(Boolean)
-    .join("-");
-
-  return dbpPath(`/pdf/${codePart}-${namePart}.pdf`);
+  return dbpPath(`/api/dbp/course-pdf?${params.toString()}`);
 }
 
 export function coursePdfHref({
@@ -64,9 +56,5 @@ export function coursePdfHref({
     return explicitHref;
   }
 
-  if (program?.trim()) {
-    return dbpPath(`/pdf/dbp/${coursePdfSlug(code)}-${coursePdfSlug(program)}-${coursePdfSlug(name)}.pdf`);
-  }
-
-  return catalogPdfHref(code, name);
+  return coursePdfApiHref(code, name, program);
 }

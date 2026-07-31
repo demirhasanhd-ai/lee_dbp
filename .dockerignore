@@ -6,3 +6,9 @@ dist
 .next
 .wrangler
 .git
+public/pdf
+output
+outputs
+tmp
+local-volume
+data/dbp.sqlite*

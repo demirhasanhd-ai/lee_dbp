@@ -19,6 +19,8 @@ const dataDir = process.env.DBP_DATA_DIR || path.join(__dirname, "data");
 const dbPath = process.env.DBP_SQLITE_PATH || path.join(dataDir, "dbp.sqlite");
 const backupDir = process.env.DBP_BACKUP_DIR || path.join(dataDir, "backups");
 const seedFile = process.env.DBP_SEED_FILE || path.join(__dirname, "seed", "program-data-local.js");
+const pdfCacheDir = process.env.DBP_PDF_CACHE_DIR || path.join(dataDir, "generated-pdfs");
+const pdfScript = process.env.DBP_PDF_SCRIPT || path.join(__dirname, "scripts", "generate_public_course_pdfs.py");
 let db;
 
 function openBrowser(url) {
@@ -138,6 +140,98 @@ function jsonResponse(body, init = {}) {
       ...(init.headers || {}),
     },
   });
+}
+
+function cacheSlug(value, fallback = "ders") {
+  const text = repairText(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return text || fallback;
+}
+
+function pdfCacheFile({ code, program, name }) {
+  const parts = [cacheSlug(code, "kod")];
+  if (program) parts.push(cacheSlug(program, "program"));
+  parts.push(cacheSlug(name, "ders"));
+  return path.join(pdfCacheDir, `${parts.join("-")}.pdf`);
+}
+
+function pythonCandidates() {
+  if (process.env.DBP_PYTHON) return [process.env.DBP_PYTHON];
+  return process.platform === "win32" ? ["python", "py"] : ["python3", "python"];
+}
+
+function spawnToCompletion(command, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd: __dirname });
+    let stderr = "";
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`${command} ${args.join(" ")} failed with code ${code}: ${stderr.trim()}`));
+      }
+    });
+  });
+}
+
+async function runPdfGenerator(args) {
+  const failures = [];
+  for (const command of pythonCandidates()) {
+    try {
+      await spawnToCompletion(command, args);
+      return;
+    } catch (error) {
+      failures.push(error.message);
+    }
+  }
+  throw new Error(failures.join("\n"));
+}
+
+async function coursePdfResponse(request, url) {
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+
+  const code = url.searchParams.get("code")?.trim() || "";
+  const name = url.searchParams.get("name")?.trim() || "";
+  const program = url.searchParams.get("program")?.trim() || "";
+  if (!code || !name) {
+    return jsonResponse({ message: "PDF için ders kodu ve ders adi gerekir." }, { status: 400 });
+  }
+
+  await mkdir(pdfCacheDir, { recursive: true });
+  const target = pdfCacheFile({ code, program, name });
+  let info = null;
+  try {
+    info = await stat(target);
+  } catch {
+    await runPdfGenerator([
+      pdfScript,
+      "--single",
+      "--code",
+      code,
+      "--name",
+      name,
+      "--output",
+      target,
+      ...(program ? ["--program", program] : []),
+    ]);
+    info = await stat(target);
+  }
+
+  const headers = {
+    "Content-Type": "application/pdf",
+    "Content-Length": String(info.size),
+    "Cache-Control": "public, max-age=3600",
+    "Content-Disposition": `inline; filename="${cacheSlug(code, "ders")}-${cacheSlug(name, "pdf")}.pdf"`,
+  };
+  return new Response(request.method === "HEAD" ? null : createReadStream(target), { headers });
 }
 
 async function readJsonBody(request) {
@@ -905,6 +999,10 @@ async function handleDbpApi(request) {
   try {
     if (pathname === "/api/dbp/health" && request.method === "GET") {
       return jsonResponse({ ok: true, dbPath, size: await databaseSize() });
+    }
+
+    if (pathname === "/api/dbp/course-pdf") {
+      return await coursePdfResponse(request, url);
     }
 
     if (pathname === "/api/dbp/access" && request.method === "GET") {

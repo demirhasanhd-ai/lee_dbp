@@ -4,6 +4,7 @@ import html
 import json
 import re
 import unicodedata
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -452,8 +453,66 @@ def pdf_name(course: Course) -> str:
     return f"{slugify(course.code)}-{slugify(course.program)}-{slugify(course.name)}.pdf"
 
 
+def normalized_code(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", slugify(value))
+
+
+def find_course(courses: list[Course], code: str, program: str = "", name: str = "") -> Course | None:
+    code_key = normalized_code(code)
+    program_key = slugify(program) if program else ""
+    name_key = slugify(name) if name else ""
+    matches = [course for course in courses if normalized_code(course.code) == code_key]
+    if program_key:
+        matches = [course for course in matches if slugify(course.program) == program_key]
+    if name_key:
+        named = [course for course in matches if slugify(course.name) == name_key]
+        if named:
+            matches = named
+    return matches[0] if len(matches) == 1 else None
+
+
+def synthetic_course(code: str, name: str) -> Course:
+    return Course(
+        code=code,
+        name=name or "Ders Bilgi Paketi",
+        department="Lisansüstü Eğitim Enstitüsü",
+        program="Ortak Dersler",
+        level="Lisansüstü",
+        term="Güz",
+        course_type="Zorunlu",
+        credit=3,
+        theory=3,
+        practice=0,
+        ects=6,
+    )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="DBP ders PDF üreticisi")
+    parser.add_argument("--single", action="store_true", help="Yalnızca tek bir ders PDF'i üretir.")
+    parser.add_argument("--code", default="", help="Ders kodu")
+    parser.add_argument("--program", default="", help="Program adı")
+    parser.add_argument("--name", default="", help="Ders adı")
+    parser.add_argument("--output", default="", help="Tek ders PDF hedef yolu")
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
+    args = parse_args()
     courses = load_official_courses()
+    if args.single:
+        if not args.code or not args.output:
+            raise SystemExit("--single için --code ve --output zorunludur.")
+        course = find_course(courses, args.code, args.program, args.name)
+        if course is None and args.name:
+            course = synthetic_course(args.code, args.name)
+        if course is None:
+            raise SystemExit(f"Ders bulunamadı: {args.code}")
+        target = Path(args.output)
+        make_pdf(course, target)
+        print(target)
+        raise SystemExit(0)
+
     for course in courses:
         target = PUBLIC_DIR / pdf_name(course)
         make_pdf(course, target)
