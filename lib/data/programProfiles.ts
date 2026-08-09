@@ -2751,5 +2751,25 @@ const yonetimBilisimSistemleriDoktora: ProgramProfile = {
 
 const profiles = [tezsiz, tezli, arkeolojiTezli, bataryaTezli, bedenEgitimiTezsiz, bedenEgitimiTezli, biyolojiTezsiz, biyolojiTezli, biyolojiDoktora, ebelikTezli, ekoturizmTezli, elektrikElektronikTezli, enerjiSistemleriTezsiz, enerjiSistemleriTezli, enerjiSistemleriDoktora, felsefeDinBilimleriTezli, fizikTezli, fizikDoktora, gastronomiTezsiz, gastronomiTezli, gidaMuhendisligiTezli, gidaMuhendisligiDoktora, gidaTeknolojisiTezsiz, gidaTeknolojisiTezli, haritaMuhendisligiTezli, icHastaliklariHemsireligiTezli, insaatMuhendisligiTezli, insaatMuhendisligiDoktora, ekonomiFinansTezsiz, iktisatTezli, isletmeTezsiz, isletmeTezli, isletmeDoktora, muhasebeFinansmanTezsiz, muhasebeFinansmanTezli, yonetimOrganizasyonTezsiz, yonetimOrganizasyonTezli, kimyaTezli, kimyaDoktora, makineMuhendisligiTezli, makineMuhendisligiDoktora, muhendislikTeknolojiYonetimiTezsiz, organikTarimIsletmeciligiTezsiz, organikTarimIsletmeciligiTezli, resimTezsiz, resimTezli, siyasetBilimiKamuYonetimiTezsiz, siyasetBilimiKamuYonetimiTezli, siyasetBilimiKamuYonetimiDoktora, tarihTezsiz, tarihTezli, temelIslamBilimleriTezli, turkDiliEdebiyatiTezsiz, turkDiliEdebiyatiTezli, turkDiliEdebiyatiDoktora, yonetimBilisimSistemleriTezsiz, yonetimBilisimSistemleriTezli, yonetimBilisimSistemleriDoktora];
 
+const PROGRAM_PROFILE_OVERRIDES_KEY = "lee-dbp-program-profile-overrides";
+const profileKey = (programName: string, level: string) => `${programName}::${level}`;
+
+const readProfileOverrides = (): Record<string, ProgramProfile> => {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(PROGRAM_PROFILE_OVERRIDES_KEY) || "{}") as Record<string, ProgramProfile>;
+  } catch {
+    return {};
+  }
+};
+
+export const saveProgramProfile = (profile: ProgramProfile) => {
+  if (typeof window === "undefined") return;
+  const overrides = readProfileOverrides();
+  overrides[profileKey(profile.programName, profile.level)] = profile;
+  window.localStorage.setItem(PROGRAM_PROFILE_OVERRIDES_KEY, JSON.stringify(overrides));
+};
+
 export const getProgramProfile = (programName: string, level: string) =>
-  profiles.find((profile) => profile.programName === programName && profile.level === level);
+  readProfileOverrides()[profileKey(programName, level)]
+  ?? profiles.find((profile) => profile.programName === programName && profile.level === level);
