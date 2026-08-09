@@ -2,6 +2,7 @@
 
 import { ChevronDown, Info } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { ProgramTyycRow } from "../../lib/data/programProfiles";
 
 type TyycLevel = 7 | 8;
 type TyycItem = { code: string; title: string };
@@ -132,10 +133,14 @@ const makeSeed = (items: TyycItem[]) => Object.fromEntries(
   ]),
 );
 
-export function ProgramTyycMatrix({ outcomeCount, programLevel = "Tezli Yüksek Lisans" }: { outcomeCount: number; programLevel?: string }) {
+export function ProgramTyycMatrix({ outcomeCount, programLevel = "Tezli Yüksek Lisans", initialRows }: { outcomeCount: number; programLevel?: string; initialRows?: ProgramTyycRow[] }) {
   const tyycLevel: TyycLevel = programLevel === "Doktora" ? 8 : 7;
-  const groups = tyycGroups[tyycLevel];
-  const [relations, setRelations] = useState<Record<string, number[]>>(() => makeSeed([...tyycGroups[7], ...tyycGroups[8]].flatMap((group) => group.items)));
+  const groups = initialRows?.length
+    ? [{ id: "program-document", title: "TYYÇ 7. Düzey Yeterlilikleri", items: initialRows.map(({ code, title }) => ({ code, title })) }]
+    : tyycGroups[tyycLevel];
+  const [relations, setRelations] = useState<Record<string, number[]>>(() => initialRows?.length
+    ? Object.fromEntries(initialRows.map((row) => [row.code, row.values]))
+    : makeSeed([...tyycGroups[7], ...tyycGroups[8]].flatMap((group) => group.items)));
   const columns = useMemo(() => Array.from({ length: outcomeCount }, (_, index) => `PÇ${index + 1}`), [outcomeCount]);
   const setRelation = (code: string, index: number, value: number) => setRelations((current) => ({
     ...current,
