@@ -80,10 +80,15 @@ export function PublicProgramSidebar({
               className={isActiveItem(item) ? "program-menu-card active" : "program-menu-card"}
               key={`${item.programKey ?? "program"}-${item.level}`}
             >
-              <div className="program-menu-title">
+              <button
+                className="program-menu-title program-menu-title-button"
+                type="button"
+                onClick={() => onViewChange?.({ level: item.level, tab: "profile", programKey: item.programKey })}
+                aria-label={`${item.label ?? shortLevel(item.level)} program bilgilerini göster`}
+              >
                 <b>{item.label ?? shortLevel(item.level)}</b>
                 {item.caption ? <small>{item.caption}</small> : null}
-              </div>
+              </button>
               <div className="program-menu-actions">
                 {action(item, "profile", "Bilgiler", <Info size={13} />)}
                 {action(item, "courses", "Dersler", <ListChecks size={13} />)}

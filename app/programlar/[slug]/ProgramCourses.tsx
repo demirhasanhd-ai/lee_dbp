@@ -7,6 +7,8 @@ import { PublicProgramSidebar } from "../../PublicProgramSidebar";
 import { dbpPath } from "../../../lib/dbpPath";
 import { coursePdfHref } from "../../../lib/coursePdf";
 import { DEFAULT_COURSE_SDG_IDS } from "../../../lib/sdgGoals";
+import { getProgramProfile } from "../../../lib/data/programProfiles";
+import type { ProgramTyycRow } from "../../../lib/data/programProfiles";
 
 export type PublicCourse = {
   code: string;
@@ -39,7 +41,7 @@ type PublicProgramMenuItem = {
 type ViewState = { programKey: string; level: string; tab: "profile" | "courses" };
 
 const columns = ["12%", "36%", "14%", "5%", "5%", "6%", "12%", "10%"];
-const outcomes = [
+const defaultOutcomes = [
   "Alanındaki ileri düzey bilgileri bilimsel araştırma süreçlerinde kullanır.",
   "Disiplinler arası yaklaşımla problem tanımlar ve çözüm önerileri geliştirir.",
   "Araştırma sonuçlarını etik ilkeler doğrultusunda değerlendirir ve raporlar.",
@@ -48,7 +50,7 @@ const outcomes = [
   "Yaşam boyu öğrenme yaklaşımıyla mesleki gelişimini sürdürür.",
 ];
 
-const profileSections = [
+const defaultProfileSections = [
   ["Program Tarihçesi", "Program, Osmaniye Korkut Ata Üniversitesi Lisansüstü Eğitim Enstitüsü bünyesinde alanında uzman araştırmacılar yetiştirmek amacıyla yapılandırılmıştır. Eğitim-öğretim, bilimsel araştırma ve toplumsal katkı faaliyetleri enstitü kalite süreçleriyle uyumlu biçimde yürütülür."],
   ["Program Profili", "Program; kuramsal bilgi, araştırma yöntemi, uygulama becerisi ve etik sorumlulukları birlikte ele alan lisansüstü bir akademik yapı sunar. Öğrencilerin alanlarında derinleşmeleri, özgün araştırma yapmaları ve bilimsel üretime katkı sağlamaları hedeflenir."],
   ["Ders Yapısı ve Kredileri", "Programda zorunlu ve seçmeli dersler, seminer/uzmanlık alan dersleri ve ilgili düzeye göre proje ya da tez çalışmaları yer alır. Dersler güz ve bahar yarıyıllarında yürütülür; AKTS yükleri öğrenci iş yükü esas alınarak tanımlanır."],
@@ -82,8 +84,57 @@ const repairText = (value: string) =>
     .replaceAll("Ã‡", "Ç")
     .replaceAll("Ã", "Ç");
 
+const renderInlineProfileText = (text: string) =>
+  text.split("**").map((part, index) =>
+    index % 2 === 1 ? <strong key={`${part}-${index}`}>{part}</strong> : part,
+  );
+
+function ProfileText({ text }: { text: string }) {
+  const blocks = text.trim().split(/\n\s*\n/);
+  if (blocks.length === 1 && !text.includes("**")) return <p>{text}</p>;
+
+  return (
+    <div className="public-profile-copy">
+      {blocks.map((block, blockIndex) => {
+        const lines = block.split("\n").filter(Boolean);
+        if (lines.every((line) => line.startsWith("* "))) {
+          return (
+            <ul key={`list-${blockIndex}`}>
+              {lines.map((line, lineIndex) => (
+                <li key={`${line}-${lineIndex}`}>{renderInlineProfileText(line.slice(2))}</li>
+              ))}
+            </ul>
+          );
+        }
+        return <p key={`paragraph-${blockIndex}`}>{renderInlineProfileText(block)}</p>;
+      })}
+    </div>
+  );
+}
+
+function PublicTyycMatrix({ rows, outcomeCount, level }: { rows: ProgramTyycRow[]; outcomeCount: number; level: string }) {
+  if (!rows.length) return null;
+  return (
+    <article className="public-profile-card public-tyyc-card">
+      <div className="profile-card-heading">
+        <h3>PÇ–TYYÇ İlişki Matrisi</h3>
+        <span>0 Yok · 1 Düşük · 2 Orta · 3 Güçlü</span>
+      </div>
+      <div className="public-tyyc-scroll">
+        <table className="public-tyyc-table">
+          <thead><tr><th>TYYÇ {level === "Doktora" ? 8 : 7}. Düzey Yeterlilikleri</th>{Array.from({ length: outcomeCount }, (_, index) => <th key={index}>PÇ{index + 1}</th>)}</tr></thead>
+          <tbody>{rows.map((row) => <tr key={row.code}><th><b>{row.code}</b><span>{row.title}</span></th>{row.values.slice(0, outcomeCount).map((value, index) => <td data-level={value} key={index}>{value}</td>)}</tr>)}</tbody>
+        </table>
+      </div>
+    </article>
+  );
+}
+
 function ProgramProfile({ department, programName, activeLevel }: { department: string; programName: string; activeLevel: string }) {
   const isDoctorate = activeLevel === "Doktora";
+  const profile = getProgramProfile(repairText(programName), repairText(activeLevel));
+  const outcomes = profile?.outcomes ?? defaultOutcomes;
+  const profileSections = profile?.sections ?? defaultProfileSections.map(([title, text]) => ({ title, text }));
   return (
     <section className="public-program-profile" aria-label="Program genel bilgileri">
       <div className="public-profile-title">
@@ -93,21 +144,22 @@ function ProgramProfile({ department, programName, activeLevel }: { department: 
       </div>
       <div className="public-profile-summary">
         <div><span>Program Düzeyi</span><b>{activeLevel}</b></div>
-        <div><span>Kazanılan Derece</span><b>{programName} {isDoctorate ? "Doktora" : "Yüksek Lisans"} Derecesi</b></div>
-        <div><span>Program Yöneticisi</span><b>Prof. Dr. Program Yöneticisi</b></div>
-        <div><span>Öğrenim Dili</span><b>Türkçe</b></div>
-        <div className="wide"><span>Yeterlilik Koşulları ve Kuralları</span><b>{isDoctorate ? "4 yıl, 8 yarıyıl ve ilgili doktora yeterlilik/tez süreçleri" : "2 yıl, 4 yarıyıl ve toplam 120 AKTS"}</b></div>
+        <div><span>Kazanılan Derece</span><b>{profile?.degree ?? `${programName} ${isDoctorate ? "Doktora" : "Yüksek Lisans"} Derecesi`}</b></div>
+        <div><span>Program Yöneticisi</span><b>{profile?.manager || "—"}</b></div>
+        <div><span>Öğrenim Dili</span><b>{profile?.language ?? "Türkçe"}</b></div>
+        <div className="wide qualification"><span>Yeterlilik Koşulları ve Kuralları</span><p>{profile?.qualificationRules ?? (isDoctorate ? "4 yıl, 8 yarıyıl ve ilgili doktora yeterlilik/tez süreçleri" : "2 yıl, 4 yarıyıl ve toplam 120 AKTS")}</p></div>
       </div>
       <div className="public-profile-grid">
-        {profileSections.slice(0, 2).map(([title, text]) => <article className="wide" key={title}><h3>{title}</h3><p>{text}</p></article>)}
+        {profileSections.slice(0, 2).map(({ title, text }) => <article className="wide" key={title}><h3>{title}</h3><ProfileText text={text}/></article>)}
       </div>
       <article className="public-profile-card">
         <div className="profile-card-heading"><h3>Program Çıktıları / Öğrenme Kazanımları</h3><span>{outcomes.length} çıktı</span></div>
         <ol className="public-outcomes">{outcomes.map((outcome, index) => <li key={outcome}><b>PÇ{index + 1}</b><span>{outcome}</span></li>)}</ol>
       </article>
+      <PublicTyycMatrix rows={profile?.tyycRows ?? []} outcomeCount={outcomes.length} level={activeLevel}/>
       <div className="public-profile-grid">
-        {profileSections.slice(8, 9).map(([title, text]) => <article className="wide" key={title}><h3>{title}</h3><p>{text}</p></article>)}
-        {profileSections.slice(2, 8).map(([title, text]) => <article key={title}><h3>{title}</h3><p>{text}</p></article>)}
+        {profileSections.slice(8, 9).map(({ title, text }) => <article className="wide" key={title}><h3>{title}</h3><ProfileText text={text}/></article>)}
+        {profileSections.slice(2, 8).map(({ title, text }) => <article key={title}><h3>{title}</h3><ProfileText text={text}/></article>)}
       </div>
     </section>
   );
