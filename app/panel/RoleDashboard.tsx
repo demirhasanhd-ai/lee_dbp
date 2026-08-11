@@ -352,14 +352,21 @@ export function RoleDashboard() {
     "admin",
   ].includes(session.role);
   const isCentralRole = centralRoles.includes(session.role);
-  const scopedPrograms = isCentralRole
-    ? LEE_PROGRAMS
-    : LEE_PROGRAMS.filter((program) => {
+  const matchedScopedPrograms = LEE_PROGRAMS.filter((program) => {
         const scope = normalizeText(session.department).replace(/\sabd|\sasd/g, "").trim();
         const department = normalizeText(program.department).replace(/\sabd|\sasd/g, "").trim();
         const programName = normalizeText(program.programName).replace(/\sabd|\sasd/g, "").trim();
         return department === scope || programName === scope;
       });
+  const isTestDepartment = normalizeText(session.department).replace(/\sabd|\sasd/g, "").trim() === "test";
+  const scopedPrograms = isCentralRole
+    ? LEE_PROGRAMS
+    : matchedScopedPrograms.length > 0
+      ? matchedScopedPrograms
+      : isTestDepartment
+        ? LEE_PROGRAMS.filter((program) => program.programName === "Biyoloji")
+        : [];
+  const activeProfileProgram = selectedProgram ?? (scopedPrograms.length === 1 ? scopedPrograms[0] : null);
   const sessionPersonName = normalizePersonName(session.name);
   const assignedOfficialCourses: Course[] = OFFICIAL_COURSES
     .filter((course) => {
@@ -774,23 +781,27 @@ export function RoleDashboard() {
             {programPicker("Programı Aç")}
           </section>
         )}
-        {active === "program_profile" && (!isCentralRole || selectedProgram) && (
+        {active === "program_profile" && !isCentralRole && !activeProfileProgram && (
+          programPicker("Programı Aç")
+        )}
+        {active === "program_profile" && (isCentralRole ? selectedProgram : activeProfileProgram) && (
           <section>
-            {isCentralRole && (
+            {(isCentralRole || scopedPrograms.length > 1) && (
               <button className="back-to-courses" onClick={() => setSelectedProgram(null)}>
                 <ArrowLeft size={15} />
                 Programlara Dön
               </button>
             )}
             <ProgramProfileEditor
+              key={`${(selectedProgram ?? activeProfileProgram)?.department}-${(selectedProgram ?? activeProfileProgram)?.programName}`}
               department={
-                selectedProgram
-                  ? `${selectedProgram.department} / ${selectedProgram.programName}`
+                (selectedProgram ?? activeProfileProgram)
+                  ? `${(selectedProgram ?? activeProfileProgram)?.department} / ${(selectedProgram ?? activeProfileProgram)?.programName}`
                   : session.department
               }
-              programName={selectedProgram?.programName}
-              initialLevel={selectedProgram?.levels[0]}
-              availableLevels={selectedProgram?.levels}
+              programName={(selectedProgram ?? activeProfileProgram)?.programName}
+              initialLevel={(selectedProgram ?? activeProfileProgram)?.levels[0]}
+              availableLevels={(selectedProgram ?? activeProfileProgram)?.levels}
               mode={session.role === "admin" ? "admin" : session.role === "abd_asd_baskani" ? "edit" : "review"}
               onSave={save}
             />
