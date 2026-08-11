@@ -1,4 +1,4 @@
-import { createReadStream, readFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
@@ -18,7 +18,10 @@ const host = process.env.HOST || "0.0.0.0";
 const dataDir = process.env.DBP_DATA_DIR || path.join(__dirname, "data");
 const dbPath = process.env.DBP_SQLITE_PATH || path.join(dataDir, "dbp.sqlite");
 const backupDir = process.env.DBP_BACKUP_DIR || path.join(dataDir, "backups");
-const seedFile = process.env.DBP_SEED_FILE || path.join(__dirname, "seed", "program-data-local.js");
+const bundledSeedFile = path.join(__dirname, "seed", "program-data-local.js");
+const localPreviewSeedFile = path.join(__dirname, "local-preview", "program-data-local.js");
+const seedFile = process.env.DBP_SEED_FILE || (existsSync(bundledSeedFile) ? bundledSeedFile : localPreviewSeedFile);
+const programProfilesSeedFile = process.env.DBP_PROGRAM_PROFILES_SEED_FILE || path.join(__dirname, "seed", "program-profiles.json");
 const pdfCacheDir = process.env.DBP_PDF_CACHE_DIR || path.join(dataDir, "generated-pdfs");
 const pdfScript = process.env.DBP_PDF_SCRIPT || path.join(__dirname, "scripts", "generate_public_course_pdfs.py");
 let db;
@@ -66,6 +69,15 @@ const defaultRoleAccess = {
   enstitu_sekreteri: ["my_courses", "program_profile", "publish_control"],
   enstitu_yoneticisi: ["my_courses", "program_profile", "publish_control", "quality_reports"],
   admin: ["my_courses", "database_admin", "program_profile", "publish_control", "quality_reports", "user_roles", "permission_matrix"],
+};
+
+const testProgramSeed = {
+  mainDepartment: "Test ABD",
+  department: "Test ABD",
+  programName: "Test Programı",
+  flags: "TTD",
+  levels: ["Tezsiz YL", "Tezli YL", "Doktora"],
+  visibilityKey: "test-abd-test-programi",
 };
 
 const contentTypes = {
@@ -244,7 +256,8 @@ function parseSession(request) {
   const raw = request.headers.get("x-dbp-session") || "";
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    const text = raw.startsWith("uri:") ? decodeURIComponent(raw.slice(4)) : raw;
+    return JSON.parse(text);
   } catch {
     return null;
   }
@@ -330,6 +343,22 @@ async function ensureDb() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS program_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      program_name TEXT NOT NULL,
+      level TEXT NOT NULL,
+      degree TEXT NOT NULL DEFAULT '',
+      manager TEXT NOT NULL DEFAULT '',
+      language TEXT NOT NULL DEFAULT 'Türkçe',
+      qualification_rules TEXT NOT NULL DEFAULT '',
+      sections_json TEXT NOT NULL DEFAULT '[]',
+      outcomes_json TEXT NOT NULL DEFAULT '[]',
+      tyyc_rows_json TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      updated_by TEXT,
+      UNIQUE(program_name, level)
+    );
     CREATE TABLE IF NOT EXISTS courses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       academic_year TEXT,
@@ -388,6 +417,8 @@ async function ensureDb() {
     );
   `);
   seedInitialData();
+  seedProgramProfiles();
+  ensureTestProgramData();
   seedDefaultRoleAccess();
   return db;
 }
@@ -503,28 +534,44 @@ function replaceRoleAccess(access, actor) {
 function upsertSessionUser(session) {
   if (!session?.username || !session?.role || !isKnownRole(session.role)) return null;
   const now = new Date().toISOString();
-  db.prepare(`
-    INSERT INTO users(external_id, username, display_name, email, department, department_id, is_active, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-    ON CONFLICT(username) DO UPDATE SET
-      external_id = COALESCE(excluded.external_id, users.external_id),
-      display_name = excluded.display_name,
-      email = excluded.email,
-      department = excluded.department,
-      department_id = excluded.department_id,
-      is_active = 1,
-      updated_at = excluded.updated_at
-  `).run(
-    session.tcKimlik || null,
-    session.username,
-    session.name || session.username,
-    session.email || null,
-    session.department || "",
-    session.departmentId || "",
-    now,
-    now,
-  );
-  const user = db.prepare("SELECT id FROM users WHERE username = ?").get(session.username);
+  const externalId = session.tcKimlik || session.externalId || null;
+  const displayName = session.name || session.username;
+  const email = session.email || null;
+  const department = session.department || "";
+  const departmentId = session.departmentId || "";
+  const existing = externalId
+    ? db.prepare("SELECT id FROM users WHERE external_id = ?").get(externalId)
+    : db.prepare("SELECT id FROM users WHERE username = ?").get(session.username);
+  if (existing?.id) {
+    db.prepare(`
+      UPDATE users
+      SET username = ?,
+        external_id = COALESCE(?, external_id),
+        display_name = ?,
+        email = ?,
+        department = ?,
+        department_id = ?,
+        is_active = 1,
+        updated_at = ?
+      WHERE id = ?
+    `).run(session.username, externalId, displayName, email, department, departmentId, now, existing.id);
+  } else {
+    db.prepare(`
+      INSERT INTO users(external_id, username, display_name, email, department, department_id, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+      ON CONFLICT(username) DO UPDATE SET
+        external_id = COALESCE(excluded.external_id, users.external_id),
+        display_name = excluded.display_name,
+        email = excluded.email,
+        department = excluded.department,
+        department_id = excluded.department_id,
+        is_active = 1,
+        updated_at = excluded.updated_at
+    `).run(externalId, session.username, displayName, email, department, departmentId, now, now);
+  }
+  const user = externalId
+    ? db.prepare("SELECT id FROM users WHERE external_id = ?").get(externalId)
+    : db.prepare("SELECT id FROM users WHERE username = ?").get(session.username);
   if (!user?.id) return null;
   db.prepare(`
     INSERT OR IGNORE INTO user_roles(user_id, role, department_id, created_at)
@@ -604,6 +651,227 @@ function seedInitialData(force = false) {
   }
 }
 
+function parseJsonField(value, fallback) {
+  try {
+    return repairObject(JSON.parse(value || JSON.stringify(fallback)));
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeProfileLevel(value = "") {
+  const text = repairText(value);
+  if (text.includes("Tezsiz")) return "Tezsiz Yüksek Lisans";
+  if (text.includes("Tezli")) return "Tezli Yüksek Lisans";
+  if (text.includes("Doktora")) return "Doktora";
+  return text || "Tezli Yüksek Lisans";
+}
+
+function normalizeProgramProfilePayload(profile = {}) {
+  return {
+    programName: repairText(profile.programName || "").trim(),
+    level: normalizeProfileLevel(profile.level),
+    degree: repairText(profile.degree || ""),
+    manager: repairText(profile.manager || ""),
+    language: repairText(profile.language || "Türkçe"),
+    qualificationRules: repairText(profile.qualificationRules || ""),
+    sections: Array.isArray(profile.sections)
+      ? profile.sections.map((section) => ({
+          title: repairText(section?.title || ""),
+          text: repairText(section?.text || ""),
+        }))
+      : [],
+    outcomes: Array.isArray(profile.outcomes) ? profile.outcomes.map((outcome) => repairText(outcome || "")) : [],
+    tyycRows: Array.isArray(profile.tyycRows)
+      ? profile.tyycRows.map((row) => ({
+          code: repairText(row?.code || ""),
+          title: repairText(row?.title || ""),
+          values: Array.isArray(row?.values) ? row.values.map((value) => Number(value) || 0) : [],
+        }))
+      : [],
+  };
+}
+
+function programProfileFromRow(row) {
+  if (!row) return null;
+  return {
+    programName: repairText(row.program_name),
+    level: normalizeProfileLevel(row.level),
+    degree: repairText(row.degree),
+    manager: repairText(row.manager),
+    language: repairText(row.language || "Türkçe"),
+    qualificationRules: repairText(row.qualification_rules),
+    sections: parseJsonField(row.sections_json, []),
+    outcomes: parseJsonField(row.outcomes_json, []),
+    tyycRows: parseJsonField(row.tyyc_rows_json, []),
+    updatedAt: row.updated_at,
+    updatedBy: row.updated_by,
+  };
+}
+
+function seedProgramProfiles(force = false) {
+  let profiles = [];
+  try {
+    profiles = JSON.parse(readFileSync(programProfilesSeedFile, "utf8"));
+  } catch {
+    return;
+  }
+  const now = new Date().toISOString();
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO program_profiles(program_name, level, degree, manager, language, qualification_rules, sections_json, outcomes_json, tyyc_rows_json, created_at, updated_at, updated_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'seed')
+  `);
+  let inserted = 0;
+  db.exec("BEGIN");
+  try {
+    if (force) db.exec("DELETE FROM program_profiles");
+    for (const rawProfile of profiles) {
+      const profile = normalizeProgramProfilePayload(rawProfile);
+      if (!profile.programName || !profile.level) continue;
+      const result = insert.run(
+        profile.programName,
+        profile.level,
+        profile.degree,
+        profile.manager,
+        profile.language,
+        profile.qualificationRules,
+        JSON.stringify(profile.sections),
+        JSON.stringify(profile.outcomes),
+        JSON.stringify(profile.tyycRows),
+        now,
+        now,
+      );
+      inserted += result.changes || 0;
+    }
+    if (inserted || force) {
+      db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("seeded_program_profiles", "1");
+      audit(force ? "program_profiles.seed.force" : "program_profiles.seed", "system", { profiles: profiles.length, inserted });
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function ensureTestProgramData() {
+  const now = new Date().toISOString();
+  const existing = db.prepare("SELECT id FROM programs WHERE department = ? AND program_name = ?").get(
+    testProgramSeed.department,
+    testProgramSeed.programName,
+  );
+
+  if (existing?.id) {
+    db.prepare(`
+      UPDATE programs
+      SET main_department = ?, flags = ?, levels_json = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      testProgramSeed.mainDepartment,
+      testProgramSeed.flags,
+      JSON.stringify(testProgramSeed.levels),
+      now,
+      existing.id,
+    );
+  } else {
+    db.prepare(`
+      INSERT INTO programs(main_department, department, program_name, flags, levels_json, profile_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, '{}', ?, ?)
+    `).run(
+      testProgramSeed.mainDepartment,
+      testProgramSeed.department,
+      testProgramSeed.programName,
+      testProgramSeed.flags,
+      JSON.stringify(testProgramSeed.levels),
+      now,
+      now,
+    );
+  }
+
+  db.prepare("INSERT OR IGNORE INTO public_visibility(key, visible, updated_at) VALUES (?, 0, ?)")
+    .run(testProgramSeed.visibilityKey, now);
+}
+
+function getPublicVisibilityMap() {
+  return Object.fromEntries(
+    db.prepare("SELECT key, visible FROM public_visibility").all()
+      .map((row) => [row.key, Boolean(row.visible)]),
+  );
+}
+
+function canManagePublicVisibility(session) {
+  return ["admin", "enstitu_sekreteri", "enstitu_yoneticisi"].includes(session?.role);
+}
+
+function upsertPublicVisibilityMap(visibility, actor) {
+  const now = new Date().toISOString();
+  const upsert = db.prepare(`
+    INSERT INTO public_visibility(key, visible, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET
+      visible = excluded.visible,
+      updated_at = excluded.updated_at
+  `);
+  db.exec("BEGIN");
+  try {
+    for (const [key, visible] of Object.entries(visibility || {})) {
+      if (!key || typeof visible !== "boolean") continue;
+      upsert.run(key, visible ? 1 : 0, now);
+    }
+    audit("public_visibility.save", actor, { keys: Object.keys(visibility || {}).length });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function getProgramProfile(programName, level) {
+  const row = db.prepare(`
+    SELECT *
+    FROM program_profiles
+    WHERE program_name = ? AND level = ?
+  `).get(repairText(programName || "").trim(), normalizeProfileLevel(level));
+  return programProfileFromRow(row);
+}
+
+function upsertProgramProfile(profile, actor) {
+  const normalized = normalizeProgramProfilePayload(profile);
+  if (!normalized.programName || !normalized.level) {
+    throw new Error("Program adı ve düzeyi zorunludur.");
+  }
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO program_profiles(program_name, level, degree, manager, language, qualification_rules, sections_json, outcomes_json, tyyc_rows_json, created_at, updated_at, updated_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(program_name, level) DO UPDATE SET
+      degree = excluded.degree,
+      manager = excluded.manager,
+      language = excluded.language,
+      qualification_rules = excluded.qualification_rules,
+      sections_json = excluded.sections_json,
+      outcomes_json = excluded.outcomes_json,
+      tyyc_rows_json = excluded.tyyc_rows_json,
+      updated_at = excluded.updated_at,
+      updated_by = excluded.updated_by
+  `).run(
+    normalized.programName,
+    normalized.level,
+    normalized.degree,
+    normalized.manager,
+    normalized.language,
+    normalized.qualificationRules,
+    JSON.stringify(normalized.sections),
+    JSON.stringify(normalized.outcomes),
+    JSON.stringify(normalized.tyycRows),
+    now,
+    now,
+    actor || "dbp-user",
+  );
+  audit("program_profile.save", actor, { programName: normalized.programName, level: normalized.level });
+  return getProgramProfile(normalized.programName, normalized.level);
+}
+
 async function listBackups() {
   await mkdir(backupDir, { recursive: true });
   const names = await readdir(backupDir);
@@ -630,6 +898,7 @@ function exportData() {
       user_roles: tableRows("user_roles"),
       role_module_access: tableRows("role_module_access"),
       programs: tableRows("programs"),
+      program_profiles: tableRows("program_profiles"),
       courses: tableRows("courses"),
       public_visibility: tableRows("public_visibility"),
       workflow_requests: tableRows("workflow_requests"),
@@ -646,7 +915,7 @@ function replaceFromExport(payload, actor = "admin") {
   const now = new Date().toISOString();
   db.exec("BEGIN");
   try {
-    for (const table of ["metadata", "user_roles", "users", "role_module_access", "programs", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
+    for (const table of ["metadata", "user_roles", "users", "role_module_access", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
       db.exec(`DELETE FROM ${table}`);
     }
     const insertMetadata = db.prepare("INSERT INTO metadata(key, value) VALUES (?, ?)");
@@ -673,6 +942,13 @@ function replaceFromExport(payload, actor = "admin") {
     for (const row of payload.tables.programs) {
       insertProgram.run(row.id || null, row.main_department, row.department, row.program_name, row.flags || "", row.levels_json || "[]", row.profile_json || "{}", row.created_at || now, row.updated_at || now);
     }
+    const insertProgramProfile = db.prepare(`
+      INSERT INTO program_profiles(id, program_name, level, degree, manager, language, qualification_rules, sections_json, outcomes_json, tyyc_rows_json, created_at, updated_at, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const row of payload.tables.program_profiles || []) {
+      insertProgramProfile.run(row.id || null, row.program_name, normalizeProfileLevel(row.level), row.degree || "", row.manager || "", row.language || "Türkçe", row.qualification_rules || "", row.sections_json || "[]", row.outcomes_json || "[]", row.tyyc_rows_json || "[]", row.created_at || now, row.updated_at || now, row.updated_by || "import");
+    }
     const insertCourse = db.prepare(`
       INSERT INTO courses(id, academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, source, package_json, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -695,12 +971,13 @@ function replaceFromExport(payload, actor = "admin") {
     throw error;
   }
   seedDefaultRoleAccess();
+  ensureTestProgramData();
 }
 
 function resetDatabase(actor) {
   db.exec("BEGIN");
   try {
-    for (const table of ["programs", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
+    for (const table of ["programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
       db.exec(`DELETE FROM ${table}`);
     }
     db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("seeded_from_current_data", "reset_empty");
@@ -710,6 +987,7 @@ function resetDatabase(actor) {
     db.exec("ROLLBACK");
     throw error;
   }
+  ensureTestProgramData();
 }
 
 async function databaseSize() {
@@ -750,6 +1028,7 @@ async function adminSummary() {
       userRoles: countRows("user_roles"),
       roleModuleAccess: countRows("role_module_access"),
       programs: countRows("programs"),
+      programProfiles: countRows("program_profiles"),
       courses: countRows("courses"),
       publicVisibility: countRows("public_visibility"),
       workflowRequests: countRows("workflow_requests"),
@@ -1103,6 +1382,41 @@ async function handleDbpApi(request) {
       return jsonResponse({ ok: true, summary: { courses: countRows("courses") } });
     }
 
+    if (pathname === "/api/dbp/program-profile" && request.method === "GET") {
+      const programName = url.searchParams.get("programName") || "";
+      const level = url.searchParams.get("level") || "";
+      return jsonResponse({ profile: getProgramProfile(programName, level) });
+    }
+
+    if (pathname === "/api/dbp/public-visibility" && request.method === "GET") {
+      return jsonResponse({ visibility: getPublicVisibilityMap() });
+    }
+
+    if (pathname === "/api/dbp/public-visibility" && request.method === "PUT") {
+      const auth = requireDbpSession(request, { write: true });
+      if (auth.error) return auth.error;
+      if (!canManagePublicVisibility(auth.session)) {
+        return jsonResponse({ message: "Public program gorunurlugunu yalnizca yetkili Enstitu rolleri kaydedebilir." }, { status: 403 });
+      }
+      upsertSessionUser(auth.session);
+      const body = await readJsonBody(request);
+      const actor = auth.session?.username || auth.session?.name || "dbp-user";
+      upsertPublicVisibilityMap(body.visibility || {}, actor);
+      return jsonResponse({ ok: true, visibility: getPublicVisibilityMap() });
+    }
+
+    if (pathname === "/api/dbp/program-profile" && request.method === "PUT") {
+      const auth = requireDbpSession(request, { write: true });
+      if (auth.error) return auth.error;
+      if (!["admin", "abd_asd_baskani"].includes(auth.session.role)) {
+        return jsonResponse({ message: "Program bilgilerini yalnizca Admin veya ABD/ASD Baskani kaydedebilir." }, { status: 403 });
+      }
+      upsertSessionUser(auth.session);
+      const body = await readJsonBody(request);
+      const actor = auth.session?.username || auth.session?.name || "dbp-user";
+      return jsonResponse({ ok: true, profile: upsertProgramProfile(body.profile || body, actor) });
+    }
+
     if (!pathname.startsWith("/api/dbp/admin/")) {
       return jsonResponse({ message: "DBP API endpoint bulunamadı." }, { status: 404 });
     }
@@ -1171,6 +1485,8 @@ async function handleDbpApi(request) {
     if (pathname === "/api/dbp/admin/seed" && request.method === "POST") {
       await writeBackup(actor);
       seedInitialData(true);
+      seedProgramProfiles(true);
+      ensureTestProgramData();
       return jsonResponse({ ok: true, summary: await adminSummary() });
     }
 

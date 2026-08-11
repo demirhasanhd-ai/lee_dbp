@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { dbpPath } from "../../lib/dbpPath";
+import { storedDbpSessionHeader } from "../../lib/dbpSessionHeader";
 
 type BackupInfo = {
   fileName: string;
@@ -56,7 +57,7 @@ function formatBytes(value = 0) {
 }
 
 function sessionHeader() {
-  return localStorage.getItem("lee-dbp-session") || "{}";
+  return storedDbpSessionHeader();
 }
 
 function jsonHeaders() {

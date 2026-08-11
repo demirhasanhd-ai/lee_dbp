@@ -133,19 +133,30 @@ const makeSeed = (items: TyycItem[]) => Object.fromEntries(
   ]),
 );
 
-export function ProgramTyycMatrix({ outcomeCount, programLevel = "Tezli Yüksek Lisans", initialRows }: { outcomeCount: number; programLevel?: string; initialRows?: ProgramTyycRow[] }) {
+export function ProgramTyycMatrix({ outcomeCount, programLevel = "Tezli Yüksek Lisans", initialRows, onRowsChange }: { outcomeCount: number; programLevel?: string; initialRows?: ProgramTyycRow[]; onRowsChange?: (rows: ProgramTyycRow[]) => void }) {
   const tyycLevel: TyycLevel = programLevel === "Doktora" ? 8 : 7;
   const groups = initialRows?.length
-    ? [{ id: "program-document", title: "TYYÇ 7. Düzey Yeterlilikleri", items: initialRows.map(({ code, title }) => ({ code, title })) }]
+    ? [{ id: "program-document", title: `TYYÇ ${tyycLevel}. Düzey Yeterlilikleri`, items: initialRows.map(({ code, title }) => ({ code, title })) }]
     : tyycGroups[tyycLevel];
   const [relations, setRelations] = useState<Record<string, number[]>>(() => initialRows?.length
     ? Object.fromEntries(initialRows.map((row) => [row.code, row.values]))
     : makeSeed([...tyycGroups[7], ...tyycGroups[8]].flatMap((group) => group.items)));
   const columns = useMemo(() => Array.from({ length: outcomeCount }, (_, index) => `PÇ${index + 1}`), [outcomeCount]);
-  const setRelation = (code: string, index: number, value: number) => setRelations((current) => ({
-    ...current,
-    [code]: Array.from({ length: outcomeCount }, (_, itemIndex) => itemIndex === index ? value : (current[code]?.[itemIndex] ?? 0)),
-  }));
+  const rowsFromRelations = (source: Record<string, number[]>) => groups.flatMap((group) =>
+    group.items.map((item) => ({
+      code: item.code,
+      title: item.title,
+      values: Array.from({ length: outcomeCount }, (_, itemIndex) => source[item.code]?.[itemIndex] ?? 0),
+    })),
+  );
+  const setRelation = (code: string, index: number, value: number) => setRelations((current) => {
+    const next = {
+      ...current,
+      [code]: Array.from({ length: outcomeCount }, (_, itemIndex) => itemIndex === index ? value : (current[code]?.[itemIndex] ?? 0)),
+    };
+    onRowsChange?.(rowsFromRelations(next));
+    return next;
+  });
 
   return <section className="program-content-card tyyc-card">
     <div className="tyyc-heading">

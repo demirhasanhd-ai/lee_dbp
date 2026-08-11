@@ -37,6 +37,22 @@ export const programs = sqliteTable("programs", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("programs_external_id_idx").on(table.externalId)]);
 
+export const programProfiles = sqliteTable("program_profiles", {
+  id: text("id").primaryKey(),
+  programName: text("program_name").notNull(),
+  level: text("level").notNull(),
+  degree: text("degree").notNull().default(""),
+  manager: text("manager").notNull().default(""),
+  language: text("language").notNull().default("Türkçe"),
+  qualificationRules: text("qualification_rules").notNull().default(""),
+  sectionsJson: text("sections_json").notNull().default("[]"),
+  outcomesJson: text("outcomes_json").notNull().default("[]"),
+  tyycRowsJson: text("tyyc_rows_json").notNull().default("[]"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedBy: text("updated_by"),
+}, (table) => [uniqueIndex("program_profiles_program_level_idx").on(table.programName, table.level)]);
+
 export const courses = sqliteTable("courses", {
   id: text("id").primaryKey(),
   externalId: text("external_id"),

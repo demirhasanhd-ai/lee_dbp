@@ -1,15 +1,39 @@
 :root[data-theme="dark"] {
-  --background: color-mix(in srgb, #000 30%, #fff8f7);
-  --foreground: #ffffff;
-  --card: color-mix(in srgb, #000 24%, #fff8f7);
-  --secondary: color-mix(in srgb, #000 30%, #fff4f2);
-  --secondary-foreground: #ffffff;
-  --muted: color-mix(in srgb, #000 22%, #f7ecea);
-  --muted-foreground: #ffffff;
-  --primary: #c8162a;
-  --primary-foreground: #ffffff;
-  --accent: #c8162a;
-  --border: color-mix(in srgb, #fff 22%, transparent);
+  --background: #1f1719;
+  --foreground: #fff1f1;
+  --card: #2b1e21;
+  --card-foreground: #fff1f1;
+  --popover: #2b1e21;
+  --popover-foreground: #fff1f1;
+  --primary: #d7192d;
+  --primary-foreground: #fff6f5;
+  --secondary: #342326;
+  --secondary-foreground: #fff4f3;
+  --muted: #3a272b;
+  --muted-foreground: #d8bdc0;
+  --accent: #ef9ba6;
+  --accent-foreground: #5c0d15;
+  --destructive: oklch(0.58 0.24 5);
+  --destructive-foreground: oklch(0.95 0.01 5);
+  --border: #64464b;
+  --input: #64464b;
+  --ring: #ffd1d5;
+  --page-glow-1: rgba(215, 25, 45, 0.16);
+  --page-glow-2: rgba(120, 18, 28, 0.12);
+  --page-gradient: linear-gradient(180deg, #322124 0%, #1f1719 100%);
+  --chart-1: #ef9ba6;
+  --chart-2: oklch(0.58 0.20 355);
+  --chart-3: oklch(0.68 0.20 150);
+  --chart-4: oklch(0.72 0.22 45);
+  --chart-5: oklch(0.60 0.15 280);
+  --sidebar: #261b1e;
+  --sidebar-foreground: #fff1f1;
+  --sidebar-primary: #d7192d;
+  --sidebar-primary-foreground: #fff6f5;
+  --sidebar-accent: #ef9ba6;
+  --sidebar-accent-foreground: #5c0d15;
+  --sidebar-border: #d35d65;
+  --sidebar-ring: #ffd1d5;
 }
 :root[data-theme="dark"] body { background: var(--background); color: var(--foreground); }
 :root[data-theme="dark"] .navigation-bar,
@@ -45,5 +69,5 @@
 :root[data-theme="dark"] .dbp-card > small,
 :root[data-theme="dark"] .notice-list p,
 :root[data-theme="dark"] .quick-panel small,
-:root[data-theme="dark"] .oku-footer p { color: #ffffff; }
+:root[data-theme="dark"] .oku-footer p { color: var(--muted-foreground); }
 .theme-toggle { display: inline-flex; align-items: center; gap: 5px; }

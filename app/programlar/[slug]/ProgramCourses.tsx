@@ -2,12 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { FileText, Printer } from "lucide-react";
-import { readProgramVisibility } from "../../../lib/data/publicVisibility";
+import {
+  fetchProgramVisibility,
+  isProgramVisibilityKeyPublic,
+  programLevelVisibilityKeyFromKey,
+  readProgramVisibility,
+} from "../../../lib/data/publicVisibility";
 import { PublicProgramSidebar } from "../../PublicProgramSidebar";
 import { dbpPath } from "../../../lib/dbpPath";
 import { coursePdfHref } from "../../../lib/coursePdf";
 import { DEFAULT_COURSE_SDG_IDS } from "../../../lib/sdgGoals";
-import { getProgramProfile } from "../../../lib/data/programProfiles";
+import { fetchProgramProfile, getProgramProfile } from "../../../lib/data/programProfiles";
 import type { ProgramTyycRow } from "../../../lib/data/programProfiles";
 
 export type PublicCourse = {
@@ -132,7 +137,19 @@ function PublicTyycMatrix({ rows, outcomeCount, level }: { rows: ProgramTyycRow[
 
 function ProgramProfile({ department, programName, activeLevel }: { department: string; programName: string; activeLevel: string }) {
   const isDoctorate = activeLevel === "Doktora";
-  const profile = getProgramProfile(repairText(programName), repairText(activeLevel));
+  const repairedProgramName = repairText(programName);
+  const repairedLevel = repairText(activeLevel);
+  const [profile, setProfile] = useState(() => getProgramProfile(repairedProgramName, repairedLevel));
+  useEffect(() => {
+    let cancelled = false;
+    setProfile(getProgramProfile(repairedProgramName, repairedLevel));
+    fetchProgramProfile(repairedProgramName, repairedLevel).then((nextProfile) => {
+      if (!cancelled) setProfile(nextProfile);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [repairedProgramName, repairedLevel]);
   const outcomes = profile?.outcomes ?? defaultOutcomes;
   const profileSections = profile?.sections ?? defaultProfileSections.map(([title, text]) => ({ title, text }));
   return (
@@ -171,21 +188,22 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
     [courses, levels, programItems, programName, visibilityKey],
   );
   const [activeView, setActiveView] = useState<ViewState>({ programKey: visibilityKey, level: levels[0], tab: "profile" });
+  const visibleLevelsForItems = (visibility: Record<string, boolean>) =>
+    Object.fromEntries(allProgramItems.map((item) => [
+      item.visibilityKey,
+      item.levels.filter((level) => {
+        const key = programLevelVisibilityKeyFromKey(item.visibilityKey, level);
+        return key in visibility ? visibility[key] !== false : isProgramVisibilityKeyPublic(item.visibilityKey, visibility);
+      }),
+    ]));
   const [visibleLevelsByProgram, setVisibleLevelsByProgram] = useState<Record<string, string[]>>(
-    Object.fromEntries(allProgramItems.map((item) => [item.visibilityKey, item.levels])),
+    () => visibleLevelsForItems({}),
   );
   const activeProgram = allProgramItems.find((item) => item.visibilityKey === activeView.programKey) ?? allProgramItems[0];
-  const levelVisibilityKey = (itemKey: string, level: string) => `${itemKey}__${level.toLocaleLowerCase("tr-TR").replace(/\s+/g, "-")}`;
   useEffect(() => {
     const sync = () => {
       const visibility = readProgramVisibility();
-      const nextByProgram = Object.fromEntries(allProgramItems.map((item) => [
-        item.visibilityKey,
-        item.levels.filter((level) => {
-          const key = levelVisibilityKey(item.visibilityKey, level);
-          return key in visibility ? visibility[key] !== false : visibility[item.visibilityKey] !== false;
-        }),
-      ]));
+      const nextByProgram = visibleLevelsForItems(visibility);
       setVisibleLevelsByProgram(nextByProgram);
       const currentLevels = nextByProgram[activeView.programKey] ?? [];
       if (!currentLevels.some((level) => level === activeView.level)) {
@@ -196,6 +214,10 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       }
     };
     sync();
+    fetchProgramVisibility().then((serverVisibility) => {
+      const nextByProgram = visibleLevelsForItems({ ...serverVisibility, ...readProgramVisibility() });
+      setVisibleLevelsByProgram(nextByProgram);
+    });
     window.addEventListener("storage", sync);
     window.addEventListener("lee-dbp-public-visibility-change", sync);
     return () => {

@@ -27,9 +27,11 @@ import { ProgramPublishControl } from "./ProgramPublishControl";
 import { QualityReports } from "./QualityReports";
 import { ReviewQueue } from "./ReviewQueue";
 import { DatabaseAdminPanel } from "./DatabaseAdminPanel";
+import { ThemeToggle } from "../ThemeToggle";
 import { LEE_PROGRAMS, type LeeProgram } from "../../lib/data/programs";
 import { OFFICIAL_COURSES, officialCoursesForProgram } from "../../lib/data/officialCourses";
 import { dbpPath } from "../../lib/dbpPath";
+import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { getEEnstituUrl } from "../../lib/eEnstituUrl";
 type Session = {
   name: string;
@@ -259,7 +261,7 @@ export function RoleDashboard() {
           ? "/api/dbp/admin/role-module-access"
           : "/api/dbp/access";
       fetch(dbpPath(accessEndpoint), {
-        headers: { "X-DBP-Session": JSON.stringify(normalizedValue) },
+        headers: { "X-DBP-Session": dbpSessionHeader(normalizedValue) },
       })
         .then(async (response) => {
           if (!response.ok) throw new Error("Yetki bilgisi alinamadi.");
@@ -328,7 +330,7 @@ export function RoleDashboard() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "X-DBP-Session": JSON.stringify(session),
+          "X-DBP-Session": dbpSessionHeader(session),
         },
         body: JSON.stringify({ access: permissionDraft }),
       });
@@ -352,21 +354,17 @@ export function RoleDashboard() {
     "admin",
   ].includes(session.role);
   const isCentralRole = centralRoles.includes(session.role);
-  const matchedScopedPrograms = LEE_PROGRAMS.filter((program) => {
+  const scopedPrograms = isCentralRole
+    ? LEE_PROGRAMS
+    : LEE_PROGRAMS.filter((program) => {
         const scope = normalizeText(session.department).replace(/\sabd|\sasd/g, "").trim();
         const department = normalizeText(program.department).replace(/\sabd|\sasd/g, "").trim();
         const programName = normalizeText(program.programName).replace(/\sabd|\sasd/g, "").trim();
         return department === scope || programName === scope;
       });
-  const isTestDepartment = normalizeText(session.department).replace(/\sabd|\sasd/g, "").trim() === "test";
-  const scopedPrograms = isCentralRole
-    ? LEE_PROGRAMS
-    : matchedScopedPrograms.length > 0
-      ? matchedScopedPrograms
-      : isTestDepartment
-        ? LEE_PROGRAMS.filter((program) => program.programName === "Biyoloji")
-        : [];
-  const activeProfileProgram = selectedProgram ?? (scopedPrograms.length === 1 ? scopedPrograms[0] : null);
+  const activeProfileProgram =
+    selectedProgram ?? (!isCentralRole && scopedPrograms.length === 1 ? scopedPrograms[0] : null);
+  const scopedDefaultProgram = activeProfileProgram;
   const sessionPersonName = normalizePersonName(session.name);
   const assignedOfficialCourses: Course[] = OFFICIAL_COURSES
     .filter((course) => {
@@ -523,11 +521,14 @@ export function RoleDashboard() {
                 : DBP_MODULES[active]}
             </h1>
           </div>
-          <div className="panel-user">
-            <span>{session.name.slice(0, 2).toUpperCase()}</span>
-            <div>
-              <b>{session.name}</b>
-              <small>{DBP_ROLES[session.role].label}</small>
+          <div className="panel-header-actions">
+            <ThemeToggle />
+            <div className="panel-user">
+              <span>{session.name.slice(0, 2).toUpperCase()}</span>
+              <div>
+                <b>{session.name}</b>
+                <small>{DBP_ROLES[session.role].label}</small>
+              </div>
             </div>
           </div>
         </header>
@@ -782,7 +783,7 @@ export function RoleDashboard() {
           </section>
         )}
         {active === "program_profile" && !isCentralRole && !activeProfileProgram && (
-          programPicker("Programı Aç")
+          programPicker("ProgramÄ± AÃ§")
         )}
         {active === "program_profile" && (isCentralRole ? selectedProgram : activeProfileProgram) && (
           <section>
@@ -792,19 +793,21 @@ export function RoleDashboard() {
                 Programlara Dön
               </button>
             )}
-            <ProgramProfileEditor
-              key={`${(selectedProgram ?? activeProfileProgram)?.department}-${(selectedProgram ?? activeProfileProgram)?.programName}`}
-              department={
-                (selectedProgram ?? activeProfileProgram)
-                  ? `${(selectedProgram ?? activeProfileProgram)?.department} / ${(selectedProgram ?? activeProfileProgram)?.programName}`
-                  : session.department
-              }
-              programName={(selectedProgram ?? activeProfileProgram)?.programName}
-              initialLevel={(selectedProgram ?? activeProfileProgram)?.levels[0]}
-              availableLevels={(selectedProgram ?? activeProfileProgram)?.levels}
-              mode={session.role === "admin" ? "admin" : session.role === "abd_asd_baskani" ? "edit" : "review"}
-              onSave={save}
-            />
+            {selectedProgram || scopedDefaultProgram ? (
+              <ProgramProfileEditor
+                department={`${(selectedProgram ?? scopedDefaultProgram)!.department} / ${(selectedProgram ?? scopedDefaultProgram)!.programName}`}
+                programName={(selectedProgram ?? scopedDefaultProgram)!.programName}
+                initialLevel={(selectedProgram ?? scopedDefaultProgram)!.levels[0]}
+                availableLevels={(selectedProgram ?? scopedDefaultProgram)!.levels}
+                mode={session.role === "admin" ? "admin" : session.role === "abd_asd_baskani" ? "edit" : "review"}
+                onSave={save}
+              />
+            ) : (
+              <section className="empty-state">
+                <h2>Yetkinize bağlı program bulunamadı</h2>
+                <p>{session.department} kapsamı için DBP program listesinde eşleşen program yok.</p>
+              </section>
+            )}
           </section>
         )}
         {active === "review_queue" && isCentralRole && !selectedProgram && (
@@ -825,7 +828,7 @@ export function RoleDashboard() {
             />
           </section>
         )}
-        {active === "publish_control" && <ProgramPublishControl onSave={save} />}
+        {active === "publish_control" && <ProgramPublishControl onSave={save} session={session} />}
         {active === "quality_reports" && <QualityReports />}
         {active === "database_admin" && <DatabaseAdminPanel />}
         {(active === "permission_matrix" || active === "user_roles") && (

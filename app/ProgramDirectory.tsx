@@ -5,6 +5,7 @@ import { Building2, ChevronDown, Search } from "lucide-react";
 import { LEE_PROGRAMS, MAIN_DEPARTMENTS, programSlug } from "../lib/data/programs";
 import { dbpPath } from "../lib/dbpPath";
 import {
+  fetchProgramVisibility,
   publicLevelsForProgram,
   readProgramVisibility,
   type ProgramVisibilityMap,
@@ -18,6 +19,9 @@ export function ProgramDirectory() {
   useEffect(() => {
     const sync = () => setVisibility(readProgramVisibility());
     sync();
+    fetchProgramVisibility().then((serverVisibility) => {
+      setVisibility({ ...serverVisibility, ...readProgramVisibility() });
+    });
     window.addEventListener("storage", sync);
     window.addEventListener("lee-dbp-public-visibility-change", sync);
     return () => {

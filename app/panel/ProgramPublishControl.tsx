@@ -1,19 +1,36 @@
 "use client";
 
 import { Eye, EyeOff, Save, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LEE_PROGRAMS, MAIN_DEPARTMENTS } from "../../lib/data/programs";
 import {
+  fetchProgramVisibility,
   isProgramLevelPublic,
   programLevelVisibilityKey,
   readProgramVisibility,
+  saveProgramVisibility,
   writeProgramVisibility,
   type ProgramVisibilityMap,
 } from "../../lib/data/publicVisibility";
 
-export function ProgramPublishControl({ onSave }: { onSave: () => void }) {
+type PublishSession = {
+  username?: string;
+  name?: string;
+  role?: string;
+  department?: string;
+  departmentId?: string | null;
+  tcKimlik?: string;
+};
+
+export function ProgramPublishControl({ onSave, session }: { onSave: () => void; session: PublishSession }) {
   const [visibility, setVisibility] = useState<ProgramVisibilityMap>(() => readProgramVisibility());
   const [query, setQuery] = useState("");
+  const [saveError, setSaveError] = useState("");
+  useEffect(() => {
+    fetchProgramVisibility().then((serverVisibility) => {
+      setVisibility({ ...serverVisibility, ...readProgramVisibility() });
+    });
+  }, []);
   const totalLevelCount = LEE_PROGRAMS.reduce((total, program) => total + program.levels.length, 0);
   const visibleCount = LEE_PROGRAMS.reduce(
     (total, program) =>
@@ -31,13 +48,22 @@ export function ProgramPublishControl({ onSave }: { onSave: () => void }) {
     });
   }, [query]);
 
-  const toggle = (key: string) => {
-    setVisibility((current) => ({ ...current, [key]: current[key] === false }));
+  const toggleLevel = (program: (typeof LEE_PROGRAMS)[number], level: string) => {
+    setVisibility((current) => ({
+      ...current,
+      [programLevelVisibilityKey(program, level)]: !isProgramLevelPublic(program, level, current),
+    }));
   };
 
-  const save = () => {
-    writeProgramVisibility(visibility);
-    onSave();
+  const save = async () => {
+    try {
+      writeProgramVisibility(visibility);
+      await saveProgramVisibility(visibility, session);
+      setSaveError("");
+      onSave();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Program görünürlüğü kaydedilemedi.");
+    }
   };
 
   return (
@@ -57,6 +83,7 @@ export function ProgramPublishControl({ onSave }: { onSave: () => void }) {
         <div><b>{totalLevelCount - visibleCount}</b><span>Gizlenen Düzey</span></div>
         <label><Search size={16}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ABD, program veya düzey ara..."/></label>
       </div>
+      {saveError && <p className="form-error">{saveError}</p>}
       <div className="publish-department-list">
         {filteredDepartments.map((department) => {
           const programs = LEE_PROGRAMS.filter((program) => program.mainDepartment === department);
@@ -84,7 +111,7 @@ export function ProgramPublishControl({ onSave }: { onSave: () => void }) {
                         {program.department !== program.programName && <small>{program.programName}</small>}
                         <p><span>{level}</span></p>
                       </div>
-                      <button onClick={() => toggle(key)} type="button">
+                      <button onClick={() => toggleLevel(program, level)} type="button">
                         {publicVisible ? <Eye size={15}/> : <EyeOff size={15}/>}
                         {publicVisible ? "Publicten Gizle" : "Publicte Göster"}
                       </button>

@@ -34,6 +34,7 @@ export const LEE_PROGRAMS:LeeProgram[]=[
  ["Tarih ABD","Tarih ABD","Tarih",L(true,true,false)],
  ["Temel İslam Bilimleri ABD","Temel İslam Bilimleri ABD","Temel İslam Bilimleri",L(false,true,false)],
  ["Türk Dili ve Edebiyatı ABD","Türk Dili ve Edebiyatı ABD","Türk Dili ve Edebiyatı",L(true,true,true)],
+ ["Test ABD","Test ABD","Test Programı",L(true,true,true)],
  ["Yönetim Bilişim Sistemleri ABD","Yönetim Bilişim Sistemleri ABD","Yönetim Bilişim Sistemleri",L(true,true,true)],
 ].map(([mainDepartment,department,programName,levels])=>({mainDepartment,department,programName,levels})) as LeeProgram[];
 export const MAIN_DEPARTMENTS=[...new Set(LEE_PROGRAMS.map(item=>item.mainDepartment))];

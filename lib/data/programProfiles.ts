@@ -1,3 +1,6 @@
+import { dbpPath } from "../dbpPath";
+import { dbpSessionHeader } from "../dbpSessionHeader";
+
 export type ProgramProfileSection = {
   title: string;
   text: string;
@@ -19,6 +22,8 @@ export type ProgramProfile = {
   sections: ProgramProfileSection[];
   outcomes: string[];
   tyycRows: ProgramTyycRow[];
+  updatedAt?: string;
+  updatedBy?: string;
 };
 
 const thesisGraduationRequirements = `Bu programdan mezun olabilmek için öğrencinin;
@@ -2749,27 +2754,44 @@ const yonetimBilisimSistemleriDoktora: ProgramProfile = {
   ],
 };
 
-const profiles = [tezsiz, tezli, arkeolojiTezli, bataryaTezli, bedenEgitimiTezsiz, bedenEgitimiTezli, biyolojiTezsiz, biyolojiTezli, biyolojiDoktora, ebelikTezli, ekoturizmTezli, elektrikElektronikTezli, enerjiSistemleriTezsiz, enerjiSistemleriTezli, enerjiSistemleriDoktora, felsefeDinBilimleriTezli, fizikTezli, fizikDoktora, gastronomiTezsiz, gastronomiTezli, gidaMuhendisligiTezli, gidaMuhendisligiDoktora, gidaTeknolojisiTezsiz, gidaTeknolojisiTezli, haritaMuhendisligiTezli, icHastaliklariHemsireligiTezli, insaatMuhendisligiTezli, insaatMuhendisligiDoktora, ekonomiFinansTezsiz, iktisatTezli, isletmeTezsiz, isletmeTezli, isletmeDoktora, muhasebeFinansmanTezsiz, muhasebeFinansmanTezli, yonetimOrganizasyonTezsiz, yonetimOrganizasyonTezli, kimyaTezli, kimyaDoktora, makineMuhendisligiTezli, makineMuhendisligiDoktora, muhendislikTeknolojiYonetimiTezsiz, organikTarimIsletmeciligiTezsiz, organikTarimIsletmeciligiTezli, resimTezsiz, resimTezli, siyasetBilimiKamuYonetimiTezsiz, siyasetBilimiKamuYonetimiTezli, siyasetBilimiKamuYonetimiDoktora, tarihTezsiz, tarihTezli, temelIslamBilimleriTezli, turkDiliEdebiyatiTezsiz, turkDiliEdebiyatiTezli, turkDiliEdebiyatiDoktora, yonetimBilisimSistemleriTezsiz, yonetimBilisimSistemleriTezli, yonetimBilisimSistemleriDoktora];
+export const PROGRAM_PROFILES = [tezsiz, tezli, arkeolojiTezli, bataryaTezli, bedenEgitimiTezsiz, bedenEgitimiTezli, biyolojiTezsiz, biyolojiTezli, biyolojiDoktora, ebelikTezli, ekoturizmTezli, elektrikElektronikTezli, enerjiSistemleriTezsiz, enerjiSistemleriTezli, enerjiSistemleriDoktora, felsefeDinBilimleriTezli, fizikTezli, fizikDoktora, gastronomiTezsiz, gastronomiTezli, gidaMuhendisligiTezli, gidaMuhendisligiDoktora, gidaTeknolojisiTezsiz, gidaTeknolojisiTezli, haritaMuhendisligiTezli, icHastaliklariHemsireligiTezli, insaatMuhendisligiTezli, insaatMuhendisligiDoktora, ekonomiFinansTezsiz, iktisatTezli, isletmeTezsiz, isletmeTezli, isletmeDoktora, muhasebeFinansmanTezsiz, muhasebeFinansmanTezli, yonetimOrganizasyonTezsiz, yonetimOrganizasyonTezli, kimyaTezli, kimyaDoktora, makineMuhendisligiTezli, makineMuhendisligiDoktora, muhendislikTeknolojiYonetimiTezsiz, organikTarimIsletmeciligiTezsiz, organikTarimIsletmeciligiTezli, resimTezsiz, resimTezli, siyasetBilimiKamuYonetimiTezsiz, siyasetBilimiKamuYonetimiTezli, siyasetBilimiKamuYonetimiDoktora, tarihTezsiz, tarihTezli, temelIslamBilimleriTezli, turkDiliEdebiyatiTezsiz, turkDiliEdebiyatiTezli, turkDiliEdebiyatiDoktora, yonetimBilisimSistemleriTezsiz, yonetimBilisimSistemleriTezli, yonetimBilisimSistemleriDoktora];
 
-const PROGRAM_PROFILE_OVERRIDES_KEY = "lee-dbp-program-profile-overrides";
-const profileKey = (programName: string, level: string) => `${programName}::${level}`;
+export const getDefaultProgramProfile = (programName: string, level: string) =>
+  PROGRAM_PROFILES.find((profile) => profile.programName === programName && profile.level === level);
 
-const readProfileOverrides = (): Record<string, ProgramProfile> => {
-  if (typeof window === "undefined") return {};
+export const getProgramProfile = getDefaultProgramProfile;
+
+export const fetchProgramProfile = async (programName: string, level: string) => {
+  const params = new URLSearchParams({ programName, level });
   try {
-    return JSON.parse(window.localStorage.getItem(PROGRAM_PROFILE_OVERRIDES_KEY) || "{}") as Record<string, ProgramProfile>;
+    const response = await fetch(dbpPath(`/api/dbp/program-profile?${params.toString()}`));
+    if (!response.ok) throw new Error("Program profili alinamadi.");
+    const data = await response.json() as { profile?: ProgramProfile | null };
+    return data.profile ?? getDefaultProgramProfile(programName, level);
   } catch {
-    return {};
+    return getDefaultProgramProfile(programName, level);
   }
 };
 
-export const saveProgramProfile = (profile: ProgramProfile) => {
-  if (typeof window === "undefined") return;
-  const overrides = readProfileOverrides();
-  overrides[profileKey(profile.programName, profile.level)] = profile;
-  window.localStorage.setItem(PROGRAM_PROFILE_OVERRIDES_KEY, JSON.stringify(overrides));
+export const saveProgramProfile = async (profile: ProgramProfile, session?: unknown) => {
+  const storedSession = typeof window !== "undefined" ? window.localStorage.getItem("lee-dbp-session") : null;
+  let headerSession = session;
+  if (!headerSession && storedSession) {
+    try {
+      headerSession = JSON.parse(storedSession);
+    } catch {
+      headerSession = null;
+    }
+  }
+  const response = await fetch(dbpPath("/api/dbp/program-profile"), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...(headerSession ? { "X-DBP-Session": dbpSessionHeader(headerSession) } : {}),
+    },
+    body: JSON.stringify({ profile }),
+  });
+  const data = await response.json().catch(() => ({})) as { profile?: ProgramProfile; message?: string };
+  if (!response.ok) throw new Error(data.message || "Program profili kaydedilemedi.");
+  return data.profile ?? profile;
 };
-
-export const getProgramProfile = (programName: string, level: string) =>
-  readProfileOverrides()[profileKey(programName, level)]
-  ?? profiles.find((profile) => profile.programName === programName && profile.level === level);

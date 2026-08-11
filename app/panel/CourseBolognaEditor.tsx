@@ -3,6 +3,7 @@ import { DownloadCloud, ExternalLink, Link2, Plus, Save, Send, Trash2, X } from 
 import { useEffect, useMemo, useState } from "react";
 import { evaluateOutcomeQuality, OutcomeQualityHint } from "./outcomeQuality";
 import { dbpPath } from "../../lib/dbpPath";
+import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { SDG_GOALS, findSdgGoal, formatSdgGoal } from "../../lib/sdgGoals";
 
 type Assessment = {
@@ -95,7 +96,7 @@ const longFields = [
 ] as const;
 
 function sessionHeader(session: SessionIdentity) {
-  return JSON.stringify(session);
+  return dbpSessionHeader(session);
 }
 
 function serializeForm(form: HTMLFormElement) {
