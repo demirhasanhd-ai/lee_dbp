@@ -5,6 +5,7 @@ import json
 import re
 import unicodedata
 import argparse
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,8 +26,8 @@ FONT_DIR = ROOT / "public" / "fonts" / "noto-sans"
 LOGO = ROOT / "public" / "oku-logo.png"
 SDG_ASSET_DIR = ROOT / "public" / "sdg"
 SDG_LOGO = SDG_ASSET_DIR / "sdg_logo.png"
-COURSE_DATA = ROOT / "data" / "courses" / "2026-2027.json"
-OFFICIAL_COURSES = ROOT / "lib" / "data" / "officialCourses.ts"
+COURSE_DATA = Path(os.environ.get("DBP_COURSE_DATA_FILE", str(ROOT / "data" / "courses" / "2026-2027.json")))
+OFFICIAL_COURSES = Path(os.environ.get("DBP_OFFICIAL_COURSES_FILE", str(ROOT / "lib" / "data" / "officialCourses.ts")))
 
 RED = colors.HexColor("#cf142b")
 DARK = colors.HexColor("#281d20")

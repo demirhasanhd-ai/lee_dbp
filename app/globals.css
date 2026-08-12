@@ -1152,15 +1152,36 @@ input {
 }
 @media (max-width: 650px) {
   .institution-inner {
+    position: relative;
     grid-template-columns: 1fr;
   }
-  .institution-inner > span,
-  .header-tools {
+  .institution-inner > span {
     display: none;
   }
   .institution-inner > strong {
+    padding-right: 42px;
     text-align: center;
     font-size: 9px;
+  }
+  .header-tools {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    display: flex;
+    transform: translateY(-50%);
+  }
+  .header-tools > button:not(.theme-toggle) {
+    display: none;
+  }
+  .header-tools .theme-toggle {
+    width: 34px;
+    height: 34px;
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+  }
+  .header-tools .theme-toggle span {
+    display: none;
   }
   .navigation-inner {
     min-height: 67px;

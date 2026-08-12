@@ -1,2 +1,115 @@
 .course-table-wrap{overflow-x:hidden;scrollbar-gutter:auto}.public-course-table{min-width:100%}
+
+@media(max-width:640px){
+  .course-table-wrap{
+    overflow:visible;
+    border:0;
+    border-radius:0;
+    background:transparent;
+    box-shadow:none;
+  }
+  .public-course-table{
+    display:block;
+    min-width:0;
+    border-collapse:separate;
+  }
+  .public-course-table colgroup,
+  .public-course-table thead{
+    display:none;
+  }
+  .public-course-table tbody{
+    display:grid;
+    gap:10px;
+  }
+  .public-course-table tr{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:0 10px;
+    padding:14px;
+    border:1px solid var(--border);
+    border-radius:14px;
+    background:var(--card);
+    box-shadow:0 10px 24px -22px color-mix(in srgb,var(--primary) 48%,transparent);
+  }
+  .public-course-table td{
+    grid-column:1/-1;
+    display:grid;
+    grid-template-columns:minmax(74px,30%) minmax(0,1fr);
+    align-items:center;
+    gap:9px;
+    min-width:0;
+    padding:7px 0;
+    border:0;
+    font-size:12px;
+    line-height:1.35;
+    text-align:left!important;
+    overflow-wrap:anywhere;
+  }
+  .public-course-table td::before{
+    color:var(--muted-foreground);
+    font-size:10px;
+    font-weight:800;
+    line-height:1.2;
+  }
+  .public-course-table td:nth-child(1),
+  .public-course-table td:nth-child(2){
+    display:block;
+    padding:0;
+  }
+  .public-course-table td:nth-child(1)::before,
+  .public-course-table td:nth-child(2)::before,
+  .public-course-table td:nth-child(9)::before,
+  .public-course-table td:nth-child(10)::before{
+    display:none;
+  }
+  .public-course-table td:nth-child(1) b{
+    display:inline-flex;
+    margin-bottom:6px;
+    padding:5px 8px;
+    border-radius:8px;
+    background:color-mix(in srgb,var(--primary) 10%,var(--card));
+    color:var(--primary);
+    font-size:12px;
+  }
+  .public-course-table td:nth-child(2){
+    margin-bottom:8px;
+    font-size:14px;
+    font-weight:800;
+    line-height:1.35;
+  }
+  .public-course-table td:nth-child(3)::before{content:"D\00F6 nem"}
+  .public-course-table td:nth-child(4)::before{content:"T\00FC r"}
+  .public-course-table td:nth-child(5)::before{content:"\00D6 \011F retim"}
+  .public-course-table td:nth-child(6)::before{content:"T"}
+  .public-course-table td:nth-child(7)::before{content:"U"}
+  .public-course-table td:nth-child(8)::before{content:"AKTS"}
+  .public-course-table td:nth-child(5){
+    align-items:start;
+  }
+  .public-course-table td:nth-child(9),
+  .public-course-table td:nth-child(10){
+    grid-column:auto;
+    display:block;
+    padding-top:10px;
+  }
+  .public-course-table .course-type{
+    justify-self:start;
+    min-width:0;
+    padding:6px 9px;
+    font-size:10px;
+  }
+  .public-course-table .table-action{
+    width:100%;
+    min-width:0;
+    min-height:42px;
+    margin:0;
+    padding:9px 10px;
+    border-radius:10px;
+    font-size:11px;
+  }
+  .public-course-table .table-action span{
+    display:inline;
+    white-space:normal;
+  }
+}
 .public-left-sidebar{top:108px}.public-program-sidebar{top:128px}

@@ -15,6 +15,7 @@ ENV DBP_DATA_DIR=/app/data
 ENV DBP_SQLITE_PATH=/app/data/dbp.sqlite
 ENV DBP_BACKUP_DIR=/app/data/backups
 ENV DBP_PDF_CACHE_DIR=/app/data/generated-pdfs
+ENV DBP_COURSE_DATA_FILE=/app/seed/courses/2026-2027.json
 
 RUN apk add --no-cache python3 py3-reportlab \
   && npm install --omit=dev --no-audit --no-fund --package-lock=false cheerio@1.2.0 \
@@ -26,7 +27,7 @@ COPY --from=build /app/local-preview/program-data-local.js ./seed/program-data-l
 COPY --from=build /app/seed/course-packages.json ./seed/course-packages.json
 COPY seed/program-profiles.json ./seed/program-profiles.json
 COPY scripts/generate_public_course_pdfs.py ./scripts/generate_public_course_pdfs.py
-COPY data/courses ./data/courses
+COPY data/courses ./seed/courses
 COPY public/fonts/noto-sans ./public/fonts/noto-sans
 COPY public/oku-logo.png ./public/oku-logo.png
 COPY public/sdg ./public/sdg

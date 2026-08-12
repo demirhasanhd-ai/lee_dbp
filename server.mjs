@@ -172,6 +172,61 @@ function pdfCacheFile({ code, program, name }) {
   return path.join(pdfCacheDir, `${parts.join("-")}.pdf`);
 }
 
+const pdfSlugMap = new Map([
+  ["\u00e7", "c"], ["\u00c7", "C"],
+  ["\u011f", "g"], ["\u011e", "G"],
+  ["\u0131", "i"], ["\u0130", "I"],
+  ["\u00f6", "o"], ["\u00d6", "O"],
+  ["\u015f", "s"], ["\u015e", "S"],
+  ["\u00fc", "u"], ["\u00dc", "U"],
+]);
+
+function pdfSlug(value, fallback = "ders") {
+  const translated = Array.from(repairText(value || ""))
+    .map((char) => pdfSlugMap.get(char) ?? char)
+    .join("");
+  const text = translated
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return text || fallback;
+}
+
+async function findStaticPdf({ code, program, name }) {
+  if (!program) return null;
+  const file = path.join(
+    clientRoot,
+    "pdf",
+    "dbp",
+    `${pdfSlug(code, "kod")}-${pdfSlug(program, "program")}-${pdfSlug(name, "ders")}.pdf`,
+  );
+  try {
+    const info = await stat(file);
+    return info.isFile() ? { file, info } : null;
+  } catch {
+    return null;
+  }
+}
+
+function pdfResponseFromFile(request, file, info) {
+  const headers = {
+    "Content-Type": "application/pdf",
+    "Content-Length": String(info.size),
+    "Cache-Control": "public, max-age=3600",
+    "Content-Disposition": `inline; filename="${pdfSlug(path.basename(file, ".pdf"), "ders")}.pdf"`,
+  };
+  return new Response(request.method === "HEAD" ? null : createReadStream(file), { headers });
+}
+
+function coursePackageFallback(url, { code, name, program }) {
+  const params = new URLSearchParams({ ders: code, ad: name });
+  if (program) params.set("program", program);
+  const pathname = url.pathname.startsWith(basePath) ? `${basePath}/katalog` : "/katalog";
+  return `${pathname}?${params.toString()}`;
+}
+
 function pythonCandidates() {
   if (process.env.DBP_PYTHON) return [process.env.DBP_PYTHON];
   return process.platform === "win32" ? ["python", "py"] : ["python3", "python"];
@@ -218,33 +273,38 @@ async function coursePdfResponse(request, url) {
     return jsonResponse({ message: "PDF için ders kodu ve ders adi gerekir." }, { status: 400 });
   }
 
+  const staticPdf = await findStaticPdf({ code, program, name });
+  if (staticPdf) return pdfResponseFromFile(request, staticPdf.file, staticPdf.info);
+
   await mkdir(pdfCacheDir, { recursive: true });
   const target = pdfCacheFile({ code, program, name });
   let info = null;
   try {
     info = await stat(target);
   } catch {
-    await runPdfGenerator([
-      pdfScript,
-      "--single",
-      "--code",
-      code,
-      "--name",
-      name,
-      "--output",
-      target,
-      ...(program ? ["--program", program] : []),
-    ]);
-    info = await stat(target);
+    try {
+      await runPdfGenerator([
+        pdfScript,
+        "--single",
+        "--code",
+        code,
+        "--name",
+        name,
+        "--output",
+        target,
+        ...(program ? ["--program", program] : []),
+      ]);
+      info = await stat(target);
+    } catch (error) {
+      console.error("[dbp] PDF generation failed:", error);
+      return new Response(null, {
+        status: 302,
+        headers: { Location: coursePackageFallback(url, { code, name, program }) },
+      });
+    }
   }
 
-  const headers = {
-    "Content-Type": "application/pdf",
-    "Content-Length": String(info.size),
-    "Cache-Control": "public, max-age=3600",
-    "Content-Disposition": `inline; filename="${cacheSlug(code, "ders")}-${cacheSlug(name, "pdf")}.pdf"`,
-  };
-  return new Response(request.method === "HEAD" ? null : createReadStream(target), { headers });
+  return pdfResponseFromFile(request, target, info);
 }
 
 async function readJsonBody(request) {
