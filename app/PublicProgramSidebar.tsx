@@ -3,6 +3,8 @@
 import { BookOpenCheck, Info, ListChecks } from "lucide-react";
 import type { ReactNode } from "react";
 import { dbpPath } from "../lib/dbpPath";
+import { programSlug } from "../lib/data/programs";
+import { programViewHref } from "../lib/data/programNavigation";
 
 type SidebarView = { level: string; tab: "profile" | "courses" };
 type SidebarItem = {
@@ -41,10 +43,20 @@ export function PublicProgramSidebar({
   onViewChange?: (view: SidebarView & { programKey?: string }) => void;
 }) {
   const selectedTab = view?.tab ?? activeTab;
-  const menuItems = items?.length ? items : levels.map((level) => ({ level, label: shortLevel(level) }));
+  const menuItems: SidebarItem[] = items?.length
+    ? items
+    : levels.map((level) => ({ level, label: shortLevel(level) }));
 
   const isActiveItem = (item: SidebarItem) =>
     activeLevel === item.level && (!item.programKey || !activeProgramKey || activeProgramKey === item.programKey);
+
+  const itemProgramKey = (item: SidebarItem) =>
+    item.programKey ?? activeProgramKey ?? programSlug({ department, programName: department.replace(/\s+(ABD|ASD)$/u, "") });
+
+  const itemHref = (item: SidebarItem, tab: "profile" | "courses") => {
+    const key = itemProgramKey(item);
+    return dbpPath(key ? programViewHref(key, item.level, tab) : programHref);
+  };
 
   const action = (item: SidebarItem, tab: "profile" | "courses", label: string, icon: ReactNode) => {
     const active = isActiveItem(item) && selectedTab === tab;
@@ -61,7 +73,7 @@ export function PublicProgramSidebar({
       );
     }
     return (
-      <a className={active ? "active" : ""} href={dbpPath(programHref)}>
+      <a className={active ? "active" : ""} href={itemHref(item, tab)}>
         {icon}
         {label}
       </a>
@@ -80,15 +92,22 @@ export function PublicProgramSidebar({
               className={isActiveItem(item) ? "program-menu-card active" : "program-menu-card"}
               key={`${item.programKey ?? "program"}-${item.level}`}
             >
-              <button
-                className="program-menu-title program-menu-title-button"
-                type="button"
-                onClick={() => onViewChange?.({ level: item.level, tab: "profile", programKey: item.programKey })}
-                aria-label={`${item.label ?? shortLevel(item.level)} program bilgilerini göster`}
-              >
-                <b>{item.label ?? shortLevel(item.level)}</b>
-                {item.caption ? <small>{item.caption}</small> : null}
-              </button>
+              {onViewChange ? (
+                <button
+                  className="program-menu-title program-menu-title-button"
+                  type="button"
+                  onClick={() => onViewChange({ level: item.level, tab: "profile", programKey: item.programKey })}
+                  aria-label={`${item.label ?? shortLevel(item.level)} program bilgilerini göster`}
+                >
+                  <b>{item.label ?? shortLevel(item.level)}</b>
+                  {item.caption ? <small>{item.caption}</small> : null}
+                </button>
+              ) : (
+                <a className="program-menu-title program-menu-title-link" href={itemHref(item, "profile")}>
+                  <b>{item.label ?? shortLevel(item.level)}</b>
+                  {item.caption ? <small>{item.caption}</small> : null}
+                </a>
+              )}
               <div className="program-menu-actions">
                 {action(item, "profile", "Bilgiler", <Info size={13} />)}
                 {action(item, "courses", "Dersler", <ListChecks size={13} />)}

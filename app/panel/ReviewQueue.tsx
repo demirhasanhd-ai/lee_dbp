@@ -2,22 +2,43 @@
 import { CheckCircle2, Eye, MessageSquareWarning, X } from "lucide-react";
 import { useState } from "react";
 import type { DbpRole } from "../../lib/auth/roles";
-type ReviewCourse = { code: string; name: string; status: string };
+import { dbpPath } from "../../lib/dbpPath";
+import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
+type ReviewCourse = { code: string; name: string; status: string; level?: string; department?: string; programName?: string };
+type ReviewSession = { username: string; name: string; role: string; department: string };
 export function ReviewQueue({
   courses,
   role,
+  session,
+  department,
+  programName,
   onAction,
 }: {
   courses: ReviewCourse[];
   role: DbpRole;
+  session: ReviewSession;
+  department: string;
+  programName: string;
   onAction: () => void;
 }) {
   const [preview, setPreview] = useState<ReviewCourse | null>(null);
   const [correction, setCorrection] = useState<ReviewCourse | null>(null);
   const [note, setNote] = useState("");
-  const canApprove = role === "abd_asd_baskani";
+  const canApprove = ["abd_asd_baskani", "enstitu_yoneticisi", "admin"].includes(role);
   const canRequestCorrection = role !== "abd_sekreteri";
-  const approveCourse = (course: ReviewCourse) => { localStorage.setItem("lee-dbp-course-status", "public"); localStorage.setItem("lee-dbp-review-queue", JSON.stringify({ code: course.code, status: "Yayımlandı", public: true })); onAction(); };
+  const approvalLabel = role === "abd_asd_baskani" ? "ABD Onayı" : "Onayla ve Yayınla";
+  const approveCourse = async (course: ReviewCourse) => {
+    const response = await fetch(dbpPath("/api/dbp/course-package/status"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-DBP-Session": dbpSessionHeader(session) },
+      body: JSON.stringify({ code: course.code, department: course.department || department, programName: course.programName || programName, level: course.level || "Doktora", status: role === "abd_asd_baskani" ? "Enstitü Onayı Bekliyor" : "Yayımlandı" }),
+    });
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || "Ders paketi onaylanamadı.");
+    const finalPublication = role !== "abd_asd_baskani";
+    localStorage.setItem("lee-dbp-course-status", finalPublication ? "public" : "enstitu_onayi_bekliyor");
+    localStorage.setItem("lee-dbp-review-queue", JSON.stringify({ code: course.code, status: finalPublication ? "Yayımlandı" : "Enstitü Onayı Bekliyor", public: finalPublication }));
+    onAction();
+  };
   return (
     <section>
       <div className="panel-intro">
@@ -61,9 +82,9 @@ export function ReviewQueue({
                 Düzeltme İste
               </button>
               {canApprove && (
-                <button className="approve" onClick={() => approveCourse(course)}>
+                <button className="approve" onClick={() => void approveCourse(course)}>
                   <CheckCircle2 size={14} />
-                  Onayla
+                  {approvalLabel}
                 </button>
               )}
             </span>
@@ -117,7 +138,7 @@ export function ReviewQueue({
               <article className="wide"><span>15 haftalık ders planı</span><p>1. Bilim ve araştırma · 2. Araştırma problemi · 3. Literatür taraması · 4. Araştırma desenleri · 5. Örnekleme · 6. Veri toplama · 7. Ara sınav · 8–14. Analiz, raporlama ve etik · 15. Yarıyıl sonu değerlendirmesi</p></article>
               <article><span>Değerlendirme sistemi</span><p>Ara sınav: %40 · Yarıyıl sonu sınavı: %60</p></article>
               <article><span>Dersin yapısı</span><p>Alan bilgisi %60 · Fen bilimleri %20 · Sosyal bilimler %20</p></article>
-              <article className="wide"><span>ÖÇ–PÇ katkı matrisi</span><p>ÖÇ1–ÖÇ5 ile P1–P13 arasındaki 0–5 katkı değerleri tanımlanmıştır.</p></article>
+              <article className="wide"><span>DÖÇ–PÇ katkı matrisi</span><p>DÖÇ1–DÖÇ5 ile PÇ1–PÇ11 arasındaki 0–5 katkı değerleri tanımlanmıştır.</p></article>
               <article className="wide"><span>Sürdürülebilir Kalkınma Amaçları</span><p>Nitelikli Eğitim · Sanayi, Yenilikçilik ve Altyapı · Amaçlar için Ortaklıklar</p></article>
             </div>
             <footer>
@@ -135,12 +156,12 @@ export function ReviewQueue({
                 <button
                   className="approve"
                   onClick={() => {
-                    approveCourse(preview);
+                    void approveCourse(preview);
                     setPreview(null);
                   }}
                 >
                   <CheckCircle2 size={14} />
-                  Onayla
+                  {approvalLabel}
                 </button>
               )}
             </footer>

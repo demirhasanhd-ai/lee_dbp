@@ -7,7 +7,9 @@ import {
   MAIN_DEPARTMENTS,
   type ProgramLevel,
 } from "../../lib/data/programs";
-import { officialCoursesForProgram } from "../../lib/data/officialCourses";
+import { officialCoursesForProgram } from "../../lib/data/courseCatalog";
+import { dbpPath } from "../../lib/dbpPath";
+import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 
 const instructors = [
   "Dr. Öğr. Üyesi Ayşe Yılmaz",
@@ -21,15 +23,19 @@ export function CourseCreateDialog({
   open,
   onClose,
   onCreated,
+  session,
 }: {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
+  session: { username: string; name: string; role: string; department: string };
 }) {
   const [mode, setMode] = useState<"create" | "assign">("create");
   const [main, setMain] = useState(MAIN_DEPARTMENTS[0]);
   const [level, setLevel] = useState<ProgramLevel>("Tezli Yüksek Lisans");
   const [selectedProgramKey, setSelectedProgramKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
 
   const programs = useMemo(
     () =>
@@ -89,10 +95,40 @@ export function CourseCreateDialog({
         </div>
 
         <form
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
-            onCreated();
-            onClose();
+            if (!selectedProgram) return;
+            setBusy(true);
+            setMessage("");
+            try {
+              const form = new FormData(event.currentTarget);
+              const response = await fetch(dbpPath("/api/dbp/course-management"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-DBP-Session": dbpSessionHeader(session) },
+                body: JSON.stringify({
+                  action: mode,
+                  department: selectedProgram.department,
+                  programName: selectedProgram.programName,
+                  level,
+                  code: form.get("code"),
+                  name: form.get("name"),
+                  type: form.get("type"),
+                  theory: Number(form.get("theory") || 0),
+                  practice: Number(form.get("practice") || 0),
+                  credit: Number(form.get("credit") || 0),
+                  ects: Number(form.get("ects") || 0),
+                  instructor: form.get("instructor") === "unassigned" ? "" : form.get("instructor"),
+                }),
+              });
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok) throw new Error(data.message || "İşlem kaydedilemedi.");
+              onCreated();
+              onClose();
+            } catch (error) {
+              setMessage(error instanceof Error ? error.message : "İşlem kaydedilemedi.");
+            } finally {
+              setBusy(false);
+            }
           }}
         >
           <div className="create-course-grid">
@@ -152,7 +188,7 @@ export function CourseCreateDialog({
             {mode === "assign" ? (
               <label className="wide">
                 <span>Müfredattaki ders</span>
-                <select required disabled={!selectedProgram}>
+                <select required disabled={!selectedProgram} name="code">
                   <option value="">
                     {selectedProgram ? "Dersi seçin" : "Önce program seçin"}
                   </option>
@@ -167,41 +203,41 @@ export function CourseCreateDialog({
               <>
                 <label>
                   <span>Ders kodu</span>
-                  <input required placeholder="Örn. BLM 505" />
+                  <input required name="code" placeholder="Örn. BLM 505" />
                 </label>
                 <label>
                   <span>Ders adı</span>
-                  <input required placeholder="Ders adını yazın" />
+                  <input required name="name" placeholder="Ders adını yazın" />
                 </label>
                 <label>
                   <span>Zorunlu / Seçmeli</span>
-                  <select required defaultValue="Seçmeli">
+                  <select required name="type" defaultValue="Seçmeli">
                     <option>Zorunlu</option>
                     <option>Seçmeli</option>
                   </select>
                 </label>
                 <label>
                   <span>Teorik</span>
-                  <input required inputMode="numeric" placeholder="T" />
+                  <input required name="theory" inputMode="numeric" placeholder="T" />
                 </label>
                 <label>
                   <span>Uygulama</span>
-                  <input required inputMode="numeric" placeholder="U" />
+                  <input required name="practice" inputMode="numeric" placeholder="U" />
                 </label>
                 <label>
                   <span>Kredi</span>
-                  <input required inputMode="numeric" placeholder="Kredi" />
+                  <input required name="credit" inputMode="numeric" placeholder="Kredi" />
                 </label>
                 <label>
                   <span>AKTS</span>
-                  <input required inputMode="numeric" placeholder="AKTS" />
+                  <input required name="ects" inputMode="numeric" placeholder="AKTS" />
                 </label>
               </>
             )}
 
             <label className="wide">
               <span>{mode === "assign" ? "Yeni öğretim elemanı" : "Dersi veren öğretim elemanı"}</span>
-              <select required defaultValue="">
+              <select required name="instructor" defaultValue="">
                 <option value="" disabled>
                   Akademisyeni seçin
                 </option>
@@ -225,6 +261,7 @@ export function CourseCreateDialog({
               ekranından ders oluşturulmalı.
             </p>
           )}
+          {message && <p className="no-program-warning">{message}</p>}
 
           <footer>
             <button type="button" onClick={onClose}>
@@ -233,7 +270,7 @@ export function CourseCreateDialog({
             <button
               className="create"
               type="submit"
-              disabled={programs.length === 0 || (mode === "assign" && curriculumCourses.length === 0)}
+              disabled={busy || programs.length === 0 || (mode === "assign" && curriculumCourses.length === 0)}
             >
               {mode === "assign" ? <Save size={15} /> : <Plus size={15} />}
               {mode === "assign" ? "Atamayı Kaydet" : "Dersi Oluştur"}

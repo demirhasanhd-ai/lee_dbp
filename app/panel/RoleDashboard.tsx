@@ -29,7 +29,11 @@ import { ReviewQueue } from "./ReviewQueue";
 import { DatabaseAdminPanel } from "./DatabaseAdminPanel";
 import { ThemeToggle } from "../ThemeToggle";
 import { LEE_PROGRAMS, type LeeProgram } from "../../lib/data/programs";
-import { OFFICIAL_COURSES, officialCoursesForProgram } from "../../lib/data/officialCourses";
+import {
+  OFFICIAL_COURSES,
+  isDepartmentPoolCourse,
+  officialCoursesForProgram,
+} from "../../lib/data/courseCatalog";
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { getEEnstituUrl } from "../../lib/eEnstituUrl";
@@ -51,6 +55,8 @@ type Course = {
   status: string;
   instructor?: string;
   level: "Tezsiz Yüksek Lisans" | "Tezli Yüksek Lisans" | "Doktora";
+  department?: string;
+  programName?: string;
 };
 type RoleAccess = Record<DbpRole, DbpModule[]>;
 const moduleKeys = Object.keys(DBP_MODULES) as DbpModule[];
@@ -347,12 +353,8 @@ export function RoleDashboard() {
       setPermissionsBusy(false);
     }
   };
-  const canCreateCourse = [
-    "lee_ogrenci_isleri",
-    "enstitu_sekreteri",
-    "enstitu_yoneticisi",
-    "admin",
-  ].includes(session.role);
+  const canCreateCourse = ["lee_ogrenci_isleri", "admin"].includes(session.role);
+  const canEditAcademicContent = session.role === "admin";
   const isCentralRole = centralRoles.includes(session.role);
   const scopedPrograms = isCentralRole
     ? LEE_PROGRAMS
@@ -383,13 +385,58 @@ export function RoleDashboard() {
       status: course.status,
       instructor: course.instructor,
       level: course.level,
+      department: course.department,
+      programName: course.programName,
     }));
-  const myAssignedCourses = assignedOfficialCourses.length > 0 ? assignedOfficialCourses : courses;
+  const departmentPoolCourses: Course[] = scopedPrograms.flatMap((program) =>
+    officialCoursesForProgram(program)
+      .filter(isDepartmentPoolCourse)
+      .map((course) => ({
+        code: course.code,
+        name: course.name,
+        status: course.status,
+        instructor: course.instructor,
+        level: course.level,
+        department: course.department,
+        programName: course.programName,
+      })),
+  );
+  const myAssignedCourses = assignedOfficialCourses.length > 0
+    ? assignedOfficialCourses
+    : session.role === "abd_asd_baskani"
+      ? []
+      : courses;
+  const roleCourseSections = session.role === "abd_asd_baskani"
+    ? [
+        {
+          key: "instructor",
+          title: "Verdiğim Dersler",
+          description: "Öğretim üyesi sıfatıyla üzerinize atanmış akademik ders bilgi paketleri.",
+          courses: myAssignedCourses,
+        },
+        {
+          key: "department-pool",
+          title: "ABD Ortak Ders Havuzu",
+          description: "Yalnızca kendi ABD kapsamınızdaki ortak süreç dersleri. Bilimsel Araştırma Yöntemleri ve Etik, ders sorumlusunun havuzunda tutulur.",
+          courses: departmentPoolCourses,
+        },
+      ]
+    : [{
+        key: "instructor",
+        title: "Derslerim",
+        description: "Görevlendirildiğiniz dersleri program düzeylerine göre görüntüleyin.",
+        courses: myAssignedCourses,
+      }];
   const activeCourses = selectedProgram
     ? officialCoursesForProgram(selectedProgram).length
       ? officialCoursesForProgram(selectedProgram)
       : demoCoursesForProgram(selectedProgram)
     : courses;
+  const reviewCourses = selectedProgram
+    ? activeCourses
+    : session.role === "abd_asd_baskani"
+      ? scopedPrograms.flatMap((program) => officialCoursesForProgram(program))
+      : courses;
   const pickerDepartments = [...new Set(scopedPrograms.map((program) => program.mainDepartment))];
   const changeModule = (module: DbpModule) => {
     setActive(module);
@@ -542,6 +589,7 @@ export function RoleDashboard() {
           open={showCourseCreate}
           onClose={() => setShowCourseCreate(false)}
           onCreated={save}
+          session={session}
         />
         {showProgramCreate && (
           <div className="course-dialog-backdrop" role="presentation">
@@ -648,7 +696,7 @@ export function RoleDashboard() {
                 <h2>{selectedProgram.programName} Dersleri</h2>
                 <p>
                   {selectedProgram.department} altındaki ders bilgi paketlerini
-                  görüntüleyin ve gerekiyorsa güncelleyin.
+                  görüntüleyin; akademik içerik değişiklikleri ders sorumlusu ve ABD başkanı tarafından yapılır.
                 </p>
               </div>
               {canCreateCourse && (
@@ -689,7 +737,7 @@ export function RoleDashboard() {
                           </div>
                           <p className="course-row-actions">
                             <button onClick={() => setSelectedCourse(course)}>
-                              Güncelle
+                              {canEditAcademicContent ? "Güncelle" : "Görüntüle"}
                             </button>
                             <button type="button" onClick={save}>
                               Düzeltme İste
@@ -704,51 +752,32 @@ export function RoleDashboard() {
           </section>
         )}
         {active === "my_courses" && !isCentralRole && !selectedCourse && (
-          <section>
-            <div className="panel-intro">
-              <div>
-                <h2>Derslerim</h2>
-                <p>
-                  Görevlendirildiğiniz dersleri program düzeylerine göre
-                  görüntüleyin.
-                </p>
-              </div>
-            </div>
-            <div className="course-program-columns">
-              {levels.map((level, index) => (
-                <section
-                  className={`program-column tone-${index + 1}`}
-                  key={level}
-                >
-                  <header>
-                    <h3>
-                      {level === "Tezsiz Yüksek Lisans"
-                        ? "Tezsiz YL"
-                        : level === "Tezli Yüksek Lisans"
-                          ? "Tezli YL"
-                          : "Doktora"}
-                    </h3>
-                  </header>
-                  <div className="program-course-list">
-                    {myAssignedCourses
-                      .filter((course) => course.level === level)
-                      .map((course) => (
-                        <article key={`${course.code}-${course.level}`}>
-                          <span className="course-code">{course.code}</span>
-                          <div>
-                            <b>{course.name}</b>
-                            <small>{course.status}</small>
-                          </div>
-                          <button onClick={() => setSelectedCourse(course)}>
-                            Güncelle
-                          </button>
-                        </article>
-                      ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          </section>
+          <div className="role-course-sections">
+            {roleCourseSections.map((section) => (
+              <section key={section.key}>
+                <div className="panel-intro">
+                  <div><h2>{section.title}</h2><p>{section.description}</p></div>
+                  <span>{section.courses.length} ders</span>
+                </div>
+                <div className="course-program-columns">
+                  {levels.map((level, index) => (
+                    <section className={`program-column tone-${index + 1}`} key={level}>
+                      <header><h3>{level === "Tezsiz Yüksek Lisans" ? "Tezsiz YL" : level === "Tezli Yüksek Lisans" ? "Tezli YL" : "Doktora"}</h3></header>
+                      <div className="program-course-list">
+                        {section.courses.filter((course) => course.level === level).map((course) => (
+                          <article key={`${section.key}-${course.code}-${course.level}`}>
+                            <span className="course-code">{course.code}</span>
+                            <div><b>{course.name}</b><small>{course.status}</small></div>
+                            <button onClick={() => setSelectedCourse(course)}>Güncelle</button>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         )}
         {active === "my_courses" && selectedCourse && (
           <section className="course-editor-page">
@@ -762,10 +791,11 @@ export function RoleDashboard() {
             <CourseBolognaEditor
               course={{
                 ...selectedCourse,
-                department: selectedProgram?.department ?? session.department,
-                programName: selectedProgram?.programName ?? session.department,
+                department: selectedCourse.department ?? selectedProgram?.department ?? session.department,
+                programName: selectedCourse.programName ?? selectedProgram?.programName ?? session.department,
               }}
               session={session}
+              readOnly={isCentralRole && !canEditAcademicContent}
               onSave={save}
               onPublish={() => { localStorage.setItem("lee-dbp-review-queue", JSON.stringify({ code: selectedCourse.code, status: "ABD Onayı Bekliyor", public: false })); save(); }}
             />
@@ -773,12 +803,12 @@ export function RoleDashboard() {
         )}
         {active === "program_profile" && isCentralRole && !selectedProgram && (
           <section>
-            <div className="institute-course-action">
+            {(["lee_ogrenci_isleri", "admin"] as DbpRole[]).includes(session.role) && <div className="institute-course-action">
               <button type="button" onClick={() => setShowProgramCreate(true)}>
                 <Plus size={15} />
                 ABD / ASD veya Program Ekle
               </button>
-            </div>
+            </div>}
             {programPicker("Programı Aç")}
           </section>
         )}
@@ -822,8 +852,11 @@ export function RoleDashboard() {
               </button>
             )}
             <ReviewQueue
-              courses={selectedProgram ? activeCourses : courses}
+              courses={reviewCourses}
               role={session.role}
+              session={session}
+              department={(selectedProgram ?? scopedDefaultProgram)?.department ?? session.department}
+              programName={(selectedProgram ?? scopedDefaultProgram)?.programName ?? session.department}
               onAction={save}
             />
           </section>

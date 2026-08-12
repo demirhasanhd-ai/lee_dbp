@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, ClipboardList, UserRoundCheck } from "lucide-react";
-import { OFFICIAL_COURSES } from "../../lib/data/officialCourses";
+import { OFFICIAL_COURSES } from "../../lib/data/courseCatalog";
 import { LEE_PROGRAMS } from "../../lib/data/programs";
 import {
   COURSE_LEARNING_OUTCOME_COUNT,

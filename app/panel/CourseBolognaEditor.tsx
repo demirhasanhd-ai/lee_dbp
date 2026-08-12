@@ -5,6 +5,7 @@ import { evaluateOutcomeQuality, OutcomeQualityHint } from "./outcomeQuality";
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { SDG_GOALS, findSdgGoal, formatSdgGoal } from "../../lib/sdgGoals";
+import { getCoursePackage, type CoursePackage } from "../../lib/data/coursePackages";
 
 type Assessment = {
   id: number;
@@ -147,11 +148,13 @@ function isMeaningfulText(value: string, minimumWords = 4, minimumLength = 20) {
 export function CourseBolognaEditor({
   course,
   session,
+  readOnly = false,
   onSave,
   onPublish,
 }: {
   course: CourseIdentity;
   session: SessionIdentity;
+  readOnly?: boolean;
   onSave: () => void;
   onPublish: () => void;
 }) {
@@ -173,18 +176,84 @@ export function CourseBolognaEditor({
   const [obsMessage, setObsMessage] = useState("");
 
   useEffect(() => {
-    setIdentity(defaultIdentity(course));
-    setDetailFields(defaultDetailFields());
-    setOutcomes(emptyOutcomes());
-    setAssessments(defaultAssessments);
-    setWorkloads(defaultWorkloads);
-    setWeeklyTopics(emptyWeeklyTopics());
-    setStructureValues(emptyStructures());
-    setContributionMatrix([]);
-    setSdgs(emptySdgs());
-    setNextAssessment(3);
-    setWorkflowStatus("Taslak");
-  }, [course.code, course.name, course.level]);
+    const applyStaticPackage = (value: CoursePackage) => {
+      setIdentity({
+        name: course.name,
+        code: value.code,
+        theory: String(value.theory ?? 0),
+        practice: String(value.practice ?? 0),
+        credit: String(value.credit ?? 0),
+        level: value.level,
+        type: "Zorunlu",
+        language: value.language,
+      });
+      setDetailFields({
+        purpose: value.purpose,
+        content: value.content,
+        methods: value.methods,
+        prerequisites: value.prerequisites,
+        coordinator: value.instructor ?? "Öğrencinin Danışmanı",
+        instructors: value.instructor ?? "Öğrencinin Danışmanı",
+        assistants: "Yok",
+        resources: value.resources,
+      });
+      setOutcomes(value.outcomes);
+      setAssessments(value.assessments.map((item, index) => ({ ...item, id: index + 1, fixed: index < 2 })));
+      setWorkloads(Object.fromEntries(value.workloads.map((item) => [item.name, { count: item.count, hours: item.hours }])));
+      setWeeklyTopics(Object.fromEntries(value.weeklyTopics.map((item, index) => [index + 1, item])));
+      setStructureValues(emptyStructures());
+      setContributionMatrix(value.contributionMatrix.map((row) => Object.fromEntries(row.values.map((score, index) => [`P${index + 1}`, score]))));
+      setSdgs(value.sdgs);
+      setNextAssessment(value.assessments.length + 1);
+      setWorkflowStatus("Mevcut Paket");
+    };
+    const applySavedPackage = (stored: Record<string, unknown>, status: string) => {
+      const savedIdentity = stored.identity as typeof identity | undefined;
+      const savedDetails = stored.detailFields as Record<string, string> | undefined;
+      if (savedIdentity) setIdentity(savedIdentity);
+      if (savedDetails) setDetailFields(savedDetails);
+      if (Array.isArray(stored.outcomes)) setOutcomes(stored.outcomes as string[]);
+      if (Array.isArray(stored.assessments)) setAssessments(stored.assessments as Assessment[]);
+      if (stored.workloads && typeof stored.workloads === "object") setWorkloads(stored.workloads as Record<string, Workload>);
+      if (stored.weeklyTopics && typeof stored.weeklyTopics === "object") setWeeklyTopics(stored.weeklyTopics as Record<number, string>);
+      if (stored.structureValues && typeof stored.structureValues === "object") setStructureValues(stored.structureValues as Record<string, number>);
+      if (Array.isArray(stored.contributionMatrix)) setContributionMatrix(stored.contributionMatrix as Record<string, number>[]);
+      if (Array.isArray(stored.sdgs)) setSdgs(stored.sdgs as string[]);
+      setWorkflowStatus(status || "Taslak");
+    };
+
+    const staticPackage = getCoursePackage(course.code);
+    if (staticPackage) applyStaticPackage(staticPackage);
+    else {
+      setIdentity(defaultIdentity(course));
+      setDetailFields(defaultDetailFields());
+      setOutcomes(emptyOutcomes());
+      setAssessments(defaultAssessments);
+      setWorkloads(defaultWorkloads);
+      setWeeklyTopics(emptyWeeklyTopics());
+      setStructureValues(emptyStructures());
+      setContributionMatrix([]);
+      setSdgs(emptySdgs());
+      setNextAssessment(3);
+      setWorkflowStatus("Taslak");
+    }
+
+    const query = new URLSearchParams({
+      code: course.code,
+      department: course.department || "",
+      programName: course.programName || "",
+      level: course.level,
+    });
+    const controller = new AbortController();
+    fetch(`${dbpPath("/api/dbp/course-package")}?${query}`, {
+      headers: { "X-DBP-Session": sessionHeader(session) },
+      signal: controller.signal,
+    })
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((data) => { if (data?.package) applySavedPackage(data.package, data.status); })
+      .catch((error) => { if (error instanceof Error && error.name !== "AbortError") console.error(error); });
+    return () => controller.abort();
+  }, [course.code, course.department, course.level, course.name, course.programName, session]);
 
   const workloadNames = useMemo(
     () => [
@@ -385,6 +454,7 @@ export function CourseBolognaEditor({
         package: {
           fields: serializeForm(form),
           identity,
+          detailFields,
           outcomes,
           assessments,
           workloads,
@@ -408,6 +478,7 @@ export function CourseBolognaEditor({
       className="course-bologna-form"
       onSubmit={async (event) => {
         event.preventDefault();
+        if (readOnly) return;
         if (publishIssues.length > 0) return;
         await persistPackage(event.currentTarget, "ABD Onayı Bekliyor");
         setWorkflowStatus("ABD Onayı Bekliyor");
@@ -615,20 +686,20 @@ export function CourseBolognaEditor({
       </section>
       <section className="course-form-card">
         <h3>Dersin Program Çıktılarına Katkısı</h3>
-        <p className="form-help">Her öğrenme çıktısının P1-P13 program çıktılarına katkısını 0-5 arasında belirtin.</p>
+        <p className="form-help">Her öğrenme çıktısının PÇ1-PÇ11 program çıktılarına katkısını 0-5 arasında belirtin.</p>
         <div className="contribution-wrap">
           <table>
             <thead>
               <tr>
                 <th>ÖÇ / PÇ</th>
-                {Array.from({ length: 13 }, (_, i) => <th key={i}>P{i + 1}</th>)}
+                {Array.from({ length: 11 }, (_, i) => <th key={i}>PÇ{i + 1}</th>)}
               </tr>
             </thead>
             <tbody>
               {outcomes.map((_, outcome) => (
                 <tr key={outcome}>
                   <th>ÖÇ{outcome + 1}</th>
-                  {Array.from({ length: 13 }, (_, i) => {
+                  {Array.from({ length: 11 }, (_, i) => {
                     const key = `P${i + 1}`;
                     return (
                       <td key={i}>
@@ -693,7 +764,7 @@ export function CourseBolognaEditor({
           </label>
         ))}
       </section>
-      <div className="course-save-bar">
+      {!readOnly && <div className="course-save-bar">
         <div className="course-publish-status">
           <span>{workflowStatus === "Taslak" ? "Çalışmanızı taslak olarak kaydedebilir veya ABD/ASD onayına gönderebilirsiniz." : "Paket ABD/ASD başkanının onayını bekliyor; onaylanmadan public görünmez."}</span>
           {publishIssues.length > 0 && (
@@ -707,7 +778,7 @@ export function CourseBolognaEditor({
           <button type="button" className="draft" onClick={async (event) => { const form = event.currentTarget.form; if (!form) return; await persistPackage(form, "Taslak"); setWorkflowStatus("Taslak"); localStorage.setItem("lee-dbp-course-status", "taslak"); onSave(); }}><Save size={15} />Taslağı Kaydet</button>
           <button type="submit" className="publish" disabled={publishIssues.length > 0} title={publishIssues[0] ?? "ABD/ASD onayına gönder"}><Send size={15} />Yayınla</button>
         </div>
-      </div>
+      </div>}
       {obsOpen && (
         <div className="obs-import-backdrop" role="presentation">
           <section className="obs-import-dialog" role="dialog" aria-modal="true" aria-labelledby="obs-import-title">

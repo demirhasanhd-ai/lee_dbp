@@ -66,9 +66,9 @@ const defaultRoleAccess = {
   abd_asd_baskani: ["my_courses", "program_profile", "review_queue"],
   abd_sekreteri: ["review_queue"],
   lee_ogrenci_isleri: ["my_courses", "program_profile"],
-  enstitu_sekreteri: ["my_courses", "program_profile", "publish_control"],
-  enstitu_yoneticisi: ["my_courses", "program_profile", "publish_control", "quality_reports"],
-  admin: ["my_courses", "database_admin", "program_profile", "publish_control", "quality_reports", "user_roles", "permission_matrix"],
+  enstitu_sekreteri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
+  enstitu_yoneticisi: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports"],
+  admin: ["my_courses", "database_admin", "program_profile", "review_queue", "publish_control", "quality_reports", "user_roles", "permission_matrix"],
 };
 
 const testProgramSeed = {
@@ -289,6 +289,82 @@ function normalizeLevel(value = "") {
   return value || "Tezli YL";
 }
 
+function normalizeScope(value = "") {
+  return repairText(value)
+    .toLocaleLowerCase("tr-TR")
+    .replace(/\b(abd|asd|anabilim dalı|anasanat dalı)\b/gu, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizePerson(value = "") {
+  return repairText(value)
+    .toLocaleLowerCase("tr-TR")
+    .replace(/\b(prof|doç|doc|dr|öğr|ogr|üyesi|uyesi|gör|gor)\b\.?/gu, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isDepartmentPoolCourseRecord(course = {}) {
+  const name = repairText(course.name || "").toLocaleUpperCase("tr-TR");
+  if (name.includes("BİLİMSEL ARAŞTIRMA")) return false;
+  return ["DANIŞMANLIK", "UZMANLIK ALAN DERSİ", "SEMİNER", "DOKTORA YETERLİK", "DOKTORA TEZİ", "TEZ ÇALIŞMASI"]
+    .some((label) => name.includes(label));
+}
+
+function courseRowsForIdentity({ code = "", department = "", programName = "", level = "" }) {
+  const normalizedLevel = normalizeLevel(level);
+  const rows = db.prepare(`
+    SELECT * FROM courses
+    WHERE code = ? AND level = ?
+    ORDER BY updated_at DESC, id DESC
+  `).all(code, normalizedLevel);
+  const departmentScope = normalizeScope(department);
+  const programScope = normalizeScope(programName);
+  return rows.filter((row) =>
+    (!departmentScope || normalizeScope(row.department) === departmentScope) &&
+    (!programScope || normalizeScope(row.program_name) === programScope)
+  );
+}
+
+function canEditCoursePackage(session, body, rows) {
+  if (session.role === "admin") return true;
+  const sessionDepartment = normalizeScope(session.department || "");
+  const requestedDepartment = normalizeScope(body.department || "");
+  const departmentMatches = Boolean(sessionDepartment && requestedDepartment && sessionDepartment === requestedDepartment);
+  const sessionPerson = normalizePerson(session.name || "");
+  const trustedInstructorOverrides = { YBS925: "Doç. Dr. Emre YAKUT" };
+  const assignedToUser = rows.some((row) => {
+    const instructor = normalizePerson(row.instructor || trustedInstructorOverrides[row.code] || "");
+    return Boolean(sessionPerson && instructor && (sessionPerson === instructor || sessionPerson.includes(instructor) || instructor.includes(sessionPerson)));
+  });
+
+  if (session.role === "akademisyen") return assignedToUser;
+  if (session.role === "abd_asd_baskani") {
+    const trustedMergedPoolCodes = new Set(["YBS9XX", "YBS91X"]);
+    const poolCourse = rows.some(isDepartmentPoolCourseRecord) ||
+      (trustedMergedPoolCodes.has(body.code) && isDepartmentPoolCourseRecord(body));
+    return assignedToUser || (departmentMatches && poolCourse);
+  }
+  return false;
+}
+
+function canReadCoursePackage(session, body) {
+  if (["admin", "lee_ogrenci_isleri", "enstitu_sekreteri", "enstitu_yoneticisi"].includes(session.role)) return true;
+  if (session.role === "abd_sekreteri") {
+    return normalizeScope(session.department || "") === normalizeScope(body.department || "");
+  }
+  return false;
+}
+
+function canApproveCoursePackage(session, body) {
+  if (["admin", "enstitu_yoneticisi"].includes(session.role)) return true;
+  return session.role === "abd_asd_baskani" &&
+    normalizeScope(session.department || "") === normalizeScope(body.department || "");
+}
+
 async function ensureDb() {
   if (db) return db;
   await mkdir(dataDir, { recursive: true });
@@ -446,11 +522,17 @@ function seedDefaultRoleAccess() {
     INSERT OR IGNORE INTO role_module_access(role, module, enabled, updated_at, updated_by)
     VALUES (?, ?, ?, ?, 'system')
   `);
+  const syncSystemDefault = db.prepare(`
+    UPDATE role_module_access
+    SET enabled = ?, updated_at = ?
+    WHERE role = ? AND module = ? AND updated_by = 'system'
+  `);
   db.exec("BEGIN");
   try {
     for (const role of dbpRoles) {
       for (const module of dbpModules) {
         insert.run(role, module, defaultRoleAccess[role]?.includes(module) ? 1 : 0, now);
+        syncSystemDefault.run(defaultRoleAccess[role]?.includes(module) ? 1 : 0, now, role, module);
       }
     }
     db.prepare(`
@@ -800,7 +882,7 @@ function getPublicVisibilityMap() {
 }
 
 function canManagePublicVisibility(session) {
-  return ["admin", "enstitu_sekreteri", "enstitu_yoneticisi"].includes(session?.role);
+  return ["admin", "enstitu_yoneticisi"].includes(session?.role);
 }
 
 function upsertPublicVisibilityMap(visibility, actor) {
@@ -1311,6 +1393,69 @@ async function handleDbpApi(request) {
       return jsonResponse({ ok: true, draft });
     }
 
+    if (pathname === "/api/dbp/course-management" && request.method === "POST") {
+      const auth = requireDbpSession(request, { write: true });
+      if (auth.error) return auth.error;
+      if (!["lee_ogrenci_isleri", "admin"].includes(auth.session.role)) {
+        return jsonResponse({ message: "Ders açma ve öğretim elemanı atama yetkisi LEE Öğrenci İşleri rolündedir." }, { status: 403 });
+      }
+      const body = await readJsonBody(request);
+      const actor = auth.session.username || auth.session.name || "dbp-user";
+      const now = new Date().toISOString();
+      const level = normalizeLevel(body.level);
+      const code = repairText(String(body.code || "")).trim();
+      if (!code || !body.department || !body.programName) {
+        return jsonResponse({ message: "Ders kodu, ABD/ASD ve program zorunludur." }, { status: 400 });
+      }
+      if (body.action === "assign") {
+        const result = db.prepare(`
+          UPDATE courses SET instructor = ?, updated_at = ?
+          WHERE code = ? AND department = ? AND program_name = ? AND level = ?
+        `).run(body.instructor || "", now, code, body.department, body.programName, level);
+        if (!result.changes) return jsonResponse({ message: "Atama yapılacak ders kaydı bulunamadı." }, { status: 404 });
+        audit("course.assignment.update", actor, { code, department: body.department, programName: body.programName, level });
+        return jsonResponse({ ok: true, changed: result.changes });
+      }
+      const existing = db.prepare(`SELECT id FROM courses WHERE code = ? AND department = ? AND program_name = ? AND level = ?`)
+        .get(code, body.department, body.programName, level);
+      if (existing) return jsonResponse({ message: "Bu ders kodu seçilen program ve düzeyde zaten bulunuyor." }, { status: 409 });
+      db.prepare(`
+        INSERT INTO courses(academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, source, package_json, created_at, updated_at)
+        VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 'Taslak', ?, 'lee_ogrenci_isleri', '{}', ?, ?)
+      `).run(body.academicYear || "2026-2027", body.department, body.programName, level, code, repairText(String(body.name || "")).trim(), body.type || "Seçmeli", Number(body.credit || 0), Number(body.ects || 0), Number(body.theory || 0), Number(body.practice || 0), body.instructor || "", now, now);
+      audit("course.create", actor, { code, department: body.department, programName: body.programName, level });
+      return jsonResponse({ ok: true });
+    }
+
+    if (pathname === "/api/dbp/course-package" && request.method === "GET") {
+      const query = {
+        code: url.searchParams.get("code") || "",
+        department: url.searchParams.get("department") || "",
+        programName: url.searchParams.get("programName") || "",
+        level: url.searchParams.get("level") || "",
+      };
+      if (!query.code || !query.level) return jsonResponse({ message: "Ders kodu ve düzeyi zorunludur." }, { status: 400 });
+      const rows = courseRowsForIdentity(query);
+      const publicOnly = url.searchParams.get("public") === "1";
+      if (!publicOnly) {
+        const auth = requireDbpSession(request);
+        if (auth.error) return auth.error;
+        if (!canEditCoursePackage(auth.session, query, rows) && !canReadCoursePackage(auth.session, query)) {
+          return jsonResponse({ message: "Bu ders paketini görüntüleme veya güncelleme yetkiniz yok." }, { status: 403 });
+        }
+      }
+      const row = rows.find((item) => {
+        if (!publicOnly) return item.package_json && item.package_json !== "{}";
+        return ["Yayımlandı", "Yayınlandı", "Public"].includes(repairText(item.status || "")) && item.package_json && item.package_json !== "{}";
+      });
+      if (!row) return jsonResponse({ package: null, status: "" });
+      return jsonResponse({
+        package: repairObject(JSON.parse(row.package_json || "{}")),
+        status: repairText(row.status || ""),
+        updatedAt: row.updated_at,
+      });
+    }
+
     if (pathname === "/api/dbp/course-package" && request.method === "POST") {
       const auth = requireDbpSession(request, { write: true });
       if (auth.error) return auth.error;
@@ -1321,6 +1466,10 @@ async function handleDbpApi(request) {
       const actor = auth.session?.username || auth.session?.name || "dbp-user";
       if (!body.code || !body.name) {
         return jsonResponse({ message: "Ders kodu ve adi zorunludur." }, { status: 400 });
+      }
+      const matchingRows = courseRowsForIdentity(body);
+      if (!canEditCoursePackage(auth.session, body, matchingRows)) {
+        return jsonResponse({ message: "Bu ders paketi üzerinde kayıt yetkiniz yok." }, { status: 403 });
       }
 
       let update = db.prepare(`
@@ -1380,6 +1529,23 @@ async function handleDbpApi(request) {
       }
       audit("course.package.save", actor, { code: body.code, department: body.department || "", level });
       return jsonResponse({ ok: true, summary: { courses: countRows("courses") } });
+    }
+
+    if (pathname === "/api/dbp/course-package/status" && request.method === "POST") {
+      const auth = requireDbpSession(request, { write: true });
+      if (auth.error) return auth.error;
+      const body = await readJsonBody(request);
+      if (!canApproveCoursePackage(auth.session, body)) {
+        return jsonResponse({ message: "Bu ders paketini onaylama yetkiniz yok." }, { status: 403 });
+      }
+      const rows = courseRowsForIdentity(body).filter((row) => row.package_json && row.package_json !== "{}");
+      if (!rows.length) return jsonResponse({ message: "Onaylanacak kayıtlı ders paketi bulunamadı." }, { status: 404 });
+      const now = new Date().toISOString();
+      const status = body.status || "Yayımlandı";
+      const statement = db.prepare("UPDATE courses SET status = ?, updated_at = ? WHERE id = ?");
+      for (const row of rows) statement.run(status, now, row.id);
+      audit("course.package.status", auth.session.username || auth.session.name || "dbp-user", { code: body.code, status });
+      return jsonResponse({ ok: true, status });
     }
 
     if (pathname === "/api/dbp/program-profile" && request.method === "GET") {

@@ -45,7 +45,8 @@ type PublicProgramMenuItem = {
 };
 type ViewState = { programKey: string; level: string; tab: "profile" | "courses" };
 
-const columns = ["12%", "36%", "14%", "5%", "5%", "6%", "12%", "10%"];
+const columns = ["9%", "22%", "10%", "10%", "17%", "4%", "4%", "5%", "10%", "9%"];
+const mergedProcessCourseCodes = new Set(["YBS9XX", "YBS91X", "DAN902", "YBS910", "YBS917"]);
 const defaultOutcomes = [
   "Alanındaki ileri düzey bilgileri bilimsel araştırma süreçlerinde kullanır.",
   "Disiplinler arası yaklaşımla problem tanımlar ve çözüm önerileri geliştirir.",
@@ -201,6 +202,16 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
   );
   const activeProgram = allProgramItems.find((item) => item.visibilityKey === activeView.programKey) ?? allProgramItems[0];
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requestedProgramKey = params.get("programKey") ?? visibilityKey;
+    const requestedProgram = allProgramItems.find((item) => item.visibilityKey === requestedProgramKey);
+    if (!requestedProgram) return;
+    const requestedLevel = params.get("duzey") ?? requestedProgram.levels[0];
+    if (!requestedProgram.levels.includes(requestedLevel)) return;
+    const requestedTab = params.get("sekme") === "courses" ? "courses" : "profile";
+    setActiveView({ programKey: requestedProgramKey, level: requestedLevel, tab: requestedTab });
+  }, [allProgramItems, visibilityKey]);
+  useEffect(() => {
     const sync = () => {
       const visibility = readProgramVisibility();
       const nextByProgram = visibleLevelsForItems(visibility);
@@ -228,6 +239,20 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
   const activeLevel = activeView.level;
   const activeVisibleLevels = visibleLevelsByProgram[activeProgram.visibilityKey] ?? [];
   const visible = activeProgram.courses.filter((course) => course.level === activeLevel);
+  const courseSections = [
+    {
+      key: "common",
+      title: "Ortak / Süreç Dersleri",
+      courses: visible.filter((course) => mergedProcessCourseCodes.has(course.code)),
+    },
+    ...(["Güz", "Bahar"] as const).map((term) => ({
+      key: term,
+      title: `${term} Yarıyılı`,
+      courses: visible.filter(
+        (course) => repairText(course.term) === term && !mergedProcessCourseCodes.has(course.code),
+      ),
+    })),
+  ].filter((section) => section.courses.length > 0);
   const sidebarItems = allProgramItems.flatMap((item) =>
     (visibleLevelsByProgram[item.visibilityKey] ?? []).map((level) => ({
       level,
@@ -261,6 +286,15 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
   };
   const pdfUrl = (course: PublicCourse) =>
     coursePdfHref({ code: course.code, name: repairText(course.name), program: repairText(activeProgram.programName) }) ?? "#";
+  const changeView = (next: ViewState) => {
+    setActiveView(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("programKey", next.programKey);
+    url.searchParams.set("duzey", next.level);
+    url.searchParams.set("sekme", next.tab);
+    url.hash = "program-dersleri";
+    window.history.replaceState(null, "", url);
+  };
 
   if (!sidebarItems.length) {
     return (
@@ -287,7 +321,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
         items={sidebarItems}
         view={activeView}
         programHref={`/programlar/${visibilityKey}`}
-        onViewChange={(next) => setActiveView({ programKey: next.programKey ?? activeProgram.visibilityKey, level: next.level, tab: next.tab })}
+        onViewChange={(next) => changeView({ programKey: next.programKey ?? activeProgram.visibilityKey, level: next.level, tab: next.tab })}
       />
       <section className="public-program-main">
         {activeView.tab === "profile" ? (
@@ -297,18 +331,20 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
             <div className="public-course-title">
               <div><small>2026-2027 AKADEMİK YILI</small><h2>{activeLevel} Dersleri</h2></div>
             </div>
-            {(["Güz", "Bahar"] as const).map((term) => (
-              <section className="public-course-group" key={term}>
-                <h3>{term} Yarıyılı</h3>
+            {courseSections.map((section) => (
+              <section className="public-course-group" key={section.key}>
+                <h3>{section.title}</h3>
                 <div className="course-table-wrap">
                   <table className="public-course-table">
                     <colgroup>{columns.map((width, index) => <col style={{ width }} key={index} />)}</colgroup>
-                    <thead><tr><th>Dersin Kodu</th><th>Dersin Adı</th><th>Zorunlu / Seçmeli</th><th>T</th><th>U</th><th>AKTS</th><th>Bilgi Paketi</th><th>Yazdır</th></tr></thead>
+                    <thead><tr><th>Dersin Kodu</th><th>Dersin Adı</th><th>Dönem</th><th>Zorunlu / Seçmeli</th><th>Öğretim Elemanı</th><th>T</th><th>U</th><th>AKTS</th><th>Bilgi Paketi</th><th>Yazdır</th></tr></thead>
                     <tbody>
-                      {visible.filter((course) => repairText(course.term) === repairText(term)).map((course) => (
+                      {section.courses.map((course) => (
                         <tr key={course.code}>
                           <td><b>{course.code}</b></td><td>{repairText(course.name)}</td>
+                          <td>{mergedProcessCourseCodes.has(course.code) ? "Güz ve Bahar" : repairText(course.term)}</td>
                           <td><span className={`course-type ${repairText(course.type) === "Zorunlu" ? "required" : "elective"}`}>{repairText(course.type)}</span></td>
+                          <td>{course.instructor?.trim() ? repairText(course.instructor) : "Atama bekliyor"}</td>
                           <td>{course.theory}</td><td>{course.practice}</td><td><b>{course.ects}</b></td>
                           <td><a className="table-action primary" href={packageUrl(course)}><FileText size={15}/><span>Görüntüle</span></a></td>
                           <td><a className="table-action" href={pdfUrl(course)} target="_blank" rel="noreferrer" aria-label={`${course.code} ders bilgi paketini PDF olarak aç`}><Printer size={15}/><span>Yazdır</span></a></td>

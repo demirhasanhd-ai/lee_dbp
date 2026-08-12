@@ -4,7 +4,8 @@ import { PackageNavigation } from "./PackageNavigation";
 import { PublicSiteHeader } from "../PublicSiteHeader";
 import { dbpPath } from "../../lib/dbpPath";
 import { coursePdfHref } from "../../lib/coursePdf";
-import { OFFICIAL_COURSES, type OfficialCourse } from "../../lib/data/officialCourses";
+import { OFFICIAL_COURSES } from "../../lib/data/courseCatalog";
+import type { OfficialCourse } from "../../lib/data/officialCourses";
 
 export const metadata: Metadata = { title: "Ders Kataloğu" };
 
@@ -21,7 +22,9 @@ type CatalogSearchParams = {
   ogretimElemani?: string;
   sdg?: string;
   pdf?: string;
+  bolum?: string;
   program?: string;
+  duzey?: string;
 };
 
 function courseHref(course: OfficialCourse) {
@@ -33,7 +36,9 @@ function courseHref(course: OfficialCourse) {
     u: String(course.practice),
     kredi: String(course.credit),
     akts: String(course.ects),
-    program: `${course.programName} · ${course.level}`,
+    bolum: course.department,
+    program: course.programName,
+    duzey: course.level,
   });
   if (course.instructor) params.set("ogretimElemani", course.instructor);
   return dbpPath(`/katalog?${params.toString()}`);
@@ -52,7 +57,12 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
     });
     return (
       <div className="package-with-sidebar">
-        <PackageNavigation code={params.ders} />
+        <PackageNavigation
+          code={params.ders}
+          department={params.bolum}
+          programName={params.program}
+          level={params.duzey}
+        />
         <DemoCoursePackage
           code={params.ders}
           name={courseName}
@@ -64,6 +74,9 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
           instructor={params.ogretimElemani}
           sdgs={params.sdg}
           pdfHref={pdfHref}
+          department={params.bolum ?? known?.department}
+          programName={params.program ?? known?.programName}
+          level={params.duzey ?? known?.level}
         />
       </div>
     );

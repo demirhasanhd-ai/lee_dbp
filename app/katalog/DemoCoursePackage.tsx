@@ -1,7 +1,9 @@
+"use client";
+import { useEffect, useState } from "react";
 import { PublicSiteHeader } from "../PublicSiteHeader";
 import { dbpPath } from "../../lib/dbpPath";
 import { SDG_LOGO_SRC, formatSdgGoal, resolveSdgGoals } from "../../lib/sdgGoals";
-import { getCoursePackage } from "../../lib/data/coursePackages";
+import { getCoursePackage, type CoursePackage } from "../../lib/data/coursePackages";
 import { PrintCourseButton } from "./PrintCourseButton";
 
 type DemoCoursePackageProps = {
@@ -15,7 +17,12 @@ type DemoCoursePackageProps = {
   instructor?: string;
   sdgs?: string;
   pdfHref?: string;
+  department?: string;
+  programName?: string;
+  level?: string;
 };
+
+type PublicSavedPackage = { package: CoursePackage; name: string };
 
 const outcomes = [
   "Bilimsel araştırma sürecinin temel aşamalarını açıklar.",
@@ -92,16 +99,38 @@ export function DemoCoursePackage({
   instructor,
   sdgs,
   pdfHref,
+  department = "",
+  programName = "",
+  level = "",
 }: DemoCoursePackageProps) {
   const displayCode = repairText(code);
-  const displayName = repairText(name);
+  const staticPackage = getCoursePackage(displayCode);
+  const [saved, setSaved] = useState<PublicSavedPackage | null>(null);
+  useEffect(() => {
+    const query = new URLSearchParams({ code: displayCode, department, programName, level, public: "1" });
+    const controller = new AbortController();
+    fetch(`${dbpPath("/api/dbp/course-package")}?${query}`, { signal: controller.signal })
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!data?.package) return;
+        setSaved(toPublicCoursePackage(data.package as Record<string, unknown>, staticPackage, name));
+      })
+      .catch((error) => { if (error instanceof Error && error.name !== "AbortError") console.error(error); });
+    return () => controller.abort();
+  }, [department, displayCode, level, name, programName, staticPackage]);
+  const displayName = repairText(saved?.name ?? name);
   const displayType = repairText(type);
-  const displayInstructor = instructor ? repairText(instructor) : "";
+  const coursePackage = saved?.package ?? staticPackage;
+  const displayInstructor = coursePackage?.instructor ?? (instructor ? repairText(instructor) : "");
   const showInstructor = shouldShowInstructor(displayName, displayInstructor);
-  const coursePackage = getCoursePackage(displayCode);
   const packageOutcomes = coursePackage?.outcomes ?? outcomes;
   const packageWeeks = coursePackage?.weeklyTopics ?? weeks;
-  const selectedSdgs = coursePackage ? [] : resolveSdgGoals(sdgs);
+  const selectedSdgs = resolveSdgGoals(coursePackage?.sdgs ?? sdgs);
+  const displayedEcts = Number(coursePackage?.ects ?? ects);
+  const displayedTheory = Number(coursePackage?.theory ?? theory);
+  const displayedPractice = Number(coursePackage?.practice ?? practice);
+  const packageWorkloads = coursePackage?.workloads ?? createDefaultWorkloads(displayedEcts, displayedTheory, displayedPractice);
+  const totalWorkload = packageWorkloads.reduce((total, item) => total + item.total, 0);
   return (
     <main className="demo-package-page">
       <PublicSiteHeader />
@@ -132,21 +161,21 @@ export function DemoCoursePackage({
             {coursePackage && <Field label="Ders Düzeyi" value={coursePackage.level} />}
             {coursePackage && <Field label="Öğretim Şekli" value={coursePackage.teachingMode} />}
             <Field label="Ders Türü" value={displayType} />
-            <Field label="Teorik" value={theory} />
-            <Field label="Uygulama" value={practice} />
-            <Field label="Kredi" value={credit} />
-            <Field label="AKTS" value={ects} />
+            <Field label="Teorik" value={coursePackage?.theory ?? theory} />
+            <Field label="Uygulama" value={coursePackage?.practice ?? practice} />
+            <Field label="Kredi" value={coursePackage?.credit ?? credit} />
+            <Field label="AKTS" value={coursePackage?.ects ?? ects} />
           </div>
         </section>
         <section className="package-card two">
           <TextBlock title="Dersin Amacı" text={coursePackage?.purpose ?? `${displayName} kapsamında öğrencinin bilimsel araştırma, uygulama ve değerlendirme becerilerini geliştirmesi amaçlanır.`} />
           <TextBlock title="Dersin İçeriği" text={coursePackage?.content ?? "Ders alanına ilişkin kuramsal çerçeve, güncel yaklaşımlar, uygulama örnekleri, veri toplama, analiz ve akademik raporlama konuları işlenir."} />
         </section>
-        <section className="package-card"><h2>Dersin Öğrenme Çıktıları</h2><ol className="outcome-list">{packageOutcomes.map((item, index) => <li key={item}><b>DÖÇ{index + 1}</b><span>{item}</span></li>)}</ol></section>
+        <section className="package-card"><h2>Dersin Öğrenme Çıktıları ve Bloom Düzeyleri</h2><div className="package-table-scroll"><table className="package-table outcome-bloom-table"><thead><tr><th>DÖÇ</th><th>Öğrenme Çıktısı</th><th>Bloom Düzeyi</th></tr></thead><tbody>{packageOutcomes.map((item, index) => <tr key={item}><th>DÖÇ{index + 1}</th><td>{item}</td><td>{resolveBloomLevel(item)}</td></tr>)}</tbody></table></div></section>
         <section className="package-card"><h2>Haftalık Ders Planı</h2><div className="week-grid">{packageWeeks.map((week, index) => <div key={`${week}-${index}`}><b>{index + 1}. Hafta</b><span>{week}</span></div>)}</div></section>
         <section className="package-card two"><TextBlock title="Öğretim Yöntemleri" text={coursePackage?.methods ?? "Anlatım, tartışma, örnek olay incelemesi, uygulama, bireysel çalışma ve proje sunumu."} /><TextBlock title="Kaynaklar" text={coursePackage?.resources ?? "Bilimsel araştırma yöntemleri temel kaynakları, güncel akademik makaleler ve ilgili etik yönergeler."} />{coursePackage && <TextBlock title="Ön Koşullar" text={coursePackage.prerequisites} />}</section>
         <section className="package-card"><h2>Değerlendirme Sistemi</h2><table className="package-table"><thead><tr><th>Değerlendirme</th><th>Adet</th><th>Katkı</th></tr></thead><tbody>{(coursePackage?.assessments ?? [{ name: "Ara Sınav", count: 1, weight: 40 }, { name: "Yarıyıl Sonu Sınavı", count: 1, weight: 60 }]).map((item) => <tr key={item.name}><td>{item.name}</td><td>{item.count}</td><td>%{item.weight}</td></tr>)}</tbody></table></section>
-        <section className="package-card"><h2>AKTS İş Yükü</h2><table className="package-table"><thead><tr><th>Etkinlik</th><th>Adet</th><th>Süre</th><th>Toplam</th></tr></thead><tbody>{coursePackage ? coursePackage.workloads.map((item) => <tr key={item.name}><td>{item.name}</td><td>{item.count}</td><td>{item.hours}</td><td>{item.total}</td></tr>) : <><tr><td>Ders Süresi</td><td>15</td><td>{theory}</td><td>{15 * Number(theory || 0)}</td></tr><tr><td>Sınıf Dışı Çalışma</td><td>15</td><td>6</td><td>90</td></tr><tr><td>Ara Sınav</td><td>1</td><td>15</td><td>15</td></tr><tr><td>Yarıyıl Sonu Sınavı</td><td>1</td><td>30</td><td>30</td></tr></>}</tbody><tfoot>{coursePackage && <tr><th colSpan={3}>Toplam İş Yükü (Saat)</th><th>{coursePackage.workloads.reduce((total, item) => total + item.total, 0)}</th></tr>}<tr><th colSpan={3}>AKTS</th><th>{ects}</th></tr></tfoot></table></section>
+        <section className="package-card"><h2>AKTS İş Yükü</h2><table className="package-table"><thead><tr><th>Etkinlik</th><th>Adet</th><th>Süre (Saat)</th><th>Toplam (Saat)</th></tr></thead><tbody>{packageWorkloads.map((item) => <tr key={item.name}><td>{item.name}</td><td>{item.count}</td><td>{formatWorkloadNumber(item.hours)}</td><td>{formatWorkloadNumber(item.total)}</td></tr>)}</tbody><tfoot><tr><th colSpan={3}>Toplam İş Yükü (Saat)</th><th>{formatWorkloadNumber(totalWorkload)}</th></tr><tr><th colSpan={3}>AKTS</th><th>{displayedEcts}</th></tr></tfoot></table></section>
         {coursePackage && <section className="package-card"><h2>DÖÇ–PÇ Katkı Matrisi</h2><div className="package-table-scroll"><table className="package-table contribution-table"><thead><tr><th>DÖÇ</th>{Array.from({ length: 11 }, (_, index) => <th key={index}>PÇ{index + 1}</th>)}</tr></thead><tbody>{coursePackage.contributionMatrix.map((row) => <tr key={row.outcome}><th>{row.outcome}</th>{row.values.map((value, index) => <td key={index}>{value}</td>)}</tr>)}</tbody></table></div><small>Ölçek: 0 = Yok, 1 = Çok Düşük, 2 = Düşük, 3 = Orta, 4 = Yüksek, 5 = Çok Yüksek</small></section>}
         {selectedSdgs.length > 0 && <section className="package-card">
           <div className="sdg-heading">
@@ -165,6 +194,65 @@ export function DemoCoursePackage({
       </div>
     </main>
   );
+}
+
+function toPublicCoursePackage(stored: Record<string, unknown>, fallback: CoursePackage | undefined, fallbackName: string): PublicSavedPackage {
+  const identity = stored.identity as Record<string, string> | undefined;
+  const details = stored.detailFields as Record<string, string> | undefined;
+  const assessments = Array.isArray(stored.assessments) ? stored.assessments as CoursePackage["assessments"] : fallback?.assessments ?? [];
+  const workloadRecord = stored.workloads && typeof stored.workloads === "object" ? stored.workloads as Record<string, { count: number; hours: number }> : {};
+  const weeklyRecord = stored.weeklyTopics && typeof stored.weeklyTopics === "object" ? stored.weeklyTopics as Record<string, string> : {};
+  const matrixRecord = Array.isArray(stored.contributionMatrix) ? stored.contributionMatrix as Record<string, number>[] : [];
+  const outcomes = Array.isArray(stored.outcomes) ? stored.outcomes as string[] : fallback?.outcomes ?? [];
+  const coursePackage: CoursePackage = {
+    code: identity?.code || fallback?.code || "",
+    language: identity?.language || fallback?.language || "Türkçe",
+    level: identity?.level || fallback?.level || "Doktora",
+    teachingMode: fallback?.teachingMode || "Yüz Yüze",
+    instructor: details?.instructors || fallback?.instructor,
+    theory: Number(identity?.theory ?? fallback?.theory ?? 0),
+    practice: Number(identity?.practice ?? fallback?.practice ?? 0),
+    credit: Number(identity?.credit ?? fallback?.credit ?? 0),
+    ects: Number(stored.ects ?? fallback?.ects ?? 0),
+    purpose: details?.purpose || fallback?.purpose || "",
+    content: details?.content || fallback?.content || "",
+    methods: details?.methods || fallback?.methods || "",
+    prerequisites: details?.prerequisites || fallback?.prerequisites || "Yok",
+    resources: details?.resources || fallback?.resources || "",
+    sdgs: Array.isArray(stored.sdgs) ? stored.sdgs as string[] : fallback?.sdgs ?? [],
+    outcomes,
+    weeklyTopics: Object.keys(weeklyRecord).length ? Object.entries(weeklyRecord).sort(([a], [b]) => Number(a) - Number(b)).map(([, value]) => value) : fallback?.weeklyTopics ?? [],
+    assessments,
+    workloads: Object.keys(workloadRecord).length ? Object.entries(workloadRecord).map(([workloadName, row]) => ({ name: workloadName, count: Number(row.count), hours: Number(row.hours), total: Number(row.count) * Number(row.hours) })) : fallback?.workloads ?? [],
+    contributionMatrix: matrixRecord.length ? matrixRecord.slice(0, outcomes.length).map((row, index) => ({ outcome: `DÖÇ${index + 1}`, values: Array.from({ length: 11 }, (_, pc) => Number(row[`P${pc + 1}`] ?? 0)) })) : fallback?.contributionMatrix ?? [],
+  };
+  return { package: coursePackage, name: identity?.name || fallbackName };
+}
+
+function createDefaultWorkloads(ects: number, theory: number, practice: number) {
+  const courseHours = 15 * (theory + practice);
+  const examHours = 45;
+  const outsideHours = Math.max(ects * 30 - courseHours - examHours, 0);
+  return [
+    { name: "Ders Süresi", count: 15, hours: theory + practice, total: courseHours },
+    { name: "Sınıf Dışı Çalışma Süresi", count: 15, hours: outsideHours / 15, total: outsideHours },
+    { name: "Ara Sınav Hazırlığı", count: 1, hours: 20, total: 20 },
+    { name: "Yarıyıl Sonu Sınavı Hazırlığı", count: 1, hours: 25, total: 25 },
+  ];
+}
+
+function resolveBloomLevel(outcome: string) {
+  const normalized = outcome.toLocaleLowerCase("tr-TR");
+  if (/tasarlar|geliştirir|oluşturur|üretir|yapılandırır|dönüştürür|modeller|bütünleştirir|sentezler|önerir|hazırlar/.test(normalized)) return "Yaratma";
+  if (/değerlendirir|eleştirir|savunur|gerekçelendirir|yorumlar|seçer|tartışır|önceliklendirir|kanıtlar/.test(normalized)) return "Değerlendirme";
+  if (/analiz eder|çözümler|karşılaştırır|ayırt eder|inceler/.test(normalized)) return "Analiz";
+  if (/uygular|kullanır|yürütür|hesaplar|planlar|raporlar|sunar|yanıtlar|belirler|görselleştirir|düzenler|ayırır|haritalar|test eder|yapar/.test(normalized)) return "Uygulama";
+  if (/açıklar|özetler|sınıflandırır|ilişkilendirir/.test(normalized)) return "Anlama";
+  return "Değerlendirme";
+}
+
+function formatWorkloadNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toLocaleString("tr-TR", { maximumFractionDigits: 2 });
 }
 
 function Field({ label, value, wide }: { label: string; value: string; wide?: boolean }) {

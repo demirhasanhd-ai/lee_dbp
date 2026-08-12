@@ -162,3 +162,7 @@
     width: fit-content;
   }
 }
+.role-course-sections {
+  display: grid;
+  gap: 34px;
+}

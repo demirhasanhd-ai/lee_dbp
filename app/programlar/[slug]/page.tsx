@@ -1,5 +1,5 @@
 import { getProgramBySlug, LEE_PROGRAMS, programSlug, type LeeProgram, type ProgramLevel } from "../../../lib/data/programs";
-import { officialCoursesForProgram } from "../../../lib/data/officialCourses";
+import { officialCoursesForProgram } from "../../../lib/data/courseCatalog";
 import { ProgramCourses, type PublicCourse } from "./ProgramCourses";
 import { PublicSiteHeader } from "../../PublicSiteHeader";
 import { dbpPath } from "../../../lib/dbpPath";

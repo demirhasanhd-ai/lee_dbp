@@ -1,17 +1,27 @@
+import { resolveCourseProgramContext } from "../../lib/data/programNavigation";
+import { programSlug } from "../../lib/data/programs";
 import { PublicProgramSidebar } from "../PublicProgramSidebar";
 
-const programUrl = "/programlar/aile-danismanligi-ve-egitimi-abd-aile-danismanligi-ve-egitimi";
-const levels = ["Tezsiz YL", "Tezli YL"];
+type PackageNavigationProps = {
+  code: string;
+  department?: string;
+  programName?: string;
+  level?: string;
+};
 
-export function PackageNavigation({ code }: { code: string }) {
-  const thesis = Number(code.match(/\d+/)?.[0] ?? 500) >= 600;
+export function PackageNavigation({ code, department, programName, level }: PackageNavigationProps) {
+  const context = resolveCourseProgramContext({ code, department, programName, level });
+  if (!context) return null;
+  const { course, program } = context;
+
   return (
     <PublicProgramSidebar
-      department="Aile Danışmanlığı ve Eğitimi ABD"
-      levels={levels}
-      activeLevel={thesis ? "Tezli YL" : "Tezsiz YL"}
+      department={program.department}
+      levels={program.levels}
+      activeLevel={course.level}
+      activeProgramKey={programSlug(program)}
       activeTab="courses"
-      programHref={programUrl}
+      programHref=""
     />
   );
 }

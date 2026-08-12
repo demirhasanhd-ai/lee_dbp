@@ -18,7 +18,7 @@ export const DEFAULT_ROLE_ACCESS: Record<DbpRole, DbpModule[]> = {
   abd_asd_baskani: ["my_courses", "program_profile", "review_queue"],
   abd_sekreteri: ["review_queue"],
   lee_ogrenci_isleri: ["my_courses", "program_profile"],
-  enstitu_sekreteri: ["my_courses", "program_profile", "publish_control"],
-  enstitu_yoneticisi: ["my_courses", "program_profile", "publish_control", "quality_reports"],
-  admin: ["my_courses", "database_admin", "program_profile", "publish_control", "quality_reports", "user_roles", "permission_matrix"],
+  enstitu_sekreteri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
+  enstitu_yoneticisi: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports"],
+  admin: ["my_courses", "database_admin", "program_profile", "review_queue", "publish_control", "quality_reports", "user_roles", "permission_matrix"],
 };
