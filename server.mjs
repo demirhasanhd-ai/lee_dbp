@@ -22,6 +22,7 @@ const bundledSeedFile = path.join(__dirname, "seed", "program-data-local.js");
 const localPreviewSeedFile = path.join(__dirname, "local-preview", "program-data-local.js");
 const seedFile = process.env.DBP_SEED_FILE || (existsSync(bundledSeedFile) ? bundledSeedFile : localPreviewSeedFile);
 const programProfilesSeedFile = process.env.DBP_PROGRAM_PROFILES_SEED_FILE || path.join(__dirname, "seed", "program-profiles.json");
+const coursePackagesSeedFile = process.env.DBP_COURSE_PACKAGES_SEED_FILE || path.join(__dirname, "seed", "course-packages.json");
 const pdfCacheDir = process.env.DBP_PDF_CACHE_DIR || path.join(dataDir, "generated-pdfs");
 const pdfScript = process.env.DBP_PDF_SCRIPT || path.join(__dirname, "scripts", "generate_public_course_pdfs.py");
 let db;
@@ -289,6 +290,87 @@ function normalizeLevel(value = "") {
   return value || "Tezli YL";
 }
 
+function levelKey(value = "") {
+  return normalizeLevel(repairText(value)).toLocaleLowerCase("tr-TR");
+}
+
+function displayLevel(value = "") {
+  const normalized = normalizeLevel(repairText(value));
+  if (normalized === "Tezsiz YL") return "Tezsiz Yüksek Lisans";
+  if (normalized === "Tezli YL") return "Tezli Yüksek Lisans";
+  return normalized || "Tezli Yüksek Lisans";
+}
+
+const ybsSpecializationCodes = new Set(["YBS901", "YBS902", "YBS903", "YBS904", "YBS905", "YBS906", "YBS907", "YBS908"]);
+const ybsThesisCodes = new Set(["YBS911", "YBS912", "YBS913", "YBS914", "YBS915", "YBS916"]);
+const ybsDefaultDepartment = "Yönetim Bilişim Sistemleri ABD";
+const ybsDefaultProgramName = "Yönetim Bilişim Sistemleri";
+
+function canonicalCourseCode(code = "") {
+  const normalizedCode = repairText(code).trim().toLocaleUpperCase("tr-TR");
+  if (ybsSpecializationCodes.has(normalizedCode)) return "YBS9XX";
+  if (ybsThesisCodes.has(normalizedCode)) return "YBS91X";
+  if (normalizedCode === "YBS909") return "YBS999";
+  if (normalizedCode === "YBS918") return "YBS917";
+  return normalizedCode;
+}
+
+function courseCodeCandidates(code = "") {
+  const normalizedCode = repairText(code).trim().toLocaleUpperCase("tr-TR");
+  const canonical = canonicalCourseCode(normalizedCode);
+  const candidates = new Set([normalizedCode, canonical]);
+  if (canonical === "YBS9XX") for (const alias of ybsSpecializationCodes) candidates.add(alias);
+  if (canonical === "YBS91X") for (const alias of ybsThesisCodes) candidates.add(alias);
+  if (canonical === "YBS999") candidates.add("YBS909");
+  if (canonical === "YBS917") candidates.add("YBS918");
+  return [...candidates].filter(Boolean);
+}
+
+function isYbsDoctorateCourse(course = {}) {
+  if (levelKey(course.level) !== "doktora") return false;
+  const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
+  const programName = repairText(course.programName || course.program_name || "");
+  return code.startsWith("YBS") ||
+    (code === "DAN902" && programName.toLocaleLowerCase("tr-TR").includes("yönetim bilişim"));
+}
+
+function normalizeSeedCourse(course = {}) {
+  const repaired = repairObject(course);
+  if (!isYbsDoctorateCourse(repaired)) return repaired;
+  const code = repairText(repaired.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (code === "YBS925") return { ...repaired, instructor: "Doç. Dr. Emre YAKUT", status: "İncelemede" };
+  if (ybsSpecializationCodes.has(code)) {
+    if (code !== "YBS901") return null;
+    return { ...repaired, code: "YBS9XX", name: "UZMANLIK ALAN DERSİ", ects: 5, instructor: "Öğrencinin Danışmanı" };
+  }
+  if (ybsThesisCodes.has(code)) {
+    if (code !== "YBS911") return null;
+    return { ...repaired, code: "YBS91X", name: "DOKTORA TEZİ", ects: 24, instructor: "Öğrencinin Danışmanı" };
+  }
+  if (code === "DAN902") return { ...repaired, ects: 1, instructor: "Öğrencinin Danışmanı" };
+  if (code === "YBS909") return null;
+  if (code === "YBS910") return { ...repaired, ects: 6, instructor: "Öğrencinin Danışmanı" };
+  if (code === "YBS917") return { ...repaired, ects: 6, instructor: "Öğrencinin Danışmanı" };
+  if (code === "YBS918") return null;
+  return repaired;
+}
+
+function normalizeSeedCourses(courses = []) {
+  const byKey = new Map();
+  for (const course of courses) {
+    const normalized = normalizeSeedCourse(course);
+    if (!normalized) continue;
+    const key = [
+      normalizeScope(normalized.department || ""),
+      normalizeScope(normalized.programName || normalized.program_name || ""),
+      levelKey(normalized.level),
+      repairText(normalized.code || "").trim().toLocaleUpperCase("tr-TR"),
+    ].join("|");
+    if (!byKey.has(key)) byKey.set(key, normalized);
+  }
+  return [...byKey.values()];
+}
+
 function normalizeScope(value = "") {
   return repairText(value)
     .toLocaleLowerCase("tr-TR")
@@ -315,15 +397,18 @@ function isDepartmentPoolCourseRecord(course = {}) {
 }
 
 function courseRowsForIdentity({ code = "", department = "", programName = "", level = "" }) {
-  const normalizedLevel = normalizeLevel(level);
+  const candidates = courseCodeCandidates(code);
+  if (!candidates.length) return [];
+  const placeholders = candidates.map(() => "?").join(", ");
   const rows = db.prepare(`
     SELECT * FROM courses
-    WHERE code = ? AND level = ?
+    WHERE code IN (${placeholders})
     ORDER BY updated_at DESC, id DESC
-  `).all(code, normalizedLevel);
+  `).all(...candidates);
   const departmentScope = normalizeScope(department);
   const programScope = normalizeScope(programName);
   return rows.filter((row) =>
+    (!level || levelKey(row.level) === levelKey(level)) &&
     (!departmentScope || normalizeScope(row.department) === departmentScope) &&
     (!programScope || normalizeScope(row.program_name) === programScope)
   );
@@ -493,6 +578,7 @@ async function ensureDb() {
     );
   `);
   seedInitialData();
+  syncCourseCatalogFromSeed();
   seedProgramProfiles();
   ensureTestProgramData();
   seedDefaultRoleAccess();
@@ -662,6 +748,110 @@ function upsertSessionUser(session) {
   return user.id;
 }
 
+function readInitialSeedData() {
+  let source;
+  try {
+    source = readFileSync(seedFile, "utf8");
+  } catch {
+    return { programRows: [], officialCourses: [] };
+  }
+  const sandbox = { window: {}, localStorage: { getItem: () => "{}", setItem: () => {} } };
+  vm.createContext(sandbox);
+  vm.runInContext(source, sandbox, { filename: seedFile });
+  return {
+    programRows: repairObject(sandbox.window.LEE_DBP_PROGRAM_ROWS || []),
+    officialCourses: normalizeSeedCourses(repairObject(sandbox.window.LEE_DBP_OFFICIAL_COURSES || [])),
+  };
+}
+
+function readCoursePackageSeeds() {
+  try {
+    const packages = JSON.parse(readFileSync(coursePackagesSeedFile, "utf8"));
+    return Array.isArray(packages) ? repairObject(packages) : [];
+  } catch {
+    return [];
+  }
+}
+
+function workloadRecord(workloads = []) {
+  return Object.fromEntries((Array.isArray(workloads) ? workloads : []).map((item) => [
+    item.name,
+    { count: Number(item.count || 0), hours: Number(item.hours || 0) },
+  ]));
+}
+
+function weeklyTopicRecord(weeklyTopics = []) {
+  return Object.fromEntries((Array.isArray(weeklyTopics) ? weeklyTopics : []).map((item, index) => [index + 1, item]));
+}
+
+function contributionRecord(matrix = []) {
+  return (Array.isArray(matrix) ? matrix : []).map((row) =>
+    Object.fromEntries((row.values || []).map((score, index) => [`P${index + 1}`, Number(score || 0)]))
+  );
+}
+
+function storedPackageFromSeed(coursePackage, course = {}) {
+  return {
+    staticSeed: true,
+    seededAt: new Date().toISOString(),
+    identity: {
+      name: course.name || coursePackage.name || "",
+      code: coursePackage.code,
+      theory: String(coursePackage.theory ?? 0),
+      practice: String(coursePackage.practice ?? 0),
+      credit: String(coursePackage.credit ?? 0),
+      level: displayLevel(coursePackage.level),
+      type: course.type || "Zorunlu",
+      language: coursePackage.language || "Türkçe",
+    },
+    detailFields: {
+      purpose: coursePackage.purpose || "",
+      content: coursePackage.content || "",
+      methods: coursePackage.methods || "",
+      prerequisites: coursePackage.prerequisites || "Yok",
+      coordinator: coursePackage.instructor || "Öğrencinin Danışmanı",
+      instructors: coursePackage.instructor || "Öğrencinin Danışmanı",
+      assistants: "Yok",
+      resources: coursePackage.resources || "",
+    },
+    outcomes: coursePackage.outcomes || [],
+    assessments: (coursePackage.assessments || []).map((item, index) => ({ ...item, id: index + 1, fixed: index < 2 })),
+    workloads: workloadRecord(coursePackage.workloads),
+    weeklyTopics: weeklyTopicRecord(coursePackage.weeklyTopics),
+    structureValues: {},
+    contributionMatrix: contributionRecord(coursePackage.contributionMatrix),
+    sdgs: coursePackage.sdgs || [],
+    ects: Number(coursePackage.ects || 0),
+  };
+}
+
+function isStaticSeedPackage(packageJson = "{}") {
+  try {
+    return Boolean(JSON.parse(packageJson || "{}")?.staticSeed);
+  } catch {
+    return false;
+  }
+}
+
+function findSeedPackageForCode(packages, code) {
+  const normalizedCode = canonicalCourseCode(code);
+  return packages.find((coursePackage) =>
+    coursePackage.code === normalizedCode || coursePackage.aliases?.includes(normalizedCode)
+  );
+}
+
+function packageSeedCourseName(coursePackage) {
+  const knownNames = {
+    YBS999: "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE ETİK",
+    YBS9XX: "UZMANLIK ALAN DERSİ",
+    YBS91X: "DOKTORA TEZİ",
+    DAN902: "DANIŞMANLIK",
+    YBS910: "SEMİNER",
+    YBS917: "DOKTORA YETERLİK",
+  };
+  return knownNames[coursePackage.code] || coursePackage.name || coursePackage.code;
+}
+
 function seedInitialData(force = false) {
   const seeded = db.prepare("SELECT value FROM metadata WHERE key = ?").get("seeded_from_current_data")?.value;
   const programCount = countRows("programs");
@@ -671,18 +861,12 @@ function seedInitialData(force = false) {
     db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("seeded_from_current_data", "1");
     return;
   }
-  let source;
-  try {
-    source = readFileSync(seedFile, "utf8");
-  } catch {
+  const { programRows, officialCourses } = readInitialSeedData();
+  if (!programRows.length && !officialCourses.length) {
     db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("seeded_from_current_data", "1");
     return;
   }
-  const sandbox = { window: {}, localStorage: { getItem: () => "{}", setItem: () => {} } };
-  vm.createContext(sandbox);
-  vm.runInContext(source, sandbox, { filename: seedFile });
-  const programRows = repairObject(sandbox.window.LEE_DBP_PROGRAM_ROWS || []);
-  const officialCourses = repairObject(sandbox.window.LEE_DBP_OFFICIAL_COURSES || []);
+  const packageSeeds = readCoursePackageSeeds();
   const now = new Date().toISOString();
   const insertProgram = db.prepare(`
     INSERT INTO programs(main_department, department, program_name, flags, levels_json, profile_json, created_at, updated_at)
@@ -690,7 +874,7 @@ function seedInitialData(force = false) {
   `);
   const insertCourse = db.prepare(`
     INSERT INTO courses(academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, source, package_json, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   db.exec("BEGIN");
   try {
@@ -703,6 +887,7 @@ function seedInitialData(force = false) {
       insertProgram.run(row[0], row[1], row[2], row[3] || "", JSON.stringify(levelsFromFlags(row[3])), now, now);
     }
     for (const course of officialCourses) {
+      const packageSeed = findSeedPackageForCode(packageSeeds, course.code);
       insertCourse.run(
         course.academicYear || "",
         course.programCode || "",
@@ -720,12 +905,270 @@ function seedInitialData(force = false) {
         course.status || "İncelemede",
         course.instructor || "",
         course.source || "seed",
+        packageSeed ? JSON.stringify(storedPackageFromSeed(packageSeed, course)) : "{}",
         now,
         now,
       );
     }
     db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("seeded_from_current_data", "1");
     audit(force ? "seed.force" : "seed.initial", "system", { programs: programRows.length, courses: officialCourses.length });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function courseFromRow(row) {
+  return repairObject({
+    id: row.id,
+    academicYear: row.academic_year || "",
+    programCode: row.program_code || "",
+    department: row.department || "",
+    programName: row.program_name || "",
+    level: displayLevel(row.level || ""),
+    code: row.code || "",
+    name: row.name || "",
+    type: row.type || "",
+    credit: Number(row.credit || 0),
+    ects: Number(row.ects || 0),
+    theory: Number(row.theory || 0),
+    practice: Number(row.practice || 0),
+    term: row.term || "",
+    status: row.status || "",
+    instructor: row.instructor || "",
+    source: row.source || "",
+    hasPackage: Boolean(row.package_json && row.package_json !== "{}"),
+    updatedAt: row.updated_at || "",
+  });
+}
+
+function normalizeDbCourseForList(course = {}) {
+  const repaired = repairObject(course);
+  if (!isYbsDoctorateCourse(repaired)) return repaired;
+  const code = repairText(repaired.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (ybsSpecializationCodes.has(code)) {
+    if (code !== "YBS901") return null;
+    return { ...repaired, code: "YBS9XX", name: "UZMANLIK ALAN DERSİ", ects: 5 };
+  }
+  if (ybsThesisCodes.has(code)) {
+    if (code !== "YBS911") return null;
+    return { ...repaired, code: "YBS91X", name: "DOKTORA TEZİ", ects: 24 };
+  }
+  if (code === "YBS909") return null;
+  if (code === "YBS918") return null;
+  return repaired;
+}
+
+function courseListKey(course) {
+  return [
+    normalizeScope(course.department || ""),
+    normalizeScope(course.programName || ""),
+    levelKey(course.level || ""),
+    repairText(course.code || "").trim().toLocaleUpperCase("tr-TR"),
+  ].join("|");
+}
+
+function courseMatchesFilters(course, filters = {}) {
+  if (filters.department && normalizeScope(course.department) !== normalizeScope(filters.department)) return false;
+  if (filters.programName && normalizeScope(course.programName) !== normalizeScope(filters.programName)) return false;
+  if (filters.level && levelKey(course.level) !== levelKey(filters.level)) return false;
+  if (filters.instructor) {
+    const instructor = normalizePerson(course.instructor || "");
+    const requested = normalizePerson(filters.instructor);
+    if (!instructor || !requested || !(instructor === requested || instructor.includes(requested) || requested.includes(instructor))) return false;
+  }
+  if (filters.q) {
+    const query = repairText(filters.q).toLocaleLowerCase("tr-TR");
+    const haystack = [
+      course.code,
+      course.name,
+      course.department,
+      course.programName,
+      course.level,
+      course.instructor,
+      course.status,
+    ].join(" ").toLocaleLowerCase("tr-TR");
+    if (!haystack.includes(query)) return false;
+  }
+  return true;
+}
+
+function dbCourseList(filters = {}) {
+  const rows = db.prepare(`
+    SELECT id, academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, source, package_json, updated_at
+    FROM courses
+    ORDER BY department, program_name, level, code, id
+  `).all();
+  const byKey = new Map();
+  for (const row of rows) {
+    const normalized = normalizeDbCourseForList(courseFromRow(row));
+    if (!normalized) continue;
+    const key = courseListKey(normalized);
+    const current = byKey.get(key);
+    const canonicalExact = row.code === normalized.code;
+    const currentScore = current ? Number(current.code === normalized.code) + Number(current.hasPackage) : -1;
+    const nextScore = Number(canonicalExact) + Number(normalized.hasPackage);
+    if (!current || nextScore >= currentScore) byKey.set(key, normalized);
+  }
+  return [...byKey.values()]
+    .filter((course) => courseMatchesFilters(course, filters))
+    .sort((left, right) =>
+      `${left.department}|${left.programName}|${left.level}|${left.code}`.localeCompare(
+        `${right.department}|${right.programName}|${right.level}|${right.code}`,
+        "tr-TR",
+      )
+    );
+}
+
+function findExactCourseRow(course) {
+  const rows = db.prepare(`
+    SELECT * FROM courses
+    WHERE code = ?
+    ORDER BY updated_at DESC, id DESC
+  `).all(course.code || "");
+  return rows.find((row) =>
+    normalizeScope(row.department) === normalizeScope(course.department || "") &&
+    normalizeScope(row.program_name) === normalizeScope(course.programName || "") &&
+    levelKey(row.level) === levelKey(course.level || "")
+  );
+}
+
+function syncCourseCatalogFromSeed() {
+  const { officialCourses } = readInitialSeedData();
+  if (!officialCourses.length) return;
+  const packageSeeds = readCoursePackageSeeds();
+  const now = new Date().toISOString();
+  const insertCourse = db.prepare(`
+    INSERT INTO courses(academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, source, package_json, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const updateCourse = db.prepare(`
+    UPDATE courses
+    SET academic_year = ?,
+        program_code = ?,
+        name = ?,
+        type = ?,
+        credit = ?,
+        ects = ?,
+        theory = ?,
+        practice = ?,
+        term = ?,
+        status = CASE WHEN COALESCE(TRIM(status), '') = '' THEN ? ELSE status END,
+        instructor = CASE WHEN COALESCE(TRIM(instructor), '') = '' THEN ? ELSE instructor END,
+        source = CASE WHEN COALESCE(TRIM(source), '') = '' THEN ? ELSE source END,
+        package_json = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
+  let inserted = 0;
+  let updated = 0;
+  db.exec("BEGIN");
+  try {
+    for (const course of officialCourses) {
+      const packageSeed = findSeedPackageForCode(packageSeeds, course.code);
+      const seededPackageJson = packageSeed ? JSON.stringify(storedPackageFromSeed(packageSeed, course)) : "{}";
+      const existing = findExactCourseRow(course);
+      if (!existing) {
+        insertCourse.run(
+          course.academicYear || "",
+          course.programCode || "",
+          course.department || "",
+          course.programName || "",
+          course.level || "Tezli Yüksek Lisans",
+          course.code || "",
+          course.name || "",
+          course.type || "",
+          Number(course.credit || 0),
+          Number(course.ects || 0),
+          Number(course.theory || 0),
+          Number(course.practice || 0),
+          course.term || "",
+          course.status || "İncelemede",
+          course.instructor || "",
+          course.source || "course_catalog_sync",
+          seededPackageJson,
+          now,
+          now,
+        );
+        inserted += 1;
+        continue;
+      }
+      const currentPackageJson = existing.package_json || "{}";
+      const nextPackageJson =
+        seededPackageJson !== "{}" && (currentPackageJson === "{}" || isStaticSeedPackage(currentPackageJson))
+          ? seededPackageJson
+          : currentPackageJson;
+      updateCourse.run(
+        course.academicYear || existing.academic_year || "",
+        course.programCode || existing.program_code || "",
+        course.name || existing.name || "",
+        course.type || existing.type || "",
+        Number(course.credit ?? existing.credit ?? 0),
+        Number(course.ects ?? existing.ects ?? 0),
+        Number(course.theory ?? existing.theory ?? 0),
+        Number(course.practice ?? existing.practice ?? 0),
+        course.term || existing.term || "",
+        course.status || "İncelemede",
+        course.instructor || "",
+        course.source || "course_catalog_sync",
+        nextPackageJson,
+        now,
+        existing.id,
+      );
+      updated += 1;
+    }
+    for (const packageSeed of packageSeeds) {
+      const packageCourse = {
+        academicYear: "2026-2027",
+        programCode: "",
+        department: ybsDefaultDepartment,
+        programName: ybsDefaultProgramName,
+        level: displayLevel(packageSeed.level),
+        code: packageSeed.code,
+        name: packageSeedCourseName(packageSeed),
+        type: "Zorunlu",
+        credit: Number(packageSeed.credit || 0),
+        ects: Number(packageSeed.ects || 0),
+        theory: Number(packageSeed.theory || 0),
+        practice: Number(packageSeed.practice || 0),
+        term: "Güz",
+        status: "Public",
+        instructor: packageSeed.instructor || "",
+        source: "course_package_seed",
+      };
+      if (findExactCourseRow(packageCourse)) continue;
+      insertCourse.run(
+        packageCourse.academicYear,
+        packageCourse.programCode,
+        packageCourse.department,
+        packageCourse.programName,
+        packageCourse.level,
+        packageCourse.code,
+        packageCourse.name,
+        packageCourse.type,
+        packageCourse.credit,
+        packageCourse.ects,
+        packageCourse.theory,
+        packageCourse.practice,
+        packageCourse.term,
+        packageCourse.status,
+        packageCourse.instructor,
+        packageCourse.source,
+        JSON.stringify(storedPackageFromSeed(packageSeed, packageCourse)),
+        now,
+        now,
+      );
+      inserted += 1;
+    }
+    db.prepare(`
+      UPDATE courses
+      SET status = 'Public', updated_at = ?
+      WHERE package_json LIKE '%"staticSeed":true%'
+        AND (status IS NULL OR TRIM(status) = '' OR status LIKE '%ncelemede%' OR status LIKE '%Atama%')
+    `).run(now);
+    db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("course_catalog_synced_at", now);
+    audit("course_catalog.sync", "system", { inserted, updated, packages: packageSeeds.length });
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
@@ -1393,6 +1836,23 @@ async function handleDbpApi(request) {
       return jsonResponse({ ok: true, draft });
     }
 
+    if (pathname === "/api/dbp/courses" && request.method === "GET") {
+      const filters = {
+        q: url.searchParams.get("q") || "",
+        department: url.searchParams.get("department") || "",
+        programName: url.searchParams.get("programName") || "",
+        level: url.searchParams.get("level") || "",
+        instructor: url.searchParams.get("instructor") || "",
+      };
+      const limit = Math.max(0, Number(url.searchParams.get("limit") || 0));
+      const courses = dbCourseList(filters);
+      return jsonResponse({
+        courses: limit ? courses.slice(0, limit) : courses,
+        total: courses.length,
+        source: "database",
+      });
+    }
+
     if (pathname === "/api/dbp/course-management" && request.method === "POST") {
       const auth = requireDbpSession(request, { write: true });
       if (auth.error) return auth.error;
@@ -1402,7 +1862,7 @@ async function handleDbpApi(request) {
       const body = await readJsonBody(request);
       const actor = auth.session.username || auth.session.name || "dbp-user";
       const now = new Date().toISOString();
-      const level = normalizeLevel(body.level);
+      const level = displayLevel(body.level);
       const code = repairText(String(body.code || "")).trim();
       if (!code || !body.department || !body.programName) {
         return jsonResponse({ message: "Ders kodu, ABD/ASD ve program zorunludur." }, { status: 400 });
@@ -1462,7 +1922,7 @@ async function handleDbpApi(request) {
       upsertSessionUser(auth.session);
       const body = await readJsonBody(request);
       const now = new Date().toISOString();
-      const level = normalizeLevel(body.level);
+      const level = displayLevel(body.level);
       const actor = auth.session?.username || auth.session?.name || "dbp-user";
       if (!body.code || !body.name) {
         return jsonResponse({ message: "Ders kodu ve adi zorunludur." }, { status: 400 });
@@ -1651,6 +2111,7 @@ async function handleDbpApi(request) {
     if (pathname === "/api/dbp/admin/seed" && request.method === "POST") {
       await writeBackup(actor);
       seedInitialData(true);
+      syncCourseCatalogFromSeed();
       seedProgramProfiles(true);
       ensureTestProgramData();
       return jsonResponse({ ok: true, summary: await adminSummary() });

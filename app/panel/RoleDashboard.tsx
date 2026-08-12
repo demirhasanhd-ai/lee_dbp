@@ -29,11 +29,8 @@ import { ReviewQueue } from "./ReviewQueue";
 import { DatabaseAdminPanel } from "./DatabaseAdminPanel";
 import { ThemeToggle } from "../ThemeToggle";
 import { LEE_PROGRAMS, type LeeProgram } from "../../lib/data/programs";
-import {
-  OFFICIAL_COURSES,
-  isDepartmentPoolCourse,
-  officialCoursesForProgram,
-} from "../../lib/data/courseCatalog";
+import { isDepartmentPoolCourse } from "../../lib/data/courseCatalog";
+import { fetchDbpCourses, type DbpCourse } from "../../lib/data/dbpCourses";
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { getEEnstituUrl } from "../../lib/eEnstituUrl";
@@ -113,7 +110,7 @@ const shortLevel = (level: Course["level"]) =>
     : level === "Tezli Yüksek Lisans"
       ? "Tezli YL"
       : "Doktora";
-const normalizeText = (value: string) => value.toLocaleLowerCase("tr-TR");
+const normalizeText = (value: string) => repairText(value).toLocaleLowerCase("tr-TR");
 const normalizePersonName = (value: string) =>
   normalizeText(value)
     .replace(/\b(prof|doç|doc|dr|öğr|ogr|üyesi|uyesi|gör|gor)\b\.?/g, " ")
@@ -150,6 +147,21 @@ const demoCoursesForProgram = (program: LeeProgram): Course[] => {
     },
   ]);
 };
+const panelLevel = (level: string): Course["level"] => {
+  const text = repairText(level);
+  if (text.includes("Tezsiz")) return levels[0];
+  if (text.includes("Tezli")) return levels[1];
+  return levels[2];
+};
+const toPanelCourse = (course: DbpCourse): Course => ({
+  code: course.code,
+  name: course.name,
+  status: course.status,
+  instructor: course.instructor,
+  level: panelLevel(course.level),
+  department: course.department,
+  programName: course.programName,
+});
 const roleByUsername: Record<string, DbpRole> = {
   "demo.akademisyen": "akademisyen",
   "demo.abd.baskani": "abd_asd_baskani",
@@ -225,6 +237,8 @@ export function RoleDashboard() {
   const [showProgramCreate, setShowProgramCreate] = useState(false);
   const [assignCourse, setAssignCourse] = useState<Course | null>(null);
   const [assignmentMessage, setAssignmentMessage] = useState("");
+  const [catalogCourses, setCatalogCourses] = useState<Course[]>([]);
+  const [catalogMessage, setCatalogMessage] = useState("");
   const eEnstituDbpUrl = `${getEEnstituUrl()}/#/modul/ders-bilgi-paketi`;
   useEffect(() => {
     let cancelled = false;
@@ -313,11 +327,28 @@ export function RoleDashboard() {
       cancelled = true;
     };
   }, [eEnstituDbpUrl]);
+  const refreshCatalogCourses = async () => {
+    if (!session) return;
+    try {
+      const data = await fetchDbpCourses({}, {
+        headers: { "X-DBP-Session": dbpSessionHeader(session) },
+      });
+      setCatalogCourses(data.courses.map(toPanelCourse));
+      setCatalogMessage("");
+    } catch {
+      setCatalogMessage("Ders kataloğu veritabanından alınamadı; geçici demo liste gösteriliyor.");
+      setCatalogCourses([]);
+    }
+  };
+  useEffect(() => {
+    void refreshCatalogCourses();
+  }, [session?.username, session?.role, session?.department]);
   if (!session)
     return <main className="panel-loading">Panel hazırlanıyor…</main>;
   const modules = roleAccess[session.role] ?? DEFAULT_ROLE_ACCESS[session.role];
   const save = () => {
     setSaved(true);
+    void refreshCatalogCourses();
     setTimeout(() => setSaved(false), 1800);
   };
   const toggleRoleAccess = (role: DbpRole, module: DbpModule, checked: boolean) => {
@@ -368,7 +399,12 @@ export function RoleDashboard() {
     selectedProgram ?? (!isCentralRole && scopedPrograms.length === 1 ? scopedPrograms[0] : null);
   const scopedDefaultProgram = activeProfileProgram;
   const sessionPersonName = normalizePersonName(session.name);
-  const assignedOfficialCourses: Course[] = OFFICIAL_COURSES
+  const coursesForProgram = (program: LeeProgram) =>
+    catalogCourses.filter((course) =>
+      normalizeText(course.department || "") === normalizeText(program.department) &&
+      normalizeText(course.programName || "") === normalizeText(program.programName),
+    );
+  const assignedOfficialCourses: Course[] = catalogCourses
     .filter((course) => {
       const instructorName = normalizePersonName(course.instructor ?? "");
       return Boolean(
@@ -378,28 +414,10 @@ export function RoleDashboard() {
           instructorName.includes(sessionPersonName) ||
           sessionPersonName.includes(instructorName)),
       );
-    })
-    .map((course) => ({
-      code: course.code,
-      name: course.name,
-      status: course.status,
-      instructor: course.instructor,
-      level: course.level,
-      department: course.department,
-      programName: course.programName,
-    }));
+    });
   const departmentPoolCourses: Course[] = scopedPrograms.flatMap((program) =>
-    officialCoursesForProgram(program)
+    coursesForProgram(program)
       .filter(isDepartmentPoolCourse)
-      .map((course) => ({
-        code: course.code,
-        name: course.name,
-        status: course.status,
-        instructor: course.instructor,
-        level: course.level,
-        department: course.department,
-        programName: course.programName,
-      })),
   );
   const myAssignedCourses = assignedOfficialCourses.length > 0
     ? assignedOfficialCourses
@@ -428,15 +446,15 @@ export function RoleDashboard() {
         courses: myAssignedCourses,
       }];
   const activeCourses = selectedProgram
-    ? officialCoursesForProgram(selectedProgram).length
-      ? officialCoursesForProgram(selectedProgram)
+    ? coursesForProgram(selectedProgram).length
+      ? coursesForProgram(selectedProgram)
       : demoCoursesForProgram(selectedProgram)
     : courses;
   const reviewCourses = selectedProgram
     ? activeCourses
     : session.role === "abd_asd_baskani"
-      ? scopedPrograms.flatMap((program) => officialCoursesForProgram(program))
-      : courses;
+      ? scopedPrograms.flatMap((program) => coursesForProgram(program))
+      : catalogCourses.length ? catalogCourses : courses;
   const pickerDepartments = [...new Set(scopedPrograms.map((program) => program.mainDepartment))];
   const changeModule = (module: DbpModule) => {
     setActive(module);
@@ -585,11 +603,13 @@ export function RoleDashboard() {
             Değişiklikler kaydedildi.
           </div>
         )}
+        {catalogMessage && <div className="database-message">{catalogMessage}</div>}
         <CourseCreateDialog
           open={showCourseCreate}
           onClose={() => setShowCourseCreate(false)}
           onCreated={save}
           session={session}
+          catalogCourses={catalogCourses}
         />
         {showProgramCreate && (
           <div className="course-dialog-backdrop" role="presentation">

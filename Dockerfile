@@ -23,6 +23,8 @@ COPY package.json ./package.json
 COPY server.mjs ./server.mjs
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/local-preview/program-data-local.js ./seed/program-data-local.js
+COPY --from=build /app/seed/course-packages.json ./seed/course-packages.json
+COPY seed/program-profiles.json ./seed/program-profiles.json
 COPY scripts/generate_public_course_pdfs.py ./scripts/generate_public_course_pdfs.py
 COPY data/courses ./data/courses
 COPY public/fonts/noto-sans ./public/fonts/noto-sans

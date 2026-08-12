@@ -250,6 +250,15 @@ test("generic course pages also render both workload and ECTS totals", async () 
   assert.doesNotMatch(html, /data-quality-check=|YÃ–KAK Ders Bilgi Paketi Kontrol Tablosu/u);
 });
 
+test("generic YBS package pages render the contribution matrix on the web page", async () => {
+  const response = await render({}, "/dbp/katalog?ders=YBS711&ad=Y%C3%96NET%C4%B0M%20B%C4%B0L%C4%B0%C5%9E%C4%B0M%20S%C4%B0STEMLER%C4%B0&t=3&u=0&kredi=3&akts=6&duzey=Tezsiz%20Y%C3%BCksek%20Lisans");
+  const html = await response.text();
+
+  assert.match(html, /YBS711/);
+  assert.match(html, /contribution-table/u);
+  assert.equal((html.match(/<th>D(?:<!-- -->)?ÖÇ\d<\/th>|<th>D(?:<!-- -->)?Ã–Ã‡\d<\/th>/g) ?? []).length, 5);
+});
+
 test("server-renders the public home page", async () => {
   const response = await render();
   assert.equal(response.status, 200);

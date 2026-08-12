@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
 import { DemoCoursePackage } from "./DemoCoursePackage";
 import { PackageNavigation } from "./PackageNavigation";
+import { CatalogCourseList } from "./CatalogCourseList";
 import { PublicSiteHeader } from "../PublicSiteHeader";
 import { dbpPath } from "../../lib/dbpPath";
 import { coursePdfHref } from "../../lib/coursePdf";
 import { OFFICIAL_COURSES } from "../../lib/data/courseCatalog";
 import type { OfficialCourse } from "../../lib/data/officialCourses";
+import type { DbpCourse } from "../../lib/data/dbpCourses";
 
 export const metadata: Metadata = { title: "Ders Kataloğu" };
 
 type CatalogSearchParams = {
   q?: string;
-  donem?: string;
   ders?: string;
   ad?: string;
   tur?: string;
@@ -27,21 +28,25 @@ type CatalogSearchParams = {
   duzey?: string;
 };
 
-function courseHref(course: OfficialCourse) {
-  const params = new URLSearchParams({
-    ders: course.code,
-    ad: course.name,
-    tur: course.type,
-    t: String(course.theory),
-    u: String(course.practice),
-    kredi: String(course.credit),
-    akts: String(course.ects),
-    bolum: course.department,
-    program: course.programName,
-    duzey: course.level,
-  });
-  if (course.instructor) params.set("ogretimElemani", course.instructor);
-  return dbpPath(`/katalog?${params.toString()}`);
+function toDbpCourse(course: OfficialCourse): DbpCourse {
+  return {
+    academicYear: course.academicYear,
+    programCode: course.programCode,
+    department: course.department,
+    programName: course.programName,
+    level: course.level,
+    code: course.code,
+    name: course.name,
+    type: course.type,
+    credit: course.credit,
+    ects: course.ects,
+    theory: course.theory,
+    practice: course.practice,
+    term: course.term,
+    status: course.status,
+    instructor: course.instructor,
+    source: course.source,
+  };
 }
 
 export default async function Catalog({ searchParams }: { searchParams: Promise<CatalogSearchParams> }) {
@@ -95,7 +100,7 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
       course.instructor,
     ].some((value) => value?.toLocaleLowerCase("tr-TR").includes(normalizedQuery));
   });
-  const visibleCourses = matchingCourses.slice(0, 120);
+  const initialCourses = matchingCourses.slice(0, 120).map(toDbpCourse);
 
   return (
     <main className="dbp-page catalog-page">
@@ -104,7 +109,7 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
         <div>
           <span className="eyebrow">RESMİ MÜFREDAT</span>
           <h1>Ders Kataloğu</h1>
-          <p>2026–2027 akademik yılına ait lisansüstü dersleri; ders kodu, program, ana bilim dalı veya öğretim elemanına göre arayın.</p>
+          <p>2026-2027 akademik yılına ait lisansüstü dersleri; ders kodu, program, ana bilim dalı veya öğretim elemanına göre arayın.</p>
         </div>
         <div className="catalog-total"><strong>{OFFICIAL_COURSES.length.toLocaleString("tr-TR")}</strong><span>ders kaydı</span></div>
       </section>
@@ -116,34 +121,7 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
             <button type="submit">Ara</button>
           </div>
         </form>
-        <div className="catalog-result-heading">
-          <div><b>{matchingCourses.length.toLocaleString("tr-TR")} sonuç</b>{query && <span>“{query}” araması</span>}</div>
-          {matchingCourses.length > visibleCourses.length && <small>İlk {visibleCourses.length} kayıt gösteriliyor. Aramayı daraltabilirsiniz.</small>}
-        </div>
-        <section className="catalog-list">
-          {visibleCourses.map((course, index) => (
-            <a className="course-row" href={courseHref(course)} key={`${course.department}-${course.level}-${course.code}-${index}`}>
-              <span className="course-code">{course.code}</span>
-              <div>
-                <h3>{course.name}</h3>
-                <p>{course.programName} · {course.level}</p>
-                <small>{course.department}</small>
-              </div>
-              <div className="catalog-course-meta">
-                <span>{course.type}</span>
-                <b>{course.ects} AKTS</b>
-                <small>{course.term}</small>
-              </div>
-            </a>
-          ))}
-          {visibleCourses.length === 0 && (
-            <div className="catalog-empty">
-              <h2>Eşleşen ders bulunamadı</h2>
-              <p>Farklı bir ders kodu, program adı veya öğretim elemanı yazarak yeniden deneyin.</p>
-              <a href={dbpPath("/katalog")}>Tüm dersleri göster</a>
-            </div>
-          )}
-        </section>
+        <CatalogCourseList query={query} initialCourses={initialCourses} initialTotal={matchingCourses.length} />
       </section>
     </main>
   );

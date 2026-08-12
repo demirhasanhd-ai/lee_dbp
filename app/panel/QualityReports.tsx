@@ -1,7 +1,9 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, ClipboardList, UserRoundCheck } from "lucide-react";
+import { useEffect, useState } from "react";
 import { OFFICIAL_COURSES } from "../../lib/data/courseCatalog";
+import { fetchDbpCourses } from "../../lib/data/dbpCourses";
 import { LEE_PROGRAMS } from "../../lib/data/programs";
 import {
   COURSE_LEARNING_OUTCOME_COUNT,
@@ -21,8 +23,22 @@ const scoreClass = (score: number) =>
   score >= 85 ? "good" : score >= 65 ? "watch" : "risk";
 
 export function QualityReports() {
-  const programSummaries = summarizeQualityByProgram(OFFICIAL_COURSES, LEE_PROGRAMS);
-  const instructorSummaries = summarizeQualityByInstructor(OFFICIAL_COURSES);
+  const [courses, setCourses] = useState(OFFICIAL_COURSES);
+  useEffect(() => {
+    let cancelled = false;
+    fetchDbpCourses()
+      .then((data) => {
+        if (!cancelled) setCourses(data.courses as unknown as typeof OFFICIAL_COURSES);
+      })
+      .catch(() => {
+        if (!cancelled) setCourses(OFFICIAL_COURSES);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const programSummaries = summarizeQualityByProgram(courses, LEE_PROGRAMS);
+  const instructorSummaries = summarizeQualityByInstructor(courses);
   const activePrograms = programSummaries.filter((summary) => summary.courseCount > 0);
   const criticalTotal = activePrograms.reduce((total, item) => total + item.criticalCount, 0);
   const warningTotal = activePrograms.reduce((total, item) => total + item.warningCount, 0);
@@ -54,7 +70,7 @@ export function QualityReports() {
       <div className="quality-stats">
         <article>
           <ClipboardList size={18} />
-          <b>{OFFICIAL_COURSES.length.toLocaleString("tr-TR")}</b>
+          <b>{courses.length.toLocaleString("tr-TR")}</b>
           <span>Ders kaydı</span>
         </article>
         <article>

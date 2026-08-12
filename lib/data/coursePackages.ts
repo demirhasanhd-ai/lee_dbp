@@ -547,7 +547,7 @@ const ybsThesis: CoursePackage = {
   ],
 };
 
-const coursePackages = [
+export const COURSE_PACKAGES: CoursePackage[] = [
   ...ybsAcademicCoursePackages,
   ybs919,
   ybs921,
@@ -564,7 +564,7 @@ const coursePackages = [
 }));
 
 export const getCoursePackage = (code: string) =>
-  coursePackages.find((coursePackage) => {
+  COURSE_PACKAGES.find((coursePackage) => {
     const normalizedCode = code.trim().toLocaleUpperCase("tr-TR");
     return coursePackage.code === normalizedCode || coursePackage.aliases?.includes(normalizedCode);
   });

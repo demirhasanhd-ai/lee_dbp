@@ -7,9 +7,16 @@ import {
   MAIN_DEPARTMENTS,
   type ProgramLevel,
 } from "../../lib/data/programs";
-import { officialCoursesForProgram } from "../../lib/data/courseCatalog";
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
+
+type CatalogCourseOption = {
+  department?: string;
+  programName?: string;
+  level: string;
+  code: string;
+  name: string;
+};
 
 const instructors = [
   "Dr. Öğr. Üyesi Ayşe Yılmaz",
@@ -19,16 +26,21 @@ const instructors = [
   "Dr. Öğr. Üyesi Fatma Demir",
 ];
 
+const sameText = (left = "", right = "") =>
+  left.trim().toLocaleLowerCase("tr-TR") === right.trim().toLocaleLowerCase("tr-TR");
+
 export function CourseCreateDialog({
   open,
   onClose,
   onCreated,
   session,
+  catalogCourses = [],
 }: {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
   session: { username: string; name: string; role: string; department: string };
+  catalogCourses?: CatalogCourseOption[];
 }) {
   const [mode, setMode] = useState<"create" | "assign">("create");
   const [main, setMain] = useState(MAIN_DEPARTMENTS[0]);
@@ -54,7 +66,11 @@ export function CourseCreateDialog({
   );
 
   const curriculumCourses = selectedProgram
-    ? officialCoursesForProgram(selectedProgram).filter((course) => course.level === level)
+    ? catalogCourses.filter((course) =>
+        sameText(course.department, selectedProgram.department) &&
+        sameText(course.programName, selectedProgram.programName) &&
+        sameText(course.level, level),
+      )
     : [];
 
   if (!open) return null;

@@ -120,7 +120,7 @@ export function DemoCoursePackage({
   }, [department, displayCode, level, name, programName, staticPackage]);
   const displayName = repairText(saved?.name ?? name);
   const displayType = repairText(type);
-  const coursePackage = saved?.package ?? staticPackage;
+  const coursePackage = saved?.package ?? staticPackage ?? createDefaultCoursePackage({ code: displayCode, name: displayName, theory, practice, credit, ects, instructor, sdgs, level });
   const displayInstructor = coursePackage?.instructor ?? (instructor ? repairText(instructor) : "");
   const showInstructor = shouldShowInstructor(displayName, displayInstructor);
   const packageOutcomes = coursePackage?.outcomes ?? outcomes;
@@ -227,6 +227,66 @@ function toPublicCoursePackage(stored: Record<string, unknown>, fallback: Course
     contributionMatrix: matrixRecord.length ? matrixRecord.slice(0, outcomes.length).map((row, index) => ({ outcome: `DÖÇ${index + 1}`, values: Array.from({ length: 11 }, (_, pc) => Number(row[`P${pc + 1}`] ?? 0)) })) : fallback?.contributionMatrix ?? [],
   };
   return { package: coursePackage, name: identity?.name || fallbackName };
+}
+
+function createDefaultCoursePackage({
+  code,
+  name,
+  theory,
+  practice,
+  credit,
+  ects,
+  instructor,
+  sdgs,
+  level,
+}: {
+  code: string;
+  name: string;
+  theory?: string;
+  practice?: string;
+  credit?: string;
+  ects?: string;
+  instructor?: string;
+  sdgs?: string;
+  level?: string;
+}): CoursePackage {
+  const displayedEcts = Number(ects || 0);
+  const displayedTheory = Number(theory || 0);
+  const displayedPractice = Number(practice || 0);
+  return {
+    code,
+    language: "Türkçe",
+    level: level || "Lisansüstü",
+    teachingMode: "Yüz Yüze",
+    instructor: instructor ? repairText(instructor) : undefined,
+    theory: displayedTheory,
+    practice: displayedPractice,
+    credit: Number(credit || displayedTheory + displayedPractice),
+    ects: displayedEcts,
+    purpose: `${name} kapsamında öğrencinin bilimsel araştırma, uygulama ve değerlendirme becerilerini geliştirmesi amaçlanır.`,
+    content: "Ders alanına ilişkin kuramsal çerçeve, güncel yaklaşımlar, uygulama örnekleri, veri toplama, analiz ve akademik raporlama konuları işlenir.",
+    methods: "Anlatım, tartışma, örnek olay incelemesi, uygulama, bireysel çalışma ve proje sunumu.",
+    prerequisites: "Yok",
+    resources: "Bilimsel araştırma yöntemleri temel kaynakları, güncel akademik makaleler ve ilgili etik yönergeler.",
+    sdgs: sdgs?.split(",").map((item) => item.trim()).filter(Boolean) ?? [],
+    outcomes,
+    weeklyTopics: weeks,
+    assessments: [{ name: "Ara Sınav", count: 1, weight: 40 }, { name: "Yarıyıl Sonu Sınavı", count: 1, weight: 60 }],
+    workloads: createDefaultWorkloads(displayedEcts, displayedTheory, displayedPractice),
+    contributionMatrix: createDefaultContributionMatrix(outcomes),
+  };
+}
+
+function createDefaultContributionMatrix(items: string[]) {
+  return items.map((_, outcomeIndex) => ({
+    outcome: `DÖÇ${outcomeIndex + 1}`,
+    values: Array.from({ length: 11 }, (_, pcIndex) => {
+      if (outcomeIndex === pcIndex % Math.max(items.length, 1)) return 4;
+      if ((outcomeIndex + pcIndex) % 4 === 0) return 2;
+      if ((outcomeIndex + pcIndex) % 3 === 0) return 1;
+      return 0;
+    }),
+  }));
 }
 
 function createDefaultWorkloads(ects: number, theory: number, practice: number) {

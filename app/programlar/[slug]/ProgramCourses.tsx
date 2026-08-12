@@ -12,6 +12,7 @@ import { PublicProgramSidebar } from "../../PublicProgramSidebar";
 import { dbpPath } from "../../../lib/dbpPath";
 import { coursePdfHref } from "../../../lib/coursePdf";
 import { DEFAULT_COURSE_SDG_IDS } from "../../../lib/sdgGoals";
+import { fetchDbpCourses, type DbpCourse } from "../../../lib/data/dbpCourses";
 import { fetchProgramProfile, getProgramProfile } from "../../../lib/data/programProfiles";
 import type { ProgramTyycRow } from "../../../lib/data/programProfiles";
 
@@ -44,6 +45,22 @@ type PublicProgramMenuItem = {
   courses: PublicCourse[];
 };
 type ViewState = { programKey: string; level: string; tab: "profile" | "courses" };
+
+function toPublicCourse(course: DbpCourse): PublicCourse {
+  return {
+    code: course.code,
+    name: course.name,
+    level: course.level,
+    term: repairText(course.term || "") === "Bahar" ? "Bahar" : "GÃ¼z",
+    type: repairText(course.type || "") === "Seçmeli" ? "SeÃ§meli" : "Zorunlu",
+    theory: Number(course.theory || 0),
+    practice: Number(course.practice || 0),
+    ects: Number(course.ects || 0),
+    credit: Number(course.credit ?? course.theory + course.practice),
+    instructor: course.instructor,
+    programCode: course.programCode,
+  };
+}
 
 const columns = ["9%", "22%", "10%", "10%", "17%", "4%", "4%", "5%", "10%", "9%"];
 const mergedProcessCourseCodes = new Set(["YBS9XX", "YBS91X", "DAN902", "YBS910", "YBS917"]);
@@ -184,10 +201,31 @@ function ProgramProfile({ department, programName, activeLevel }: { department: 
 }
 
 export function ProgramCourses({ visibilityKey, department, programName, levels, courses, programItems }: Props) {
-  const allProgramItems = useMemo(
+  const fallbackProgramItems = useMemo(
     () => (programItems?.length ? programItems : [{ visibilityKey, programName, levels, courses }]),
     [courses, levels, programItems, programName, visibilityKey],
   );
+  const [databaseProgramItems, setDatabaseProgramItems] = useState<PublicProgramMenuItem[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetchDbpCourses({ department })
+      .then((data) => {
+        if (cancelled) return;
+        setDatabaseProgramItems(fallbackProgramItems.map((item) => ({
+          ...item,
+          courses: data.courses
+            .filter((course) => repairText(course.programName) === repairText(item.programName))
+            .map(toPublicCourse),
+        })));
+      })
+      .catch(() => {
+        if (!cancelled) setDatabaseProgramItems(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [department, fallbackProgramItems]);
+  const allProgramItems = databaseProgramItems ?? fallbackProgramItems;
   const [activeView, setActiveView] = useState<ViewState>({ programKey: visibilityKey, level: levels[0], tab: "profile" });
   const visibleLevelsForItems = (visibility: Record<string, boolean>) =>
     Object.fromEntries(allProgramItems.map((item) => [

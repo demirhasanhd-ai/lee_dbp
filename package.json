@@ -1,6 +1,6 @@
 {
   "name": "lee_dbp",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "private": true,
   "engines": {
     "node": ">=24.0.0"
@@ -9,7 +9,7 @@
     "dev": "node scripts/start-local-dbp.mjs",
     "dev:vinext": "vinext dev",
     "start:local": "node scripts/start-local-dbp.mjs",
-    "build": "vinext build",
+    "build": "vinext build && node scripts/export_course_packages_seed.mjs",
     "start": "node server.mjs",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
