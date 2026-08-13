@@ -323,7 +323,13 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
     return dbpPath(`/katalog?${query.toString()}`);
   };
   const pdfUrl = (course: PublicCourse) =>
-    coursePdfHref({ code: course.code, name: repairText(course.name), program: repairText(activeProgram.programName) }) ?? "#";
+    coursePdfHref({
+      code: course.code,
+      name: repairText(course.name),
+      program: repairText(activeProgram.programName),
+      department: repairText(department),
+      level: course.level,
+    }) ?? "#";
   const changeView = (next: ViewState) => {
     setActiveView(next);
     const url = new URL(window.location.href);

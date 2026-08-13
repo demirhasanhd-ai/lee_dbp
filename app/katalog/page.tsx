@@ -58,6 +58,8 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
       code: params.ders,
       name: courseName,
       program: params.program,
+      department: params.bolum,
+      level: params.duzey,
       explicitHref: params.pdf,
     });
     return (

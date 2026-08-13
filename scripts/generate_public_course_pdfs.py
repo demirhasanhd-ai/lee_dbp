@@ -28,6 +28,7 @@ SDG_ASSET_DIR = ROOT / "public" / "sdg"
 SDG_LOGO = SDG_ASSET_DIR / "sdg_logo.png"
 COURSE_DATA = Path(os.environ.get("DBP_COURSE_DATA_FILE", str(ROOT / "data" / "courses" / "2026-2027.json")))
 OFFICIAL_COURSES = Path(os.environ.get("DBP_OFFICIAL_COURSES_FILE", str(ROOT / "lib" / "data" / "officialCourses.ts")))
+PUBLIC_DBP_URL = "https://e-enstitu.osmaniye.edu.tr/dbp/"
 
 RED = colors.HexColor("#cf142b")
 DARK = colors.HexColor("#281d20")
@@ -201,6 +202,7 @@ styles.add(ParagraphStyle(name="SectionTR", fontName="Noto-Bold", fontSize=10.5,
 styles.add(ParagraphStyle(name="SmallTR", fontName="Noto", fontSize=6.6, leading=8.3, textColor=MUTED))
 styles.add(ParagraphStyle(name="CenterTR", parent=styles["CellTR"], alignment=TA_CENTER))
 styles.add(ParagraphStyle(name="LeftTR", parent=styles["CellTR"], alignment=TA_LEFT))
+styles.add(ParagraphStyle(name="SdgCardTitle", fontName="Noto-Bold", fontSize=7.2, leading=8.8, textColor=DARK))
 
 
 def para(text: object, style: str = "CellTR") -> Paragraph:
@@ -233,6 +235,49 @@ def sdg_title():
             ]),
         ),
     ]
+
+
+def sdg_card(goal_id: str) -> Table:
+    title = f"{goal_id} \u00b7 {SDG_GOALS.get(goal_id, f'SKA {goal_id}')}"
+    card = Table(
+        [
+            [pdf_image(SDG_ASSET_DIR / f"sdg_{goal_id}.png", 25 * mm)],
+            [Paragraph(html.escape(repair_text(title)), styles["SdgCardTitle"])],
+        ],
+        colWidths=[32 * mm],
+        hAlign="LEFT",
+    )
+    card.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.45, LINE),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (0, 0), (0, 0), "CENTER"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (0, 0), 4),
+        ("BOTTOMPADDING", (0, 0), (0, 0), 3),
+        ("TOPPADDING", (0, 1), (0, 1), 5),
+        ("BOTTOMPADDING", (0, 1), (0, 1), 6),
+    ]))
+    return card
+
+
+def sdg_grid(goal_ids: list[str]) -> Table:
+    columns = 3
+    rows: list[list[object]] = []
+    for index in range(0, len(goal_ids), columns):
+        cards: list[object] = [sdg_card(goal_id) for goal_id in goal_ids[index:index + columns]]
+        cards.extend([""] * (columns - len(cards)))
+        rows.append(cards)
+    grid = Table(rows, colWidths=[36 * mm, 36 * mm, 36 * mm], hAlign="LEFT")
+    grid.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    return grid
 
 
 def split_header_title(course: Course) -> tuple[str, str]:
@@ -291,7 +336,21 @@ def header_footer(course: Course):
         canvas.setFillColor(MUTED)
         canvas.setFont("Noto", 5.8)
         canvas.drawString(15 * mm, 9.5 * mm, "OKÜ LEE Ders Bilgi Paketi - Kamuya açık, ABD/ASD başkanı onaylı nüsha")
-        canvas.drawRightString(width - 15 * mm, 9.5 * mm, "dbp.osmaniye.edu.tr")
+        footer_url_x = width - 15 * mm
+        footer_url_y = 9.5 * mm
+        footer_url_width = canvas.stringWidth(PUBLIC_DBP_URL, "Noto", 5.8)
+        canvas.drawRightString(footer_url_x, footer_url_y, PUBLIC_DBP_URL)
+        canvas.linkURL(
+            PUBLIC_DBP_URL,
+            (
+                footer_url_x - footer_url_width - 1 * mm,
+                footer_url_y - 1 * mm,
+                footer_url_x + 0.5 * mm,
+                footer_url_y + 3 * mm,
+            ),
+            relative=0,
+            thickness=0,
+        )
         canvas.restoreState()
 
     return draw
@@ -336,7 +395,150 @@ def table(
     return item
 
 
-def story(course: Course):
+def key_value_table(data: list[list[object]], widths: list[float]) -> Table:
+    converted = []
+    for row in data:
+        converted.append([
+            para(row[0], "CellBold"),
+            para(row[1], "CellTR"),
+            para(row[2], "CellBold"),
+            para(row[3], "CellTR"),
+        ])
+    item = Table(converted, colWidths=widths, hAlign="LEFT")
+    item.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, -1), PALE_2),
+        ("BACKGROUND", (2, 0), (2, -1), PALE_2),
+        ("TEXTCOLOR", (0, 0), (0, -1), RED),
+        ("TEXTCOLOR", (2, 0), (2, -1), RED),
+        ("GRID", (0, 0), (-1, -1), 0.45, LINE),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4.2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4.2),
+    ]))
+    return item
+
+
+def number(value: object, fallback: float = 0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def format_number(value: object) -> str:
+    numeric = number(value)
+    return str(int(numeric)) if numeric.is_integer() else f"{numeric:g}"
+
+
+def clean_items(values: object) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    return [repair_text(item).strip() for item in values if repair_text(item).strip()]
+
+
+def package_weekly_topics(package_data: dict) -> list[str]:
+    weekly = package_data.get("weeklyTopics")
+    if isinstance(weekly, dict):
+        return [
+            repair_text(value).strip()
+            for _, value in sorted(weekly.items(), key=lambda item: number(item[0]))
+            if repair_text(value).strip()
+        ]
+    return clean_items(weekly)
+
+
+def package_assessment_rows(package_data: dict) -> list[list[object]]:
+    rows = []
+    for item in package_data.get("assessments") or []:
+        if not isinstance(item, dict):
+            continue
+        name = repair_text(item.get("name") or "").strip()
+        if name:
+            rows.append([name, item.get("count", ""), item.get("weight", "")])
+    return rows
+
+
+def package_workload_rows(package_data: dict) -> tuple[list[list[object]], float]:
+    workloads = package_data.get("workloads")
+    rows: list[list[object]] = []
+    if isinstance(workloads, dict):
+        iterable = workloads.items()
+    elif isinstance(workloads, list):
+        iterable = ((item.get("name", ""), item) for item in workloads if isinstance(item, dict))
+    else:
+        iterable = []
+    total = 0.0
+    for name, item in iterable:
+        if not isinstance(item, dict):
+            continue
+        count = number(item.get("count"))
+        hours = number(item.get("hours"))
+        row_total = number(item.get("total"), count * hours)
+        total += row_total
+        rows.append([repair_text(name), count, hours, row_total])
+    return rows, total
+
+
+def package_matrix_rows(package_data: dict, outcome_count: int) -> list[list[object]]:
+    matrix = package_data.get("contributionMatrix")
+    if not isinstance(matrix, list):
+        return []
+    rows = []
+    for index, item in enumerate(matrix[:outcome_count]):
+        if not isinstance(item, dict):
+            continue
+        rows.append([f"ÖÇ{index + 1}"] + [str(int(number(item.get(f"P{pc}")))) for pc in range(1, 12)])
+    return rows
+
+
+def resolve_bloom_level(outcome: str) -> str:
+    normalized = repair_text(outcome).lower()
+    if re.search(r"tasarlar|geliştirir|oluşturur|üretir|yapılandırır|dönüştürür|modeller|bütünleştirir|sentezler|önerir|hazırlar", normalized):
+        return "Yaratma"
+    if re.search(r"değerlendirir|eleştirir|savunur|gerekçelendirir|yorumlar|seçer|tartışır|önceliklendirir|kanıtlar", normalized):
+        return "Değerlendirme"
+    if re.search(r"analiz eder|çözümler|karşılaştırır|ayırt eder|inceler", normalized):
+        return "Analiz"
+    if re.search(r"uygular|kullanır|yürütür|hesaplar|planlar|raporlar|sunar|yanıtlar|belirler|görselleştirir|düzenler|ayırır|haritalar|test eder|yapar", normalized):
+        return "Uygulama"
+    if re.search(r"açıklar|özetler|sınıflandırır|ilişkilendirir", normalized):
+        return "Anlama"
+    return "Değerlendirme"
+
+
+def load_package_payload(path: str) -> dict | None:
+    if not path:
+        return None
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else None
+
+
+def course_from_payload(course: Course, payload: dict | None) -> Course:
+    if not payload:
+        return course
+    row = payload.get("course") if isinstance(payload.get("course"), dict) else {}
+    package_data = payload.get("package") if isinstance(payload.get("package"), dict) else {}
+    identity = package_data.get("identity") if isinstance(package_data.get("identity"), dict) else {}
+    details = package_data.get("detailFields") if isinstance(package_data.get("detailFields"), dict) else {}
+    return Course(
+        code=repair_text(identity.get("code") or row.get("code") or course.code),
+        name=repair_text(identity.get("name") or row.get("name") or course.name),
+        department=repair_text(row.get("department") or course.department),
+        program=repair_text(row.get("programName") or course.program),
+        level=repair_text(identity.get("level") or row.get("level") or course.level),
+        term=repair_text(row.get("term") or course.term),
+        course_type=repair_text(identity.get("type") or row.get("type") or course.course_type),
+        credit=int(number(identity.get("credit"), number(row.get("credit"), course.credit))),
+        theory=int(number(identity.get("theory"), number(row.get("theory"), course.theory))),
+        practice=int(number(identity.get("practice"), number(row.get("practice"), course.practice))),
+        ects=int(number(package_data.get("ects"), number(row.get("ects"), course.ects))),
+        instructor=repair_text(details.get("instructors") or row.get("instructor") or course.instructor),
+    )
+
+
+def story(course: Course, package_data: dict | None = None):
     course_load = max(course.theory + course.practice, 1)
     outcomes = [
         f"{course.name} kapsamındaki temel kavramları açıklar.",
@@ -362,19 +564,34 @@ def story(course: Course):
         "Genel tekrar",
         "Yarıyıl sonu değerlendirmesi",
     ]
+    details = package_data.get("detailFields") if isinstance(package_data, dict) and isinstance(package_data.get("detailFields"), dict) else {}
+    identity = package_data.get("identity") if isinstance(package_data, dict) and isinstance(package_data.get("identity"), dict) else {}
+    package_outcomes = clean_items(package_data.get("outcomes")) if isinstance(package_data, dict) else []
+    package_weeks = package_weekly_topics(package_data) if isinstance(package_data, dict) else []
+    if package_outcomes:
+        outcomes = package_outcomes
+    if package_weeks:
+        weeks = package_weeks
+    language = repair_text(identity.get("language") or "Türkçe")
+    purpose = repair_text(details.get("purpose") or f"{course.name} kapsamında öğrencinin bilimsel araştırma, uygulama ve değerlendirme becerilerini geliştirmesi amaçlanır.")
+    content = repair_text(details.get("content") or f"{course.program} alanına ilişkin kuramsal çerçeve, güncel yaklaşımlar, uygulama örnekleri, veri toplama, analiz ve akademik raporlama konuları işlenir.")
+    methods = repair_text(details.get("methods") or "")
+    prerequisites = repair_text(details.get("prerequisites") or "")
+    resources = repair_text(details.get("resources") or "")
+    teaching_mode = repair_text(identity.get("teachingMode") or "Yüz Yüze")
 
     body = [para("ONAYLANMIŞ DERS BİLGİ PAKETİ", "SmallTR"), Spacer(1, 2 * mm)]
+    body += section("Ders Genel Bilgileri")
     body.append(
-        table(
+        key_value_table(
             [
-                ["Dersin Kodu", "Dersin Adı", "Program", "Dönem"],
-                [course.code, course.name, course.level, course.term],
-                ["Ders Türü", "Öğrenim Dili", "T + U", "Kredi / AKTS"],
-                [course.course_type, "Türkçe", f"{course.theory} + {course.practice}", f"{course.credit} / {course.ects}"],
+                ["Dersin Adı", course.name, "Ders Kodu", course.code],
+                ["Öğrenim Dili", language, "Ders Düzeyi", course.level],
+                ["Öğretim Şekli", teaching_mode, "Ders Türü", course.course_type],
+                ["Teorik", format_number(course.theory), "Uygulama", format_number(course.practice)],
+                ["Kredi", format_number(course.credit), "AKTS", format_number(course.ects)],
             ],
-            [25 * mm, 79 * mm, 44 * mm, 27 * mm],
-            header_rows=1,
-            header_row_indices={0, 2},
+            [35 * mm, 60 * mm, 35 * mm, 45 * mm],
         )
     )
     if course.instructor and not is_generic_instructor_course(course):
@@ -382,58 +599,63 @@ def story(course: Course):
         body.append(table([["Ünvanı, Adı Soyadı"], [course.instructor]], [175 * mm]))
 
     body += section("Dersin Amacı")
-    body.append(para(f"{course.name} kapsamında öğrencinin bilimsel araştırma, uygulama ve değerlendirme becerilerini geliştirmesi amaçlanır.", "BodyTR"))
+    body.append(para(purpose, "BodyTR"))
     body += section("Dersin İçeriği")
-    body.append(para(f"{course.program} alanına ilişkin kuramsal çerçeve, güncel yaklaşımlar, uygulama örnekleri, veri toplama, analiz ve akademik raporlama konuları işlenir.", "BodyTR"))
-    body += section("Dersin Öğrenme Çıktıları")
-    body.append(table([["Kod", "Öğrenme Çıktısı"]] + [[f"ÖÇ{i + 1}", item] for i, item in enumerate(outcomes)], [18 * mm, 157 * mm]))
+    body.append(para(content, "BodyTR"))
+    if methods or resources or prerequisites:
+        body += section("Öğretim Yöntemleri ve Kaynaklar")
+        body.append(table([["Öğretim Yöntemleri", "Ön Koşul", "Kaynaklar"], [methods, prerequisites or "Yok", resources]], [58 * mm, 32 * mm, 85 * mm]))
+    body += section("Dersin Öğrenme Çıktıları ve Bloom Düzeyleri")
+    body.append(table(
+        [["Kod", "Öğrenme Çıktısı", "Bloom Düzeyi"]] + [[f"ÖÇ{i + 1}", item, resolve_bloom_level(item)] for i, item in enumerate(outcomes)],
+        [18 * mm, 122 * mm, 35 * mm],
+    ))
     body += section("15 Haftalık Ders Planı")
     body.append(table([["Hafta", "Konu"]] + [[str(i + 1), week] for i, week in enumerate(weeks)], [18 * mm, 157 * mm], alignments={0: "CENTER"}))
     body += section("Değerlendirme Sistemi")
-    body.append(table([["Değerlendirme Türü", "Adet", "Katkı (%)"], ["Ara Sınav", "1", "40"], ["Yarıyıl Sonu Sınavı", "1", "60"], ["Toplam", "2", "100"]], [110 * mm, 30 * mm, 35 * mm], alignments={1: "CENTER", 2: "CENTER"}))
+    assessment_rows = package_assessment_rows(package_data) if isinstance(package_data, dict) else []
+    if not assessment_rows:
+        assessment_rows = [["Ara Sınav", "1", "40"], ["Yarıyıl Sonu Sınavı", "1", "60"], ["Toplam", "2", "100"]]
+    body.append(table([["Değerlendirme Türü", "Adet", "Katkı (%)"]] + assessment_rows, [110 * mm, 30 * mm, 35 * mm], alignments={1: "CENTER", 2: "CENTER"}))
     body += section("AKTS / İş Yükü Tablosu")
+    workload_rows, workload_total = package_workload_rows(package_data) if isinstance(package_data, dict) else ([], 0)
+    if workload_rows:
+        workload_table_rows = [["Etkinlik", "Adet", "Süre (Saat)", "Toplam İş Yükü"]] + [
+            [name, format_number(count), format_number(hours), format_number(total)]
+            for name, count, hours, total in workload_rows
+        ] + [["Toplam İş Yükü", "", "", format_number(workload_total)], ["AKTS Kredisi", "", "", f"{course.ects} AKTS"]]
+    else:
+        workload_table_rows = [
+            ["Etkinlik", "Adet", "Süre (Saat)", "Toplam İş Yükü"],
+            ["Ders Süresi", "15", str(course_load), str(15 * course_load)],
+            ["Sınıf Dışı Çalışma", "15", "6", "90"],
+            ["Sınav Hazırlıkları", "2", "22.5", "45"],
+            ["Toplam İş Yükü", "", "", f"{15 * course_load + 135} saat"],
+            ["AKTS Kredisi", "", "", f"{course.ects} AKTS"],
+        ]
     body.append(
         table(
-            [
-                ["Etkinlik", "Adet", "Süre (Saat)", "Toplam İş Yükü"],
-                ["Ders Süresi", "15", str(course_load), str(15 * course_load)],
-                ["Sınıf Dışı Çalışma", "15", "6", "90"],
-                ["Sınav Hazırlıkları", "2", "22.5", "45"],
-                ["Toplam İş Yükü", "", "", f"{15 * course_load + 135} saat"],
-                ["AKTS Kredisi", "", "", f"{course.ects} AKTS"],
-            ],
+            workload_table_rows,
             [91 * mm, 24 * mm, 30 * mm, 30 * mm],
             alignments={1: "CENTER", 2: "CENTER", 3: "CENTER"},
         )
     )
     body += section("ÖÇ / PÇ Katkı Matrisi")
-    matrix = [["ÖÇ/PÇ"] + [f"P{i}" for i in range(1, 13)]]
-    matrix += [[f"ÖÇ{i + 1}"] + [str((i + j) % 5) for j in range(12)] for i in range(5)]
-    body.append(table(matrix, [19 * mm] + [13 * mm] * 12, alignments={i: "CENTER" for i in range(13)}))
+    matrix = [["ÖÇ/PÇ"] + [f"PÇ{i}" for i in range(1, 12)]]
+    matrix_rows = package_matrix_rows(package_data, len(outcomes)) if isinstance(package_data, dict) else []
+    if not matrix_rows:
+        matrix_rows = [[f"ÖÇ{i + 1}"] + [str((i + j) % 5) for j in range(11)] for i in range(5)]
+    matrix += matrix_rows
+    body.append(table(matrix, [19 * mm] + [14.18 * mm] * 11, alignments={i: "CENTER" for i in range(12)}))
     body += sdg_title()
-    body.append(
-        table(
-            [["Görsel", "No", "Amaç", "Dersle İlişkisi"]]
-            + [
-                [
-                    pdf_image(SDG_ASSET_DIR / f"sdg_{goal_id}.png", 15 * mm),
-                    goal_id,
-                    SDG_GOALS[goal_id],
-                    {
-                        "4": "Araştırma okuryazarlığı ve yaşam boyu öğrenme becerilerini geliştirir.",
-                        "9": "Bilimsel yöntemle yenilikçi çözüm üretme kapasitesini destekler.",
-                        "17": "Disiplinler arası araştırma ve akademik iş birliğini teşvik eder.",
-                    }[goal_id],
-                ]
-                for goal_id in DEFAULT_SDG_IDS
-            ],
-            [20 * mm, 12 * mm, 52 * mm, 91 * mm],
-        )
-    )
+    sdg_ids = clean_items(package_data.get("sdgs")) if isinstance(package_data, dict) else []
+    if not sdg_ids:
+        sdg_ids = list(DEFAULT_SDG_IDS)
+    body.append(sdg_grid(sdg_ids))
     return body
 
 
-def make_pdf(course: Course, path: Path):
+def make_pdf(course: Course, path: Path, package_data: dict | None = None):
     path.parent.mkdir(parents=True, exist_ok=True)
     doc = BaseDocTemplate(
         str(path),
@@ -447,7 +669,7 @@ def make_pdf(course: Course, path: Path):
     )
     frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="normal")
     doc.addPageTemplates(PageTemplate(id="course", frames=frame, onPage=header_footer(course)))
-    doc.build(story(course))
+    doc.build(story(course, package_data))
 
 
 def pdf_name(course: Course) -> str:
@@ -495,6 +717,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--program", default="", help="Program adı")
     parser.add_argument("--name", default="", help="Ders adı")
     parser.add_argument("--output", default="", help="Tek ders PDF hedef yolu")
+    parser.add_argument("--department", default="", help="ABD / ASD adı")
+    parser.add_argument("--level", default="", help="Program düzeyi")
+    parser.add_argument("--package-json", default="", help="Veritabanından gelen ders paketi JSON dosyası")
+    parser.add_argument("--all-static", action="store_true", help="Tüm dersler için statik PDF havuzunu yeniden üretir.")
     return parser.parse_args()
 
 
@@ -509,9 +735,16 @@ if __name__ == "__main__":
             course = synthetic_course(args.code, args.name)
         if course is None:
             raise SystemExit(f"Ders bulunamadı: {args.code}")
+        payload = load_package_payload(args.package_json)
+        package_data = payload.get("package") if isinstance(payload, dict) and isinstance(payload.get("package"), dict) else None
+        course = course_from_payload(course, payload)
         target = Path(args.output)
-        make_pdf(course, target)
+        make_pdf(course, target, package_data)
         print(target)
+        raise SystemExit(0)
+
+    if not args.all_static:
+        print("Statik PDF toplu üretimi devre dışı. Dinamik üretim için --single kullanın.")
         raise SystemExit(0)
 
     for course in courses:

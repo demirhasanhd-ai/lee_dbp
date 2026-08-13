@@ -227,6 +227,57 @@ function coursePackageFallback(url, { code, name, program }) {
   return `${pathname}?${params.toString()}`;
 }
 
+function coursePackagePdfPayload({ code, name, department, programName, level }) {
+  const rows = courseRowsForIdentity({ code, department, programName, level });
+  const row = rows.find((item) =>
+    ["YayÄ±mlandÄ±", "YayÄ±nlandÄ±", "Public"].includes(repairText(item.status || "")) &&
+    item.package_json && item.package_json !== "{}"
+  ) || rows.find((item) => item.package_json && item.package_json !== "{}");
+  if (!row) {
+    const seedPackage = findSeedPackageForCode(readCoursePackageSeeds(), code);
+    if (!seedPackage) return null;
+    const courseRow = rows[0] || {};
+    const course = {
+      academicYear: courseRow.academic_year || "2026-2027",
+      department: courseRow.department || department || "",
+      programName: courseRow.program_name || programName || "",
+      level: displayLevel(courseRow.level || level || seedPackage.level || ""),
+      code: courseRow.code || code,
+      name: courseRow.name || name || packageSeedCourseName(seedPackage),
+      type: courseRow.type || "SeÃ§meli",
+      credit: Number(courseRow.credit ?? seedPackage.credit ?? 0),
+      ects: Number(courseRow.ects ?? seedPackage.ects ?? 0),
+      theory: Number(courseRow.theory ?? seedPackage.theory ?? 0),
+      practice: Number(courseRow.practice ?? seedPackage.practice ?? 0),
+      term: courseRow.term || "",
+      status: courseRow.status || "Public",
+      instructor: courseRow.instructor || seedPackage.instructor || "",
+      updatedAt: courseRow.updated_at || "",
+    };
+    return repairObject({ course, package: storedPackageFromSeed(seedPackage, course) });
+  }
+  return repairObject({
+    course: {
+      academicYear: row.academic_year || "2026-2027",
+      department: row.department || department || "",
+      programName: row.program_name || programName || "",
+      level: displayLevel(row.level || level || ""),
+      code: row.code || code,
+      name: row.name || name,
+      type: row.type || "",
+      credit: Number(row.credit || 0),
+      ects: Number(row.ects || 0),
+      theory: Number(row.theory || 0),
+      practice: Number(row.practice || 0),
+      term: row.term || "",
+      status: row.status || "",
+      instructor: row.instructor || "",
+      updatedAt: row.updated_at || "",
+    },
+    package: JSON.parse(row.package_json || "{}"),
+  });
+}
+
 function pythonCandidates() {
   if (process.env.DBP_PYTHON) return [process.env.DBP_PYTHON];
   return process.platform === "win32" ? ["python", "py"] : ["python3", "python"];
@@ -269,6 +320,8 @@ async function coursePdfResponse(request, url) {
   const code = url.searchParams.get("code")?.trim() || "";
   const name = url.searchParams.get("name")?.trim() || "";
   const program = url.searchParams.get("program")?.trim() || "";
+  const department = (url.searchParams.get("department") || url.searchParams.get("bolum") || "").trim();
+  const level = (url.searchParams.get("level") || url.searchParams.get("duzey") || "").trim();
   if (!code || !name) {
     return jsonResponse({ message: "PDF için ders kodu ve ders adi gerekir." }, { status: 400 });
   }
@@ -278,11 +331,21 @@ async function coursePdfResponse(request, url) {
 
   await mkdir(pdfCacheDir, { recursive: true });
   const target = pdfCacheFile({ code, program, name });
+  const packagePayload = coursePackagePdfPayload({ code, name, department, programName: program, level });
+  const packageJsonPath = packagePayload ? `${target}.json` : "";
   let info = null;
-  try {
-    info = await stat(target);
-  } catch {
+  if (!packagePayload) {
     try {
+      info = await stat(target);
+    } catch {
+      info = null;
+    }
+  }
+  if (!info) {
+    try {
+      if (packagePayload) {
+        await writeFile(packageJsonPath, JSON.stringify(packagePayload), "utf8");
+      }
       await runPdfGenerator([
         pdfScript,
         "--single",
@@ -293,6 +356,9 @@ async function coursePdfResponse(request, url) {
         "--output",
         target,
         ...(program ? ["--program", program] : []),
+        ...(department ? ["--department", department] : []),
+        ...(level ? ["--level", level] : []),
+        ...(packageJsonPath ? ["--package-json", packageJsonPath] : []),
       ]);
       info = await stat(target);
     } catch (error) {

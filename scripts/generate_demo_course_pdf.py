@@ -26,6 +26,7 @@ FONT_DIR = ROOT / "public" / "fonts" / "noto-sans"
 LOGO = ROOT / "public" / "oku-logo.png"
 SDG_ASSET_DIR = ROOT / "public" / "sdg"
 SDG_LOGO = SDG_ASSET_DIR / "sdg_logo.png"
+PUBLIC_DBP_URL = "https://e-enstitu.osmaniye.edu.tr/dbp/"
 
 RED = colors.HexColor("#cf142b")
 DARK = colors.HexColor("#281d20")
@@ -125,7 +126,21 @@ def header_footer(canvas, doc):
     canvas.setFillColor(MUTED)
     canvas.setFont("Noto", 5.8)
     canvas.drawString(15 * mm, 9.5 * mm, "OKÜ LEE Ders Bilgi Paketi • Kamuya açık, ABD/ASD başkanı onaylı nüsha")
-    canvas.drawRightString(width - 15 * mm, 9.5 * mm, "dbp.osmaniye.edu.tr")
+    footer_url_x = width - 15 * mm
+    footer_url_y = 9.5 * mm
+    footer_url_width = canvas.stringWidth(PUBLIC_DBP_URL, "Noto", 5.8)
+    canvas.drawRightString(footer_url_x, footer_url_y, PUBLIC_DBP_URL)
+    canvas.linkURL(
+        PUBLIC_DBP_URL,
+        (
+            footer_url_x - footer_url_width - 1 * mm,
+            footer_url_y - 1 * mm,
+            footer_url_x + 0.5 * mm,
+            footer_url_y + 3 * mm,
+        ),
+        relative=0,
+        thickness=0,
+    )
     canvas.restoreState()
 
 
