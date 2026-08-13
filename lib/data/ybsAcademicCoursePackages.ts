@@ -17,7 +17,7 @@ const checklistItems = [
   "DÖÇ–ölçme/değerlendirme uyumu sağlandı mı?",
   "AKTS–iş yükü tutarlı mı?",
   "DÖÇ–PÇ matrisi gerçekçi mi?",
-  "0–5 katkı düzeyleri doğru kullanılmış mı?",
+  "1–5 katkı düzeyleri doğru kullanılmış mı?",
   "Yapay yüksek ilişkilendirme var mı?",
   "Tekrarlı kodlar doğru tekilleştirildi mi?",
   "Kaynakta olmayan bilgi kesin bilgi gibi yazılmış mı?",
@@ -79,7 +79,7 @@ export const buildSemanticContributionMatrix = (
       const contextualEvidence = Number(purposeEvidence) + Number(contentEvidence) + Number(weeklyEvidence) + Number(sdgEvidence);
 
       // DÖÇ'te doğrudan işaret yoksa, dersin diğer bileşenleri ancak dolaylı (1) katkı kanıtlayabilir.
-      if (directEvidence === 0) return contextualEvidence >= 2 ? 1 : 0;
+      if (directEvidence === 0) return 1;
       // Doğrudan DÖÇ kanıtı ile amaç, içerik, haftalık plan ve SKA desteği birlikte 2-5 aralığını belirler.
       return Math.min(5, directEvidence + Math.min(2, contextualEvidence));
     });

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import {
   Bell,
+  BarChart3,
   BookOpen,
   ChevronDown,
   ExternalLink,
@@ -50,6 +51,7 @@ export default function Home() {
               <a className="return-link" href={eEnstituUrl()}>e-Enstitü</a>
               <a className="active" href={dbpPath("/")}><House size={18}/>Ana Sayfa</a>
               <a href="#programlar"><LibraryBig size={18}/>Ders Kataloğu</a>
+              <a href={dbpPath("/kalite")}><BarChart3 size={18}/>Kalite Göstergeleri</a>
               <a href="#duyurular"><Bell size={18}/>Duyurular</a>
               <a href="#yardim"><CircleHelp size={18}/>Yardım</a>
             </nav>

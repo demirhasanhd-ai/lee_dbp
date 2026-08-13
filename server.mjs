@@ -639,6 +639,7 @@ async function ensureDb() {
   `);
   seedInitialData();
   syncCourseCatalogFromSeed();
+  migrateYbsDoctorateContributionScale();
   seedProgramProfiles();
   ensureTestProgramData();
   seedDefaultRoleAccess();
@@ -1234,6 +1235,138 @@ function syncCourseCatalogFromSeed() {
     db.exec("ROLLBACK");
     throw error;
   }
+}
+
+function qualityStats(filters = {}) {
+  const courses = dbCourseList(filters);
+  const instructorLoads = new Map();
+  const termCounts = {};
+  const typeCounts = {};
+  const warnings = [];
+  let completePackages = 0;
+  let packagedCourses = 0;
+  let workloadConsistent = 0;
+  let matrixComplete = 0;
+  let assignedCourses = 0;
+  let processCourses = 0;
+  let processResponsible = 0;
+
+  for (const course of courses) {
+    const row = findExactCourseRow(course);
+    const hasPackage = Boolean(row?.package_json && row.package_json !== "{}");
+    const packageData = parseJsonField(row?.package_json, {});
+    if (hasPackage) packagedCourses += 1;
+    const details = packageData.detailFields || {};
+    const outcomes = Array.isArray(packageData.outcomes) ? packageData.outcomes : [];
+    const weeks = packageData.weeklyTopics && typeof packageData.weeklyTopics === "object"
+      ? Object.values(packageData.weeklyTopics).filter((value) => String(value || "").trim())
+      : [];
+    const matrix = Array.isArray(packageData.contributionMatrix) ? packageData.contributionMatrix : [];
+    const workloads = packageData.workloads && typeof packageData.workloads === "object"
+      ? Object.values(packageData.workloads)
+      : [];
+    const workloadTotal = workloads.reduce((sum, item) => sum + Number(item?.count || 0) * Number(item?.hours || 0), 0);
+    const ects = Number(packageData.ects ?? course.ects ?? 0);
+    const matrixOk = outcomes.length > 0 && matrix.length >= outcomes.length && matrix.slice(0, outcomes.length).every((matrixRow) =>
+      Array.from({ length: 11 }, (_, index) => Number(matrixRow?.[`P${index + 1}`])).every((value) => value >= 1 && value <= 5)
+    );
+    const workloadOk = ects > 0 && Math.abs(workloadTotal - ects * 30) < 0.01;
+    const packageOk = Boolean(
+      String(details.purpose || "").trim() && String(details.content || "").trim() &&
+      String(details.methods || "").trim() && String(details.resources || "").trim() &&
+      outcomes.length > 0 && weeks.length === 15 && matrixOk && workloadOk &&
+      Array.isArray(packageData.assessments) && packageData.assessments.length > 0
+    );
+    if (hasPackage && matrixOk) matrixComplete += 1;
+    if (hasPackage && workloadOk) workloadConsistent += 1;
+    if (packageOk) completePackages += 1;
+
+    const normalizedName = normalizeScope(course.name || "");
+    const processCourse = ["danismanlik", "uzmanlik alan", "tez calismasi", "doktora tezi", "doktora yeterlik", "seminer"]
+      .some((label) => normalizedName.includes(label));
+    const responsible = repairText(course.instructor || details.instructors || "").trim();
+    if (processCourse) {
+      processCourses += 1;
+      if (responsible) processResponsible += 1;
+    }
+    if (responsible) assignedCourses += 1;
+    if (responsible && normalizeScope(responsible) !== "ogrencinin danismani") {
+      const current = instructorLoads.get(responsible) || { instructor: responsible, courses: 0, theory: 0, practice: 0, ects: 0 };
+      current.courses += 1;
+      current.theory += Number(course.theory || 0);
+      current.practice += Number(course.practice || 0);
+      current.ects += Number(course.ects || 0);
+      instructorLoads.set(responsible, current);
+    }
+    const term = repairText(course.term || "Belirtilmemiş");
+    const type = repairText(course.type || "Belirtilmemiş");
+    termCounts[term] = (termCounts[term] || 0) + 1;
+    typeCounts[type] = (typeCounts[type] || 0) + 1;
+    const issues = [];
+    if (!responsible) issues.push("Sorumlu atanmamış");
+    if (!hasPackage) {
+      issues.push("Ders bilgi paketi oluşturulmamış");
+    } else {
+      if (weeks.length !== 15) issues.push("15 haftalık plan eksik");
+      if (!workloadOk) issues.push("AKTS–iş yükü tutarsız");
+      if (!matrixOk) issues.push("DÖÇ–PÇ matrisi eksik");
+      if (!packageOk && !issues.length) issues.push("Paket içeriği eksik");
+    }
+    if (issues.length) warnings.push({ code: course.code, name: course.name, issues });
+  }
+  return {
+    scope: filters,
+    generatedAt: new Date().toISOString(),
+    totalCourses: courses.length,
+    packagedCourses,
+    completePackages,
+    workloadConsistent,
+    matrixComplete,
+    assignedCourses,
+    processCourses,
+    processResponsible,
+    termCounts,
+    typeCounts,
+    instructorLoads: [...instructorLoads.values()].sort((a, b) => b.courses - a.courses || a.instructor.localeCompare(b.instructor, "tr-TR")),
+    warnings,
+  };
+}
+
+function migrateYbsDoctorateContributionScale() {
+  const rows = db.prepare(`
+    SELECT id, department, level, package_json FROM courses
+    WHERE package_json <> '{}'
+  `).all().filter((row) =>
+    normalizeScope(row.department || "").includes("yonetim bilisim sistemleri") &&
+    levelKey(row.level || "") === "doktora"
+  );
+  const update = db.prepare("UPDATE courses SET package_json = ?, updated_at = ? WHERE id = ?");
+  const now = new Date().toISOString();
+  let changed = 0;
+  for (const row of rows) {
+    try {
+      const packageData = JSON.parse(row.package_json || "{}");
+      if (!Array.isArray(packageData.contributionMatrix)) continue;
+      let rowChanged = false;
+      packageData.contributionMatrix = packageData.contributionMatrix.map((matrixRow) => {
+        if (!matrixRow || typeof matrixRow !== "object") return matrixRow;
+        return Object.fromEntries(Object.entries(matrixRow).map(([key, value]) => {
+          if (/^P\d+$/.test(key) && Number(value) === 0) {
+            rowChanged = true;
+            return [key, 1];
+          }
+          return [key, value];
+        }));
+      });
+      if (rowChanged) {
+        update.run(JSON.stringify(packageData), now, row.id);
+        changed += 1;
+      }
+    } catch {
+      // Geçersiz paket JSON'u bu hedefli migrasyonda değiştirilmez.
+    }
+  }
+  if (changed) audit("course.matrix.scale.migrate", "system", { scope: "YBS Doktora", changed, scale: "1-5" });
 }
 
 function parseJsonField(value, fallback) {
@@ -1911,6 +2044,15 @@ async function handleDbpApi(request) {
         total: courses.length,
         source: "database",
       });
+    }
+
+    if (pathname === "/api/dbp/quality-stats" && request.method === "GET") {
+      const filters = {
+        department: url.searchParams.get("department") || "Yönetim Bilişim Sistemleri ABD",
+        programName: url.searchParams.get("programName") || "Yönetim Bilişim Sistemleri",
+        level: url.searchParams.get("level") || "Doktora",
+      };
+      return jsonResponse({ ...qualityStats(filters), source: "database" });
     }
 
     if (pathname === "/api/dbp/course-management" && request.method === "POST") {

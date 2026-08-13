@@ -34,6 +34,7 @@
 @import "./course-create-programs.css";
 @import "./course-table-proportions.css";
 @import "./course-table-fit.css";
+@import "./quality-dashboard.css";
 @import "./program-hero-removed.css";
 @import "./publish-control.css";
 @import "./quality-reports.css";
@@ -79,6 +80,11 @@
   --accent: #d24a5d;
   --border: #ead6d2;
   --success: #328b5b;
+  --chart-1: #d7192d;
+  --chart-2: #f08a24;
+  --chart-3: #2f9e6f;
+  --chart-4: #5b6ee1;
+  --chart-5: #a855b7;
   --font-sans: "Noto Sans Local", system-ui, sans-serif;
 }
 @theme inline {
@@ -93,6 +99,11 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-border: var(--border);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
   --font-sans: var(--font-sans);
 }
 * {

@@ -158,6 +158,9 @@ export function CourseBolognaEditor({
   onSave: () => void;
   onPublish: () => void;
 }) {
+  const usesOneToFiveContributionScale =
+    (course.department || "").toLocaleLowerCase("tr-TR").includes("yönetim bilişim sistemleri") &&
+    course.level.toLocaleLowerCase("tr-TR").includes("doktora");
   const [workflowStatus, setWorkflowStatus] = useState("Taslak");
   const [identity, setIdentity] = useState(() => defaultIdentity(course));
   const [detailFields, setDetailFields] = useState(defaultDetailFields);
@@ -686,7 +689,7 @@ export function CourseBolognaEditor({
       </section>
       <section className="course-form-card">
         <h3>Dersin Program Çıktılarına Katkısı</h3>
-        <p className="form-help">Her öğrenme çıktısının PÇ1-PÇ11 program çıktılarına katkısını 0-5 arasında belirtin.</p>
+        <p className="form-help">Her öğrenme çıktısının PÇ1-PÇ11 program çıktılarına katkısını {usesOneToFiveContributionScale ? "1-5" : "0-5"} arasında belirtin.</p>
         <div className="contribution-wrap">
           <table>
             <thead>
@@ -705,14 +708,14 @@ export function CourseBolognaEditor({
                       <td key={i}>
                         <select
                           aria-label={`ÖÇ${outcome + 1} P${i + 1} katkısı`}
-                          value={String(contributionMatrix[outcome]?.[key] ?? 0)}
+                          value={String(contributionMatrix[outcome]?.[key] ?? (usesOneToFiveContributionScale ? 1 : 0))}
                           onChange={(event) => setContributionMatrix((current) => {
                             const next = [...current];
                             next[outcome] = { ...(next[outcome] || {}), [key]: Number(event.target.value) };
                             return next;
                           })}
                         >
-                          <option>0</option>
+                          {!usesOneToFiveContributionScale && <option>0</option>}
                           <option>1</option>
                           <option>2</option>
                           <option>3</option>

@@ -156,7 +156,8 @@ test("every merged YBS process package keeps the program sidebar", async () => {
     assert.match(html, /Bloom Düzeyleri/u, `${codes[index]} Bloom düzeylerini göstermeli`);
     assert.equal((html.match(/<b>\d+(?:<!-- -->)?\. Hafta<\/b>/g) ?? []).length, 15, `${codes[index]} 15 aşama veya hafta içermeli`);
     assert.equal((html.match(/<th>DÖÇ\d<\/th>/g) ?? []).length, 5, `${codes[index]} 5x11 katkı matrisi içermeli`);
-    assert.match(html, /contribution-table[\s\S]*?<td>0<\/td>/u, `${codes[index]} ilişkisiz PÇ hücrelerini 0 göstermeli`);
+    assert.doesNotMatch(html, /contribution-table[\s\S]*?<td>0<\/td>/u, `${codes[index]} YBS doktora matrisinde 0 içermemeli`);
+    assert.match(html, /contribution-table[\s\S]*?<td>1<\/td>/u, `${codes[index]} en düşük katkıyı 1 göstermeli`);
     assert.match(html, /contribution-table[\s\S]*?<td>5<\/td>/u, `${codes[index]} doğrudan PÇ katkısını göstermeli`);
   }
 });
@@ -174,7 +175,8 @@ test("previous YBS doctorate academic packages keep the complete public structur
     assert.match(normalizedHtml, /<tfoot><tr><th[^>]*>[^<]+<\/th><th>180<\/th>/u);
     assert.match(normalizedHtml, /<tr><th[^>]*>AKTS<\/th><th>6<\/th>/u);
     assert.equal((html.match(/<th>DÖÇ\d<\/th>/g) ?? []).length, 5, `${codes[index]} 5x11 katkı matrisi içermeli`);
-    assert.match(html, /contribution-table[\s\S]*?<td>0<\/td>/u);
+    assert.doesNotMatch(html, /contribution-table[\s\S]*?<td>0<\/td>/u);
+    assert.match(html, /contribution-table[\s\S]*?<td>1<\/td>/u);
     assert.match(html, /contribution-table[\s\S]*?<td>5<\/td>/u);
   }
 });
@@ -195,7 +197,7 @@ test("all handoff 15 YBS courses render uniform workload totals without the inte
     assert.match(html, /Bloom Düzeyleri/u);
     assert.match(normalizedHtml, /<tfoot><tr><th[^>]*>[^<]+<\/th><th>180<\/th>/u);
     assert.match(normalizedHtml, /<tr><th[^>]*>AKTS<\/th><th>6<\/th>/u);
-    assert.match(html, /contribution-table[\s\S]*?<td>0<\/td>/u);
+    assert.doesNotMatch(html, /contribution-table[\s\S]*?<td>0<\/td>/u);
     assert.doesNotMatch(html, /data-quality-check=|YÃ–KAK Ders Bilgi Paketi Kontrol Tablosu/u);
   }
 });
@@ -216,7 +218,7 @@ test("all handoff 15-2 YBS courses render 15 weeks and uniform workload totals",
     assert.match(html, /Bloom Düzeyleri/u);
     assert.match(normalizedHtml, /<tfoot><tr><th[^>]*>[^<]+<\/th><th>180<\/th>/u);
     assert.match(normalizedHtml, /<tr><th[^>]*>AKTS<\/th><th>6<\/th>/u);
-    assert.match(html, /contribution-table[\s\S]*?<td>0<\/td>/u);
+    assert.doesNotMatch(html, /contribution-table[\s\S]*?<td>0<\/td>/u);
     assert.doesNotMatch(html, /data-quality-check=|YÃ–KAK Ders Bilgi Paketi Kontrol Tablosu/u);
   }
 });
@@ -236,7 +238,7 @@ test("all handoff 15-3 YBS courses render 15 weeks and uniform workload totals",
     assert.match(html, /Bloom Düzeyleri/u);
     assert.match(normalizedHtml, /<tfoot><tr><th[^>]*>[^<]+<\/th><th>180<\/th>/u);
     assert.match(normalizedHtml, /<tr><th[^>]*>AKTS<\/th><th>6<\/th>/u);
-    assert.match(html, /contribution-table[\s\S]*?<td>0<\/td>/u);
+    assert.doesNotMatch(html, /contribution-table[\s\S]*?<td>0<\/td>/u);
     assert.doesNotMatch(html, /data-quality-check=|YÃ–KAK Ders Bilgi Paketi Kontrol Tablosu/u);
   }
 });
