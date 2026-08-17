@@ -24,6 +24,11 @@ const YBS_THESIS_CODES = new Set([
   "YBS916",
 ]);
 
+const MAKINE_YL_ADVISORY_CODES = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
+const MAKINE_YL_SPECIALIZATION_CODES = new Set(["MMB801", "MMB802", "MMB803", "MMB804"]);
+const MAKINE_YL_SEMINAR_CODES = new Set(["MMB805", "MMB806"]);
+const MAKINE_YL_THESIS_CODES = new Set(["MMB807", "MMB808"]);
+
 const withAdvisor = (course: OfficialCourse): OfficialCourse => ({
   ...course,
   instructor: "Öğrencinin Danışmanı",
@@ -59,7 +64,33 @@ const normalizeYbsDoctorateCourse = (course: OfficialCourse): OfficialCourse | n
   return course;
 };
 
+const normalizeMakineTezliCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const isMakineTezli = course.department === "Makine Mühendisliği ABD" &&
+    course.programName === "Makine Mühendisliği" && course.level === "Tezli Yüksek Lisans";
+  if (!isMakineTezli) return course;
+  if (MAKINE_YL_ADVISORY_CODES.has(course.code)) {
+    if (course.code !== "DAN801") return null;
+    return withAdvisor({ ...course, code: "DAN8XX", name: "DANIŞMANLIK", ects: 1 });
+  }
+  if (MAKINE_YL_SPECIALIZATION_CODES.has(course.code)) {
+    if (course.code !== "MMB801") return null;
+    return withAdvisor({ ...course, code: "MMB8XX", name: "UZMANLIK ALAN DERSİ", ects: 5 });
+  }
+  if (MAKINE_YL_SEMINAR_CODES.has(course.code)) {
+    if (course.code !== "MMB806") return null;
+    return withAdvisor({ ...course, code: "MMB806", name: "SEMİNER", ects: 6 });
+  }
+  if (MAKINE_YL_THESIS_CODES.has(course.code)) {
+    if (course.code !== "MMB807") return null;
+    return withAdvisor({ ...course, code: "MMB81X", name: "TEZ ÇALIŞMASI", ects: 24 });
+  }
+  return course;
+};
+
 export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((course) => {
+  const makineCourse = normalizeMakineTezliCourse(course);
+  if (!makineCourse) return [];
+  course = makineCourse;
   const isYbsDoctorate =
     course.level === "Doktora" &&
     (course.code.startsWith("YBS") ||

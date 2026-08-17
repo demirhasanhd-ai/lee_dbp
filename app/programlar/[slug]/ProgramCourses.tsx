@@ -63,7 +63,7 @@ function toPublicCourse(course: DbpCourse): PublicCourse {
 }
 
 const columns = ["9%", "22%", "10%", "10%", "17%", "4%", "4%", "5%", "10%", "9%"];
-const mergedProcessCourseCodes = new Set(["YBS9XX", "YBS91X", "DAN902", "YBS910", "YBS917"]);
+const mergedProcessCourseCodes = new Set(["YBS9XX", "YBS91X", "DAN902", "YBS910", "YBS917", "DAN8XX", "MMB8XX", "MMB806", "MMB81X"]);
 const defaultOutcomes = [
   "Alanındaki ileri düzey bilgileri bilimsel araştırma süreçlerinde kullanır.",
   "Disiplinler arası yaklaşımla problem tanımlar ve çözüm önerileri geliştirir.",

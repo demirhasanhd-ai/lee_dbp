@@ -225,7 +225,7 @@ export function CourseBolognaEditor({
       setWorkflowStatus(status || "Taslak");
     };
 
-    const staticPackage = getCoursePackage(course.code);
+    const staticPackage = getCoursePackage(course.code, course.department, course.programName);
     if (staticPackage) applyStaticPackage(staticPackage);
     else {
       setIdentity(defaultIdentity(course));

@@ -429,6 +429,10 @@ function displayLevel(value = "") {
 
 const ybsSpecializationCodes = new Set(["YBS901", "YBS902", "YBS903", "YBS904", "YBS905", "YBS906", "YBS907", "YBS908"]);
 const ybsThesisCodes = new Set(["YBS911", "YBS912", "YBS913", "YBS914", "YBS915", "YBS916"]);
+const makineYlAdvisoryCodes = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
+const makineYlSpecializationCodes = new Set(["MMB801", "MMB802", "MMB803", "MMB804"]);
+const makineYlSeminarCodes = new Set(["MMB805", "MMB806"]);
+const makineYlThesisCodes = new Set(["MMB807", "MMB808"]);
 const ybsDefaultDepartment = "Yönetim Bilişim Sistemleri ABD";
 const ybsDefaultProgramName = "Yönetim Bilişim Sistemleri";
 
@@ -449,7 +453,39 @@ function courseCodeCandidates(code = "") {
   if (canonical === "YBS91X") for (const alias of ybsThesisCodes) candidates.add(alias);
   if (canonical === "YBS999") candidates.add("YBS909");
   if (canonical === "YBS917") candidates.add("YBS918");
+  if (canonical === "DAN8XX") for (const alias of makineYlAdvisoryCodes) candidates.add(alias);
+  if (canonical === "MMB8XX") for (const alias of makineYlSpecializationCodes) candidates.add(alias);
+  if (canonical === "MMB806") for (const alias of makineYlSeminarCodes) candidates.add(alias);
+  if (canonical === "MMB81X") for (const alias of makineYlThesisCodes) candidates.add(alias);
   return [...candidates].filter(Boolean);
+}
+
+function isMakineTezliCourse(course = {}) {
+  return levelKey(course.level) === "tezli yl" &&
+    normalizeScope(course.department || "") === normalizeScope("Makine Mühendisliği ABD") &&
+    normalizeScope(course.programName || course.program_name || "") === normalizeScope("Makine Mühendisliği");
+}
+
+function normalizeMakineTezliCourse(course = {}) {
+  if (!isMakineTezliCourse(course)) return course;
+  const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (makineYlAdvisoryCodes.has(code)) {
+    if (code !== "DAN801") return null;
+    return { ...course, code: "DAN8XX", name: "DANIŞMANLIK", ects: 1, instructor: "Öğrencinin Danışmanı" };
+  }
+  if (makineYlSpecializationCodes.has(code)) {
+    if (code !== "MMB801") return null;
+    return { ...course, code: "MMB8XX", name: "UZMANLIK ALAN DERSİ", ects: 5, instructor: "Öğrencinin Danışmanı" };
+  }
+  if (makineYlSeminarCodes.has(code)) {
+    if (code !== "MMB806") return null;
+    return { ...course, code: "MMB806", name: "SEMİNER", ects: 6, instructor: "Öğrencinin Danışmanı" };
+  }
+  if (makineYlThesisCodes.has(code)) {
+    if (code !== "MMB807") return null;
+    return { ...course, code: "MMB81X", name: "TEZ ÇALIŞMASI", ects: 24, instructor: "Öğrencinin Danışmanı" };
+  }
+  return course;
 }
 
 function isYbsDoctorateCourse(course = {}) {
@@ -462,6 +498,9 @@ function isYbsDoctorateCourse(course = {}) {
 
 function normalizeSeedCourse(course = {}) {
   const repaired = repairObject(course);
+  const makineCourse = normalizeMakineTezliCourse(repaired);
+  if (!makineCourse) return null;
+  if (makineCourse !== repaired) return makineCourse;
   if (!isYbsDoctorateCourse(repaired)) return repaired;
   const code = repairText(repaired.code || "").trim().toLocaleUpperCase("tr-TR");
   if (code === "YBS925") return { ...repaired, instructor: "Doç. Dr. Emre YAKUT", status: "İncelemede" };
@@ -554,7 +593,7 @@ function canEditCoursePackage(session, body, rows) {
 
   if (session.role === "akademisyen") return assignedToUser;
   if (session.role === "abd_asd_baskani") {
-    const trustedMergedPoolCodes = new Set(["YBS9XX", "YBS91X"]);
+    const trustedMergedPoolCodes = new Set(["YBS9XX", "YBS91X", "DAN8XX", "MMB8XX", "MMB806", "MMB81X"]);
     const poolCourse = rows.some(isDepartmentPoolCourseRecord) ||
       (trustedMergedPoolCodes.has(body.code) && isDepartmentPoolCourseRecord(body));
     return assignedToUser || (departmentMatches && poolCourse);
@@ -949,6 +988,8 @@ function storedPackageFromSeed(coursePackage, course = {}) {
     contributionMatrix: contributionRecord(coursePackage.contributionMatrix),
     sdgs: coursePackage.sdgs || [],
     ects: Number(coursePackage.ects || 0),
+    qualityChecks: coursePackage.qualityChecks || [],
+    publicQualityChecklist: Boolean(coursePackage.publicQualityChecklist),
   };
 }
 
@@ -960,10 +1001,12 @@ function isStaticSeedPackage(packageJson = "{}") {
   }
 }
 
-function findSeedPackageForCode(packages, code) {
-  const normalizedCode = canonicalCourseCode(code);
+function findSeedPackageForCode(packages, code, course = {}) {
+  const normalizedCode = repairText(code).trim().toLocaleUpperCase("tr-TR");
   return packages.find((coursePackage) =>
-    coursePackage.code === normalizedCode || coursePackage.aliases?.includes(normalizedCode)
+    (coursePackage.code === normalizedCode || coursePackage.aliases?.includes(normalizedCode)) &&
+    (!coursePackage.department || normalizeScope(coursePackage.department) === normalizeScope(course.department || "")) &&
+    (!coursePackage.programName || normalizeScope(coursePackage.programName) === normalizeScope(course.programName || course.program_name || ""))
   );
 }
 
@@ -975,6 +1018,10 @@ function packageSeedCourseName(coursePackage) {
     DAN902: "DANIŞMANLIK",
     YBS910: "SEMİNER",
     YBS917: "DOKTORA YETERLİK",
+    DAN8XX: "DANIŞMANLIK",
+    MMB8XX: "UZMANLIK ALAN DERSİ",
+    MMB806: "SEMİNER",
+    MMB81X: "TEZ ÇALIŞMASI",
   };
   return knownNames[coursePackage.code] || coursePackage.name || coursePackage.code;
 }
@@ -1014,7 +1061,7 @@ function seedInitialData(force = false) {
       insertProgram.run(row[0], row[1], row[2], row[3] || "", JSON.stringify(levelsFromFlags(row[3])), now, now);
     }
     for (const course of officialCourses) {
-      const packageSeed = findSeedPackageForCode(packageSeeds, course.code);
+      const packageSeed = findSeedPackageForCode(packageSeeds, course.code, course);
       insertCourse.run(
         course.academicYear || "",
         course.programCode || "",
@@ -1072,6 +1119,9 @@ function courseFromRow(row) {
 
 function normalizeDbCourseForList(course = {}) {
   const repaired = repairObject(course);
+  const makineCourse = normalizeMakineTezliCourse(repaired);
+  if (!makineCourse) return null;
+  if (makineCourse !== repaired) return makineCourse;
   if (!isYbsDoctorateCourse(repaired)) return repaired;
   const code = repairText(repaired.code || "").trim().toLocaleUpperCase("tr-TR");
   if (ybsSpecializationCodes.has(code)) {
@@ -1193,8 +1243,9 @@ function syncCourseCatalogFromSeed() {
   db.exec("BEGIN");
   try {
     for (const course of officialCourses) {
-      const packageSeed = findSeedPackageForCode(packageSeeds, course.code);
+      const packageSeed = findSeedPackageForCode(packageSeeds, course.code, course);
       const seededPackageJson = packageSeed ? JSON.stringify(storedPackageFromSeed(packageSeed, course)) : "{}";
+      const seededInstructor = course.instructor || packageSeed?.instructor || "";
       const existing = findExactCourseRow(course);
       if (!existing) {
         insertCourse.run(
@@ -1212,7 +1263,7 @@ function syncCourseCatalogFromSeed() {
           Number(course.practice || 0),
           course.term || "",
           course.status || "İncelemede",
-          course.instructor || "",
+          seededInstructor,
           course.source || "course_catalog_sync",
           seededPackageJson,
           now,
@@ -1237,7 +1288,7 @@ function syncCourseCatalogFromSeed() {
         Number(course.practice ?? existing.practice ?? 0),
         course.term || existing.term || "",
         course.status || "İncelemede",
-        course.instructor || "",
+        seededInstructor,
         course.source || "course_catalog_sync",
         nextPackageJson,
         now,
@@ -1249,8 +1300,8 @@ function syncCourseCatalogFromSeed() {
       const packageCourse = {
         academicYear: "2026-2027",
         programCode: "",
-        department: ybsDefaultDepartment,
-        programName: ybsDefaultProgramName,
+        department: packageSeed.department || ybsDefaultDepartment,
+        programName: packageSeed.programName || ybsDefaultProgramName,
         level: displayLevel(packageSeed.level),
         code: packageSeed.code,
         name: packageSeedCourseName(packageSeed),
@@ -1264,7 +1315,19 @@ function syncCourseCatalogFromSeed() {
         instructor: packageSeed.instructor || "",
         source: "course_package_seed",
       };
-      if (findExactCourseRow(packageCourse)) continue;
+      const existingPackageCourse = findExactCourseRow(packageCourse);
+      if (existingPackageCourse) {
+        if (
+          existingPackageCourse.source === "course_package_seed" &&
+          existingPackageCourse.name === existingPackageCourse.code &&
+          packageCourse.name !== packageCourse.code
+        ) {
+          db.prepare("UPDATE courses SET name = ?, updated_at = ? WHERE id = ?")
+            .run(packageCourse.name, now, existingPackageCourse.id);
+          updated += 1;
+        }
+        continue;
+      }
       insertCourse.run(
         packageCourse.academicYear,
         packageCourse.programCode,

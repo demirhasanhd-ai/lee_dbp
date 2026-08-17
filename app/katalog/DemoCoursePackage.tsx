@@ -104,7 +104,7 @@ export function DemoCoursePackage({
   level = "",
 }: DemoCoursePackageProps) {
   const displayCode = repairText(code);
-  const staticPackage = getCoursePackage(displayCode);
+  const staticPackage = getCoursePackage(displayCode, department, programName);
   const [saved, setSaved] = useState<PublicSavedPackage | null>(null);
   useEffect(() => {
     const query = new URLSearchParams({ code: displayCode, department, programName, level, public: "1" });
@@ -225,6 +225,8 @@ function toPublicCoursePackage(stored: Record<string, unknown>, fallback: Course
     assessments,
     workloads: Object.keys(workloadRecord).length ? Object.entries(workloadRecord).map(([workloadName, row]) => ({ name: workloadName, count: Number(row.count), hours: Number(row.hours), total: Number(row.count) * Number(row.hours) })) : fallback?.workloads ?? [],
     contributionMatrix: matrixRecord.length ? matrixRecord.slice(0, outcomes.length).map((row, index) => ({ outcome: `DÖÇ${index + 1}`, values: Array.from({ length: 11 }, (_, pc) => Number(row[`P${pc + 1}`] ?? 0)) })) : fallback?.contributionMatrix ?? [],
+    qualityChecks: Array.isArray(stored.qualityChecks) ? stored.qualityChecks as CoursePackage["qualityChecks"] : fallback?.qualityChecks,
+    publicQualityChecklist: Boolean(stored.publicQualityChecklist ?? fallback?.publicQualityChecklist),
   };
   return { package: coursePackage, name: identity?.name || fallbackName };
 }

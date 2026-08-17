@@ -10,7 +10,11 @@ export type CourseQualityCheck = {
 
 export type CoursePackage = {
   code: string;
+  name?: string;
   aliases?: string[];
+  department?: string;
+  programName?: string;
+  publicQualityChecklist?: boolean;
   language: string;
   level: string;
   teachingMode: string;
@@ -34,6 +38,10 @@ export type CoursePackage = {
 };
 
 import { buildSemanticContributionMatrix, ybsAcademicCoursePackages } from "./ybsAcademicCoursePackages";
+import { makineCommonCoursePackages } from "./makineCommonCoursePackages";
+import { makineAcademicCoursePackages } from "./makineAcademicCoursePackages";
+import { makineAcademicCoursePackages2 } from "./makineAcademicCoursePackages2";
+import { makineAcademicCoursePackages3 } from "./makineAcademicCoursePackages3";
 
 const ybs919: CoursePackage = {
   code: "YBS919",
@@ -549,6 +557,10 @@ const ybsThesis: CoursePackage = {
 
 export const COURSE_PACKAGES: CoursePackage[] = [
   ...ybsAcademicCoursePackages,
+  ...makineCommonCoursePackages,
+  ...makineAcademicCoursePackages,
+  ...makineAcademicCoursePackages2,
+  ...makineAcademicCoursePackages3,
   ybs919,
   ybs921,
   ybs923,
@@ -563,8 +575,11 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   contributionMatrix: buildSemanticContributionMatrix(coursePackage.outcomes, coursePackage),
 }));
 
-export const getCoursePackage = (code: string) =>
+export const getCoursePackage = (code: string, department = "", programName = "") =>
   COURSE_PACKAGES.find((coursePackage) => {
     const normalizedCode = code.trim().toLocaleUpperCase("tr-TR");
-    return coursePackage.code === normalizedCode || coursePackage.aliases?.includes(normalizedCode);
+    const codeMatches = coursePackage.code === normalizedCode || coursePackage.aliases?.includes(normalizedCode);
+    const departmentMatches = !coursePackage.department || coursePackage.department === department;
+    const programMatches = !coursePackage.programName || coursePackage.programName === programName;
+    return codeMatches && departmentMatches && programMatches;
   });

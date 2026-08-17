@@ -9,6 +9,10 @@ const outputFile = path.join(rootDir, "seed", "course-packages.json");
 const sourceFiles = new Map([
   ["./coursePackages", path.join(rootDir, "lib", "data", "coursePackages.ts")],
   ["./ybsAcademicCoursePackages", path.join(rootDir, "lib", "data", "ybsAcademicCoursePackages.ts")],
+  ["./makineCommonCoursePackages", path.join(rootDir, "lib", "data", "makineCommonCoursePackages.ts")],
+  ["./makineAcademicCoursePackages", path.join(rootDir, "lib", "data", "makineAcademicCoursePackages.ts")],
+  ["./makineAcademicCoursePackages2", path.join(rootDir, "lib", "data", "makineAcademicCoursePackages2.ts")],
+  ["./makineAcademicCoursePackages3", path.join(rootDir, "lib", "data", "makineAcademicCoursePackages3.ts")],
 ]);
 const moduleCache = new Map();
 
