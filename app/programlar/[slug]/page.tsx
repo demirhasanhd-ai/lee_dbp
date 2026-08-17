@@ -4,7 +4,7 @@ import { ProgramCourses, type PublicCourse } from "./ProgramCourses";
 import { PublicSiteHeader } from "../../PublicSiteHeader";
 import { dbpPath } from "../../../lib/dbpPath";
 
-type PageProps={params:Promise<{slug:string}>};
+type PageProps={params:Promise<{slug:string}>;searchParams:Promise<{programKey?:string;duzey?:string;sekme?:string}>};
 function coursePrefix(program:LeeProgram){return program.programName.split(/\s+/).slice(0,3).map(word=>word[0]).join("").toLocaleUpperCase("tr-TR")}
 function demoProgramCourses(program:LeeProgram):PublicCourse[]{const prefix=coursePrefix(program);return program.levels.flatMap((level:ProgramLevel,levelIndex)=>[
  {code:`${prefix} ${501+levelIndex*100}`,name:`${program.programName} Alanında Bilimsel Araştırma`,level,term:"Güz" as const,type:"Zorunlu" as const,theory:3,practice:0,ects:6},
@@ -32,8 +32,8 @@ function programCourses(program:LeeProgram):PublicCourse[]{
  return demoProgramCourses(program);
 }
 
-export default async function PublicProgramPage({params}:PageProps){
- const {slug}=await params;const program=getProgramBySlug(slug);
+export default async function PublicProgramPage({params,searchParams}:PageProps){
+ const [{slug},query]=await Promise.all([params,searchParams]);const program=getProgramBySlug(slug);
  if(!program)return <main className="public-program-page"><div className="public-program-content"><section className="public-empty"><h1>Program bulunamadı</h1><a href={dbpPath("/#programlar")}>Programlara dönün</a></section></div></main>;
  const siblingPrograms=LEE_PROGRAMS.filter((item)=>item.department===program.department);
  const programItems=siblingPrograms.map((item)=>({
@@ -42,8 +42,11 @@ export default async function PublicProgramPage({params}:PageProps){
   levels:item.levels,
   courses:programCourses(item),
  }));
+ const requestedProgram=programItems.find((item)=>item.visibilityKey===query.programKey)??programItems[0];
+ const requestedLevel=requestedProgram.levels.includes(query.duzey??"")?(query.duzey as string):requestedProgram.levels[0];
+ const initialView={programKey:requestedProgram.visibilityKey,level:requestedLevel,tab:query.sekme==="courses"?"courses" as const:"profile" as const};
  return <main className="public-program-page">
   <PublicSiteHeader/>
-  <div className="public-program-shell"><div className="public-program-content"><div className="public-breadcrumb"><a href={dbpPath("/")}>Ana Sayfa</a><span>/</span><a href={dbpPath("/#programlar")}>Programlar</a><span>/</span><b>{program.programName}</b></div><div id="program-dersleri"><ProgramCourses visibilityKey={programSlug(program)} department={program.department} programName={program.programName} levels={program.levels} courses={programCourses(program)} programItems={programItems}/></div></div></div>
+  <div className="public-program-shell"><div className="public-program-content"><div className="public-breadcrumb"><a href={dbpPath("/")}>Ana Sayfa</a><span>/</span><a href={dbpPath("/#programlar")}>Programlar</a><span>/</span><b>{program.programName}</b></div><div id="program-dersleri"><ProgramCourses visibilityKey={programSlug(program)} department={program.department} programName={program.programName} levels={program.levels} courses={programCourses(program)} programItems={programItems} initialView={initialView}/></div></div></div>
  </main>;
 }

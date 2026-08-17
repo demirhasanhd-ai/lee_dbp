@@ -433,6 +433,14 @@ const makineYlAdvisoryCodes = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
 const makineYlSpecializationCodes = new Set(["MMB801", "MMB802", "MMB803", "MMB804"]);
 const makineYlSeminarCodes = new Set(["MMB805", "MMB806"]);
 const makineYlThesisCodes = new Set(["MMB807", "MMB808"]);
+const aileYlAdvisoryCodes = new Set(["DAN801", "DAN802"]);
+const aileYlSpecializationCodes = new Set(["ADE801", "ADE802", "ADE803", "ADE804"]);
+const aileYlSeminarCodes = new Set(["ADE805", "ADE806"]);
+const aileYlThesisCodes = new Set(["ADE807", "ADE808"]);
+const arkeolojiYlAdvisoryCodes = new Set(["DAN801", "DAN802"]);
+const arkeolojiYlSpecializationCodes = new Set(["ARK801", "ARK802", "ARK803", "ARK804"]);
+const arkeolojiYlSeminarCodes = new Set(["ARK805", "ARK806"]);
+const arkeolojiYlThesisCodes = new Set(["ARK807", "ARK808"]);
 const ybsDefaultDepartment = "Yönetim Bilişim Sistemleri ABD";
 const ybsDefaultProgramName = "Yönetim Bilişim Sistemleri";
 
@@ -442,6 +450,12 @@ function canonicalCourseCode(code = "") {
   if (ybsThesisCodes.has(normalizedCode)) return "YBS91X";
   if (normalizedCode === "YBS909") return "YBS999";
   if (normalizedCode === "YBS918") return "YBS917";
+  if (aileYlSpecializationCodes.has(normalizedCode)) return "ADE8XX";
+  if (aileYlSeminarCodes.has(normalizedCode)) return "ADE806";
+  if (aileYlThesisCodes.has(normalizedCode)) return "ADE81X";
+  if (arkeolojiYlSpecializationCodes.has(normalizedCode)) return "ARK8XX";
+  if (arkeolojiYlSeminarCodes.has(normalizedCode)) return "ARK806";
+  if (arkeolojiYlThesisCodes.has(normalizedCode)) return "ARK81X";
   return normalizedCode;
 }
 
@@ -457,6 +471,13 @@ function courseCodeCandidates(code = "") {
   if (canonical === "MMB8XX") for (const alias of makineYlSpecializationCodes) candidates.add(alias);
   if (canonical === "MMB806") for (const alias of makineYlSeminarCodes) candidates.add(alias);
   if (canonical === "MMB81X") for (const alias of makineYlThesisCodes) candidates.add(alias);
+  if (canonical === "DAN8XX") for (const alias of aileYlAdvisoryCodes) candidates.add(alias);
+  if (canonical === "ADE8XX") for (const alias of aileYlSpecializationCodes) candidates.add(alias);
+  if (canonical === "ADE806") for (const alias of aileYlSeminarCodes) candidates.add(alias);
+  if (canonical === "ADE81X") for (const alias of aileYlThesisCodes) candidates.add(alias);
+  if (canonical === "ARK8XX") for (const alias of arkeolojiYlSpecializationCodes) candidates.add(alias);
+  if (canonical === "ARK806") for (const alias of arkeolojiYlSeminarCodes) candidates.add(alias);
+  if (canonical === "ARK81X") for (const alias of arkeolojiYlThesisCodes) candidates.add(alias);
   return [...candidates].filter(Boolean);
 }
 
@@ -488,6 +509,62 @@ function normalizeMakineTezliCourse(course = {}) {
   return course;
 }
 
+function isAileTezliCourse(course = {}) {
+  return levelKey(course.level) === "tezli yl" &&
+    normalizeScope(course.department || "") === normalizeScope("Aile Danışmanlığı ve Eğitimi ABD") &&
+    normalizeScope(course.programName || course.program_name || "") === normalizeScope("Aile Danışmanlığı ve Eğitimi");
+}
+
+function normalizeAileTezliCourse(course = {}) {
+  if (!isAileTezliCourse(course)) return course;
+  const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (aileYlAdvisoryCodes.has(code)) {
+    if (code !== "DAN801") return null;
+    return { ...course, code: "DAN8XX", name: "DANIŞMANLIK", ects: 1, instructor: "Öğrencinin Danışmanı" };
+  }
+  if (aileYlSpecializationCodes.has(code)) {
+    if (code !== "ADE801") return null;
+    return { ...course, code: "ADE8XX", name: "UZMANLIK ALAN DERSİ", ects: 5, instructor: "Öğrencinin Danışmanı" };
+  }
+  if (aileYlSeminarCodes.has(code)) {
+    if (code !== "ADE806") return null;
+    return { ...course, code: "ADE806", name: "SEMİNER", ects: 6, instructor: "Öğrencinin Danışmanı" };
+  }
+  if (aileYlThesisCodes.has(code)) {
+    if (code !== "ADE807") return null;
+    return { ...course, code: "ADE81X", name: "TEZ ÇALIŞMASI", ects: 24, instructor: "Öğrencinin Danışmanı" };
+  }
+  return course;
+}
+
+function isArkeolojiTezliCourse(course = {}) {
+  return levelKey(course.level) === "tezli yl" &&
+    normalizeScope(course.department || "") === normalizeScope("Arkeoloji ABD") &&
+    normalizeScope(course.programName || course.program_name || "") === normalizeScope("Arkeoloji");
+}
+
+function normalizeArkeolojiTezliCourse(course = {}) {
+  if (!isArkeolojiTezliCourse(course)) return course;
+  const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (arkeolojiYlAdvisoryCodes.has(code)) {
+    if (code !== "DAN801") return null;
+    return { ...course, code: "DAN8XX", name: "DANIŞMANLIK", ects: 1, instructor: "Öğrencinin Danışmanı" };
+  }
+  if (arkeolojiYlSpecializationCodes.has(code)) {
+    if (code !== "ARK801") return null;
+    return { ...course, code: "ARK8XX", name: "UZMANLIK ALAN DERSİ", ects: 5, instructor: "Öğrencinin Danışmanı" };
+  }
+  if (arkeolojiYlSeminarCodes.has(code)) {
+    if (code !== "ARK806") return null;
+    return { ...course, code: "ARK806", name: "YÜKSEK LİSANS SEMİNER", ects: 6, instructor: "Öğrencinin Danışmanı" };
+  }
+  if (arkeolojiYlThesisCodes.has(code)) {
+    if (code !== "ARK807") return null;
+    return { ...course, code: "ARK81X", name: "TEZ ÇALIŞMASI", ects: 24, instructor: "Öğrencinin Danışmanı" };
+  }
+  return course;
+}
+
 function isYbsDoctorateCourse(course = {}) {
   if (levelKey(course.level) !== "doktora") return false;
   const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
@@ -501,6 +578,12 @@ function normalizeSeedCourse(course = {}) {
   const makineCourse = normalizeMakineTezliCourse(repaired);
   if (!makineCourse) return null;
   if (makineCourse !== repaired) return makineCourse;
+  const aileCourse = normalizeAileTezliCourse(repaired);
+  if (!aileCourse) return null;
+  if (aileCourse !== repaired) return aileCourse;
+  const arkeolojiCourse = normalizeArkeolojiTezliCourse(repaired);
+  if (!arkeolojiCourse) return null;
+  if (arkeolojiCourse !== repaired) return arkeolojiCourse;
   if (!isYbsDoctorateCourse(repaired)) return repaired;
   const code = repairText(repaired.code || "").trim().toLocaleUpperCase("tr-TR");
   if (code === "YBS925") return { ...repaired, instructor: "Doç. Dr. Emre YAKUT", status: "İncelemede" };
@@ -593,7 +676,7 @@ function canEditCoursePackage(session, body, rows) {
 
   if (session.role === "akademisyen") return assignedToUser;
   if (session.role === "abd_asd_baskani") {
-    const trustedMergedPoolCodes = new Set(["YBS9XX", "YBS91X", "DAN8XX", "MMB8XX", "MMB806", "MMB81X"]);
+    const trustedMergedPoolCodes = new Set(["YBS9XX", "YBS91X", "DAN8XX", "MMB8XX", "MMB806", "MMB81X", "ADE8XX", "ADE806", "ADE81X", "ARK8XX", "ARK806", "ARK81X"]);
     const poolCourse = rows.some(isDepartmentPoolCourseRecord) ||
       (trustedMergedPoolCodes.has(body.code) && isDepartmentPoolCourseRecord(body));
     return assignedToUser || (departmentMatches && poolCourse);
@@ -1022,6 +1105,13 @@ function packageSeedCourseName(coursePackage) {
     MMB8XX: "UZMANLIK ALAN DERSİ",
     MMB806: "SEMİNER",
     MMB81X: "TEZ ÇALIŞMASI",
+    ADE8XX: "UZMANLIK ALAN DERSİ",
+    ADE806: "SEMİNER",
+    ADE81X: "TEZ ÇALIŞMASI",
+    ARK8XX: "UZMANLIK ALAN DERSİ",
+    ARK806: "YÜKSEK LİSANS SEMİNER",
+    ARK81X: "TEZ ÇALIŞMASI",
+    BES801: "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",
   };
   return knownNames[coursePackage.code] || coursePackage.name || coursePackage.code;
 }
@@ -1122,6 +1212,12 @@ function normalizeDbCourseForList(course = {}) {
   const makineCourse = normalizeMakineTezliCourse(repaired);
   if (!makineCourse) return null;
   if (makineCourse !== repaired) return makineCourse;
+  const aileCourse = normalizeAileTezliCourse(repaired);
+  if (!aileCourse) return null;
+  if (aileCourse !== repaired) return aileCourse;
+  const arkeolojiCourse = normalizeArkeolojiTezliCourse(repaired);
+  if (!arkeolojiCourse) return null;
+  if (arkeolojiCourse !== repaired) return arkeolojiCourse;
   if (!isYbsDoctorateCourse(repaired)) return repaired;
   const code = repairText(repaired.code || "").trim().toLocaleUpperCase("tr-TR");
   if (ybsSpecializationCodes.has(code)) {
@@ -2263,7 +2359,21 @@ async function handleDbpApi(request) {
         return jsonResponse({ message: "Bu ders paketi üzerinde kayıt yetkiniz yok." }, { status: 403 });
       }
 
-      let update = db.prepare(`
+      let update = { changes: 0 };
+      if (matchingRows.length) {
+        const updateById = db.prepare(`
+          UPDATE courses
+          SET status = ?, package_json = ?, updated_at = ?
+          WHERE id = ?
+        `);
+        let changes = 0;
+        for (const row of matchingRows) {
+          changes += updateById.run(body.status || "Taslak", JSON.stringify(body.package || {}), now, row.id).changes;
+        }
+        update = { changes };
+      }
+
+      if (!update.changes) update = db.prepare(`
         UPDATE courses
         SET name = ?, status = ?, package_json = ?, updated_at = ?
         WHERE code = ?

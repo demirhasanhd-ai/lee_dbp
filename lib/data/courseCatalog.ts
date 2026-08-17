@@ -28,6 +28,10 @@ const MAKINE_YL_ADVISORY_CODES = new Set(["DAN801", "DAN802", "DAN803", "DAN804"
 const MAKINE_YL_SPECIALIZATION_CODES = new Set(["MMB801", "MMB802", "MMB803", "MMB804"]);
 const MAKINE_YL_SEMINAR_CODES = new Set(["MMB805", "MMB806"]);
 const MAKINE_YL_THESIS_CODES = new Set(["MMB807", "MMB808"]);
+const ARKEOLOJI_YL_ADVISORY_CODES = new Set(["DAN801", "DAN802"]);
+const ARKEOLOJI_YL_SPECIALIZATION_CODES = new Set(["ARK801", "ARK802", "ARK803", "ARK804"]);
+const ARKEOLOJI_YL_SEMINAR_CODES = new Set(["ARK805", "ARK806"]);
+const ARKEOLOJI_YL_THESIS_CODES = new Set(["ARK807", "ARK808"]);
 
 const withAdvisor = (course: OfficialCourse): OfficialCourse => ({
   ...course,
@@ -87,10 +91,36 @@ const normalizeMakineTezliCourse = (course: OfficialCourse): OfficialCourse | nu
   return course;
 };
 
+const normalizeArkeolojiTezliCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const isArkeolojiTezli = course.department === "Arkeoloji ABD" &&
+    course.programName === "Arkeoloji" && course.level === "Tezli Yüksek Lisans";
+  if (!isArkeolojiTezli) return course;
+  if (ARKEOLOJI_YL_ADVISORY_CODES.has(course.code)) {
+    if (course.code !== "DAN801") return null;
+    return withAdvisor({ ...course, code: "DAN8XX", name: "DANIŞMANLIK", ects: 1 });
+  }
+  if (ARKEOLOJI_YL_SPECIALIZATION_CODES.has(course.code)) {
+    if (course.code !== "ARK801") return null;
+    return withAdvisor({ ...course, code: "ARK8XX", name: "UZMANLIK ALAN DERSİ", ects: 5 });
+  }
+  if (ARKEOLOJI_YL_SEMINAR_CODES.has(course.code)) {
+    if (course.code !== "ARK806") return null;
+    return withAdvisor({ ...course, code: "ARK806", name: "YÜKSEK LİSANS SEMİNER", ects: 6 });
+  }
+  if (ARKEOLOJI_YL_THESIS_CODES.has(course.code)) {
+    if (course.code !== "ARK807") return null;
+    return withAdvisor({ ...course, code: "ARK81X", name: "TEZ ÇALIŞMASI", ects: 24 });
+  }
+  return course;
+};
+
 export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((course) => {
   const makineCourse = normalizeMakineTezliCourse(course);
   if (!makineCourse) return [];
   course = makineCourse;
+  const arkeolojiCourse = normalizeArkeolojiTezliCourse(course);
+  if (!arkeolojiCourse) return [];
+  course = arkeolojiCourse;
   const isYbsDoctorate =
     course.level === "Doktora" &&
     (course.code.startsWith("YBS") ||

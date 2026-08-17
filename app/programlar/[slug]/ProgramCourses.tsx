@@ -37,6 +37,7 @@ type Props = {
   levels: string[];
   courses: PublicCourse[];
   programItems?: PublicProgramMenuItem[];
+  initialView?: ViewState;
 };
 type PublicProgramMenuItem = {
   visibilityKey: string;
@@ -63,7 +64,12 @@ function toPublicCourse(course: DbpCourse): PublicCourse {
 }
 
 const columns = ["9%", "22%", "10%", "10%", "17%", "4%", "4%", "5%", "10%", "9%"];
-const mergedProcessCourseCodes = new Set(["YBS9XX", "YBS91X", "DAN902", "YBS910", "YBS917", "DAN8XX", "MMB8XX", "MMB806", "MMB81X"]);
+const mergedProcessCourseCodes = new Set([
+  "YBS9XX", "YBS91X", "DAN902", "YBS910", "YBS917",
+  "DAN8XX", "ADE8XX", "ADE806", "ADE81X",
+  "ARK8XX", "ARK806", "ARK81X",
+  "MMB8XX", "MMB806", "MMB81X",
+]);
 const defaultOutcomes = [
   "Alanındaki ileri düzey bilgileri bilimsel araştırma süreçlerinde kullanır.",
   "Disiplinler arası yaklaşımla problem tanımlar ve çözüm önerileri geliştirir.",
@@ -200,7 +206,7 @@ function ProgramProfile({ department, programName, activeLevel }: { department: 
   );
 }
 
-export function ProgramCourses({ visibilityKey, department, programName, levels, courses, programItems }: Props) {
+export function ProgramCourses({ visibilityKey, department, programName, levels, courses, programItems, initialView }: Props) {
   const fallbackProgramItems = useMemo(
     () => (programItems?.length ? programItems : [{ visibilityKey, programName, levels, courses }]),
     [courses, levels, programItems, programName, visibilityKey],
@@ -226,7 +232,9 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
     };
   }, [department, fallbackProgramItems]);
   const allProgramItems = databaseProgramItems ?? fallbackProgramItems;
-  const [activeView, setActiveView] = useState<ViewState>({ programKey: visibilityKey, level: levels[0], tab: "profile" });
+  const [activeView, setActiveView] = useState<ViewState>(
+    initialView ?? { programKey: visibilityKey, level: levels[0], tab: "profile" },
+  );
   const visibleLevelsForItems = (visibility: Record<string, boolean>) =>
     Object.fromEntries(allProgramItems.map((item) => [
       item.visibilityKey,

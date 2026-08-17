@@ -13,6 +13,12 @@ const sourceFiles = new Map([
   ["./makineAcademicCoursePackages", path.join(rootDir, "lib", "data", "makineAcademicCoursePackages.ts")],
   ["./makineAcademicCoursePackages2", path.join(rootDir, "lib", "data", "makineAcademicCoursePackages2.ts")],
   ["./makineAcademicCoursePackages3", path.join(rootDir, "lib", "data", "makineAcademicCoursePackages3.ts")],
+  ["./aileDanismanligiTezliCoursePackages", path.join(rootDir, "lib", "data", "aileDanismanligiTezliCoursePackages.ts")],
+  ["./aileDanismanligiCommonCoursePackages", path.join(rootDir, "lib", "data", "aileDanismanligiCommonCoursePackages.ts")],
+  ["./aileDanismanligiMissingCoursePackages", path.join(rootDir, "lib", "data", "aileDanismanligiMissingCoursePackages.ts")],
+  ["./arkeolojiTezliCoursePackages", path.join(rootDir, "lib", "data", "arkeolojiTezliCoursePackages.ts")],
+  ["./arkeolojiCommonCoursePackages", path.join(rootDir, "lib", "data", "arkeolojiCommonCoursePackages.ts")],
+  ["./arkeolojiMissingCoursePackages", path.join(rootDir, "lib", "data", "arkeolojiMissingCoursePackages.ts")],
 ]);
 const moduleCache = new Map();
 
