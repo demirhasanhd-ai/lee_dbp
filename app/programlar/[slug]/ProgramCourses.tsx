@@ -69,6 +69,14 @@ const mergedProcessCourseCodes = new Set([
   "DAN8XX", "ADE8XX", "ADE806", "ADE81X",
   "ARK8XX", "ARK806", "ARK81X",
   "MMB8XX", "MMB806", "MMB81X",
+  "BHT8XX", "BHT806", "BHT831", "BHT81X",
+  "BES8XX", "BES806", "BEF801", "BES81X",
+  "BİO8XX", "BİO806", "BİO809", "BİO81X",
+  "EBE8XX", "EBE806", "EBE809", "EBE81X",
+  "ETR8XX", "ETR806", "ETR855", "ETR81X",
+  "EEM8XX", "EEM806", "EEM885", "EEM81X",
+  "EMB8XX", "EMB806", "EMB829", "EMB81X",
+  "FDB8XX", "FDB806", "FDB81X",
 ]);
 const defaultOutcomes = [
   "Alanındaki ileri düzey bilgileri bilimsel araştırma süreçlerinde kullanır.",

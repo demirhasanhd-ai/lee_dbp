@@ -119,6 +119,47 @@ function serializeForm(form: HTMLFormElement) {
 const emptyOutcomes = () => Array.from({ length: fixedOutcomeCount }, () => "");
 const emptyWeeklyTopics = () => Object.fromEntries(weeks.map((week) => [week, ""])) as Record<number, string>;
 const emptyStructures = () => Object.fromEntries(structures.map((item) => [item, 0])) as Record<string, number>;
+const structuresForCourse = (course: CourseIdentity) => {
+  const values = emptyStructures();
+  if ((course.department || "").toLocaleLowerCase("tr-TR").includes("batarya sistemleri")) {
+    values["Mühendislik Bilimleri"] = 40;
+    values["Mühendislik Tasarımı"] = 20;
+    values["Alan Bilgisi"] = 40;
+  }
+  if ((course.department || "").toLocaleLowerCase("tr-TR").includes("beden eğitimi ve spor")) {
+    values["Sağlık Bilimleri"] = 30;
+    values["Sosyal Bilimler"] = 20;
+    values["Alan Bilgisi"] = 50;
+  }
+  if ((course.department || "").toLocaleLowerCase("tr-TR").includes("biyoloji")) {
+    values["Fen Bilimleri"] = 40;
+    values["Laboratuvar / Araştırma"] = 30;
+    values["Alan Bilgisi"] = 30;
+  }
+  if ((course.department || "").toLocaleLowerCase("tr-TR").includes("ebelik")) {
+    values["Sağlık Bilimleri"] = 40;
+    values["Sosyal Bilimler"] = 10;
+    values["Alan Bilgisi"] = 50;
+  }
+  if ((course.department || "").toLocaleLowerCase("tr-TR").includes("ekoturizm")) {
+    values["Sosyal Bilimler"] = 30;
+    values["Fen Bilimleri"] = 20;
+    values["Alan Bilgisi"] = 50;
+  }
+  if ((course.department || "").toLocaleLowerCase("tr-TR").includes("elektrik elektronik mühendisliği")) {
+    values["Matematik ve Temel Bilimler"] = 20;
+    values["Mühendislik Bilimleri"] = 40;
+    values["Mühendislik Tasarımı"] = 20;
+    values["Alan Bilgisi"] = 20;
+  }
+  if ((course.department || "").toLocaleLowerCase("tr-TR").includes("enerji sistemleri mühendisliği")) {
+    values["Matematik ve Temel Bilimler"] = 15;
+    values["Mühendislik Bilimleri"] = 40;
+    values["Mühendislik Tasarımı"] = 20;
+    values["Alan Bilgisi"] = 25;
+  }
+  return values;
+};
 const defaultDetailFields = () => Object.fromEntries(longFields.map(([key, , value]) => [key, value])) as Record<string, string>;
 const emptySdgs = () => ["", "", ""];
 
@@ -159,8 +200,10 @@ export function CourseBolognaEditor({
   onPublish: () => void;
 }) {
   const usesOneToFiveContributionScale =
-    (course.department || "").toLocaleLowerCase("tr-TR").includes("yönetim bilişim sistemleri") &&
-    course.level.toLocaleLowerCase("tr-TR").includes("doktora");
+    ((course.department || "").toLocaleLowerCase("tr-TR").includes("yönetim bilişim sistemleri") &&
+      course.level.toLocaleLowerCase("tr-TR").includes("doktora")) ||
+    ["batarya sistemleri", "beden eğitimi ve spor", "biyoloji", "ebelik", "ekoturizm"].some((scope) =>
+      (course.department || "").toLocaleLowerCase("tr-TR").includes(scope));
   const [workflowStatus, setWorkflowStatus] = useState("Taslak");
   const [identity, setIdentity] = useState(() => defaultIdentity(course));
   const [detailFields, setDetailFields] = useState(defaultDetailFields);
@@ -204,7 +247,7 @@ export function CourseBolognaEditor({
       setAssessments(value.assessments.map((item, index) => ({ ...item, id: index + 1, fixed: index < 2 })));
       setWorkloads(Object.fromEntries(value.workloads.map((item) => [item.name, { count: item.count, hours: item.hours }])));
       setWeeklyTopics(Object.fromEntries(value.weeklyTopics.map((item, index) => [index + 1, item])));
-      setStructureValues(emptyStructures());
+      setStructureValues(structuresForCourse(course));
       setContributionMatrix(value.contributionMatrix.map((row) => Object.fromEntries(row.values.map((score, index) => [`P${index + 1}`, score]))));
       setSdgs(value.sdgs);
       setNextAssessment(value.assessments.length + 1);
@@ -219,7 +262,7 @@ export function CourseBolognaEditor({
       if (Array.isArray(stored.assessments)) setAssessments(stored.assessments as Assessment[]);
       if (stored.workloads && typeof stored.workloads === "object") setWorkloads(stored.workloads as Record<string, Workload>);
       if (stored.weeklyTopics && typeof stored.weeklyTopics === "object") setWeeklyTopics(stored.weeklyTopics as Record<number, string>);
-      if (stored.structureValues && typeof stored.structureValues === "object") setStructureValues(stored.structureValues as Record<string, number>);
+      if (stored.structureValues && typeof stored.structureValues === "object" && Object.keys(stored.structureValues).length > 0) setStructureValues(stored.structureValues as Record<string, number>);
       if (Array.isArray(stored.contributionMatrix)) setContributionMatrix(stored.contributionMatrix as Record<string, number>[]);
       if (Array.isArray(stored.sdgs)) setSdgs(stored.sdgs as string[]);
       setWorkflowStatus(status || "Taslak");
@@ -258,14 +301,7 @@ export function CourseBolognaEditor({
     return () => controller.abort();
   }, [course.code, course.department, course.level, course.name, course.programName, session]);
 
-  const workloadNames = useMemo(
-    () => [
-      "Ders Süresi",
-      "Sınıf Dışı Çalışma",
-      ...assessments.map((item) => item.name),
-    ],
-    [assessments],
-  );
+  const workloadNames = useMemo(() => Object.keys(workloads), [workloads]);
   const totalWorkload = workloadNames.reduce((total, name) => {
     const row = workloads[name] ?? { count: 0, hours: 0 };
     return total + row.count * row.hours;

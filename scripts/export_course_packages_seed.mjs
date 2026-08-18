@@ -19,6 +19,22 @@ const sourceFiles = new Map([
   ["./arkeolojiTezliCoursePackages", path.join(rootDir, "lib", "data", "arkeolojiTezliCoursePackages.ts")],
   ["./arkeolojiCommonCoursePackages", path.join(rootDir, "lib", "data", "arkeolojiCommonCoursePackages.ts")],
   ["./arkeolojiMissingCoursePackages", path.join(rootDir, "lib", "data", "arkeolojiMissingCoursePackages.ts")],
+  ["./bataryaTezliCoursePackages", path.join(rootDir, "lib", "data", "bataryaTezliCoursePackages.ts")],
+  ["./bataryaCommonCoursePackages", path.join(rootDir, "lib", "data", "bataryaCommonCoursePackages.ts")],
+  ["./bedenTezliCoursePackages", path.join(rootDir, "lib", "data", "bedenTezliCoursePackages.ts")],
+  ["./bedenCommonCoursePackages", path.join(rootDir, "lib", "data", "bedenCommonCoursePackages.ts")],
+  ["./biyolojiTezliCoursePackages", path.join(rootDir, "lib", "data", "biyolojiTezliCoursePackages.ts")],
+  ["./biyolojiCommonCoursePackages", path.join(rootDir, "lib", "data", "biyolojiCommonCoursePackages.ts")],
+  ["./ebelikTezliCoursePackages", path.join(rootDir, "lib", "data", "ebelikTezliCoursePackages.ts")],
+  ["./ebelikCommonCoursePackages", path.join(rootDir, "lib", "data", "ebelikCommonCoursePackages.ts")],
+  ["./ekoturizmTezliCoursePackages", path.join(rootDir, "lib", "data", "ekoturizmTezliCoursePackages.ts")],
+  ["./elektrikElektronikTezliCoursePackages", path.join(rootDir, "lib", "data", "elektrikElektronikTezliCoursePackages.ts")],
+  ["./elektrikElektronikCommonCoursePackages", path.join(rootDir, "lib", "data", "elektrikElektronikCommonCoursePackages.ts")],
+  ["./enerjiSistemleriTezliCoursePackages", path.join(rootDir, "lib", "data", "enerjiSistemleriTezliCoursePackages.ts")],
+  ["./enerjiSistemleriCommonCoursePackages", path.join(rootDir, "lib", "data", "enerjiSistemleriCommonCoursePackages.ts")],
+  ["./felsefeDinTezliCoursePackages", path.join(rootDir, "lib", "data", "felsefeDinTezliCoursePackages.ts")],
+  ["./felsefeDinCommonCoursePackages", path.join(rootDir, "lib", "data", "felsefeDinCommonCoursePackages.ts")],
+  ["./ekoturizmCommonCoursePackages", path.join(rootDir, "lib", "data", "ekoturizmCommonCoursePackages.ts")],
 ]);
 const moduleCache = new Map();
 

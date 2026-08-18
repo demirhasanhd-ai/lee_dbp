@@ -441,6 +441,45 @@ const arkeolojiYlAdvisoryCodes = new Set(["DAN801", "DAN802"]);
 const arkeolojiYlSpecializationCodes = new Set(["ARK801", "ARK802", "ARK803", "ARK804"]);
 const arkeolojiYlSeminarCodes = new Set(["ARK805", "ARK806"]);
 const arkeolojiYlThesisCodes = new Set(["ARK807", "ARK808"]);
+const bataryaYlAdvisoryCodes = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
+const bataryaYlSpecializationCodes = new Set(["BHT801", "BHT802", "BHT803", "BHT804"]);
+const bataryaYlSeminarCodes = new Set(["BHT805", "BHT806"]);
+const bataryaYlResearchCodes = new Set(["BHT830", "BHT831"]);
+const bataryaYlThesisCodes = new Set(["BHT807", "BHT808"]);
+const bedenYlAdvisoryCodes = new Set(["DAN801", "DAN802"]);
+const bedenYlSpecializationCodes = new Set(["BES801", "BES802", "BES803", "BES804"]);
+const bedenYlSeminarCodes = new Set(["BES805", "BES806"]);
+const bedenYlResearchCodes = new Set(["BEF801", "BEF802"]);
+const bedenYlThesisCodes = new Set(["BES807", "BES808"]);
+const biyolojiYlAdvisoryCodes = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
+const biyolojiYlSpecializationCodes = new Set(["BİO801", "BİO802", "BİO803", "BİO804"]);
+const biyolojiYlSeminarCodes = new Set(["BİO805", "BİO806"]);
+const biyolojiYlResearchCodes = new Set(["BİO809", "BİO810"]);
+const biyolojiYlThesisCodes = new Set(["BİO807", "BİO808"]);
+const ebelikYlAdvisoryCodes = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
+const ebelikYlSpecializationCodes = new Set(["EBE801", "EBE802", "EBE803", "EBE804"]);
+const ebelikYlSeminarCodes = new Set(["EBE805", "EBE806"]);
+const ebelikYlResearchCodes = new Set(["EBE809", "EBE810"]);
+const ebelikYlThesisCodes = new Set(["EBE807", "EBE808"]);
+const ekoturizmYlAdvisoryCodes = new Set(["DAN801", "DAN802"]);
+const ekoturizmYlSpecializationCodes = new Set(["ETR801", "ETR802", "ETR803", "ETR804"]);
+const ekoturizmYlSeminarCodes = new Set(["ETR805", "ETR806"]);
+const ekoturizmYlResearchCodes = new Set(["ETR855", "ETR856", "BES802"]);
+const ekoturizmYlThesisCodes = new Set(["ETR807", "ETR808"]);
+const elektrikYlAdvisoryCodes = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
+const elektrikYlSpecializationCodes = new Set(["EEM801", "EEM802", "EEM803", "EEM804"]);
+const elektrikYlSeminarCodes = new Set(["EEM805", "EEM806"]);
+const elektrikYlThesisCodes = new Set(["EEM807", "EEM808"]);
+const enerjiYlAdvisoryCodes = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
+const enerjiYlSpecializationCodes = new Set(["EMB801", "EMB802", "EMB803", "EMB804"]);
+const enerjiYlSeminarCodes = new Set(["EMB805", "EMB806"]);
+const enerjiYlResearchCodes = new Set(["EMB829", "EMB834"]);
+const enerjiYlThesisCodes = new Set(["EMB807", "EMB808"]);
+const felsefeDinYlAdvisoryCodes = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
+const felsefeDinYlSpecializationCodes = new Set(["FDB801", "FDB802", "FDB803", "FDB804"]);
+const felsefeDinYlSeminarCodes = new Set(["FDB805", "FDB806"]);
+const felsefeDinYlResearchCodes = new Set(["BES801", "BES802"]);
+const felsefeDinYlThesisCodes = new Set(["FDB807", "FDB808"]);
 const ybsDefaultDepartment = "Yönetim Bilişim Sistemleri ABD";
 const ybsDefaultProgramName = "Yönetim Bilişim Sistemleri";
 
@@ -456,6 +495,28 @@ function canonicalCourseCode(code = "") {
   if (arkeolojiYlSpecializationCodes.has(normalizedCode)) return "ARK8XX";
   if (arkeolojiYlSeminarCodes.has(normalizedCode)) return "ARK806";
   if (arkeolojiYlThesisCodes.has(normalizedCode)) return "ARK81X";
+  if (bataryaYlSpecializationCodes.has(normalizedCode)) return "BHT8XX";
+  if (bataryaYlSeminarCodes.has(normalizedCode)) return "BHT806";
+  if (bataryaYlResearchCodes.has(normalizedCode)) return "BHT831";
+  if (bataryaYlThesisCodes.has(normalizedCode)) return "BHT81X";
+  if (ebelikYlSpecializationCodes.has(normalizedCode)) return "EBE8XX";
+  if (ebelikYlSeminarCodes.has(normalizedCode)) return "EBE806";
+  if (ebelikYlResearchCodes.has(normalizedCode)) return "EBE809";
+  if (ebelikYlThesisCodes.has(normalizedCode)) return "EBE81X";
+  if (ekoturizmYlSpecializationCodes.has(normalizedCode)) return "ETR8XX";
+  if (ekoturizmYlSeminarCodes.has(normalizedCode)) return "ETR806";
+  if (ekoturizmYlResearchCodes.has(normalizedCode)) return "ETR855";
+  if (ekoturizmYlThesisCodes.has(normalizedCode)) return "ETR81X";
+  if (elektrikYlSpecializationCodes.has(normalizedCode)) return "EEM8XX";
+  if (elektrikYlSeminarCodes.has(normalizedCode)) return "EEM806";
+  if (elektrikYlThesisCodes.has(normalizedCode)) return "EEM81X";
+  if (enerjiYlSpecializationCodes.has(normalizedCode)) return "EMB8XX";
+  if (enerjiYlSeminarCodes.has(normalizedCode)) return "EMB806";
+  if (enerjiYlResearchCodes.has(normalizedCode)) return "EMB829";
+  if (enerjiYlThesisCodes.has(normalizedCode)) return "EMB81X";
+  if (felsefeDinYlSpecializationCodes.has(normalizedCode)) return "FDB8XX";
+  if (felsefeDinYlSeminarCodes.has(normalizedCode)) return "FDB806";
+  if (felsefeDinYlThesisCodes.has(normalizedCode)) return "FDB81X";
   return normalizedCode;
 }
 
@@ -478,6 +539,36 @@ function courseCodeCandidates(code = "") {
   if (canonical === "ARK8XX") for (const alias of arkeolojiYlSpecializationCodes) candidates.add(alias);
   if (canonical === "ARK806") for (const alias of arkeolojiYlSeminarCodes) candidates.add(alias);
   if (canonical === "ARK81X") for (const alias of arkeolojiYlThesisCodes) candidates.add(alias);
+  if (canonical === "BHT8XX") for (const alias of bataryaYlSpecializationCodes) candidates.add(alias);
+  if (canonical === "BHT806") for (const alias of bataryaYlSeminarCodes) candidates.add(alias);
+  if (canonical === "BHT831") for (const alias of bataryaYlResearchCodes) candidates.add(alias);
+  if (canonical === "BHT81X") for (const alias of bataryaYlThesisCodes) candidates.add(alias);
+  if (canonical === "BES8XX") for (const alias of bedenYlSpecializationCodes) candidates.add(alias);
+  if (canonical === "BES806") for (const alias of bedenYlSeminarCodes) candidates.add(alias);
+  if (canonical === "BEF801") for (const alias of bedenYlResearchCodes) candidates.add(alias);
+  if (canonical === "BES81X") for (const alias of bedenYlThesisCodes) candidates.add(alias);
+  if (canonical === "BİO8XX") for (const alias of biyolojiYlSpecializationCodes) candidates.add(alias);
+  if (canonical === "BİO806") for (const alias of biyolojiYlSeminarCodes) candidates.add(alias);
+  if (canonical === "BİO809") for (const alias of biyolojiYlResearchCodes) candidates.add(alias);
+  if (canonical === "BİO81X") for (const alias of biyolojiYlThesisCodes) candidates.add(alias);
+  if (canonical === "EBE8XX") for (const alias of ebelikYlSpecializationCodes) candidates.add(alias);
+  if (canonical === "EBE806") for (const alias of ebelikYlSeminarCodes) candidates.add(alias);
+  if (canonical === "EBE809") for (const alias of ebelikYlResearchCodes) candidates.add(alias);
+  if (canonical === "EBE81X") for (const alias of ebelikYlThesisCodes) candidates.add(alias);
+  if (canonical === "ETR8XX") for (const alias of ekoturizmYlSpecializationCodes) candidates.add(alias);
+  if (canonical === "ETR806") for (const alias of ekoturizmYlSeminarCodes) candidates.add(alias);
+  if (canonical === "ETR855") for (const alias of ekoturizmYlResearchCodes) candidates.add(alias);
+  if (canonical === "ETR81X") for (const alias of ekoturizmYlThesisCodes) candidates.add(alias);
+  if (canonical === "EEM8XX") for (const alias of elektrikYlSpecializationCodes) candidates.add(alias);
+  if (canonical === "EEM806") for (const alias of elektrikYlSeminarCodes) candidates.add(alias);
+  if (canonical === "EEM81X") for (const alias of elektrikYlThesisCodes) candidates.add(alias);
+  if (canonical === "EMB8XX") for (const alias of enerjiYlSpecializationCodes) candidates.add(alias);
+  if (canonical === "EMB806") for (const alias of enerjiYlSeminarCodes) candidates.add(alias);
+  if (canonical === "EMB829") for (const alias of enerjiYlResearchCodes) candidates.add(alias);
+  if (canonical === "EMB81X") for (const alias of enerjiYlThesisCodes) candidates.add(alias);
+  if (canonical === "FDB8XX") for (const alias of felsefeDinYlSpecializationCodes) candidates.add(alias);
+  if (canonical === "FDB806") for (const alias of felsefeDinYlSeminarCodes) candidates.add(alias);
+  if (canonical === "FDB81X") for (const alias of felsefeDinYlThesisCodes) candidates.add(alias);
   return [...candidates].filter(Boolean);
 }
 
@@ -565,6 +656,128 @@ function normalizeArkeolojiTezliCourse(course = {}) {
   return course;
 }
 
+function isBataryaTezliCourse(course = {}) {
+  return levelKey(course.level) === "tezli yl" &&
+    normalizeScope(course.department || "") === normalizeScope("Batarya Sistemleri ve Hidrojen Teknolojileri ABD") &&
+    normalizeScope(course.programName || course.program_name || "") === normalizeScope("Batarya Sistemleri ve Hidrojen Teknolojileri");
+}
+
+function normalizeBataryaTezliCourse(course = {}) {
+  if (!isBataryaTezliCourse(course)) return course;
+  const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (bataryaYlAdvisoryCodes.has(code)) return code === "DAN801" ? { ...course, code:"DAN8XX", name:"DANIŞMANLIK", ects:1, instructor:"Öğrencinin Danışmanı" } : null;
+  if (bataryaYlSpecializationCodes.has(code)) return code === "BHT801" ? { ...course, code:"BHT8XX", name:"UZMANLIK ALAN DERSİ", ects:5, instructor:"Öğrencinin Danışmanı" } : null;
+  if (bataryaYlSeminarCodes.has(code)) return code === "BHT806" ? { ...course, code:"BHT806", name:"SEMİNER", ects:6, instructor:"Öğrencinin Danışmanı" } : null;
+  if (bataryaYlResearchCodes.has(code)) return code === "BHT831" ? { ...course, code:"BHT831", name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ", ects:6 } : null;
+  if (bataryaYlThesisCodes.has(code)) return code === "BHT807" ? { ...course, code:"BHT81X", name:"TEZ ÇALIŞMASI", ects:24, instructor:"Öğrencinin Danışmanı" } : null;
+  return course;
+}
+
+function isBedenTezliCourse(course = {}) {
+  return levelKey(course.level) === "tezli yl" && normalizeScope(course.department || "") === normalizeScope("Beden Eğitimi ve Spor ABD") && normalizeScope(course.programName || course.program_name || "") === normalizeScope("Beden Eğitimi ve Spor");
+}
+
+function normalizeBedenTezliCourse(course = {}) {
+  if (!isBedenTezliCourse(course)) return course;
+  const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (bedenYlAdvisoryCodes.has(code)) return code === "DAN801" ? { ...course, code:"DAN8XX", name:"DANIŞMANLIK", ects:1, instructor:"Öğrencinin Danışmanı" } : null;
+  if (bedenYlSpecializationCodes.has(code)) return code === "BES801" ? { ...course, code:"BES8XX", name:"UZMANLIK ALAN DERSİ", ects:5, instructor:"Öğrencinin Danışmanı" } : null;
+  if (bedenYlSeminarCodes.has(code)) return code === "BES806" ? { ...course, code:"BES806", name:"SEMİNER", ects:6, instructor:"Öğrencinin Danışmanı" } : null;
+  if (bedenYlResearchCodes.has(code)) return code === "BEF801" ? { ...course, code:"BEF801", name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ", ects:6 } : null;
+  if (bedenYlThesisCodes.has(code)) return code === "BES807" ? { ...course, code:"BES81X", name:"TEZ ÇALIŞMASI", ects:24, instructor:"Öğrencinin Danışmanı" } : null;
+  return course;
+}
+
+function isBiyolojiTezliCourse(course = {}) {
+  return levelKey(course.level) === "tezli yl" && normalizeScope(course.department || "") === normalizeScope("Biyoloji ABD") && normalizeScope(course.programName || course.program_name || "") === normalizeScope("Biyoloji");
+}
+
+function normalizeBiyolojiTezliCourse(course = {}) {
+  if (!isBiyolojiTezliCourse(course)) return course;
+  const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (biyolojiYlAdvisoryCodes.has(code)) return code === "DAN801" ? { ...course, code:"DAN8XX", name:"DANIŞMANLIK", ects:1, instructor:"Öğrencinin Danışmanı" } : null;
+  if (biyolojiYlSpecializationCodes.has(code)) return code === "BİO801" ? { ...course, code:"BİO8XX", name:"UZMANLIK ALAN DERSİ", ects:5, instructor:"Öğrencinin Danışmanı" } : null;
+  if (biyolojiYlSeminarCodes.has(code)) return code === "BİO806" ? { ...course, code:"BİO806", name:"SEMİNER", ects:6, instructor:"Öğrencinin Danışmanı" } : null;
+  if (biyolojiYlResearchCodes.has(code)) return code === "BİO809" ? { ...course, code:"BİO809", name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ", ects:6 } : null;
+  if (biyolojiYlThesisCodes.has(code)) return code === "BİO807" ? { ...course, code:"BİO81X", name:"TEZ ÇALIŞMASI", ects:24, instructor:"Öğrencinin Danışmanı" } : null;
+  return course;
+}
+
+function isEbelikTezliCourse(course = {}) {
+  return levelKey(course.level) === "tezli yl" && normalizeScope(course.department || "") === normalizeScope("Ebelik ABD") && normalizeScope(course.programName || course.program_name || "") === normalizeScope("Ebelik");
+}
+
+function normalizeEbelikTezliCourse(course = {}) {
+  if (!isEbelikTezliCourse(course)) return course;
+  const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (ebelikYlAdvisoryCodes.has(code)) return code === "DAN801" ? { ...course, code:"DAN8XX", name:"DANIŞMANLIK", ects:1, instructor:"Öğrencinin Danışmanı" } : null;
+  if (ebelikYlSpecializationCodes.has(code)) return code === "EBE801" ? { ...course, code:"EBE8XX", name:"UZMANLIK ALAN DERSİ", ects:5, instructor:"Öğrencinin Danışmanı" } : null;
+  if (ebelikYlSeminarCodes.has(code)) return code === "EBE806" ? { ...course, code:"EBE806", name:"SEMİNER", ects:6, instructor:"Öğrencinin Danışmanı" } : null;
+  if (ebelikYlResearchCodes.has(code)) return code === "EBE809" ? { ...course, code:"EBE809", name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ", ects:6 } : null;
+  if (ebelikYlThesisCodes.has(code)) return code === "EBE807" ? { ...course, code:"EBE81X", name:"TEZ ÇALIŞMASI", ects:24, instructor:"Öğrencinin Danışmanı" } : null;
+  return course;
+}
+
+function isEkoturizmTezliCourse(course = {}) {
+  return levelKey(course.level) === "tezli yl" && normalizeScope(course.department || "") === normalizeScope("Ekoturizm Rehberliği ABD") && normalizeScope(course.programName || course.program_name || "") === normalizeScope("Ekoturizm Rehberliği");
+}
+
+function normalizeEkoturizmTezliCourse(course = {}) {
+  if (!isEkoturizmTezliCourse(course)) return course;
+  const code=repairText(course.code||"").trim().toLocaleUpperCase("tr-TR");
+  if(code==="EKOTURİZM SEÇ-2")return null;
+  if(ekoturizmYlAdvisoryCodes.has(code))return code==="DAN801"?{...course,code:"DAN8XX",name:"DANIŞMANLIK",ects:1,instructor:"Öğrencinin Danışmanı"}:null;
+  if(ekoturizmYlSpecializationCodes.has(code))return code==="ETR801"?{...course,code:"ETR8XX",name:"UZMANLIK ALAN DERSİ",ects:5,instructor:"Öğrencinin Danışmanı"}:null;
+  if(ekoturizmYlSeminarCodes.has(code))return code==="ETR806"?{...course,code:"ETR806",name:"SEMİNER",ects:6,instructor:"Öğrencinin Danışmanı"}:null;
+  if(ekoturizmYlResearchCodes.has(code))return code==="ETR855"?{...course,code:"ETR855",name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",ects:6}:null;
+  if(ekoturizmYlThesisCodes.has(code))return code==="ETR807"?{...course,code:"ETR81X",name:"TEZ ÇALIŞMASI",ects:24,instructor:"Öğrencinin Danışmanı"}:null;
+  return course;
+}
+
+function isElektrikTezliCourse(course = {}) {
+  return levelKey(course.level) === "tezli yl" && normalizeScope(course.department || "") === normalizeScope("Elektrik Elektronik Mühendisliği ABD") && normalizeScope(course.programName || course.program_name || "") === normalizeScope("Elektrik Elektronik Mühendisliği");
+}
+
+function normalizeElektrikTezliCourse(course = {}) {
+  if (!isElektrikTezliCourse(course)) return course;
+  const code=repairText(course.code||"").trim().toLocaleUpperCase("tr-TR");
+  if(elektrikYlAdvisoryCodes.has(code))return code==="DAN801"?{...course,code:"DAN8XX",name:"DANIŞMANLIK",ects:1,instructor:"Öğrencinin Danışmanı"}:null;
+  if(elektrikYlSpecializationCodes.has(code))return code==="EEM801"?{...course,code:"EEM8XX",name:"UZMANLIK ALAN DERSİ",ects:5,instructor:"Öğrencinin Danışmanı"}:null;
+  if(elektrikYlSeminarCodes.has(code))return code==="EEM806"?{...course,code:"EEM806",name:"SEMİNER",ects:6,instructor:"Öğrencinin Danışmanı"}:null;
+  if(elektrikYlThesisCodes.has(code))return code==="EEM807"?{...course,code:"EEM81X",name:"TEZ ÇALIŞMASI",ects:24,instructor:"Öğrencinin Danışmanı"}:null;
+  return course;
+}
+
+function isEnerjiTezliCourse(course = {}) {
+  return levelKey(course.level) === "tezli yl" && normalizeScope(course.department || "") === normalizeScope("Enerji Sistemleri Mühendisliği ABD") && normalizeScope(course.programName || course.program_name || "") === normalizeScope("Enerji Sistemleri Mühendisliği");
+}
+
+function normalizeEnerjiTezliCourse(course = {}) {
+  if (!isEnerjiTezliCourse(course)) return course;
+  const code=repairText(course.code||"").trim().toLocaleUpperCase("tr-TR");
+  if(enerjiYlAdvisoryCodes.has(code))return code==="DAN801"?{...course,code:"DAN8XX",name:"DANIŞMANLIK",ects:1,instructor:"Öğrencinin Danışmanı"}:null;
+  if(enerjiYlSpecializationCodes.has(code))return code==="EMB801"?{...course,code:"EMB8XX",name:"UZMANLIK ALAN DERSİ",ects:5,instructor:"Öğrencinin Danışmanı"}:null;
+  if(enerjiYlSeminarCodes.has(code))return code==="EMB806"?{...course,code:"EMB806",name:"SEMİNER",ects:6,instructor:"Öğrencinin Danışmanı"}:null;
+  if(enerjiYlResearchCodes.has(code))return code==="EMB829"?{...course,code:"EMB829",name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",ects:6}:null;
+  if(enerjiYlThesisCodes.has(code))return code==="EMB807"?{...course,code:"EMB81X",name:"YÜKSEK LİSANS TEZİ",ects:24,instructor:"Öğrencinin Danışmanı"}:null;
+  return course;
+}
+
+function isFelsefeDinTezliCourse(course = {}) {
+  return levelKey(course.level) === "tezli yl" && normalizeScope(course.department || "") === normalizeScope("Felsefe ve Din Bilimleri ABD") && normalizeScope(course.programName || course.program_name || "") === normalizeScope("Felsefe ve Din Bilimleri");
+}
+
+function normalizeFelsefeDinTezliCourse(course = {}) {
+  if (!isFelsefeDinTezliCourse(course)) return course;
+  const code=repairText(course.code||"").trim().toLocaleUpperCase("tr-TR");
+  if(felsefeDinYlAdvisoryCodes.has(code))return code==="DAN801"?{...course,code:"DAN8XX",name:"DANIŞMANLIK",ects:1,instructor:"Öğrencinin Danışmanı"}:null;
+  if(felsefeDinYlSpecializationCodes.has(code))return code==="FDB801"?{...course,code:"FDB8XX",name:"UZMANLIK ALAN DERSİ",ects:5,instructor:"Öğrencinin Danışmanı"}:null;
+  if(felsefeDinYlSeminarCodes.has(code))return code==="FDB806"?{...course,code:"FDB806",name:"SEMİNER",ects:6,instructor:"Öğrencinin Danışmanı"}:null;
+  if(felsefeDinYlResearchCodes.has(code))return code==="BES801"?{...course,code:"BES801",name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",ects:6}:null;
+  if(felsefeDinYlThesisCodes.has(code))return code==="FDB807"?{...course,code:"FDB81X",name:"YÜKSEK LİSANS TEZİ",ects:24,instructor:"Öğrencinin Danışmanı"}:null;
+  return course;
+}
+
 function isYbsDoctorateCourse(course = {}) {
   if (levelKey(course.level) !== "doktora") return false;
   const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
@@ -584,6 +797,30 @@ function normalizeSeedCourse(course = {}) {
   const arkeolojiCourse = normalizeArkeolojiTezliCourse(repaired);
   if (!arkeolojiCourse) return null;
   if (arkeolojiCourse !== repaired) return arkeolojiCourse;
+  const bataryaCourse = normalizeBataryaTezliCourse(repaired);
+  if (!bataryaCourse) return null;
+  if (bataryaCourse !== repaired) return bataryaCourse;
+  const bedenCourse = normalizeBedenTezliCourse(repaired);
+  if (!bedenCourse) return null;
+  if (bedenCourse !== repaired) return bedenCourse;
+  const biyolojiCourse = normalizeBiyolojiTezliCourse(repaired);
+  if (!biyolojiCourse) return null;
+  if (biyolojiCourse !== repaired) return biyolojiCourse;
+  const ebelikCourse = normalizeEbelikTezliCourse(repaired);
+  if (!ebelikCourse) return null;
+  if (ebelikCourse !== repaired) return ebelikCourse;
+  const ekoturizmCourse = normalizeEkoturizmTezliCourse(repaired);
+  if (!ekoturizmCourse) return null;
+  if (ekoturizmCourse !== repaired) return ekoturizmCourse;
+  const elektrikCourse = normalizeElektrikTezliCourse(repaired);
+  if (!elektrikCourse) return null;
+  if (elektrikCourse !== repaired) return elektrikCourse;
+  const enerjiCourse = normalizeEnerjiTezliCourse(repaired);
+  if (!enerjiCourse) return null;
+  if (enerjiCourse !== repaired) return enerjiCourse;
+  const felsefeDinCourse = normalizeFelsefeDinTezliCourse(repaired);
+  if (!felsefeDinCourse) return null;
+  if (felsefeDinCourse !== repaired) return felsefeDinCourse;
   if (!isYbsDoctorateCourse(repaired)) return repaired;
   const code = repairText(repaired.code || "").trim().toLocaleUpperCase("tr-TR");
   if (code === "YBS925") return { ...repaired, instructor: "Doç. Dr. Emre YAKUT", status: "İncelemede" };
@@ -639,9 +876,13 @@ function normalizePerson(value = "") {
 
 function isDepartmentPoolCourseRecord(course = {}) {
   const name = repairText(course.name || "").toLocaleUpperCase("tr-TR");
+  if (repairText(course.code || "").toLocaleUpperCase("tr-TR") === "BHT831") return true;
+  if (repairText(course.code || "").toLocaleUpperCase("tr-TR") === "BEF801") return true;
+  if (repairText(course.code || "").toLocaleUpperCase("tr-TR") === "BİO809") return true;
+  if (repairText(course.code || "").toLocaleUpperCase("tr-TR") === "EEM885") return true;
+  if (repairText(course.code || "").toLocaleUpperCase("tr-TR") === "EMB829") return true;
   if (name.includes("BİLİMSEL ARAŞTIRMA")) return false;
-  return ["DANIŞMANLIK", "UZMANLIK ALAN DERSİ", "SEMİNER", "DOKTORA YETERLİK", "DOKTORA TEZİ", "TEZ ÇALIŞMASI"]
-    .some((label) => name.includes(label));
+  return /^(?:DANIŞMANLIK|UZMANLIK ALAN DERSİ|(?:YÜKSEK LİSANS |DOKTORA )?SEMİNER|DOKTORA YETERLİK|DOKTORA TEZİ|TEZ ÇALIŞMASI)$/u.test(name);
 }
 
 function courseRowsForIdentity({ code = "", department = "", programName = "", level = "" }) {
@@ -676,7 +917,7 @@ function canEditCoursePackage(session, body, rows) {
 
   if (session.role === "akademisyen") return assignedToUser;
   if (session.role === "abd_asd_baskani") {
-    const trustedMergedPoolCodes = new Set(["YBS9XX", "YBS91X", "DAN8XX", "MMB8XX", "MMB806", "MMB81X", "ADE8XX", "ADE806", "ADE81X", "ARK8XX", "ARK806", "ARK81X"]);
+    const trustedMergedPoolCodes = new Set(["YBS9XX", "YBS91X", "DAN8XX", "MMB8XX", "MMB806", "MMB81X", "ADE8XX", "ADE806", "ADE81X", "ARK8XX", "ARK806", "ARK81X", "BHT8XX", "BHT806", "BHT831", "BHT81X", "BES8XX", "BES806", "BEF801", "BES81X", "BİO8XX", "BİO806", "BİO809", "BİO81X", "EBE8XX", "EBE806", "EBE809", "EBE81X", "ETR8XX", "ETR806", "ETR855", "ETR81X", "EEM8XX", "EEM806", "EEM885", "EEM81X", "EMB8XX", "EMB806", "EMB829", "EMB81X", "FDB8XX", "FDB806", "FDB81X"]);
     const poolCourse = rows.some(isDepartmentPoolCourseRecord) ||
       (trustedMergedPoolCodes.has(body.code) && isDepartmentPoolCourseRecord(body));
     return assignedToUser || (departmentMatches && poolCourse);
@@ -827,6 +1068,14 @@ async function ensureDb() {
   `);
   seedInitialData();
   syncCourseCatalogFromSeed();
+  migrateBataryaTezliPackagesFromSeed();
+  migrateBedenTezliPackagesFromSeed();
+  migrateBiyolojiTezliPackagesFromSeed();
+  migrateEbelikTezliPackagesFromSeed();
+  migrateEkoturizmTezliPackagesFromSeed();
+  migrateElektrikTezliPackagesFromSeed();
+  migrateEnerjiTezliPackagesFromSeed();
+  migrateFelsefeDinTezliPackagesFromSeed();
   migrateYbsDoctorateContributionScale();
   seedProgramProfiles();
   ensureTestProgramData();
@@ -1112,6 +1361,33 @@ function packageSeedCourseName(coursePackage) {
     ARK806: "YÜKSEK LİSANS SEMİNER",
     ARK81X: "TEZ ÇALIŞMASI",
     BES801: "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",
+    BES8XX: "UZMANLIK ALAN DERSİ",
+    BES806: "SEMİNER",
+    BEF801: "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",
+    BES81X: "TEZ ÇALIŞMASI",
+    BİO8XX: "UZMANLIK ALAN DERSİ",
+    EBE8XX: "UZMANLIK ALAN DERSİ",
+    EBE806: "SEMİNER",
+    EBE809: "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",
+    EBE81X: "TEZ ÇALIŞMASI",
+    ETR8XX: "UZMANLIK ALAN DERSİ",
+    ETR806: "SEMİNER",
+    ETR855: "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",
+    ETR81X: "TEZ ÇALIŞMASI",
+    EEM8XX: "UZMANLIK ALAN DERSİ",
+    EEM806: "SEMİNER",
+    EEM885: "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",
+    EEM81X: "TEZ ÇALIŞMASI",
+    EMB8XX: "UZMANLIK ALAN DERSİ",
+    EMB806: "SEMİNER",
+    EMB829: "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",
+    EMB81X: "YÜKSEK LİSANS TEZİ",
+    FDB8XX: "UZMANLIK ALAN DERSİ",
+    FDB806: "SEMİNER",
+    FDB81X: "YÜKSEK LİSANS TEZİ",
+    BİO806: "SEMİNER",
+    BİO809: "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",
+    BİO81X: "TEZ ÇALIŞMASI",
   };
   return knownNames[coursePackage.code] || coursePackage.name || coursePackage.code;
 }
@@ -1218,6 +1494,30 @@ function normalizeDbCourseForList(course = {}) {
   const arkeolojiCourse = normalizeArkeolojiTezliCourse(repaired);
   if (!arkeolojiCourse) return null;
   if (arkeolojiCourse !== repaired) return arkeolojiCourse;
+  const bataryaCourse = normalizeBataryaTezliCourse(repaired);
+  if (!bataryaCourse) return null;
+  if (bataryaCourse !== repaired) return bataryaCourse;
+  const bedenCourse = normalizeBedenTezliCourse(repaired);
+  if (!bedenCourse) return null;
+  if (bedenCourse !== repaired) return bedenCourse;
+  const biyolojiCourse = normalizeBiyolojiTezliCourse(repaired);
+  if (!biyolojiCourse) return null;
+  if (biyolojiCourse !== repaired) return biyolojiCourse;
+  const ebelikCourse = normalizeEbelikTezliCourse(repaired);
+  if (!ebelikCourse) return null;
+  if (ebelikCourse !== repaired) return ebelikCourse;
+  const ekoturizmCourse = normalizeEkoturizmTezliCourse(repaired);
+  if (!ekoturizmCourse) return null;
+  if (ekoturizmCourse !== repaired) return ekoturizmCourse;
+  const elektrikCourse = normalizeElektrikTezliCourse(repaired);
+  if (!elektrikCourse) return null;
+  if (elektrikCourse !== repaired) return elektrikCourse;
+  const enerjiCourse = normalizeEnerjiTezliCourse(repaired);
+  if (!enerjiCourse) return null;
+  if (enerjiCourse !== repaired) return enerjiCourse;
+  const felsefeDinCourse = normalizeFelsefeDinTezliCourse(repaired);
+  if (!felsefeDinCourse) return null;
+  if (felsefeDinCourse !== repaired) return felsefeDinCourse;
   if (!isYbsDoctorateCourse(repaired)) return repaired;
   const code = repairText(repaired.code || "").trim().toLocaleUpperCase("tr-TR");
   if (ybsSpecializationCodes.has(code)) {
@@ -1460,6 +1760,127 @@ function syncCourseCatalogFromSeed() {
     db.exec("ROLLBACK");
     throw error;
   }
+}
+
+function migrateBataryaTezliPackagesFromSeed() {
+  const revision = "2026-08-18-batarya-tezli-v1";
+  if (db.prepare("SELECT value FROM metadata WHERE key = ?").get("batarya_tezli_packages_revision")?.value === revision) return;
+  const packages = readCoursePackageSeeds().filter((item) =>
+    normalizeScope(item.department || "") === normalizeScope("Batarya Sistemleri ve Hidrojen Teknolojileri ABD") &&
+    normalizeScope(item.programName || "") === normalizeScope("Batarya Sistemleri ve Hidrojen Teknolojileri") &&
+    levelKey(item.level || "") === "tezli yl"
+  );
+  const now = new Date().toISOString();
+  const update = db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);
+  let changed = 0;
+  db.exec("BEGIN");
+  try {
+    for (const packageSeed of packages) {
+      const course = findExactCourseRow({ department: packageSeed.department, programName: packageSeed.programName, level: packageSeed.level, code: packageSeed.code });
+      if (!course) continue;
+      const courseView = { ...course, programName: course.program_name };
+      update.run(course.name || packageSeed.name, Number(packageSeed.credit || 0), Number(packageSeed.ects || 0), Number(packageSeed.theory || 0), Number(packageSeed.practice || 0), JSON.stringify(storedPackageFromSeed(packageSeed, courseView)), now, course.id);
+      changed += 1;
+    }
+    db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("batarya_tezli_packages_revision", revision);
+    audit("course.package.migrate", "system", { scope: "Batarya Sistemleri ve Hidrojen Teknolojileri Tezli YL", revision, changed });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function migrateBedenTezliPackagesFromSeed() {
+  const revision = "2026-08-18-beden-tezli-v1";
+  if (db.prepare("SELECT value FROM metadata WHERE key = ?").get("beden_tezli_packages_revision")?.value === revision) return;
+  const packages = readCoursePackageSeeds().filter((item) => normalizeScope(item.department || "") === normalizeScope("Beden Eğitimi ve Spor ABD") && normalizeScope(item.programName || "") === normalizeScope("Beden Eğitimi ve Spor") && levelKey(item.level || "") === "tezli yl");
+  const now = new Date().toISOString();
+  const update = db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);
+  let changed = 0;
+  db.exec("BEGIN");
+  try {
+    for (const packageSeed of packages) {
+      const course = findExactCourseRow({ department:packageSeed.department, programName:packageSeed.programName, level:packageSeed.level, code:packageSeed.code });
+      if (!course) continue;
+      update.run(course.name || packageSeed.name, Number(packageSeed.credit || 0), Number(packageSeed.ects || 0), Number(packageSeed.theory || 0), Number(packageSeed.practice || 0), JSON.stringify(storedPackageFromSeed(packageSeed, { ...course, programName:course.program_name })), now, course.id);
+      changed += 1;
+    }
+    db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("beden_tezli_packages_revision", revision);
+    audit("course.package.migrate", "system", { scope:"Beden Eğitimi ve Spor Tezli YL", revision, changed });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function migrateBiyolojiTezliPackagesFromSeed() {
+  const revision = "2026-08-18-biyoloji-tezli-v3-natural-prose";
+  if (db.prepare("SELECT value FROM metadata WHERE key = ?").get("biyoloji_tezli_packages_revision")?.value === revision) return;
+  const packages = readCoursePackageSeeds().filter((item) => normalizeScope(item.department || "") === normalizeScope("Biyoloji ABD") && normalizeScope(item.programName || "") === normalizeScope("Biyoloji") && levelKey(item.level || "") === "tezli yl");
+  const now = new Date().toISOString();
+  const update = db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);
+  let changed = 0;
+  db.exec("BEGIN");
+  try {
+    for (const packageSeed of packages) {
+      const course = findExactCourseRow({ department:packageSeed.department, programName:packageSeed.programName, level:packageSeed.level, code:packageSeed.code });
+      if (!course) continue;
+      update.run(course.name || packageSeed.name, Number(packageSeed.credit || 0), Number(packageSeed.ects || 0), Number(packageSeed.theory || 0), Number(packageSeed.practice || 0), JSON.stringify(storedPackageFromSeed(packageSeed, { ...course, programName:course.program_name })), now, course.id);
+      changed += 1;
+    }
+    db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("biyoloji_tezli_packages_revision", revision);
+    audit("course.package.migrate", "system", { scope:"Biyoloji Tezli YL", revision, changed });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function migrateEbelikTezliPackagesFromSeed() {
+  const revision = "2026-08-18-ebelik-tezli-v1";
+  if (db.prepare("SELECT value FROM metadata WHERE key = ?").get("ebelik_tezli_packages_revision")?.value === revision) return;
+  const packages = readCoursePackageSeeds().filter((item) => normalizeScope(item.department || "") === normalizeScope("Ebelik ABD") && normalizeScope(item.programName || "") === normalizeScope("Ebelik") && levelKey(item.level || "") === "tezli yl");
+  const now = new Date().toISOString();
+  const update = db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);
+  let changed = 0;
+  db.exec("BEGIN");
+  try {
+    for (const packageSeed of packages) {
+      const course = findExactCourseRow({ department:packageSeed.department, programName:packageSeed.programName, level:packageSeed.level, code:packageSeed.code });
+      if (!course) continue;
+      update.run(course.name || packageSeed.name, Number(packageSeed.credit || 0), Number(packageSeed.ects || 0), Number(packageSeed.theory || 0), Number(packageSeed.practice || 0), JSON.stringify(storedPackageFromSeed(packageSeed, { ...course, programName:course.program_name })), now, course.id);
+      changed += 1;
+    }
+    db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("ebelik_tezli_packages_revision", revision);
+    audit("course.package.migrate", "system", { scope:"Ebelik Tezli YL", revision, changed });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function migrateEkoturizmTezliPackagesFromSeed() {
+  const revision="2026-08-18-ekoturizm-tezli-v1";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("ekoturizm_tezli_packages_revision")?.value===revision)return;
+  const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Ekoturizm Rehberliği ABD")&&normalizeScope(x.programName||"")===normalizeScope("Ekoturizm Rehberliği")&&levelKey(x.level||"")==="tezli yl");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const c=findExactCourseRow({department:p.department,programName:p.programName,level:p.level,code:p.code});if(!c)continue;update.run(c.name||p.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("ekoturizm_tezli_packages_revision",revision);audit("course.package.migrate","system",{scope:"Ekoturizm Rehberliği Tezli YL",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
+}
+
+function migrateElektrikTezliPackagesFromSeed() {
+  const revision="2026-08-18-elektrik-elektronik-tezli-v1";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("elektrik_tezli_packages_revision")?.value===revision)return;
+  const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Elektrik Elektronik Mühendisliği ABD")&&normalizeScope(x.programName||"")===normalizeScope("Elektrik Elektronik Mühendisliği")&&levelKey(x.level||"")==="tezli yl");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const c=findExactCourseRow({department:p.department,programName:p.programName,level:p.level,code:p.code});if(!c)continue;update.run(c.name||p.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("elektrik_tezli_packages_revision",revision);audit("course.package.migrate","system",{scope:"Elektrik Elektronik Mühendisliği Tezli YL",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
+}
+
+function migrateEnerjiTezliPackagesFromSeed() {
+  const revision="2026-08-18-enerji-sistemleri-tezli-v1";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("enerji_tezli_packages_revision")?.value===revision)return;
+  const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Enerji Sistemleri Mühendisliği ABD")&&normalizeScope(x.programName||"")===normalizeScope("Enerji Sistemleri Mühendisliği")&&levelKey(x.level||"")==="tezli yl");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const c=findExactCourseRow({department:p.department,programName:p.programName,level:p.level,code:p.code});if(!c)continue;update.run(c.name||p.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("enerji_tezli_packages_revision",revision);audit("course.package.migrate","system",{scope:"Enerji Sistemleri Mühendisliği Tezli YL",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
+}
+
+function migrateFelsefeDinTezliPackagesFromSeed() {
+  const revision="2026-08-18-felsefe-din-tezli-v1";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("felsefe_din_tezli_packages_revision")?.value===revision)return;
+  const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Felsefe ve Din Bilimleri ABD")&&normalizeScope(x.programName||"")===normalizeScope("Felsefe ve Din Bilimleri")&&levelKey(x.level||"")==="tezli yl");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const c=findExactCourseRow({department:p.department,programName:p.programName,level:p.level,code:p.code});if(!c)continue;update.run(c.name||p.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("felsefe_din_tezli_packages_revision",revision);audit("course.package.migrate","system",{scope:"Felsefe ve Din Bilimleri Tezli YL",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
 }
 
 function qualityStats(filters = {}) {

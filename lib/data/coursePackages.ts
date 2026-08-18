@@ -49,6 +49,22 @@ import { aileDanismanligiMissingCoursePackages } from "./aileDanismanligiMissing
 import { arkeolojiTezliCoursePackages } from "./arkeolojiTezliCoursePackages";
 import { arkeolojiCommonCoursePackages } from "./arkeolojiCommonCoursePackages";
 import { arkeolojiMissingCoursePackages } from "./arkeolojiMissingCoursePackages";
+import { bataryaTezliCoursePackages } from "./bataryaTezliCoursePackages";
+import { bataryaCommonCoursePackages } from "./bataryaCommonCoursePackages";
+import { bedenTezliCoursePackages } from "./bedenTezliCoursePackages";
+import { bedenCommonCoursePackages } from "./bedenCommonCoursePackages";
+import { biyolojiTezliCoursePackages } from "./biyolojiTezliCoursePackages";
+import { biyolojiCommonCoursePackages } from "./biyolojiCommonCoursePackages";
+import { ebelikTezliCoursePackages } from "./ebelikTezliCoursePackages";
+import { ebelikCommonCoursePackages } from "./ebelikCommonCoursePackages";
+import { ekoturizmTezliCoursePackages } from "./ekoturizmTezliCoursePackages";
+import { ekoturizmCommonCoursePackages } from "./ekoturizmCommonCoursePackages";
+import { elektrikElektronikTezliCoursePackages } from "./elektrikElektronikTezliCoursePackages";
+import { elektrikElektronikCommonCoursePackages } from "./elektrikElektronikCommonCoursePackages";
+import { enerjiSistemleriTezliCoursePackages } from "./enerjiSistemleriTezliCoursePackages";
+import { enerjiSistemleriCommonCoursePackages } from "./enerjiSistemleriCommonCoursePackages";
+import { felsefeDinTezliCoursePackages } from "./felsefeDinTezliCoursePackages";
+import { felsefeDinCommonCoursePackages } from "./felsefeDinCommonCoursePackages";
 
 const ybs919: CoursePackage = {
   code: "YBS919",
@@ -573,6 +589,22 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...aileDanismanligiCommonCoursePackages,
   ...arkeolojiTezliCoursePackages,
   ...arkeolojiMissingCoursePackages,
+  ...bataryaTezliCoursePackages,
+  ...bataryaCommonCoursePackages,
+  ...bedenTezliCoursePackages,
+  ...bedenCommonCoursePackages,
+  ...biyolojiTezliCoursePackages,
+  ...biyolojiCommonCoursePackages,
+  ...ebelikTezliCoursePackages,
+  ...ebelikCommonCoursePackages,
+  ...ekoturizmTezliCoursePackages,
+  ...ekoturizmCommonCoursePackages,
+  ...elektrikElektronikTezliCoursePackages,
+  ...elektrikElektronikCommonCoursePackages,
+  ...enerjiSistemleriTezliCoursePackages,
+  ...enerjiSistemleriCommonCoursePackages,
+  ...felsefeDinTezliCoursePackages,
+  ...felsefeDinCommonCoursePackages,
   ...arkeolojiCommonCoursePackages,
   ybs919,
   ybs921,
@@ -585,7 +617,7 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ybsThesis,
 ].map((coursePackage) => ({
   ...coursePackage,
-  contributionMatrix: coursePackage.department === "Arkeoloji ABD"
+  contributionMatrix: ["Arkeoloji ABD", "Biyoloji ABD", "Ebelik ABD", "Ekoturizm Rehberliği ABD", "Elektrik Elektronik Mühendisliği ABD", "Enerji Sistemleri Mühendisliği ABD", "Felsefe ve Din Bilimleri ABD"].includes(coursePackage.department || "")
     ? coursePackage.contributionMatrix
     : buildSemanticContributionMatrix(coursePackage.outcomes, coursePackage),
 }));

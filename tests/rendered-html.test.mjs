@@ -478,9 +478,170 @@ test("Arkeoloji ortak süreç dersleri tek havuzda ve ABD başkanı düzenleme a
   const html = await (await render({}, path)).text();
   for (const code of ["DAN8XX", "ARK8XX", "ARK806", "ARK81X", "BES801", "BES802"]) assert.match(html, new RegExp(code));
   assert.doesNotMatch(html, /DAN80[12]|ARK80[1-5]|ARK80[78]/u);
-  assert.ok(html.indexOf("BES801") > html.indexOf("Güz Yarıyılı"), "BES801 Güz yarıyılında listelenmeli");
-  assert.ok(html.indexOf("BES802") > html.indexOf("Bahar Yarıyılı"), "BES802 Bahar yarıyılında listelenmeli");
+  assert.ok(html.lastIndexOf("BES801") > html.indexOf("Güz Yarıyılı"), "BES801 Güz yarıyılında listelenmeli");
+  assert.ok(html.lastIndexOf("BES802") > html.indexOf("Bahar Yarıyılı"), "BES802 Bahar yarıyılında listelenmeli");
 });
+
+test("Batarya tezli YL paketleri handoff, ortak havuz ve rol kurallarını korur", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Batarya Sistemleri ve Hidrojen Teknolojileri ABD" && item.programName === "Batarya Sistemleri ve Hidrojen Teknolojileri");
+  assert.equal(packages.length, 26);
+  for (const coursePackage of packages) {
+    assert.equal(coursePackage.weeklyTopics.length, 15, `${coursePackage.code}: 15 hafta`);
+    assert.equal(coursePackage.outcomes.length, 5, `${coursePackage.code}: beş DÖÇ`);
+    assert.ok(coursePackage.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)), `${coursePackage.code}: 11 PÇ ve 1–5 katkı`);
+    assert.equal(coursePackage.workloads.reduce((sum, row) => sum + row.total, 0), coursePackage.ects * 30, `${coursePackage.code}: AKTS iş yükü`);
+    assert.equal(coursePackage.qualityChecks.length, 21, `${coursePackage.code}: iç kontrol`);
+    assert.equal(coursePackage.publicQualityChecklist, false, `${coursePackage.code}: iç kontrol public değil`);
+    assert.ok(coursePackage.weeklyTopics.every((topic) => !/^(quiz|ödev|proje|sunum|konu tekrarı|genel tekrar)/iu.test(topic)), `${coursePackage.code}: akademik hafta başlıkları`);
+  }
+  for (const code of ["DAN8XX", "BHT8XX", "BHT806", "BHT831", "BHT81X"]) assert.equal(packages.filter((item) => item.code === code).length, 1, `${code} tekilleştirilmeli`);
+  for (const code of ["BHT800","BHT811","BHT812","BHT813","BHT814","BHT816","BHT817","BHT818","BHT823","BHT824","BHT826","BHT827","BHT829"]) {
+    const coursePackage = packages.find((item) => item.code === code);
+    assert.ok(coursePackage.assessments.some((item) => /Ödev/u.test(item.name)), `${code}: kaynak ödevi korunmalı`);
+    assert.ok(coursePackage.workloads.some((item) => /Ödev/u.test(item.name)), `${code}: ödev AKTS'ye katılmalı`);
+  }
+  const publicSource = await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx", import.meta.url), "utf8");
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  for (const code of ["BHT8XX", "BHT806", "BHT831", "BHT81X"]) {
+    assert.match(publicSource, new RegExp(`mergedProcessCourseCodes[\\s\\S]*${code}`));
+    assert.match(serverSource, new RegExp(`trustedMergedPoolCodes[\\s\\S]*${code}`));
+  }
+  assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
+  assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
+});
+
+test("Beden Eğitimi ve Spor tezli YL paketleri handoff ve mevcut 11 PÇ yapısını korur", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Beden Eğitimi ve Spor ABD" && item.programName === "Beden Eğitimi ve Spor");
+  const forbidden = /^(quiz|ödev|proje|sunum|konu tekrarı|genel tekrar|ara sınav|yarıyıl sonu sınavı)(?:\b|\s|$)/iu;
+  assert.equal(packages.length, 36, "31 alan ve 5 ortak/süreç paketi bulunmalı");
+  for (const coursePackage of packages) {
+    assert.equal(coursePackage.weeklyTopics.length, 15, `${coursePackage.code}: 15 akademik hafta`);
+    assert.equal(coursePackage.weeklyTopics.some((topic) => forbidden.test(topic)), false, `${coursePackage.code}: yasak hafta başlığı yok`);
+    assert.equal(coursePackage.outcomes.length, 5, `${coursePackage.code}: beş ölçülebilir DÖÇ`);
+    assert.ok(coursePackage.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)), `${coursePackage.code}: mevcut 11 PÇ ve 1–5 katkı`);
+    assert.equal(coursePackage.workloads.reduce((sum, row) => sum + row.total, 0), coursePackage.ects * 30, `${coursePackage.code}: AKTS iş yükü`);
+    assert.equal(coursePackage.workloads.every((row) => Number.isInteger(row.hours * 2)), true, `${coursePackage.code}: anlamlı tam/yarım saat`);
+    assert.equal(coursePackage.qualityChecks.length, 21, `${coursePackage.code}: iç kontrol`);
+    assert.equal(coursePackage.publicQualityChecklist, false, `${coursePackage.code}: iç kontrol public değil`);
+  }
+  for (const code of ["DAN8XX", "BES8XX", "BES806", "BEF801", "BES81X"]) {
+    assert.equal(packages.filter((item) => item.code === code).length, 1, `${code}: ortak havuzda tek olmalı`);
+  }
+  const sourceMissing = packages.filter((item) => !item.sourceUrl && !["DAN8XX", "BES8XX", "BES806", "BEF801", "BES81X"].includes(item.code));
+  assert.equal(sourceMissing.length, 7, "kaynakta bulunmayan yedi resmi ders ayrıca üretilmeli");
+  assert.ok(sourceMissing.every((item) => item.qualityChecks.some((check) => check.status === "Doğrulanmalı")), "kaynak dışı paketler iç kontrolde işaretlenmeli");
+});
+
+test("Beden Eğitimi ve Spor ortak havuzu ile ABD başkanı ve danışman yetkileri ayrıdır", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Beden Eğitimi ve Spor ABD" && item.programName === "Beden Eğitimi ve Spor");
+  const homeworkPackages = packages.filter((item) => item.assessments.some((assessment) => /Ödev/iu.test(assessment.name)));
+  assert.ok(homeworkPackages.every((item) => item.workloads.some((row) => /Ödev/iu.test(row.name))), "ödevler AKTS iş yüküne katılmalı");
+  const publicSource = await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx", import.meta.url), "utf8");
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  for (const code of ["BES8XX", "BES806", "BEF801", "BES81X"]) {
+    assert.match(publicSource, new RegExp(`mergedProcessCourseCodes[\\s\\S]*${code}`));
+    assert.match(serverSource, new RegExp(`trustedMergedPoolCodes[\\s\\S]*${code}`));
+  }
+  assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
+  assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
+});
+
+test("Biyoloji tezli YL paketleri handoff, 15 hafta ve mevcut 11 PÇ yapısını korur", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Biyoloji ABD" && item.programName === "Biyoloji" && item.level === "Tezli Yüksek Lisans");
+  const forbidden = /^(quiz|ödev|proje|sunum|konu tekrarı|genel tekrar|ara sınav|yarıyıl sonu sınavı)(?:\b|\s|$)/iu;
+  assert.equal(packages.length, 88, "83 alan ve 5 ortak/süreç paketi bulunmalı");
+  for (const coursePackage of packages) {
+    assert.equal(coursePackage.weeklyTopics.length, 15, `${coursePackage.code}: 15 akademik hafta`);
+    assert.equal(coursePackage.weeklyTopics.some((topic) => forbidden.test(topic)), false, `${coursePackage.code}: yasak hafta başlığı yok`);
+    assert.equal(coursePackage.outcomes.length, 5, `${coursePackage.code}: beş ölçülebilir DÖÇ`);
+    assert.ok(coursePackage.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)), `${coursePackage.code}: 11 PÇ ve 1–5 katkı`);
+    assert.equal(coursePackage.workloads.reduce((sum, row) => sum + row.total, 0), coursePackage.ects * 30, `${coursePackage.code}: AKTS iş yükü`);
+    assert.equal(coursePackage.workloads.every((row) => row.hours >= 0 && Number.isInteger(row.hours * 2)), true, `${coursePackage.code}: negatif olmayan tam/yarım saat`);
+    assert.equal(coursePackage.qualityChecks.length, 21, `${coursePackage.code}: iç kontrol`);
+    assert.equal(coursePackage.publicQualityChecklist, false, `${coursePackage.code}: iç kontrol public değil`);
+  }
+  for (const code of ["DAN8XX", "BİO8XX", "BİO806", "BİO809", "BİO81X"]) assert.equal(packages.filter((item) => item.code === code).length, 1, `${code}: tek kanonik paket`);
+  const rawAliases = /^(?:DAN80[1-4]|BİO80[1-5]|BİO80[7-8]|BİO810)$/u;
+  assert.equal(packages.some((item) => rawAliases.test(item.code)), false, "dönemsel ortak ders kodları listede kalmamalı");
+});
+
+test("Biyoloji kaynak dışı resmi dersleri işaretlenir; ödevler AKTS'ye katılır ve roller ayrılır", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Biyoloji ABD" && item.programName === "Biyoloji" && item.level === "Tezli Yüksek Lisans");
+  const common = new Set(["DAN8XX", "BİO8XX", "BİO806", "BİO809", "BİO81X"]);
+  const missing = packages.filter((item) => !common.has(item.code) && !item.sourceUrl);
+  assert.deepEqual(missing.map((item) => item.code).sort(), ["BİO813","BİO814","BİO829","BİO867","BİO868","BİO869","BİO875","BİO877","BİO881","BİO883","BİO885"].sort());
+  assert.ok(missing.every((item) => item.qualityChecks.some((check) => check.status === "Doğrulanmalı")), "kaynak dışı dersler doğrulama beklemeli");
+  const homeworkPackages = packages.filter((item) => item.assessments.some((assessment) => /Ödev/iu.test(assessment.name)));
+  assert.ok(homeworkPackages.every((item) => item.workloads.some((row) => /Ödev/iu.test(row.name))), "tanımlı ödev AKTS iş yüküne katılmalı");
+  const publicSource = await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx", import.meta.url), "utf8");
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  for (const code of ["BİO8XX", "BİO806", "BİO809", "BİO81X"]) {
+    assert.match(publicSource, new RegExp(`mergedProcessCourseCodes[\\s\\S]*${code}`));
+    assert.match(serverSource, new RegExp(`trustedMergedPoolCodes[\\s\\S]*${code}`));
+  }
+  assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
+  assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
+});
+
+test("Ebelik tezli YL paketleri 29 adımlık handoff ve mevcut 11 PÇ yapısını korur", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Ebelik ABD" && item.programName === "Ebelik" && item.level === "Tezli Yüksek Lisans");
+  const forbidden = /^(quiz|ödev|proje|sunum|konu tekrarı|genel tekrar|ara sınav|yarıyıl sonu sınavı)(?:\b|\s|$)/iu;
+  assert.equal(packages.length, 20, "15 alan ve 5 ortak/süreç paketi bulunmalı");
+  for (const coursePackage of packages) {
+    assert.equal(coursePackage.weeklyTopics.length, 15, `${coursePackage.code}: 15 akademik hafta`);
+    assert.equal(coursePackage.weeklyTopics.some((topic) => forbidden.test(topic)), false, `${coursePackage.code}: yasak hafta başlığı yok`);
+    assert.equal(coursePackage.outcomes.length, 5, `${coursePackage.code}: beş ölçülebilir DÖÇ`);
+    assert.ok(coursePackage.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)), `${coursePackage.code}: 11 PÇ ve 1–5 katkı`);
+    assert.equal(coursePackage.workloads.reduce((sum, row) => sum + row.total, 0), coursePackage.ects * 30, `${coursePackage.code}: AKTS iş yükü`);
+    assert.equal(coursePackage.workloads.every((row) => row.hours >= 0 && Number.isInteger(row.hours * 2)), true, `${coursePackage.code}: tam/yarım saat`);
+    assert.equal(coursePackage.qualityChecks.length, 21, `${coursePackage.code}: iç kontrol`);
+    assert.equal(coursePackage.publicQualityChecklist, false, `${coursePackage.code}: iç kontrol public değil`);
+  }
+  for (const code of ["DAN8XX", "EBE8XX", "EBE806", "EBE809", "EBE81X"]) assert.equal(packages.filter((item) => item.code === code).length, 1, `${code}: tek kanonik paket`);
+  assert.equal(packages.some((item) => /^(?:DAN80[1-4]|EBE80[1-5]|EBE80[7-8]|EBE810)$/u.test(item.code)), false, "ortak ders aliasları kalmamalı");
+  assert.equal(packages.filter((item) => !new Set(["DAN8XX", "EBE8XX", "EBE806", "EBE809", "EBE81X"]).has(item.code) && !item.sourceUrl).length, 0, "tüm alan derslerinin gerçek OBS kaydı olmalı");
+});
+
+test("Ebelik ortak havuzu ile ABD başkanı ve akademisyen yetkileri ayrıdır", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Ebelik ABD" && item.programName === "Ebelik" && item.level === "Tezli Yüksek Lisans");
+  const homeworkPackages = packages.filter((item) => item.assessments.some((assessment) => /Ödev/iu.test(assessment.name)));
+  assert.ok(homeworkPackages.every((item) => item.workloads.some((row) => /Ödev/iu.test(row.name))), "tanımlı ödev AKTS iş yüküne katılmalı");
+  const publicSource = await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx", import.meta.url), "utf8");
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  for (const code of ["EBE8XX", "EBE806", "EBE809", "EBE81X"]) {
+    assert.match(publicSource, new RegExp(`mergedProcessCourseCodes[\\s\\S]*${code}`));
+    assert.match(serverSource, new RegExp(`trustedMergedPoolCodes[\\s\\S]*${code}`));
+  }
+  assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
+  assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
+});
+
+test("Ekoturizm Rehberliği tezli YL paketleri handoff, 15 hafta ve 11 PÇ yapısını korur", async () => {
+  const seed=JSON.parse(await readFile(new URL("../seed/course-packages.json",import.meta.url),"utf8"));const packages=seed.filter((x)=>x.department==="Ekoturizm Rehberliği ABD"&&x.programName==="Ekoturizm Rehberliği"&&x.level==="Tezli Yüksek Lisans");const forbidden=/^(quiz|ödev|proje|sunum|konu tekrarı|genel tekrar|ara sınav|yarıyıl sonu sınavı)(?:\b|\s|$)/iu;
+  assert.equal(packages.length,44,"39 alan ve 5 ortak paket");for(const p of packages){assert.equal(p.weeklyTopics.length,15,`${p.code}: 15 hafta`);assert.equal(p.weeklyTopics.some((x)=>forbidden.test(x)),false,`${p.code}: yasak başlık yok`);assert.equal(p.outcomes.length,5);assert.ok(p.contributionMatrix.every((r)=>r.values.length===11&&r.values.every((v)=>v>=1&&v<=5)));assert.equal(p.workloads.reduce((s,r)=>s+r.total,0),p.ects*30);assert.equal(p.qualityChecks.length,21);assert.equal(p.publicQualityChecklist,false)}
+  for(const code of ["DAN8XX","ETR8XX","ETR806","ETR855","ETR81X"])assert.equal(packages.filter((x)=>x.code===code).length,1,`${code}: tek kanonik paket`);assert.equal(packages.some((x)=>x.code==="EKOTURİZM SEÇ-2"),false,"seçim grubu ders değildir");assert.equal(packages.filter((x)=>!["DAN8XX","ETR8XX","ETR806","ETR855","ETR81X"].includes(x.code)&&!x.sourceUrl).length,0,"alan derslerinin OBS kaydı var");
+});
+
+test("Ekoturizm ortak havuzu ile ABD başkanı ve akademisyen yetkileri ayrıdır",async()=>{const seed=JSON.parse(await readFile(new URL("../seed/course-packages.json",import.meta.url),"utf8"));const packages=seed.filter((x)=>x.department==="Ekoturizm Rehberliği ABD"&&x.programName==="Ekoturizm Rehberliği");const homework=packages.filter((x)=>x.assessments.some((a)=>/Ödev/iu.test(a.name)));assert.ok(homework.every((x)=>x.workloads.some((r)=>/Ödev/iu.test(r.name))));const publicSource=await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx",import.meta.url),"utf8"),serverSource=await readFile(new URL("../server.mjs",import.meta.url),"utf8");for(const code of ["ETR8XX","ETR806","ETR855","ETR81X"]){assert.match(publicSource,new RegExp(`mergedProcessCourseCodes[\\s\\S]*${code}`));assert.match(serverSource,new RegExp(`trustedMergedPoolCodes[\\s\\S]*${code}`))}assert.match(serverSource,/session\.role === "akademisyen"\) return assignedToUser/u);assert.match(serverSource,/return assignedToUser \|\| \(departmentMatches && poolCourse\)/u)});
+
+test("Elektrik Elektronik tezli YL paketleri handoff kalite kurallarını karşılar",async()=>{const seed=JSON.parse(await readFile(new URL("../seed/course-packages.json",import.meta.url),"utf8"));const packages=seed.filter((x)=>x.department==="Elektrik Elektronik Mühendisliği ABD"&&x.programName==="Elektrik Elektronik Mühendisliği"&&x.level==="Tezli Yüksek Lisans");const forbidden=/^(quiz|ödev|proje|sunum|konu tekrarı|genel tekrar|ara sınav|yarıyıl sonu sınavı)(?:\b|\s|$)/iu;assert.equal(packages.length,87);for(const code of ["DAN8XX","EEM8XX","EEM806","EEM885","EEM81X"])assert.equal(packages.filter((x)=>x.code===code).length,1,`${code}: tek kanonik paket`);for(const p of packages){assert.equal(p.weeklyTopics.length,15,`${p.code}: 15 hafta`);assert.equal(p.weeklyTopics.some((x)=>forbidden.test(x)),false,`${p.code}: akademik konu`);assert.equal(p.outcomes.length,5,`${p.code}: 5 DÖÇ`);assert.equal(p.contributionMatrix.length,5,`${p.code}: 5 matris satırı`);assert.ok(p.contributionMatrix.every((r)=>r.values.length===11&&r.values.every((v)=>v>=1&&v<=5)),`${p.code}: 1-5 matris`);assert.equal(p.workloads.reduce((s,r)=>s+r.total,0),p.ects*30,`${p.code}: AKTS`);assert.equal(p.publicQualityChecklist,false,`${p.code}: kontrol listesi gizli`)}assert.equal(packages.filter((x)=>!["DAN8XX","EEM8XX","EEM806","EEM885","EEM81X"].includes(x.code)&&!x.sourceUrl).map((x)=>x.code).join(","),"EEM837")});
+
+test("Elektrik Elektronik ortak havuzu ile ABD başkanı ve akademisyen yetkileri ayrıdır",async()=>{const seed=JSON.parse(await readFile(new URL("../seed/course-packages.json",import.meta.url),"utf8"));const packages=seed.filter((x)=>x.department==="Elektrik Elektronik Mühendisliği ABD"&&x.programName==="Elektrik Elektronik Mühendisliği");const homework=packages.filter((x)=>x.assessments.some((a)=>/Ödev/iu.test(a.name)));assert.ok(homework.every((x)=>x.workloads.some((r)=>/Ödev/iu.test(r.name))));const publicSource=await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx",import.meta.url),"utf8"),serverSource=await readFile(new URL("../server.mjs",import.meta.url),"utf8");for(const code of ["EEM8XX","EEM806","EEM885","EEM81X"]){assert.match(publicSource,new RegExp(`mergedProcessCourseCodes[\\s\\S]*${code}`));assert.match(serverSource,new RegExp(`trustedMergedPoolCodes[\\s\\S]*${code}`))}assert.match(serverSource,/session\.role === "akademisyen"\) return assignedToUser/u);assert.match(serverSource,/return assignedToUser \|\| \(departmentMatches && poolCourse\)/u)});
+
+test("Enerji Sistemleri tezli YL paketleri handoff kalite kurallarını karşılar",async()=>{const seed=JSON.parse(await readFile(new URL("../seed/course-packages.json",import.meta.url),"utf8"));const packages=seed.filter((x)=>x.department==="Enerji Sistemleri Mühendisliği ABD"&&x.programName==="Enerji Sistemleri Mühendisliği"&&x.level==="Tezli Yüksek Lisans");const forbidden=/^(quiz|ödev|proje|sunum|konu tekrarı|genel tekrar|ara sınav|yarıyıl sonu sınavı)(?:\b|\s|$)/iu;assert.equal(packages.length,28);for(const code of ["DAN8XX","EMB8XX","EMB806","EMB829","EMB81X"])assert.equal(packages.filter((x)=>x.code===code).length,1,`${code}: tek kanonik paket`);for(const p of packages){assert.equal(p.weeklyTopics.length,15,`${p.code}: 15 hafta`);assert.equal(p.weeklyTopics.some((x)=>forbidden.test(x)),false,`${p.code}: akademik konu`);assert.equal(p.outcomes.length,5,`${p.code}: 5 DÖÇ`);assert.equal(p.contributionMatrix.length,5,`${p.code}: 5 matris satırı`);assert.ok(p.contributionMatrix.every((r)=>r.values.length===11&&r.values.every((v)=>v>=1&&v<=5)),`${p.code}: 1-5 matris`);assert.equal(p.workloads.reduce((s,r)=>s+r.total,0),p.ects*30,`${p.code}: AKTS`);assert.equal(p.publicQualityChecklist,false,`${p.code}: kontrol listesi gizli`)}assert.deepEqual(packages.filter((x)=>!["DAN8XX","EMB8XX","EMB806","EMB829","EMB81X"].includes(x.code)&&!x.sourceUrl).map((x)=>x.code).sort(),["EMB821","EMB822","EMB832"])});
+
+test("Enerji Sistemleri ortak havuzu ile ABD başkanı ve akademisyen yetkileri ayrıdır",async()=>{const seed=JSON.parse(await readFile(new URL("../seed/course-packages.json",import.meta.url),"utf8"));const packages=seed.filter((x)=>x.department==="Enerji Sistemleri Mühendisliği ABD"&&x.programName==="Enerji Sistemleri Mühendisliği");const homework=packages.filter((x)=>x.assessments.some((a)=>/Ödev/iu.test(a.name)));assert.ok(homework.every((x)=>x.workloads.some((r)=>/Ödev/iu.test(r.name))));const publicSource=await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx",import.meta.url),"utf8"),serverSource=await readFile(new URL("../server.mjs",import.meta.url),"utf8");for(const code of ["EMB8XX","EMB806","EMB829","EMB81X"]){assert.match(publicSource,new RegExp(`mergedProcessCourseCodes[\\s\\S]*${code}`));assert.match(serverSource,new RegExp(`trustedMergedPoolCodes[\\s\\S]*${code}`))}assert.match(serverSource,/session\.role === "akademisyen"\) return assignedToUser/u);assert.match(serverSource,/return assignedToUser \|\| \(departmentMatches && poolCourse\)/u)});
+
+test("Felsefe ve Din Bilimleri tezli YL paketleri handoff kalite kurallarını karşılar",async()=>{const seed=JSON.parse(await readFile(new URL("../seed/course-packages.json",import.meta.url),"utf8"));const packages=seed.filter((x)=>x.department==="Felsefe ve Din Bilimleri ABD"&&x.programName==="Felsefe ve Din Bilimleri"&&x.level==="Tezli Yüksek Lisans");const forbidden=/^(quiz|ödev|proje|sunum|konu tekrarı|genel tekrar|ara sınav|yarıyıl sonu sınavı)(?:\b|\s|$)/iu;assert.equal(packages.length,55);for(const code of ["DAN8XX","FDB8XX","FDB806","BES801","FDB81X"])assert.equal(packages.filter((x)=>x.code===code).length,1,`${code}: tek kanonik paket`);for(const p of packages){assert.equal(p.weeklyTopics.length,15,`${p.code}: 15 hafta`);assert.equal(p.weeklyTopics.some((x)=>forbidden.test(x)),false,`${p.code}: akademik konu`);assert.equal(p.outcomes.length,5,`${p.code}: 5 DÖÇ`);assert.equal(p.contributionMatrix.length,5,`${p.code}: 5 matris satırı`);assert.ok(p.contributionMatrix.every((r)=>r.values.length===11&&r.values.every((v)=>v>=1&&v<=5)),`${p.code}: 1-5 matris`);assert.equal(p.workloads.reduce((s,r)=>s+r.total,0),p.ects*30,`${p.code}: AKTS`);assert.equal(p.publicQualityChecklist,false,`${p.code}: kontrol listesi gizli`)}assert.deepEqual(packages.filter((x)=>!["DAN8XX","FDB8XX","FDB806","BES801","FDB81X"].includes(x.code)&&!x.sourceUrl).map((x)=>x.code).sort(),["FDB815","FDB817","FDB819","FDB821","FDB823","FDB825","FDB833","FDB835","FDB843","FDB845","FDB861"])});
+
+test("Felsefe ve Din Bilimleri ortak havuzu ile rol yetkileri ayrıdır",async()=>{const seed=JSON.parse(await readFile(new URL("../seed/course-packages.json",import.meta.url),"utf8"));const packages=seed.filter((x)=>x.department==="Felsefe ve Din Bilimleri ABD"&&x.programName==="Felsefe ve Din Bilimleri");const homework=packages.filter((x)=>x.assessments.some((a)=>/Ödev/iu.test(a.name)));assert.ok(homework.every((x)=>x.workloads.some((r)=>/Ödev/iu.test(r.name))));const publicSource=await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx",import.meta.url),"utf8"),serverSource=await readFile(new URL("../server.mjs",import.meta.url),"utf8");for(const code of ["FDB8XX","FDB806","FDB81X"]){assert.match(publicSource,new RegExp(`mergedProcessCourseCodes[\\s\\S]*${code}`));assert.match(serverSource,new RegExp(`trustedMergedPoolCodes[\\s\\S]*${code}`))}assert.match(serverSource,/session\.role === "akademisyen"\) return assignedToUser/u);assert.match(serverSource,/return assignedToUser \|\| \(departmentMatches && poolCourse\)/u)});
 
 test("generic course pages also render both workload and ECTS totals", async () => {
   const response = await render({}, "/dbp/katalog?ders=ADE801");
