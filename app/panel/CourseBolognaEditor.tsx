@@ -158,6 +158,44 @@ const structuresForCourse = (course: CourseIdentity) => {
     values["Mühendislik Tasarımı"] = 20;
     values["Alan Bilgisi"] = 25;
   }
+  if ((course.department || "").toLocaleLowerCase("tr-TR").includes("fizik")) {
+    values["Matematik ve Temel Bilimler"] = 35;
+    values["Mühendislik Bilimleri"] = 20;
+    values["Mühendislik Tasarımı"] = 10;
+    values["Alan Bilgisi"] = 35;
+  }
+  if ((course.department || "").toLocaleLowerCase("tr-TR").includes("gastronomi ve mutfak sanatları")) {
+    values["Sosyal Bilimler"] = 20;
+    values["Sağlık Bilimleri"] = 20;
+    values["Laboratuvar / Araştırma"] = 20;
+    values["Alan Bilgisi"] = 40;
+  }
+  if ((course.department || "").toLocaleLowerCase("tr-TR").includes("gıda mühendisliği")) {
+    values["Matematik ve Temel Bilimler"] = 20;
+    values["Mühendislik Bilimleri"] = 35;
+    values["Mühendislik Tasarımı"] = 20;
+    values["Laboratuvar / Araştırma"] = 15;
+    values["Alan Bilgisi"] = 10;
+  }
+  if ((course.department || "").toLocaleLowerCase("tr-TR").includes("gıda teknolojisi")) {
+    values["Fen Bilimleri"] = 25;
+    values["Sağlık Bilimleri"] = 10;
+    values["Laboratuvar / Araştırma"] = 25;
+    values["Alan Bilgisi"] = 40;
+  }
+  if ((course.department || "").toLocaleLowerCase("tr-TR").includes("harita mühendisliği")) {
+    values["Matematik ve Temel Bilimler"] = 20;
+    values["Mühendislik Bilimleri"] = 30;
+    values["Mühendislik Tasarımı"] = 20;
+    values["Laboratuvar / Araştırma"] = 10;
+    values["Alan Bilgisi"] = 20;
+  }
+  if ((course.programName || "").toLocaleLowerCase("tr-TR").includes("iç hastalıkları hemşireliği")) {
+    values["Sağlık Bilimleri"] = 45;
+    values["Sosyal Bilimler"] = 10;
+    values["Laboratuvar / Araştırma"] = 15;
+    values["Alan Bilgisi"] = 30;
+  }
   return values;
 };
 const defaultDetailFields = () => Object.fromEntries(longFields.map(([key, , value]) => [key, value])) as Record<string, string>;

@@ -38,6 +38,15 @@ export type CoursePackage = {
   qualityChecks?: CourseQualityCheck[];
 };
 
+export const sanitizeInstructorName = (value = "") => value
+  .replace(/\bYrd\.?\s*Doç\.?\s*Dr\.?\b/giu, "Dr. Öğr. Üyesi")
+  .replace(/(?:https?:\/\/|www\.)\S+/giu, " ")
+  .replace(/\b(?:akbis\.)?osmaniye\.edu\.tr\/\S+/giu, " ")
+  .replace(/\b\S+@\S+\b/giu, " ")
+  .replace(/\s+\b(?:yok|null|undefined)\b\s*$/giu, "")
+  .replace(/\s+/g, " ")
+  .trim();
+
 import { buildSemanticContributionMatrix, ybsAcademicCoursePackages } from "./ybsAcademicCoursePackages";
 import { makineCommonCoursePackages } from "./makineCommonCoursePackages";
 import { makineAcademicCoursePackages } from "./makineAcademicCoursePackages";
@@ -55,6 +64,8 @@ import { bedenTezliCoursePackages } from "./bedenTezliCoursePackages";
 import { bedenCommonCoursePackages } from "./bedenCommonCoursePackages";
 import { biyolojiTezliCoursePackages } from "./biyolojiTezliCoursePackages";
 import { biyolojiCommonCoursePackages } from "./biyolojiCommonCoursePackages";
+import { biyolojiDoktoraCoursePackages } from "./biyolojiDoktoraCoursePackages";
+import { biyolojiDoktoraCommonCoursePackages } from "./biyolojiDoktoraCommonCoursePackages";
 import { ebelikTezliCoursePackages } from "./ebelikTezliCoursePackages";
 import { ebelikCommonCoursePackages } from "./ebelikCommonCoursePackages";
 import { ekoturizmTezliCoursePackages } from "./ekoturizmTezliCoursePackages";
@@ -63,8 +74,52 @@ import { elektrikElektronikTezliCoursePackages } from "./elektrikElektronikTezli
 import { elektrikElektronikCommonCoursePackages } from "./elektrikElektronikCommonCoursePackages";
 import { enerjiSistemleriTezliCoursePackages } from "./enerjiSistemleriTezliCoursePackages";
 import { enerjiSistemleriCommonCoursePackages } from "./enerjiSistemleriCommonCoursePackages";
+import { enerjiSistemleriDoktoraCoursePackages } from "./enerjiSistemleriDoktoraCoursePackages";
+import { enerjiSistemleriDoktoraCommonCoursePackages } from "./enerjiSistemleriDoktoraCommonCoursePackages";
 import { felsefeDinTezliCoursePackages } from "./felsefeDinTezliCoursePackages";
 import { felsefeDinCommonCoursePackages } from "./felsefeDinCommonCoursePackages";
+import { fizikTezliCoursePackages } from "./fizikTezliCoursePackages";
+import { fizikCommonCoursePackages } from "./fizikCommonCoursePackages";
+import { fizikDoktoraCoursePackages } from "./fizikDoktoraCoursePackages";
+import { fizikDoktoraCommonCoursePackages } from "./fizikDoktoraCommonCoursePackages";
+import { gastronomiTezliCoursePackages } from "./gastronomiTezliCoursePackages";
+import { gastronomiCommonCoursePackages } from "./gastronomiCommonCoursePackages";
+import { gidaMuhendisligiTezliCoursePackages } from "./gidaMuhendisligiTezliCoursePackages";
+import { gidaMuhendisligiCommonCoursePackages } from "./gidaMuhendisligiCommonCoursePackages";
+import { gidaTeknolojisiTezliCoursePackages } from "./gidaTeknolojisiTezliCoursePackages";
+import { gidaTeknolojisiCommonCoursePackages } from "./gidaTeknolojisiCommonCoursePackages";
+import { haritaMuhendisligiTezliCoursePackages } from "./haritaMuhendisligiTezliCoursePackages";
+import { haritaMuhendisligiCommonCoursePackages } from "./haritaMuhendisligiCommonCoursePackages";
+import { icHastaliklariHemsireligiTezliCoursePackages } from "./icHastaliklariHemsireligiTezliCoursePackages";
+import { icHastaliklariHemsireligiCommonCoursePackages } from "./icHastaliklariHemsireligiCommonCoursePackages";
+import { iktisatTezliCoursePackages } from "./iktisatTezliCoursePackages";
+import { iktisatCommonCoursePackages } from "./iktisatCommonCoursePackages";
+import { insaatMuhendisligiTezliCoursePackages } from "./insaatMuhendisligiTezliCoursePackages";
+import { insaatMuhendisligiCommonCoursePackages } from "./insaatMuhendisligiCommonCoursePackages";
+import { isletmeTezliCoursePackages } from "./isletmeTezliCoursePackages";
+import { isletmeCommonCoursePackages } from "./isletmeCommonCoursePackages";
+import { kimyaTezliCoursePackages } from "./kimyaTezliCoursePackages";
+import { kimyaCommonCoursePackages } from "./kimyaCommonCoursePackages";
+import { matematikTezliCoursePackages } from "./matematikTezliCoursePackages";
+import { matematikCommonCoursePackages } from "./matematikCommonCoursePackages";
+import { muhasebeFinansmanTezliCoursePackages } from "./muhasebeFinansmanTezliCoursePackages";
+import { muhasebeFinansmanCommonCoursePackages } from "./muhasebeFinansmanCommonCoursePackages";
+import { organikTarimIsletmeciligiTezliCoursePackages } from "./organikTarimIsletmeciligiTezliCoursePackages";
+import { organikTarimIsletmeciligiCommonCoursePackages } from "./organikTarimIsletmeciligiCommonCoursePackages";
+import { resimTezliCoursePackages } from "./resimTezliCoursePackages";
+import { resimCommonCoursePackages } from "./resimCommonCoursePackages";
+import { siyasetKamuYonetimiTezliCoursePackages } from "./siyasetKamuYonetimiTezliCoursePackages";
+import { siyasetKamuYonetimiCommonCoursePackages } from "./siyasetKamuYonetimiCommonCoursePackages";
+import { tarihTezliCoursePackages } from "./tarihTezliCoursePackages";
+import { tarihCommonCoursePackages } from "./tarihCommonCoursePackages";
+import { temelIslamBilimleriTezliCoursePackages } from "./temelIslamBilimleriTezliCoursePackages";
+import { temelIslamBilimleriCommonCoursePackages } from "./temelIslamBilimleriCommonCoursePackages";
+import { turkDiliEdebiyatiTezliCoursePackages } from "./turkDiliEdebiyatiTezliCoursePackages";
+import { turkDiliEdebiyatiCommonCoursePackages } from "./turkDiliEdebiyatiCommonCoursePackages";
+import { ybsTezliCoursePackages } from "./ybsTezliCoursePackages";
+import { ybsTezliCommonCoursePackages } from "./ybsTezliCommonCoursePackages";
+import { yonetimOrganizasyonCoursePackages } from "./yonetimOrganizasyonCoursePackages";
+import { yonetimOrganizasyonCommonCoursePackages } from "./yonetimOrganizasyonCommonCoursePackages";
 
 const ybs919: CoursePackage = {
   code: "YBS919",
@@ -595,6 +650,8 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...bedenCommonCoursePackages,
   ...biyolojiTezliCoursePackages,
   ...biyolojiCommonCoursePackages,
+  ...biyolojiDoktoraCoursePackages,
+  ...biyolojiDoktoraCommonCoursePackages,
   ...ebelikTezliCoursePackages,
   ...ebelikCommonCoursePackages,
   ...ekoturizmTezliCoursePackages,
@@ -603,8 +660,52 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...elektrikElektronikCommonCoursePackages,
   ...enerjiSistemleriTezliCoursePackages,
   ...enerjiSistemleriCommonCoursePackages,
+  ...enerjiSistemleriDoktoraCoursePackages,
+  ...enerjiSistemleriDoktoraCommonCoursePackages,
   ...felsefeDinTezliCoursePackages,
   ...felsefeDinCommonCoursePackages,
+  ...fizikTezliCoursePackages,
+  ...fizikCommonCoursePackages,
+  ...fizikDoktoraCoursePackages,
+  ...fizikDoktoraCommonCoursePackages,
+  ...gastronomiTezliCoursePackages,
+  ...gastronomiCommonCoursePackages,
+  ...gidaMuhendisligiTezliCoursePackages,
+  ...gidaMuhendisligiCommonCoursePackages,
+  ...gidaTeknolojisiTezliCoursePackages,
+  ...gidaTeknolojisiCommonCoursePackages,
+  ...haritaMuhendisligiTezliCoursePackages,
+  ...haritaMuhendisligiCommonCoursePackages,
+  ...icHastaliklariHemsireligiTezliCoursePackages,
+  ...icHastaliklariHemsireligiCommonCoursePackages,
+  ...iktisatTezliCoursePackages,
+  ...iktisatCommonCoursePackages,
+  ...insaatMuhendisligiTezliCoursePackages,
+  ...insaatMuhendisligiCommonCoursePackages,
+  ...isletmeTezliCoursePackages,
+  ...isletmeCommonCoursePackages,
+  ...kimyaTezliCoursePackages,
+  ...kimyaCommonCoursePackages,
+  ...matematikTezliCoursePackages,
+  ...matematikCommonCoursePackages,
+  ...muhasebeFinansmanTezliCoursePackages,
+  ...muhasebeFinansmanCommonCoursePackages,
+  ...organikTarimIsletmeciligiTezliCoursePackages,
+  ...organikTarimIsletmeciligiCommonCoursePackages,
+  ...resimTezliCoursePackages,
+  ...resimCommonCoursePackages,
+  ...siyasetKamuYonetimiTezliCoursePackages,
+  ...siyasetKamuYonetimiCommonCoursePackages,
+  ...tarihTezliCoursePackages,
+  ...tarihCommonCoursePackages,
+  ...temelIslamBilimleriTezliCoursePackages,
+  ...temelIslamBilimleriCommonCoursePackages,
+  ...turkDiliEdebiyatiTezliCoursePackages,
+  ...turkDiliEdebiyatiCommonCoursePackages,
+  ...ybsTezliCoursePackages,
+  ...ybsTezliCommonCoursePackages,
+  ...yonetimOrganizasyonCoursePackages,
+  ...yonetimOrganizasyonCommonCoursePackages,
   ...arkeolojiCommonCoursePackages,
   ybs919,
   ybs921,
@@ -617,7 +718,8 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ybsThesis,
 ].map((coursePackage) => ({
   ...coursePackage,
-  contributionMatrix: ["Arkeoloji ABD", "Biyoloji ABD", "Ebelik ABD", "Ekoturizm Rehberliği ABD", "Elektrik Elektronik Mühendisliği ABD", "Enerji Sistemleri Mühendisliği ABD", "Felsefe ve Din Bilimleri ABD"].includes(coursePackage.department || "")
+  instructor: sanitizeInstructorName(coursePackage.instructor || ""),
+  contributionMatrix: ["Arkeoloji ABD", "Biyoloji ABD", "Ebelik ABD", "Ekoturizm Rehberliği ABD", "Elektrik Elektronik Mühendisliği ABD", "Enerji Sistemleri Mühendisliği ABD", "Felsefe ve Din Bilimleri ABD", "Fizik ABD", "Gastronomi ve Mutfak Sanatları ABD", "Gıda Mühendisliği ABD", "Gıda Teknolojisi ABD", "Harita Mühendisliği ABD", "Hemşirelik ABD", "İktisat ABD", "İnşaat Mühendisliği ABD", "İşletme", "Kimya ABD", "Matematik ABD", "Muhasebe ve Finansman", "Organik Tarım İşletmeciliği ABD", "Resim ASD", "Siyaset Bilimi ve Kamu Yönetimi ABD", "Tarih ABD", "Temel İslam Bilimleri ABD", "Türk Dili ve Edebiyatı ABD", "Yönetim Bilişim Sistemleri ABD", "Yönetim Organizasyon"].includes(coursePackage.department || "")
     ? coursePackage.contributionMatrix
     : buildSemanticContributionMatrix(coursePackage.outcomes, coursePackage),
 }));

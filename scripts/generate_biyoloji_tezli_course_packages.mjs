@@ -5,6 +5,7 @@ const sourcePath = process.argv[2] || process.env.BOLOGNA_DERS_JSON;
 if (!sourcePath) throw new Error("Kullanım: node scripts/generate_biyoloji_tezli_course_packages.mjs <ders-verileri.json>");
 const fold = (value = "") => String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("tr-TR").replace(/ı/g, "i");
 const clean = (value = "") => String(value).replace(/\s+/g, " ").trim();
+const cleanInstructor = (value = "") => clean(value).replace(/https?:\/\/\S+/giu, "").replace(/\b\S+@\S+\b/giu, "").replace(/\s+/g, " ").trim();
 const unique = (items) => [...new Set(items.map(clean).filter(Boolean))];
 const data = JSON.parse(readFileSync(sourcePath, "utf8")).data;
 const program = data.programs.find((item) => fold(item.name) === "biyoloji tezli yuksek lisans");
@@ -119,7 +120,7 @@ const fieldPackages = officialCourses.filter((official)=>!commonRawCodes.test(of
   const sourceWeeks=unique((weeklyTable?.rows||[]).slice(1).filter((row)=>row?.[1]&&!forbiddenWeek.test(clean(row[1]))).map((row)=>row[1]));
   const weeklyTopics=unique([...sourceWeeks,...generatedWeeks(name,domain)]).slice(0,15);
   const assessments=assessmentsFor(course); const theory=Number(source?.assignment?.theory??official.theory),practice=Number(source?.assignment?.practice??official.practice),ects=Number(source?.assignment?.ects??official.ects??6)||6;
-  return {code:official.code,name,department:"Biyoloji ABD",programName:"Biyoloji",language:course?.language||"Türkçe",level:"Tezli Yüksek Lisans",teachingMode:source?.assignment?.teaching_method||"Yüz Yüze",theory,practice,credit:Number(source?.assignment?.local_credit??official.credit??theory),ects,prerequisites:"Yok",instructor:detail(course,"dersi verenler")||official.instructor||"Atama Bekliyor",purpose,content,methods,resources,sdgs:domain.sdgs,outcomes:outcomesFor(name,domain),weeklyTopics,assessments,workloads:workloadsFor(ects,theory,practice,assessments),contributionMatrix:matrixFor(domain),sourceUrl:course?.source_url,qualityChecks:checks(hasSource),publicQualityChecklist:false};
+  return {code:official.code,name,department:"Biyoloji ABD",programName:"Biyoloji",language:course?.language||"Türkçe",level:"Tezli Yüksek Lisans",teachingMode:source?.assignment?.teaching_method||"Yüz Yüze",theory,practice,credit:Number(source?.assignment?.local_credit??official.credit??theory),ects,prerequisites:"Yok",instructor:cleanInstructor(detail(course,"dersi verenler")||official.instructor)||"Atama Bekliyor",purpose,content,methods,resources,sdgs:domain.sdgs,outcomes:outcomesFor(name,domain),weeklyTopics,assessments,workloads:workloadsFor(ects,theory,practice,assessments),contributionMatrix:matrixFor(domain),sourceUrl:course?.source_url,qualityChecks:checks(hasSource),publicQualityChecklist:false};
 });
 
 const commonSpecs = [

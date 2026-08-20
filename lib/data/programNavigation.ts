@@ -22,7 +22,9 @@ export function resolveCourseProgramContext(context: CourseProgramContext) {
     (!context.department || normalizeProgramContext(candidate.department) === normalizeProgramContext(context.department)) &&
     (!context.programName || normalizeProgramContext(candidate.programName) === normalizeProgramContext(context.programName)) &&
     (!context.level || normalizeProgramContext(candidate.level) === normalizeProgramContext(context.level)),
-  ) ?? (matchingCourses.length === 1 ? matchingCourses[0] : undefined);
+  ) ?? (!context.department && !context.programName && !context.level && matchingCourses.length === 1
+    ? matchingCourses[0]
+    : undefined);
 
   const programFromCourse = course && LEE_PROGRAMS.find((candidate) =>
     normalizeProgramContext(candidate.department) === normalizeProgramContext(course.department) &&
