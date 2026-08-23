@@ -262,6 +262,15 @@ function departmentMatchesInstructorScope(option, filters = {}) {
   );
 }
 
+function sortInstructorOptions(options, filters = {}) {
+  return [...options].sort((left, right) => {
+    const leftScoped = departmentMatchesInstructorScope(left, filters);
+    const rightScoped = departmentMatchesInstructorScope(right, filters);
+    if (leftScoped !== rightScoped) return leftScoped ? -1 : 1;
+    return left.name.localeCompare(right.name, "tr-TR");
+  });
+}
+
 function normalizeInstructorOption(value) {
   const title = sanitizeInstructorName(value.title || "");
   const rawName = sanitizeInstructorName(value.name || value.displayName || "");
@@ -307,6 +316,8 @@ async function loadEEnstituInstructorOptions(filters = {}) {
         u.role,
         u.extra_roles,
         u.title,
+        coalesce(u.profile_metadata->'ldap'->>'accountType', u.profile_metadata->'ldapProfileCompletion'->>'accountType') AS ldap_account_type,
+        coalesce((u.profile_metadata->'ldapProfileCompletion'->>'completed')::boolean, false) AS ldap_profile_completed,
         array_remove(array_agg(DISTINCT coalesce(ad.name, pd.name)), NULL) AS department_names,
         array_remove(array_agg(DISTINCT coalesce(aa.department_id, u.department_id)), NULL) AS department_ids
       FROM directory_users u
@@ -321,6 +332,11 @@ async function loadEEnstituInstructorOptions(filters = {}) {
           u.role IN ('danisman', 'abd_baskani')
           OR u.extra_roles && ARRAY['danisman', 'abd_baskani']::text[]
           OR aa.id IS NOT NULL
+          OR (
+            u.auth_source = 'ldap'
+            AND coalesce(u.profile_metadata->'ldap'->>'accountType', u.profile_metadata->'ldapProfileCompletion'->>'accountType') = 'academic'
+            AND coalesce((u.profile_metadata->'ldapProfileCompletion'->>'completed')::boolean, false) = true
+          )
         )
       GROUP BY u.tc_kimlik
       ORDER BY u.display_name ASC
@@ -333,7 +349,7 @@ async function loadEEnstituInstructorOptions(filters = {}) {
         lastName: row.last_name,
         title: row.title,
         email: row.email,
-        role: row.role,
+        role: row.ldap_account_type === "academic" ? "danisman" : row.role,
         departmentNames: row.department_names || [],
         departmentIds: row.department_ids || [],
         source: "e_enstitu_database",
@@ -341,7 +357,7 @@ async function loadEEnstituInstructorOptions(filters = {}) {
       .filter(Boolean);
     const scoped = all.filter((item) => departmentMatchesInstructorScope(item, filters));
     return {
-      instructors: scoped.length ? scoped : all,
+      instructors: sortInstructorOptions(all, filters),
       source: "e_enstitu_database",
       scopeApplied: Boolean(scoped.length && scoped.length !== all.length),
     };
@@ -406,7 +422,7 @@ function loadCourseCatalogInstructorOptions(filters = {}) {
       );
     };
     const scopedRows = rows.filter(rowMatchesScope);
-    const courses = scopedRows.length ? scopedRows : rows;
+    const courses = rows;
     const byName = new Map();
     const ignoredInstructorKeys = new Set([
       normalizeInstructorScope("Öğrencinin Danışmanı"),
@@ -435,7 +451,7 @@ function loadCourseCatalogInstructorOptions(filters = {}) {
       byName.set(key, existing);
     }
 
-    const instructors = [...byName.values()].sort((left, right) => left.name.localeCompare(right.name, "tr-TR"));
+    const instructors = sortInstructorOptions([...byName.values()], filters);
     return {
       instructors,
       source: "dbp_course_catalog",
