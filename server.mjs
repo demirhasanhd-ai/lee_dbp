@@ -192,25 +192,39 @@ function readEnvValue(file, key) {
 function eEnstituDatabaseUrl() {
   return process.env.EENSTITU_DATABASE_URL ||
     process.env.E_ENSTITU_DATABASE_URL ||
-    readEnvValue(path.join(eEnstituRoot, "server", ".env"), "DATABASE_URL") ||
-    readEnvValue(path.join(eEnstituRoot, ".env"), "DATABASE_URL") ||
-    readEnvValue(path.join(eEnstituRoot, "server", ".env.example"), "DATABASE_URL");
+    "";
 }
 
 function eEnstituSearchPath() {
   return process.env.EENSTITU_DB_SEARCH_PATH || process.env.E_ENSTITU_DB_SEARCH_PATH || "live, shared, public";
 }
 
+function eEnstituDbTimeoutMs() {
+  const value = Number(process.env.EENSTITU_DB_TIMEOUT_MS || process.env.E_ENSTITU_DB_TIMEOUT_MS || 1500);
+  return Number.isFinite(value) && value > 0 ? value : 1500;
+}
+
+function withTimeout(promise, ms, message) {
+  let timeout;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeout));
+}
+
 async function eEnstituPool() {
   const connectionString = eEnstituDatabaseUrl();
   if (!connectionString) return null;
   if (!eEnstituPgPool) {
+    const timeout = eEnstituDbTimeoutMs();
     const { Pool } = await import("pg");
     eEnstituPgPool = new Pool({
       connectionString,
       max: 3,
       idleTimeoutMillis: 10_000,
-      connectionTimeoutMillis: 2_000,
+      connectionTimeoutMillis: timeout,
+      query_timeout: timeout,
+      statement_timeout: timeout,
     });
   }
   return eEnstituPgPool;
@@ -268,14 +282,22 @@ function normalizeInstructorOption(value) {
 }
 
 async function loadEEnstituInstructorOptions(filters = {}) {
-  const fallback = () => loadEEnstituInstructorOptionsFromDemo(filters);
+  const fallback = () => {
+    const catalog = loadCourseCatalogInstructorOptions(filters);
+    return catalog.instructors.length ? catalog : loadEEnstituInstructorOptionsFromDemo(filters);
+  };
   let client;
   try {
     const pool = await eEnstituPool();
     if (!pool) return fallback();
-    client = await pool.connect();
-    await client.query("select set_config($1, $2, false)", ["search_path", eEnstituSearchPath()]);
-    const result = await client.query(`
+    const timeout = eEnstituDbTimeoutMs();
+    client = await withTimeout(pool.connect(), timeout, "e-Enstitu veritabani baglanti zaman asimi");
+    await withTimeout(
+      client.query("select set_config($1, $2, false)", ["search_path", eEnstituSearchPath()]),
+      timeout,
+      "e-Enstitu veritabani arama yolu zaman asimi",
+    );
+    const result = await withTimeout(client.query(`
       SELECT
         u.tc_kimlik,
         u.display_name,
@@ -302,7 +324,7 @@ async function loadEEnstituInstructorOptions(filters = {}) {
         )
       GROUP BY u.tc_kimlik
       ORDER BY u.display_name ASC
-    `);
+    `), timeout, "e-Enstitu akademisyen sorgusu zaman asimi");
     const all = result.rows
       .map((row) => normalizeInstructorOption({
         id: row.tc_kimlik,
@@ -325,6 +347,11 @@ async function loadEEnstituInstructorOptions(filters = {}) {
     };
   } catch (error) {
     console.warn(`[dbp] e-Enstitu akademisyen listesi okunamadi: ${error instanceof Error ? error.message : error}`);
+    if (!client && eEnstituPgPool) {
+      const pool = eEnstituPgPool;
+      eEnstituPgPool = null;
+      void pool.end().catch(() => {});
+    }
     return fallback();
   } finally {
     client?.release();
@@ -355,6 +382,68 @@ function loadEEnstituInstructorOptionsFromDemo(filters = {}) {
     };
   } catch {
     return { instructors: [], source: "unavailable", scopeApplied: false };
+  }
+}
+
+function loadCourseCatalogInstructorOptions(filters = {}) {
+  try {
+    if (!db) return { instructors: [], source: "dbp_course_catalog", scopeApplied: false };
+    const rows = db.prepare(`
+      SELECT department, program_name, instructor
+      FROM courses
+      WHERE instructor IS NOT NULL AND TRIM(instructor) <> ''
+      ORDER BY department, program_name, instructor
+    `).all();
+    const requested = [filters.department, filters.programName]
+      .filter(Boolean)
+      .map(normalizeInstructorScope)
+      .filter(Boolean);
+    const rowMatchesScope = (row) => {
+      if (!requested.length) return true;
+      const scopes = [row.department, row.program_name].map(normalizeInstructorScope).filter(Boolean);
+      return requested.some((item) =>
+        scopes.some((scope) => scope === item || scope.includes(item) || item.includes(scope))
+      );
+    };
+    const scopedRows = rows.filter(rowMatchesScope);
+    const courses = scopedRows.length ? scopedRows : rows;
+    const byName = new Map();
+    const ignoredInstructorKeys = new Set([
+      normalizeInstructorScope("Öğrencinin Danışmanı"),
+      normalizeInstructorScope("Atama Bekliyor"),
+      normalizeInstructorScope("Yok"),
+      "",
+    ]);
+
+    for (const course of courses) {
+      const name = sanitizeInstructorName(course.instructor || "");
+      const key = normalizeInstructorScope(name);
+      if (ignoredInstructorKeys.has(key)) continue;
+      const existing = byName.get(key) || {
+        id: `course-catalog:${key}`,
+        name,
+        title: null,
+        email: null,
+        role: "danisman",
+        departmentNames: [],
+        departmentIds: [],
+        source: "dbp_course_catalog",
+      };
+      for (const departmentName of [course.department, course.program_name].filter(Boolean).map(repairText)) {
+        if (!existing.departmentNames.includes(departmentName)) existing.departmentNames.push(departmentName);
+      }
+      byName.set(key, existing);
+    }
+
+    const instructors = [...byName.values()].sort((left, right) => left.name.localeCompare(right.name, "tr-TR"));
+    return {
+      instructors,
+      source: "dbp_course_catalog",
+      scopeApplied: Boolean(scopedRows.length && scopedRows.length !== rows.length),
+    };
+  } catch (error) {
+    console.warn(`[dbp] DBP ders kataloğundan akademisyen listesi okunamadi: ${error instanceof Error ? error.message : error}`);
+    return { instructors: [], source: "dbp_course_catalog", scopeApplied: false };
   }
 }
 

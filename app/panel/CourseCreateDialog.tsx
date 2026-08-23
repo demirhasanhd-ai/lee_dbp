@@ -27,6 +27,8 @@ type InstructorOption = {
   source?: string;
 };
 
+const trustedInstructorSources = new Set(["e_enstitu_database", "dbp_course_catalog"]);
+
 const sameText = (left = "", right = "") =>
   left.trim().toLocaleLowerCase("tr-TR") === right.trim().toLocaleLowerCase("tr-TR");
 
@@ -97,7 +99,7 @@ export function CourseCreateDialog({
       .then((data) => {
         setInstructors(Array.isArray(data.instructors) ? data.instructors : []);
         setInstructorsMessage(
-          data.source === "e_enstitu_database"
+          data.source && trustedInstructorSources.has(data.source)
             ? ""
             : "e-Enstitü veritabanına ulaşılamadığı için yedek akademisyen kaynağı kullanılıyor.",
         );
