@@ -55,6 +55,11 @@ type Course = {
   department?: string;
   programName?: string;
 };
+type InstructorOption = {
+  id: string;
+  name: string;
+  departmentNames?: string[];
+};
 type RoleAccess = Record<DbpRole, DbpModule[]>;
 const moduleKeys = Object.keys(DBP_MODULES) as DbpModule[];
 const cloneDefaultRoleAccess = (): RoleAccess =>
@@ -239,6 +244,7 @@ export function RoleDashboard() {
   const [assignmentMessage, setAssignmentMessage] = useState("");
   const [catalogCourses, setCatalogCourses] = useState<Course[]>([]);
   const [catalogMessage, setCatalogMessage] = useState("");
+  const [instructorOptions, setInstructorOptions] = useState<InstructorOption[]>([]);
   const eEnstituDbpUrl = `${getEEnstituUrl()}/#/modul/ders-bilgi-paketi`;
   useEffect(() => {
     let cancelled = false;
@@ -342,6 +348,23 @@ export function RoleDashboard() {
   };
   useEffect(() => {
     void refreshCatalogCourses();
+  }, [session?.username, session?.role, session?.department]);
+  useEffect(() => {
+    if (!session) return;
+    const controller = new AbortController();
+    fetch(dbpPath("/api/dbp/instructors"), {
+      headers: { "X-DBP-Session": dbpSessionHeader(session) },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || "Akademisyen listesi alınamadı.");
+        setInstructorOptions(Array.isArray(data.instructors) ? data.instructors : []);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setInstructorOptions([]);
+      });
+    return () => controller.abort();
   }, [session?.username, session?.role, session?.department]);
   if (!session)
     return <main className="panel-loading">Panel hazırlanıyor…</main>;
@@ -679,10 +702,12 @@ export function RoleDashboard() {
                       <option value="" disabled>
                         Akademisyeni seçin
                       </option>
-                      <option>Prof. Dr. Mehmet Kaya</option>
-                      <option>Doç. Dr. Ayşe Yılmaz</option>
-                      <option>Dr. Öğr. Üyesi Fatma Demir</option>
-                      <option>Dr. Öğr. Üyesi Ali Çelik</option>
+                      {instructorOptions.map((item) => (
+                        <option key={item.id} value={item.name}>
+                          {item.name}
+                          {item.departmentNames?.length ? ` — ${item.departmentNames.slice(0, 2).join(", ")}` : ""}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label className="wide">

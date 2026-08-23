@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Save, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   LEE_PROGRAMS,
   MAIN_DEPARTMENTS,
@@ -18,13 +18,14 @@ type CatalogCourseOption = {
   name: string;
 };
 
-const instructors = [
-  "Dr. Öğr. Üyesi Ayşe Yılmaz",
-  "Prof. Dr. Mehmet Kaya",
-  "Doç. Dr. Elif Arslan",
-  "Dr. Öğr. Üyesi Ali Çelik",
-  "Dr. Öğr. Üyesi Fatma Demir",
-];
+type InstructorOption = {
+  id: string;
+  name: string;
+  title?: string | null;
+  email?: string | null;
+  departmentNames?: string[];
+  source?: string;
+};
 
 const sameText = (left = "", right = "") =>
   left.trim().toLocaleLowerCase("tr-TR") === right.trim().toLocaleLowerCase("tr-TR");
@@ -48,6 +49,9 @@ export function CourseCreateDialog({
   const [selectedProgramKey, setSelectedProgramKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [instructors, setInstructors] = useState<InstructorOption[]>([]);
+  const [instructorsBusy, setInstructorsBusy] = useState(false);
+  const [instructorsMessage, setInstructorsMessage] = useState("");
 
   const programs = useMemo(
     () =>
@@ -72,6 +76,42 @@ export function CourseCreateDialog({
         sameText(course.level, level),
       )
     : [];
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    const params = new URLSearchParams();
+    if (selectedProgram?.department) params.set("department", selectedProgram.department);
+    if (selectedProgram?.programName) params.set("programName", selectedProgram.programName);
+    setInstructorsBusy(true);
+    setInstructorsMessage("");
+    fetch(dbpPath(`/api/dbp/instructors?${params.toString()}`), {
+      headers: { "X-DBP-Session": dbpSessionHeader(session) },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || "Akademisyen listesi alınamadı.");
+        return data as { instructors?: InstructorOption[]; source?: string };
+      })
+      .then((data) => {
+        setInstructors(Array.isArray(data.instructors) ? data.instructors : []);
+        setInstructorsMessage(
+          data.source === "e_enstitu_database"
+            ? ""
+            : "e-Enstitü veritabanına ulaşılamadığı için yedek akademisyen kaynağı kullanılıyor.",
+        );
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setInstructors([]);
+        setInstructorsMessage(error instanceof Error ? error.message : "Akademisyen listesi alınamadı.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setInstructorsBusy(false);
+      });
+    return () => controller.abort();
+  }, [open, selectedProgram?.department, selectedProgram?.programName, session]);
 
   if (!open) return null;
 
@@ -253,13 +293,16 @@ export function CourseCreateDialog({
 
             <label className="wide">
               <span>{mode === "assign" ? "Yeni öğretim elemanı" : "Dersi veren öğretim elemanı"}</span>
-              <select required name="instructor" defaultValue="">
+              <select required name="instructor" defaultValue="" disabled={instructorsBusy}>
                 <option value="" disabled>
-                  Akademisyeni seçin
+                  {instructorsBusy ? "Akademisyenler yükleniyor" : "Akademisyeni seçin"}
                 </option>
                 <option value="unassigned">Şimdilik boş / atama bekliyor</option>
                 {instructors.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item.id} value={item.name}>
+                    {item.name}
+                    {item.departmentNames?.length ? ` — ${item.departmentNames.slice(0, 2).join(", ")}` : ""}
+                  </option>
                 ))}
               </select>
             </label>
@@ -277,6 +320,7 @@ export function CourseCreateDialog({
               ekranından ders oluşturulmalı.
             </p>
           )}
+          {instructorsMessage && <p className="no-program-warning">{instructorsMessage}</p>}
           {message && <p className="no-program-warning">{message}</p>}
 
           <footer>

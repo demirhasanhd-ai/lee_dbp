@@ -25,7 +25,27 @@ const programProfilesSeedFile = process.env.DBP_PROGRAM_PROFILES_SEED_FILE || pa
 const coursePackagesSeedFile = process.env.DBP_COURSE_PACKAGES_SEED_FILE || path.join(__dirname, "seed", "course-packages.json");
 const pdfCacheDir = process.env.DBP_PDF_CACHE_DIR || path.join(dataDir, "generated-pdfs");
 const pdfScript = process.env.DBP_PDF_SCRIPT || path.join(__dirname, "scripts", "generate_public_course_pdfs.py");
+
+function resolveEEnstituRoot() {
+  const configured = process.env.EENSTITU_ROOT || process.env.E_ENSTITU_ROOT;
+  const candidates = [
+    configured,
+    path.resolve(__dirname, "..", "E_Enstitu"),
+    path.resolve(__dirname, "..", "..", "E_Enstitu"),
+    "F:\\WEB_PROJELER\\E_Enstitu",
+    "C:\\WEB_PROJELER\\E_Enstitu",
+    process.env.USERPROFILE ? path.join(process.env.USERPROFILE, "E_Enstitu") : "",
+  ].filter(Boolean);
+  return candidates.find((candidate) =>
+    existsSync(path.join(candidate, "server", ".env")) ||
+    existsSync(path.join(candidate, "src", "data", "demo-users.json"))
+  ) || candidates[0] || path.resolve(__dirname, "..", "E_Enstitu");
+}
+
+const eEnstituRoot = resolveEEnstituRoot();
+const eEnstituDemoUsersFile = process.env.EENSTITU_DEMO_USERS_FILE || path.join(eEnstituRoot, "src", "data", "demo-users.json");
 let db;
+let eEnstituPgPool;
 
 function openBrowser(url) {
   const child =
@@ -130,7 +150,10 @@ function repairText(value) {
 
 function sanitizeInstructorName(value) {
   return repairText(value || "")
-    .replace(/\bYrd\.?\s*Doç\.?\s*Dr\.?\b/giu, "Dr. Öğr. Üyesi")
+    .replace(/\bDoc\.?\s*Dr\.?/giu, "Doç. Dr.")
+    .replace(/\bDr\.?\s*Ogr\.?\s*Uyesi/giu, "Dr. Öğr. Üyesi")
+    .replace(/\bOgr\.?\s*Gor\.?/giu, "Öğr. Gör.")
+    .replace(/\bYrd\.?\s*Doç\.?\s*Dr\.?/giu, "Dr. Öğr. Üyesi")
     .replace(/(?:https?:\/\/|www\.)\S+/giu, " ")
     .replace(/\b(?:akbis\.)?osmaniye\.edu\.tr\/\S+/giu, " ")
     .replace(/\b\S+@\S+\b/giu, " ")
@@ -149,6 +172,190 @@ function repairObject(value, fieldName = "") {
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, repairObject(item, key)]));
   }
   return value;
+}
+
+function readEnvValue(file, key) {
+  try {
+    if (!existsSync(file)) return "";
+    const prefix = `${key}=`;
+    for (const rawLine of readFileSync(file, "utf8").split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#") || !line.startsWith(prefix)) continue;
+      return line.slice(prefix.length).replace(/^["']|["']$/g, "").trim();
+    }
+  } catch {
+    return "";
+  }
+  return "";
+}
+
+function eEnstituDatabaseUrl() {
+  return process.env.EENSTITU_DATABASE_URL ||
+    process.env.E_ENSTITU_DATABASE_URL ||
+    readEnvValue(path.join(eEnstituRoot, "server", ".env"), "DATABASE_URL") ||
+    readEnvValue(path.join(eEnstituRoot, ".env"), "DATABASE_URL") ||
+    readEnvValue(path.join(eEnstituRoot, "server", ".env.example"), "DATABASE_URL");
+}
+
+function eEnstituSearchPath() {
+  return process.env.EENSTITU_DB_SEARCH_PATH || process.env.E_ENSTITU_DB_SEARCH_PATH || "live, shared, public";
+}
+
+async function eEnstituPool() {
+  const connectionString = eEnstituDatabaseUrl();
+  if (!connectionString) return null;
+  if (!eEnstituPgPool) {
+    const { Pool } = await import("pg");
+    eEnstituPgPool = new Pool({
+      connectionString,
+      max: 3,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 2_000,
+    });
+  }
+  return eEnstituPgPool;
+}
+
+function normalizeInstructorScope(value = "") {
+  return repairText(value)
+    .toLocaleLowerCase("tr-TR")
+    .replaceAll("ç", "c")
+    .replaceAll("ğ", "g")
+    .replaceAll("ı", "i")
+    .replaceAll("ö", "o")
+    .replaceAll("ş", "s")
+    .replaceAll("ü", "u")
+    .replace(/\b(anabilim dali|anasanat dali)\b/giu, "")
+    .replace(/\b(abd|asd)\b/giu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function departmentMatchesInstructorScope(option, filters = {}) {
+  const requested = [filters.department, filters.programName]
+    .filter(Boolean)
+    .map(normalizeInstructorScope)
+    .filter(Boolean);
+  if (!requested.length) return true;
+  const scopes = [
+    ...(option.departmentNames || []),
+    ...(option.departmentIds || []),
+  ].map(normalizeInstructorScope).filter(Boolean);
+  if (!scopes.length) return false;
+  return requested.some((item) =>
+    scopes.some((scope) => scope === item || scope.includes(item) || item.includes(scope))
+  );
+}
+
+function normalizeInstructorOption(value) {
+  const title = sanitizeInstructorName(value.title || "");
+  const rawName = sanitizeInstructorName(value.name || value.displayName || "");
+  const name = rawName || sanitizeInstructorName(`${title} ${value.firstName || ""} ${value.lastName || ""}`);
+  if (!name) return null;
+  const departmentNames = [...new Set((value.departmentNames || []).map(repairText).filter(Boolean))];
+  const departmentIds = [...new Set((value.departmentIds || []).map(repairText).filter(Boolean))];
+  return {
+    id: String(value.id || value.tcKimlik || name),
+    name,
+    title: title || null,
+    email: value.email || null,
+    role: value.role || "danisman",
+    departmentNames,
+    departmentIds,
+    source: value.source || "e_enstitu",
+  };
+}
+
+async function loadEEnstituInstructorOptions(filters = {}) {
+  const fallback = () => loadEEnstituInstructorOptionsFromDemo(filters);
+  let client;
+  try {
+    const pool = await eEnstituPool();
+    if (!pool) return fallback();
+    client = await pool.connect();
+    await client.query("select set_config($1, $2, false)", ["search_path", eEnstituSearchPath()]);
+    const result = await client.query(`
+      SELECT
+        u.tc_kimlik,
+        u.display_name,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.role,
+        u.extra_roles,
+        u.title,
+        array_remove(array_agg(DISTINCT coalesce(ad.name, pd.name)), NULL) AS department_names,
+        array_remove(array_agg(DISTINCT coalesce(aa.department_id, u.department_id)), NULL) AS department_ids
+      FROM directory_users u
+      LEFT JOIN advisor_affiliations aa
+        ON aa.advisor_tc_kimlik = u.tc_kimlik
+       AND aa.is_active = true
+       AND aa.role IN ('danisman', 'abd_baskani')
+      LEFT JOIN admin_setting_departments ad ON ad.id = aa.department_id
+      LEFT JOIN admin_setting_departments pd ON pd.id = u.department_id
+      WHERE u.is_active = true
+        AND (
+          u.role IN ('danisman', 'abd_baskani')
+          OR u.extra_roles && ARRAY['danisman', 'abd_baskani']::text[]
+          OR aa.id IS NOT NULL
+        )
+      GROUP BY u.tc_kimlik
+      ORDER BY u.display_name ASC
+    `);
+    const all = result.rows
+      .map((row) => normalizeInstructorOption({
+        id: row.tc_kimlik,
+        name: row.display_name,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        title: row.title,
+        email: row.email,
+        role: row.role,
+        departmentNames: row.department_names || [],
+        departmentIds: row.department_ids || [],
+        source: "e_enstitu_database",
+      }))
+      .filter(Boolean);
+    const scoped = all.filter((item) => departmentMatchesInstructorScope(item, filters));
+    return {
+      instructors: scoped.length ? scoped : all,
+      source: "e_enstitu_database",
+      scopeApplied: Boolean(scoped.length && scoped.length !== all.length),
+    };
+  } catch (error) {
+    console.warn(`[dbp] e-Enstitu akademisyen listesi okunamadi: ${error instanceof Error ? error.message : error}`);
+    return fallback();
+  } finally {
+    client?.release();
+  }
+}
+
+function loadEEnstituInstructorOptionsFromDemo(filters = {}) {
+  try {
+    const raw = JSON.parse(readFileSync(eEnstituDemoUsersFile, "utf8"));
+    const all = (Array.isArray(raw) ? raw : [])
+      .filter((user) => ["danisman", "abd_baskani"].includes(user?.rol))
+      .map((user) => normalizeInstructorOption({
+        id: user.tcKimlik,
+        name: `${user.unvan ? `${user.unvan} ` : ""}${user.ad || ""} ${user.soyad || ""}`,
+        title: user.unvan || "",
+        email: user.email || "",
+        role: user.rol || "danisman",
+        departmentNames: [user.anabilimDali, user.program].filter(Boolean),
+        departmentIds: [user.departmentId].filter(Boolean),
+        source: "e_enstitu_demo_file",
+      }))
+      .filter(Boolean);
+    const scoped = all.filter((item) => departmentMatchesInstructorScope(item, filters));
+    return {
+      instructors: scoped.length ? scoped : all,
+      source: "e_enstitu_demo_file",
+      scopeApplied: Boolean(scoped.length && scoped.length !== all.length),
+    };
+  } catch {
+    return { instructors: [], source: "unavailable", scopeApplied: false };
+  }
 }
 
 function levelsFromFlags(flags) {
@@ -3720,6 +3927,22 @@ async function handleDbpApi(request) {
         courses: limit ? courses.slice(0, limit) : courses,
         total: courses.length,
         source: "database",
+      });
+    }
+
+    if (pathname === "/api/dbp/instructors" && request.method === "GET") {
+      const auth = requireDbpSession(request);
+      if (auth.error) return auth.error;
+      const filters = {
+        department: url.searchParams.get("department") || "",
+        programName: url.searchParams.get("programName") || "",
+      };
+      const result = await loadEEnstituInstructorOptions(filters);
+      return jsonResponse({
+        instructors: result.instructors,
+        total: result.instructors.length,
+        source: result.source,
+        scopeApplied: result.scopeApplied,
       });
     }
 
