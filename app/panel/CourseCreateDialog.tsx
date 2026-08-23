@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Save, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   LEE_PROGRAMS,
   MAIN_DEPARTMENTS,
@@ -28,6 +28,7 @@ type InstructorOption = {
 };
 
 const trustedInstructorSources = new Set(["e_enstitu_database", "dbp_course_catalog"]);
+const unassignedInstructorLabel = "Şimdilik boş / atama bekliyor";
 
 const sameText = (left = "", right = "") =>
   left.trim().toLocaleLowerCase("tr-TR") === right.trim().toLocaleLowerCase("tr-TR");
@@ -54,6 +55,7 @@ export function CourseCreateDialog({
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
   const [instructorsBusy, setInstructorsBusy] = useState(false);
   const [instructorsMessage, setInstructorsMessage] = useState("");
+  const instructorListId = useId();
 
   const programs = useMemo(
     () =>
@@ -160,6 +162,7 @@ export function CourseCreateDialog({
             setMessage("");
             try {
               const form = new FormData(event.currentTarget);
+              const instructor = String(form.get("instructor") || "").trim();
               const response = await fetch(dbpPath("/api/dbp/course-management"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "X-DBP-Session": dbpSessionHeader(session) },
@@ -175,7 +178,10 @@ export function CourseCreateDialog({
                   practice: Number(form.get("practice") || 0),
                   credit: Number(form.get("credit") || 0),
                   ects: Number(form.get("ects") || 0),
-                  instructor: form.get("instructor") === "unassigned" ? "" : form.get("instructor"),
+                  instructor:
+                    instructor === "unassigned" || instructor === unassignedInstructorLabel
+                      ? ""
+                      : instructor,
                 }),
               });
               const data = await response.json().catch(() => ({}));
@@ -295,18 +301,24 @@ export function CourseCreateDialog({
 
             <label className="wide">
               <span>{mode === "assign" ? "Yeni öğretim elemanı" : "Dersi veren öğretim elemanı"}</span>
-              <select required name="instructor" defaultValue="" disabled={instructorsBusy}>
-                <option value="" disabled>
-                  {instructorsBusy ? "Akademisyenler yükleniyor" : "Akademisyeni seçin"}
-                </option>
-                <option value="unassigned">Şimdilik boş / atama bekliyor</option>
+              <input
+                required
+                name="instructor"
+                list={instructorListId}
+                disabled={instructorsBusy}
+                placeholder={instructorsBusy ? "Akademisyenler yükleniyor" : "İsim yazın veya listeden seçin"}
+                autoComplete="off"
+              />
+              <datalist id={instructorListId}>
+                <option value={unassignedInstructorLabel} />
                 {instructors.map((item) => (
-                  <option key={item.id} value={item.name}>
-                    {item.name}
-                    {item.departmentNames?.length ? ` — ${item.departmentNames.slice(0, 2).join(", ")}` : ""}
-                  </option>
+                  <option
+                    key={item.id}
+                    value={item.name}
+                    label={item.departmentNames?.length ? item.departmentNames.slice(0, 2).join(", ") : undefined}
+                  />
                 ))}
-              </select>
+              </datalist>
             </label>
           </div>
 
