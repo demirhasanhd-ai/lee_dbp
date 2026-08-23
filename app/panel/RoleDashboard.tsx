@@ -103,6 +103,16 @@ const levels: Course["level"][] = [
   "Tezli Yüksek Lisans",
   "Doktora",
 ];
+const orderedLevelsForProgram = (
+  programLevels: readonly Course["level"][],
+  programCourses: readonly Course[] = [],
+) => {
+  const availableLevels = new Set<Course["level"]>([
+    ...programLevels,
+    ...programCourses.map((course) => course.level),
+  ]);
+  return levels.filter((level) => availableLevels.has(level));
+};
 const centralRoles: DbpRole[] = [
   "lee_ogrenci_isleri",
   "enstitu_sekreteri",
@@ -473,6 +483,9 @@ export function RoleDashboard() {
       ? coursesForProgram(selectedProgram)
       : demoCoursesForProgram(selectedProgram)
     : courses;
+  const activeProgramLevels = selectedProgram
+    ? orderedLevelsForProgram(selectedProgram.levels, activeCourses)
+    : levels;
   const reviewCourses = selectedProgram
     ? activeCourses
     : session.role === "abd_asd_baskani"
@@ -532,7 +545,7 @@ export function RoleDashboard() {
                     <small>{program.programName}</small>
                   )}
                   <p>
-                    {program.levels.map((level) => (
+                    {orderedLevelsForProgram(program.levels).map((level) => (
                       <span key={level}>{shortLevel(level)}</span>
                     ))}
                   </p>
@@ -759,7 +772,7 @@ export function RoleDashboard() {
               <div className="assignment-message">{assignmentMessage}</div>
             )}
             <div className="course-program-columns">
-              {selectedProgram.levels.map((level, index) => (
+              {activeProgramLevels.map((level, index) => (
                 <section
                   className={`program-column tone-${index + 1}`}
                   key={level}
