@@ -334,8 +334,14 @@ async function loadEEnstituInstructorOptions(filters = {}) {
           OR aa.id IS NOT NULL
           OR (
             u.auth_source = 'ldap'
-            AND coalesce(u.profile_metadata->'ldap'->>'accountType', u.profile_metadata->'ldapProfileCompletion'->>'accountType') = 'academic'
-            AND coalesce((u.profile_metadata->'ldapProfileCompletion'->>'completed')::boolean, false) = true
+            AND (
+              coalesce(u.profile_metadata->'ldap'->>'accountType', u.profile_metadata->'ldapProfileCompletion'->>'accountType') = 'academic'
+              OR u.title IN ('Prof. Dr.', 'Doç. Dr.', 'Dr. Öğr. Üyesi', 'Öğr. Gör. Dr.', 'Öğr. Gör.', 'Arş. Gör. Dr.', 'Arş. Gör.')
+            )
+            AND (
+              coalesce((u.profile_metadata->'ldapProfileCompletion'->>'completed')::boolean, false) = true
+              OR u.title IN ('Prof. Dr.', 'Doç. Dr.', 'Dr. Öğr. Üyesi', 'Öğr. Gör. Dr.', 'Öğr. Gör.', 'Arş. Gör. Dr.', 'Arş. Gör.')
+            )
           )
         )
       GROUP BY u.tc_kimlik
