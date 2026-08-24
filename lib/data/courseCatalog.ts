@@ -13,6 +13,14 @@ const sanitizeInstructorName = (value = "") => value
   .replace(/\s+/g, " ")
   .trim();
 
+const isUnsupportedTezsizProcessCourse = (course: OfficialCourse) => {
+  if (!course.level.includes("Tezsiz")) return false;
+  const name = course.name.toLocaleUpperCase("tr-TR").replace(/\s+/g, " ").trim();
+  return /^DAN\d/iu.test(course.code)
+    || /^DANIŞMANLIK(?: DERSİ)?(?: [IVX]+)?$/u.test(name)
+    || /^UZMANLIK ALAN DERSİ(?: [IVX]+)?$/u.test(name);
+};
+
 const YBS_SPECIALIZATION_CODES = new Set([
   "YBS901",
   "YBS902",
@@ -72,7 +80,25 @@ const BEDEN_YL_SPECIALIZATION_CODES = new Set(["BES801", "BES802", "BES803", "BE
 const BEDEN_YL_SEMINAR_CODES = new Set(["BES805", "BES806"]);
 const BEDEN_YL_RESEARCH_CODES = new Set(["BEF801", "BEF802"]);
 const BEDEN_YL_THESIS_CODES = new Set(["BES807", "BES808"]);
+const BEDEN_TEZSIZ_PROJECT_CODES = new Set(["BES701", "BES702"]);
+const BEDEN_TEZSIZ_RESEARCH_CODES = new Set(["BEF703", "BEF704"]);
+const BEDEN_TEZSIZ_COURSE_NAMES = new Map<string, string>([
+  ["BES705", "Spor Bilimlerinde Güncel Yaklaşımlar"],
+  ["BES706", "Fiziksel Aktivite Uygulamaları ile Sağlığın Korunması"],
+  ["BES707", "Motor Gelişim"], ["BES708", "İleri Antrenman Bilgisi"],
+  ["BES709", "Beslenme ve Ergojenikler"], ["BES710", "Sosyal, Kültürel Değişme ve Spor"],
+  ["BES711", "İleri Egzersiz Fizyolojisi"], ["BES712", "Spor Politikası"],
+  ["BES713", "Spor Psikolojisi"], ["BES714", "Çocuk, Kadın ve Yaşlılarda Egzersiz"],
+  ["BES715", "Sporda Liderlik ve Motivasyon"], ["BES716", "Sporda Stres Yönetimi"],
+  ["BES717", "Spor Sosyolojisinde Güncel Yaklaşımlar"], ["BES718", "Serbest Zaman ve Fiziksel Aktivite"],
+  ["BES719", "Çocuk ve Ergen Sporcuların Psikolojisi"], ["BES720", "Hareket ve Antrenman Bilimlerinde Araştırma Analizi"],
+  ["BES721", "Sporda Performans Analizi"], ["BES722", "Sporda Performans Geliştirme Uygulamaları"],
+  ["BES723", "Sağlıklı Yaşam ve Egzersiz Uygulamaları"], ["BES724", "Farklı Çevre Koşullarında Egzersiz ve Performans"],
+  ["BES725", "Fiziksel Uygunluk ve Ölçüm Yöntemleri"], ["BES726", "Stres Yönetimi ve Nefes Teknikleri"],
+]);
 const BIYOLOJI_YL_ADVISORY_CODES = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
+const BIYOLOJI_TEZSIZ_PROJECT_CODES = new Set(["BİO701", "BİO702"]);
+const EKONOMI_FINANS_TEZSIZ_PROJECT_CODES = new Set(["İKT701", "İKT702"]);
 const BIYOLOJI_YL_SPECIALIZATION_CODES = new Set(["BİO801", "BİO802", "BİO803", "BİO804"]);
 const BIYOLOJI_YL_SEMINAR_CODES = new Set(["BİO805", "BİO806"]);
 const BIYOLOJI_YL_RESEARCH_CODES = new Set(["BİO809", "BİO810"]);
@@ -413,6 +439,29 @@ const normalizeGidaMuhendisligiDoktoraCourse = (course: OfficialCourse): Officia
   return course;
 };
 
+const normalizeBiyolojiTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "Biyoloji ABD" && course.programName === "Biyoloji" && course.level === "Tezsiz Yüksek Lisans";
+  if (!applies) return course;
+  if (BIYOLOJI_TEZSIZ_PROJECT_CODES.has(course.code)) {
+    return course.code === "BİO701" ? withAdvisor({ ...course, code:"BİO7XX", name:"BİTİRME PROJESİ", ects:30 }) : null;
+  }
+  return course;
+};
+
+const normalizeEkonomiFinansTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "İktisat ABD" && course.programName === "Ekonomi ve Finans" && course.level === "Tezsiz Yüksek Lisans";
+  if (!applies) return course;
+  if (EKONOMI_FINANS_TEZSIZ_PROJECT_CODES.has(course.code)) {
+    return course.code === "İKT701" ? withAdvisor({ ...course, code:"İKT7XX", name:"BİTİRME PROJESİ", ects:30 }) : null;
+  }
+  const completeNames = new Map([
+    ["İKT714", "MAKROEKONOMİK VE FİNANSAL GÖSTERGELERİN TAHMİNİ"],
+    ["İKT718", "MENKUL VE GAYRİMENKUL KIYMETLERİN VERGİLENDİRİLMESİ"],
+  ]);
+  const completeName = completeNames.get(course.code);
+  return completeName ? { ...course, name: completeName } : course;
+};
+
 const normalizeAileTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
   const applies = course.department === "Aile Danışmanlığı ve Eğitimi ABD" &&
     course.programName === "Aile Danışmanlığı ve Eğitimi" && course.level === "Tezsiz Yüksek Lisans";
@@ -422,6 +471,24 @@ const normalizeAileTezsizCourse = (course: OfficialCourse): OfficialCourse | nul
     return withAdvisor({ ...course, code: "ADE7XX", name: "BİTİRME PROJESİ", ects: 30 });
   }
   const completeName = AILE_TEZSIZ_COURSE_NAMES.get(course.code);
+  return completeName ? { ...course, name: completeName } : course;
+};
+
+const normalizeBedenTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "Beden Eğitimi ve Spor ABD" &&
+    course.programName === "Beden Eğitimi ve Spor" && course.level === "Tezsiz Yüksek Lisans";
+  if (!applies) return course;
+  if (BEDEN_TEZSIZ_PROJECT_CODES.has(course.code)) {
+    return course.code === "BES701"
+      ? withAdvisor({ ...course, code: "BES7XX", name: "BİTİRME PROJESİ", ects: 30 })
+      : null;
+  }
+  if (BEDEN_TEZSIZ_RESEARCH_CODES.has(course.code)) {
+    return course.code === "BEF703"
+      ? { ...course, code: "BEF7XX", name: "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ", ects: 6 }
+      : null;
+  }
+  const completeName = BEDEN_TEZSIZ_COURSE_NAMES.get(course.code);
   return completeName ? { ...course, name: completeName } : course;
 };
 
@@ -770,6 +837,7 @@ const normalizeYonetimOrganizasyonTezliCourse = (course: OfficialCourse): Offici
 };
 
 export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((course) => {
+  if (isUnsupportedTezsizProcessCourse(course)) return [];
   const makineCourse = normalizeMakineTezliCourse(course);
   if (!makineCourse) return [];
   course = makineCourse;
@@ -785,6 +853,15 @@ export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((
   const bedenCourse = normalizeBedenTezliCourse(course);
   if (!bedenCourse) return [];
   course = bedenCourse;
+  const bedenTezsizCourse = normalizeBedenTezsizCourse(course);
+  if (!bedenTezsizCourse) return [];
+  course = bedenTezsizCourse;
+  const biyolojiTezsizCourse = normalizeBiyolojiTezsizCourse(course);
+  if (!biyolojiTezsizCourse) return [];
+  course = biyolojiTezsizCourse;
+  const ekonomiFinansTezsizCourse = normalizeEkonomiFinansTezsizCourse(course);
+  if (!ekonomiFinansTezsizCourse) return [];
+  course = ekonomiFinansTezsizCourse;
   const biyolojiCourse = normalizeBiyolojiTezliCourse(course);
   if (!biyolojiCourse) return [];
   course = biyolojiCourse;
@@ -924,9 +1001,10 @@ const normalizeCourseName = (name: string) =>
 
 export const isDepartmentPoolCourse = (course: Pick<OfficialCourse, "name" | "code">) => {
   const name = normalizeCourseName(course.name);
+  if (["BES7XX", "BEF7XX", "BİO7XX", "İKT7XX"].includes(course.code)) return true;
   if (course.code === "BHT831") return true;
   if (course.code === "BEF801" && normalizeCourseName(course.name).includes("BİLİMSEL ARAŞTIRMA")) return true;
   if (course.code === "BİO809" && normalizeCourseName(course.name).includes("BİLİMSEL ARAŞTIRMA")) return true;
   if (name.includes("BİLİMSEL ARAŞTIRMA")) return false;
-  return /^(?:DANIŞMANLIK|UZMANLIK ALAN DERSİ|(?:YÜKSEK LİSANS |DOKTORA )?SEMİNER|DOKTORA YETERLİK|DOKTORA TEZİ|TEZ ÇALIŞMASI)$/u.test(name);
+  return /^(?:DANIŞMANLIK|UZMANLIK ALAN DERSİ|(?:YÜKSEK LİSANS |DOKTORA )?SEMİNER|BİTİRME PROJESİ|DOKTORA YETERLİK|DOKTORA TEZİ|TEZ ÇALIŞMASI)$/u.test(name);
 };

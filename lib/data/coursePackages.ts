@@ -64,8 +64,14 @@ import { bataryaTezliCoursePackages } from "./bataryaTezliCoursePackages";
 import { bataryaCommonCoursePackages } from "./bataryaCommonCoursePackages";
 import { bedenTezliCoursePackages } from "./bedenTezliCoursePackages";
 import { bedenCommonCoursePackages } from "./bedenCommonCoursePackages";
+import { bedenTezsizCoursePackages } from "./bedenTezsizCoursePackages";
+import { bedenTezsizCommonCoursePackages } from "./bedenTezsizCommonCoursePackages";
 import { biyolojiTezliCoursePackages } from "./biyolojiTezliCoursePackages";
 import { biyolojiCommonCoursePackages } from "./biyolojiCommonCoursePackages";
+import { biyolojiTezsizCoursePackages } from "./biyolojiTezsizCoursePackages";
+import { biyolojiTezsizCommonCoursePackages } from "./biyolojiTezsizCommonCoursePackages";
+import { ekonomiFinansTezsizCoursePackages } from "./ekonomiFinansTezsizCoursePackages";
+import { ekonomiFinansTezsizCommonCoursePackages } from "./ekonomiFinansTezsizCommonCoursePackages";
 import { biyolojiDoktoraCoursePackages } from "./biyolojiDoktoraCoursePackages";
 import { biyolojiDoktoraCommonCoursePackages } from "./biyolojiDoktoraCommonCoursePackages";
 import { ebelikTezliCoursePackages } from "./ebelikTezliCoursePackages";
@@ -666,8 +672,14 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...bataryaCommonCoursePackages,
   ...bedenTezliCoursePackages,
   ...bedenCommonCoursePackages,
+  ...bedenTezsizCoursePackages,
+  ...bedenTezsizCommonCoursePackages,
   ...biyolojiTezliCoursePackages,
   ...biyolojiCommonCoursePackages,
+  ...biyolojiTezsizCoursePackages,
+  ...biyolojiTezsizCommonCoursePackages,
+  ...ekonomiFinansTezsizCoursePackages,
+  ...ekonomiFinansTezsizCommonCoursePackages,
   ...biyolojiDoktoraCoursePackages,
   ...biyolojiDoktoraCommonCoursePackages,
   ...ebelikTezliCoursePackages,
