@@ -86,6 +86,8 @@ import { gastronomiTezliCoursePackages } from "./gastronomiTezliCoursePackages";
 import { gastronomiCommonCoursePackages } from "./gastronomiCommonCoursePackages";
 import { gidaMuhendisligiTezliCoursePackages } from "./gidaMuhendisligiTezliCoursePackages";
 import { gidaMuhendisligiCommonCoursePackages } from "./gidaMuhendisligiCommonCoursePackages";
+import { gidaMuhendisligiDoktoraCoursePackages } from "./gidaMuhendisligiDoktoraCoursePackages";
+import { gidaMuhendisligiDoktoraCommonCoursePackages } from "./gidaMuhendisligiDoktoraCommonCoursePackages";
 import { gidaTeknolojisiTezliCoursePackages } from "./gidaTeknolojisiTezliCoursePackages";
 import { gidaTeknolojisiCommonCoursePackages } from "./gidaTeknolojisiCommonCoursePackages";
 import { haritaMuhendisligiTezliCoursePackages } from "./haritaMuhendisligiTezliCoursePackages";
@@ -96,6 +98,8 @@ import { iktisatTezliCoursePackages } from "./iktisatTezliCoursePackages";
 import { iktisatCommonCoursePackages } from "./iktisatCommonCoursePackages";
 import { insaatMuhendisligiTezliCoursePackages } from "./insaatMuhendisligiTezliCoursePackages";
 import { insaatMuhendisligiCommonCoursePackages } from "./insaatMuhendisligiCommonCoursePackages";
+import { insaatMuhendisligiDoktoraCoursePackages } from "./insaatMuhendisligiDoktoraCoursePackages";
+import { insaatMuhendisligiDoktoraCommonCoursePackages } from "./insaatMuhendisligiDoktoraCommonCoursePackages";
 import { isletmeTezliCoursePackages } from "./isletmeTezliCoursePackages";
 import { isletmeCommonCoursePackages } from "./isletmeCommonCoursePackages";
 import { kimyaTezliCoursePackages } from "./kimyaTezliCoursePackages";
@@ -672,6 +676,8 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...gastronomiCommonCoursePackages,
   ...gidaMuhendisligiTezliCoursePackages,
   ...gidaMuhendisligiCommonCoursePackages,
+  ...gidaMuhendisligiDoktoraCoursePackages,
+  ...gidaMuhendisligiDoktoraCommonCoursePackages,
   ...gidaTeknolojisiTezliCoursePackages,
   ...gidaTeknolojisiCommonCoursePackages,
   ...haritaMuhendisligiTezliCoursePackages,
@@ -682,6 +688,8 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...iktisatCommonCoursePackages,
   ...insaatMuhendisligiTezliCoursePackages,
   ...insaatMuhendisligiCommonCoursePackages,
+  ...insaatMuhendisligiDoktoraCoursePackages,
+  ...insaatMuhendisligiDoktoraCommonCoursePackages,
   ...isletmeTezliCoursePackages,
   ...isletmeCommonCoursePackages,
   ...kimyaTezliCoursePackages,

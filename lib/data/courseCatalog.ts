@@ -110,6 +110,16 @@ const GIDA_MUHENDISLIGI_YL_SPECIALIZATION_CODES = new Set(["GMB801", "GMB802", "
 const GIDA_MUHENDISLIGI_YL_SEMINAR_CODES = new Set(["GMB805", "GMB806"]);
 const GIDA_MUHENDISLIGI_YL_RESEARCH_CODES = new Set(["GMB853", "GMB856"]);
 const GIDA_MUHENDISLIGI_YL_THESIS_CODES = new Set(["GMB807", "GMB808"]);
+const GIDA_MUHENDISLIGI_DR_ADVISORY_CODES = new Set(["DAN901", "DAN902", "DAN903", "DAN904", "DAN905", "DAN906", "DAN907", "DAN908"]);
+const GIDA_MUHENDISLIGI_DR_SPECIALIZATION_CODES = new Set(["GMB901", "GMB902", "GMB903", "GMB904", "GMB905", "GMB906", "GMB907", "GMB908"]);
+const GIDA_MUHENDISLIGI_DR_SEMINAR_CODES = new Set(["GMB909", "GMB910"]);
+const GIDA_MUHENDISLIGI_DR_QUALIFYING_CODES = new Set(["GMB917", "GMB918"]);
+const GIDA_MUHENDISLIGI_DR_THESIS_CODES = new Set(["GMB912", "GMB913", "GMB914", "GMB915", "GMB916"]);
+const INSAAT_MUHENDISLIGI_DR_ADVISORY_CODES = new Set(["DAN901", "DAN902", "DAN903", "DAN904", "DAN905", "DAN906", "DAN907", "DAN908"]);
+const INSAAT_MUHENDISLIGI_DR_SPECIALIZATION_CODES = new Set(["İNŞ901", "İNŞ902", "İNŞ903", "İNŞ904", "İNŞ905", "İNŞ906", "İNŞ907", "İNŞ908"]);
+const INSAAT_MUHENDISLIGI_DR_SEMINAR_CODES = new Set(["İNŞ909", "İNŞ910"]);
+const INSAAT_MUHENDISLIGI_DR_QUALIFYING_CODES = new Set(["İNŞ917", "İNŞ918"]);
+const INSAAT_MUHENDISLIGI_DR_THESIS_CODES = new Set(["İNŞ912", "İNŞ913", "İNŞ914", "İNŞ915", "İNŞ916"]);
 const GIDA_TEKNOLOJISI_YL_ADVISORY_CODES = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
 const GIDA_TEKNOLOJISI_YL_SPECIALIZATION_CODES = new Set(["GTB801", "GTB802", "GTB803", "GTB804"]);
 const GIDA_TEKNOLOJISI_YL_SEMINAR_CODES = new Set(["GTB805", "GTB806"]);
@@ -339,6 +349,28 @@ const normalizeFizikDoktoraCourse = (course: OfficialCourse): OfficialCourse | n
   if (FIZIK_DR_SEMINAR_CODES.has(course.code)) return course.code === "FZK909" ? withAdvisor({ ...course, code:"FZK909", name:"SEMİNER", ects:6 }) : null;
   if (FIZIK_DR_QUALIFYING_CODES.has(course.code)) return course.code === "FZK917" ? withAdvisor({ ...course, code:"FZK917", name:"DOKTORA YETERLİK", ects:24 }) : null;
   if (FIZIK_DR_THESIS_CODES.has(course.code)) return course.code === "FZK912" ? withAdvisor({ ...course, code:"FZK91X", name:"TEZ ÇALIŞMASI", ects:24 }) : null;
+  return course;
+};
+
+const normalizeGidaMuhendisligiDoktoraCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "Gıda Mühendisliği ABD" && course.programName === "Gıda Mühendisliği" && course.level === "Doktora";
+  if (!applies) return course;
+  if (GIDA_MUHENDISLIGI_DR_ADVISORY_CODES.has(course.code)) return course.code === "DAN901" ? withAdvisor({ ...course, code:"DAN9XX", name:"DANIŞMANLIK", ects:1 }) : null;
+  if (GIDA_MUHENDISLIGI_DR_SPECIALIZATION_CODES.has(course.code)) return course.code === "GMB901" ? withAdvisor({ ...course, code:"GMB9XX", name:"UZMANLIK ALAN DERSİ", ects:5 }) : null;
+  if (GIDA_MUHENDISLIGI_DR_SEMINAR_CODES.has(course.code)) return course.code === "GMB909" ? withAdvisor({ ...course, code:"GMB909", name:"SEMİNER", ects:6 }) : null;
+  if (GIDA_MUHENDISLIGI_DR_QUALIFYING_CODES.has(course.code)) return course.code === "GMB917" ? withAdvisor({ ...course, code:"GMB917", name:"DOKTORA YETERLİK", ects:24 }) : null;
+  if (GIDA_MUHENDISLIGI_DR_THESIS_CODES.has(course.code)) return course.code === "GMB912" ? withAdvisor({ ...course, code:"GMB91X", name:"TEZ ÇALIŞMASI", ects:24 }) : null;
+  return course;
+};
+
+const normalizeInsaatMuhendisligiDoktoraCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "İnşaat Mühendisliği ABD" && course.programName === "İnşaat Mühendisliği" && course.level === "Doktora";
+  if (!applies) return course;
+  if (INSAAT_MUHENDISLIGI_DR_ADVISORY_CODES.has(course.code)) return course.code === "DAN901" ? withAdvisor({ ...course, code:"DAN9XX", name:"DANIŞMANLIK", ects:1 }) : null;
+  if (INSAAT_MUHENDISLIGI_DR_SPECIALIZATION_CODES.has(course.code)) return course.code === "İNŞ901" ? withAdvisor({ ...course, code:"İNŞ9XX", name:"UZMANLIK ALAN DERSİ", ects:5 }) : null;
+  if (INSAAT_MUHENDISLIGI_DR_SEMINAR_CODES.has(course.code)) return course.code === "İNŞ909" ? withAdvisor({ ...course, code:"İNŞ909", name:"SEMİNER", ects:6 }) : null;
+  if (INSAAT_MUHENDISLIGI_DR_QUALIFYING_CODES.has(course.code)) return course.code === "İNŞ917" ? withAdvisor({ ...course, code:"İNŞ917", name:"DOKTORA YETERLİK", ects:24 }) : null;
+  if (INSAAT_MUHENDISLIGI_DR_THESIS_CODES.has(course.code)) return course.code === "İNŞ912" ? withAdvisor({ ...course, code:"İNŞ91X", name:"TEZ ÇALIŞMASI", ects:24 }) : null;
   return course;
 };
 
@@ -641,6 +673,12 @@ export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((
   const fizikDoktoraCourse = normalizeFizikDoktoraCourse(course);
   if (!fizikDoktoraCourse) return [];
   course = fizikDoktoraCourse;
+  const gidaMuhendisligiDoktoraCourse = normalizeGidaMuhendisligiDoktoraCourse(course);
+  if (!gidaMuhendisligiDoktoraCourse) return [];
+  course = gidaMuhendisligiDoktoraCourse;
+  const insaatMuhendisligiDoktoraCourse = normalizeInsaatMuhendisligiDoktoraCourse(course);
+  if (!insaatMuhendisligiDoktoraCourse) return [];
+  course = insaatMuhendisligiDoktoraCourse;
   const ebelikCourse = normalizeEbelikTezliCourse(course);
   if (!ebelikCourse) return [];
   course = ebelikCourse;

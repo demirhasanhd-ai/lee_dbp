@@ -842,6 +842,16 @@ const gidaMuhendisligiYlSpecializationCodes = new Set(["GMB801", "GMB802", "GMB8
 const gidaMuhendisligiYlSeminarCodes = new Set(["GMB805", "GMB806"]);
 const gidaMuhendisligiYlResearchCodes = new Set(["GMB853", "GMB856"]);
 const gidaMuhendisligiYlThesisCodes = new Set(["GMB807", "GMB808"]);
+const gidaMuhendisligiDrAdvisoryCodes = new Set(["DAN901", "DAN902", "DAN903", "DAN904", "DAN905", "DAN906", "DAN907", "DAN908"]);
+const gidaMuhendisligiDrSpecializationCodes = new Set(["GMB901", "GMB902", "GMB903", "GMB904", "GMB905", "GMB906", "GMB907", "GMB908"]);
+const gidaMuhendisligiDrSeminarCodes = new Set(["GMB909", "GMB910"]);
+const gidaMuhendisligiDrQualifyingCodes = new Set(["GMB917", "GMB918"]);
+const gidaMuhendisligiDrThesisCodes = new Set(["GMB912", "GMB913", "GMB914", "GMB915", "GMB916"]);
+const insaatMuhendisligiDrAdvisoryCodes = new Set(["DAN901", "DAN902", "DAN903", "DAN904", "DAN905", "DAN906", "DAN907", "DAN908"]);
+const insaatMuhendisligiDrSpecializationCodes = new Set(["İNŞ901", "İNŞ902", "İNŞ903", "İNŞ904", "İNŞ905", "İNŞ906", "İNŞ907", "İNŞ908"]);
+const insaatMuhendisligiDrSeminarCodes = new Set(["İNŞ909", "İNŞ910"]);
+const insaatMuhendisligiDrQualifyingCodes = new Set(["İNŞ917", "İNŞ918"]);
+const insaatMuhendisligiDrThesisCodes = new Set(["İNŞ912", "İNŞ913", "İNŞ914", "İNŞ915", "İNŞ916"]);
 const gidaTeknolojisiYlAdvisoryCodes = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
 const gidaTeknolojisiYlSpecializationCodes = new Set(["GTB801", "GTB802", "GTB803", "GTB804"]);
 const gidaTeknolojisiYlSeminarCodes = new Set(["GTB805", "GTB806"]);
@@ -975,6 +985,14 @@ function canonicalCourseCode(code = "") {
   if (gidaMuhendisligiYlSeminarCodes.has(normalizedCode)) return "GMB806";
   if (gidaMuhendisligiYlResearchCodes.has(normalizedCode)) return "GMB85X";
   if (gidaMuhendisligiYlThesisCodes.has(normalizedCode)) return "GMB81X";
+  if (gidaMuhendisligiDrSpecializationCodes.has(normalizedCode)) return "GMB9XX";
+  if (gidaMuhendisligiDrSeminarCodes.has(normalizedCode)) return "GMB909";
+  if (gidaMuhendisligiDrQualifyingCodes.has(normalizedCode)) return "GMB917";
+  if (gidaMuhendisligiDrThesisCodes.has(normalizedCode)) return "GMB91X";
+  if (insaatMuhendisligiDrSpecializationCodes.has(normalizedCode)) return "İNŞ9XX";
+  if (insaatMuhendisligiDrSeminarCodes.has(normalizedCode)) return "İNŞ909";
+  if (insaatMuhendisligiDrQualifyingCodes.has(normalizedCode)) return "İNŞ917";
+  if (insaatMuhendisligiDrThesisCodes.has(normalizedCode)) return "İNŞ91X";
   if (gidaTeknolojisiYlSpecializationCodes.has(normalizedCode)) return "GTB8XX";
   if (gidaTeknolojisiYlSeminarCodes.has(normalizedCode)) return "GTB806";
   if (gidaTeknolojisiYlResearchCodes.has(normalizedCode)) return "GTB82X";
@@ -1119,6 +1137,16 @@ function courseCodeCandidates(code = "") {
   if (canonical === "GMB806") for (const alias of gidaMuhendisligiYlSeminarCodes) candidates.add(alias);
   if (canonical === "GMB85X") for (const alias of gidaMuhendisligiYlResearchCodes) candidates.add(alias);
   if (canonical === "GMB81X") for (const alias of gidaMuhendisligiYlThesisCodes) candidates.add(alias);
+  if (canonical === "DAN9XX") for (const alias of gidaMuhendisligiDrAdvisoryCodes) candidates.add(alias);
+  if (canonical === "GMB9XX") for (const alias of gidaMuhendisligiDrSpecializationCodes) candidates.add(alias);
+  if (canonical === "GMB909") for (const alias of gidaMuhendisligiDrSeminarCodes) candidates.add(alias);
+  if (canonical === "GMB917") for (const alias of gidaMuhendisligiDrQualifyingCodes) candidates.add(alias);
+  if (canonical === "GMB91X") for (const alias of gidaMuhendisligiDrThesisCodes) candidates.add(alias);
+  if (canonical === "DAN9XX") for (const alias of insaatMuhendisligiDrAdvisoryCodes) candidates.add(alias);
+  if (canonical === "İNŞ9XX") for (const alias of insaatMuhendisligiDrSpecializationCodes) candidates.add(alias);
+  if (canonical === "İNŞ909") for (const alias of insaatMuhendisligiDrSeminarCodes) candidates.add(alias);
+  if (canonical === "İNŞ917") for (const alias of insaatMuhendisligiDrQualifyingCodes) candidates.add(alias);
+  if (canonical === "İNŞ91X") for (const alias of insaatMuhendisligiDrThesisCodes) candidates.add(alias);
   if (canonical === "DAN8XX") for (const alias of gidaTeknolojisiYlAdvisoryCodes) candidates.add(alias);
   if (canonical === "GTB8XX") for (const alias of gidaTeknolojisiYlSpecializationCodes) candidates.add(alias);
   if (canonical === "GTB806") for (const alias of gidaTeknolojisiYlSeminarCodes) candidates.add(alias);
@@ -1482,6 +1510,30 @@ function normalizeGidaMuhendisligiTezliCourse(course = {}) {
   return course;
 }
 
+function normalizeGidaMuhendisligiDoktoraCourse(course = {}) {
+  const applies = levelKey(course.level) === "doktora" && normalizeScope(course.department || "") === normalizeScope("Gıda Mühendisliği ABD") && normalizeScope(course.programName || course.program_name || "") === normalizeScope("Gıda Mühendisliği");
+  if (!applies) return course;
+  const code=repairText(course.code||"").trim().toLocaleUpperCase("tr-TR");
+  if(gidaMuhendisligiDrAdvisoryCodes.has(code))return code==="DAN901"?{...course,code:"DAN9XX",name:"DANIŞMANLIK",ects:1,instructor:"Öğrencinin Danışmanı"}:null;
+  if(gidaMuhendisligiDrSpecializationCodes.has(code))return code==="GMB901"?{...course,code:"GMB9XX",name:"UZMANLIK ALAN DERSİ",ects:5,instructor:"Öğrencinin Danışmanı"}:null;
+  if(gidaMuhendisligiDrSeminarCodes.has(code))return code==="GMB909"?{...course,code:"GMB909",name:"SEMİNER",ects:6,instructor:"Öğrencinin Danışmanı"}:null;
+  if(gidaMuhendisligiDrQualifyingCodes.has(code))return code==="GMB917"?{...course,code:"GMB917",name:"DOKTORA YETERLİK",ects:24,instructor:"Öğrencinin Danışmanı"}:null;
+  if(gidaMuhendisligiDrThesisCodes.has(code))return code==="GMB912"?{...course,code:"GMB91X",name:"TEZ ÇALIŞMASI",ects:24,instructor:"Öğrencinin Danışmanı"}:null;
+  return course;
+}
+
+function normalizeInsaatMuhendisligiDoktoraCourse(course = {}) {
+  const applies = levelKey(course.level) === "doktora" && normalizeScope(course.department || "") === normalizeScope("İnşaat Mühendisliği ABD") && normalizeScope(course.programName || course.program_name || "") === normalizeScope("İnşaat Mühendisliği");
+  if (!applies) return course;
+  const code=repairText(course.code||"").trim().toLocaleUpperCase("tr-TR");
+  if(insaatMuhendisligiDrAdvisoryCodes.has(code))return code==="DAN901"?{...course,code:"DAN9XX",name:"DANIŞMANLIK",ects:1,instructor:"Öğrencinin Danışmanı"}:null;
+  if(insaatMuhendisligiDrSpecializationCodes.has(code))return code==="İNŞ901"?{...course,code:"İNŞ9XX",name:"UZMANLIK ALAN DERSİ",ects:5,instructor:"Öğrencinin Danışmanı"}:null;
+  if(insaatMuhendisligiDrSeminarCodes.has(code))return code==="İNŞ909"?{...course,code:"İNŞ909",name:"SEMİNER",ects:6,instructor:"Öğrencinin Danışmanı"}:null;
+  if(insaatMuhendisligiDrQualifyingCodes.has(code))return code==="İNŞ917"?{...course,code:"İNŞ917",name:"DOKTORA YETERLİK",ects:24,instructor:"Öğrencinin Danışmanı"}:null;
+  if(insaatMuhendisligiDrThesisCodes.has(code))return code==="İNŞ912"?{...course,code:"İNŞ91X",name:"TEZ ÇALIŞMASI",ects:24,instructor:"Öğrencinin Danışmanı"}:null;
+  return course;
+}
+
 function isGidaTeknolojisiTezliCourse(course = {}) {
   return levelKey(course.level) === "tezli yl" && normalizeScope(course.department || "") === normalizeScope("Gıda Teknolojisi ABD") && normalizeScope(course.programName || course.program_name || "") === normalizeScope("Gıda Teknolojisi");
 }
@@ -1797,6 +1849,12 @@ function normalizeSeedCourse(course = {}) {
   const gidaMuhendisligiCourse = normalizeGidaMuhendisligiTezliCourse(repaired);
   if (!gidaMuhendisligiCourse) return null;
   if (gidaMuhendisligiCourse !== repaired) return gidaMuhendisligiCourse;
+  const gidaMuhendisligiDoktoraCourse = normalizeGidaMuhendisligiDoktoraCourse(repaired);
+  if (!gidaMuhendisligiDoktoraCourse) return null;
+  if (gidaMuhendisligiDoktoraCourse !== repaired) return gidaMuhendisligiDoktoraCourse;
+  const insaatMuhendisligiDoktoraCourse = normalizeInsaatMuhendisligiDoktoraCourse(repaired);
+  if (!insaatMuhendisligiDoktoraCourse) return null;
+  if (insaatMuhendisligiDoktoraCourse !== repaired) return insaatMuhendisligiDoktoraCourse;
   const gidaTeknolojisiCourse = normalizeGidaTeknolojisiTezliCourse(repaired);
   if (!gidaTeknolojisiCourse) return null;
   if (gidaTeknolojisiCourse !== repaired) return gidaTeknolojisiCourse;
@@ -1962,7 +2020,7 @@ function canEditCoursePackage(session, body, rows) {
   if (session.role === "akademisyen") return assignedToUser;
   if (session.role === "abd_asd_baskani") {
     const trustedMergedPoolCodes = new Set(["YBS9XX", "YBS91X", "DAN8XX", "MMB8XX", "MMB806", "MMB81X", "ADE8XX", "ADE806", "ADE81X", "ARK8XX", "ARK806", "ARK81X", "BHT8XX", "BHT806", "BHT831", "BHT81X", "BES8XX", "BES806", "BEF801", "BES81X", "BİO8XX", "BİO806", "BİO809", "BİO81X", "EBE8XX", "EBE806", "EBE809", "EBE81X", "ETR8XX", "ETR806", "ETR855", "ETR81X", "EEM8XX", "EEM806", "EEM885", "EEM81X", "EMB8XX", "EMB806", "EMB829", "EMB81X", "FDB8XX", "FDB806", "FDB81X", "FZK8XX", "FZK806", "FZK899", "FZK81X", "GMS8XX", "GMS806", "GMS85X", "GMS81X", "GMB8XX", "GMB806", "GMB85X", "GMB81X", "GTB8XX", "GTB806", "GTB82X", "GTB81X", "HRM8XX", "HRM806", "HRM809", "HRM81X", "İHH8XX", "İHH806", "İHH809", "İHH81X", "İKT8XX", "İKT806", "İKT897", "İKT81X", "İNŞ8XX", "İNŞ806", "İNŞ897", "İNŞ81X", "ISL8XX", "ISL806", "ISL885", "ISL81X", "KİM8XX", "KİM806", "KİM839", "KİM81X", "MAT8XX", "MAT805", "MAT863", "MAT81X", "MUF8XX", "MUF805", "MUF849", "MUF81X", "OTİ8XX", "OTİ805", "OTİ841", "OTİ81X", "RES8XX", "RES805", "RES881", "RES81X", "SKY8XX", "SKY805", "SKY899", "SKY81X", "TTZ8XX", "TTZ805", "BES801", "TTZ81X", "TİB8XX", "TİB805", "TİB879", "TİB81X"]);
-    for (const code of ["DAN9XX", "BİO9XX", "BİO909", "BİO917", "BİO91X", "EMB9XX", "EMB909", "EMB917", "EMB91X", "FZK9XX", "FZK909", "FZK917", "FZK91X"]) trustedMergedPoolCodes.add(code);
+    for (const code of ["DAN9XX", "BİO9XX", "BİO909", "BİO917", "BİO91X", "EMB9XX", "EMB909", "EMB917", "EMB91X", "FZK9XX", "FZK909", "FZK917", "FZK91X", "GMB9XX", "GMB909", "GMB917", "GMB91X", "İNŞ9XX", "İNŞ909", "İNŞ917", "İNŞ91X"]) trustedMergedPoolCodes.add(code);
     for (const code of ["TDE8XX", "TDE805", "TDE81X", "YBS8XX", "YBS805", "YBS81X", "YON8XX", "YON805", "YON841", "YON81X"]) trustedMergedPoolCodes.add(code);
     const poolCourse = rows.some(isDepartmentPoolCourseRecord) ||
       (trustedMergedPoolCodes.has(body.code) && isDepartmentPoolCourseRecord(body));
@@ -2128,6 +2186,8 @@ async function ensureDb() {
   migrateFizikDoktoraPackagesFromSeed();
   migrateGastronomiTezliPackagesFromSeed();
   migrateGidaMuhendisligiTezliPackagesFromSeed();
+  migrateGidaMuhendisligiDoktoraPackagesFromSeed();
+  migrateInsaatMuhendisligiDoktoraPackagesFromSeed();
   migrateGidaTeknolojisiTezliPackagesFromSeed();
   migrateHaritaTezliPackagesFromSeed();
   migrateIcHastaliklariHemsireligiTezliPackagesFromSeed();
@@ -2429,6 +2489,14 @@ function packageSeedCourseName(coursePackage) {
     EMB909: "SEMİNER",
     EMB917: "DOKTORA YETERLİK",
     EMB91X: "TEZ ÇALIŞMASI",
+    GMB9XX: "UZMANLIK ALAN DERSİ",
+    GMB909: "SEMİNER",
+    GMB917: "DOKTORA YETERLİK",
+    GMB91X: "TEZ ÇALIŞMASI",
+    İNŞ9XX: "UZMANLIK ALAN DERSİ",
+    İNŞ909: "SEMİNER",
+    İNŞ917: "DOKTORA YETERLİK",
+    İNŞ91X: "TEZ ÇALIŞMASI",
     MMB8XX: "UZMANLIK ALAN DERSİ",
     MMB806: "SEMİNER",
     MMB81X: "TEZ ÇALIŞMASI",
@@ -2682,6 +2750,12 @@ function normalizeDbCourseForList(course = {}) {
   const gidaMuhendisligiCourse = normalizeGidaMuhendisligiTezliCourse(repaired);
   if (!gidaMuhendisligiCourse) return null;
   if (gidaMuhendisligiCourse !== repaired) return gidaMuhendisligiCourse;
+  const gidaMuhendisligiDoktoraCourse = normalizeGidaMuhendisligiDoktoraCourse(repaired);
+  if (!gidaMuhendisligiDoktoraCourse) return null;
+  if (gidaMuhendisligiDoktoraCourse !== repaired) return gidaMuhendisligiDoktoraCourse;
+  const insaatMuhendisligiDoktoraCourse = normalizeInsaatMuhendisligiDoktoraCourse(repaired);
+  if (!insaatMuhendisligiDoktoraCourse) return null;
+  if (insaatMuhendisligiDoktoraCourse !== repaired) return insaatMuhendisligiDoktoraCourse;
   const gidaTeknolojisiCourse = normalizeGidaTeknolojisiTezliCourse(repaired);
   if (!gidaTeknolojisiCourse) return null;
   if (gidaTeknolojisiCourse !== repaired) return gidaTeknolojisiCourse;
@@ -3145,6 +3219,16 @@ function migrateGastronomiTezliPackagesFromSeed() {
 function migrateGidaMuhendisligiTezliPackagesFromSeed() {
   const revision="2026-08-20-gida-muhendisligi-tezli-v2";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("gida_muhendisligi_tezli_packages_revision")?.value===revision)return;
   const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Gıda Mühendisliği ABD")&&normalizeScope(x.programName||"")===normalizeScope("Gıda Mühendisliği")&&levelKey(x.level||"")==="tezli yl");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const rows=courseRowsForIdentity({department:p.department,programName:p.programName,level:p.level,code:p.code});for(const c of rows){update.run(p.name||c.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("gida_muhendisligi_tezli_packages_revision",revision);audit("course.package.migrate","system",{scope:"Gıda Mühendisliği Tezli YL",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
+}
+
+function migrateGidaMuhendisligiDoktoraPackagesFromSeed() {
+  const revision="2026-08-21-gida-muhendisligi-doktora-v3";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("gida_muhendisligi_doktora_packages_revision")?.value===revision)return;
+  const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Gıda Mühendisliği ABD")&&normalizeScope(x.programName||"")===normalizeScope("Gıda Mühendisliği")&&levelKey(x.level||"")==="doktora");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const rows=courseRowsForIdentity({department:p.department,programName:p.programName,level:p.level,code:p.code});for(const c of rows){update.run(p.name||c.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("gida_muhendisligi_doktora_packages_revision",revision);audit("course.package.migrate","system",{scope:"Gıda Mühendisliği Doktora",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
+}
+
+function migrateInsaatMuhendisligiDoktoraPackagesFromSeed() {
+  const revision="2026-08-24-insaat-muhendisligi-doktora-v2";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("insaat_muhendisligi_doktora_packages_revision")?.value===revision)return;
+  const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("İnşaat Mühendisliği ABD")&&normalizeScope(x.programName||"")===normalizeScope("İnşaat Mühendisliği")&&levelKey(x.level||"")==="doktora");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const rows=courseRowsForIdentity({department:p.department,programName:p.programName,level:p.level,code:p.code});for(const c of rows){update.run(p.name||c.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("insaat_muhendisligi_doktora_packages_revision",revision);audit("course.package.migrate","system",{scope:"İnşaat Mühendisliği Doktora",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
 }
 
 function migrateGidaTeknolojisiTezliPackagesFromSeed() {
