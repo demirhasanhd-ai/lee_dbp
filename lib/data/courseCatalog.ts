@@ -37,6 +37,27 @@ const MAKINE_YL_ADVISORY_CODES = new Set(["DAN801", "DAN802", "DAN803", "DAN804"
 const MAKINE_YL_SPECIALIZATION_CODES = new Set(["MMB801", "MMB802", "MMB803", "MMB804"]);
 const MAKINE_YL_SEMINAR_CODES = new Set(["MMB805", "MMB806"]);
 const MAKINE_YL_THESIS_CODES = new Set(["MMB807", "MMB808"]);
+const AILE_TEZSIZ_PROJECT_CODES = new Set(["ADE701", "ADE702"]);
+const AILE_TEZSIZ_COURSE_NAMES = new Map<string, string>([
+  ["ADE703", "Bilimsel Araştırma Yöntemleri ve Yayın Etiği"],
+  ["ADE704", "Bilimsel Araştırma ve Yayın Etiği"],
+  ["ADE705", "Aile Danışmanlığının Temelleri ve Aile Danışmanlığı Kuramları"],
+  ["ADE706", "Aile Danışmanlığı Uygulaması"],
+  ["ADE707", "Aile Danışma Süreci ve Temel Psikolojik Danışmanlık Becerileri"],
+  ["ADE708", "Aile Danışmanlığında Etik ve Yasal Konular"],
+  ["ADE709", "Aile İçi İlişkiler ve İletişim"],
+  ["ADE710", "Ailede Cinsellik ve Cinsel Sorunlar"],
+  ["ADE711", "Aile Olmak"],
+  ["ADE712", "Ailede Değer Eğitimi"],
+  ["ADE713", "Aile Sosyolojisi"],
+  ["ADE714", "Ailede Krize Müdahale"],
+  ["ADE715", "Ailede Gelişim Psikolojisi"],
+  ["ADE716", "Bireysel Danışma Kuramları"],
+  ["ADE717", "Ailede Ruh Sağlığı"],
+  ["ADE718", "Ailede Özel Sorunlar (Boşanma, Aldatma, Ölüm ve Yas)"],
+  ["ADE719", "Çocuklarda Davranış Bozukluğu ve Aile"],
+  ["ADE720", "Özel Gereksinimli Çocuğu Olan Ailelerle Çalışma"],
+]);
 const ARKEOLOJI_YL_ADVISORY_CODES = new Set(["DAN801", "DAN802"]);
 const ARKEOLOJI_YL_SPECIALIZATION_CODES = new Set(["ARK801", "ARK802", "ARK803", "ARK804"]);
 const ARKEOLOJI_YL_SEMINAR_CODES = new Set(["ARK805", "ARK806"]);
@@ -143,6 +164,12 @@ const SIYASET_KAMU_DR_SEMINAR_CODES = new Set(["SKY909", "SKY910"]);
 const SIYASET_KAMU_DR_RESEARCH_CODES = new Set(["SKY999", "SKY998"]);
 const SIYASET_KAMU_DR_QUALIFYING_CODES = new Set(["SKY917", "SKY918"]);
 const SIYASET_KAMU_DR_THESIS_CODES = new Set(["SKY911", "SKY912", "SKY913", "SKY914", "SKY915", "SKY916"]);
+const TURK_DILI_EDEBIYATI_DR_ADVISORY_CODES = new Set(["DAN901", "DAN902"]);
+const TURK_DILI_EDEBIYATI_DR_SPECIALIZATION_CODES = new Set(["TDE901", "TDE902", "TDE903", "TDE904", "TDE905", "TDE906", "TDE907", "TDE908"]);
+const TURK_DILI_EDEBIYATI_DR_RESEARCH_CODES = new Set(["TDE909", "TDE1012"]);
+const TURK_DILI_EDEBIYATI_DR_SEMINAR_CODES = new Set(["TDE910"]);
+const TURK_DILI_EDEBIYATI_DR_QUALIFYING_CODES = new Set(["TDE917", "TDE918"]);
+const TURK_DILI_EDEBIYATI_DR_THESIS_CODES = new Set(["TDE912", "TDE913", "TDE914", "TDE915", "TDE916"]);
 const GIDA_TEKNOLOJISI_YL_ADVISORY_CODES = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
 const GIDA_TEKNOLOJISI_YL_SPECIALIZATION_CODES = new Set(["GTB801", "GTB802", "GTB803", "GTB804"]);
 const GIDA_TEKNOLOJISI_YL_SEMINAR_CODES = new Set(["GTB805", "GTB806"]);
@@ -386,6 +413,18 @@ const normalizeGidaMuhendisligiDoktoraCourse = (course: OfficialCourse): Officia
   return course;
 };
 
+const normalizeAileTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "Aile Danışmanlığı ve Eğitimi ABD" &&
+    course.programName === "Aile Danışmanlığı ve Eğitimi" && course.level === "Tezsiz Yüksek Lisans";
+  if (!applies) return course;
+  if (AILE_TEZSIZ_PROJECT_CODES.has(course.code)) {
+    if (course.code !== "ADE701") return null;
+    return withAdvisor({ ...course, code: "ADE7XX", name: "BİTİRME PROJESİ", ects: 30 });
+  }
+  const completeName = AILE_TEZSIZ_COURSE_NAMES.get(course.code);
+  return completeName ? { ...course, name: completeName } : course;
+};
+
 const normalizeInsaatMuhendisligiDoktoraCourse = (course: OfficialCourse): OfficialCourse | null => {
   const applies = course.department === "İnşaat Mühendisliği ABD" && course.programName === "İnşaat Mühendisliği" && course.level === "Doktora";
   if (!applies) return course;
@@ -441,6 +480,18 @@ const normalizeSiyasetKamuYonetimiDoktoraCourse = (course: OfficialCourse): Offi
   if (SIYASET_KAMU_DR_RESEARCH_CODES.has(course.code)) return course.code === "SKY999" ? { ...course, code:"SKY999", name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE ETİK", ects:6 } : null;
   if (SIYASET_KAMU_DR_QUALIFYING_CODES.has(course.code)) return course.code === "SKY917" ? withAdvisor({ ...course, code:"SKY917", name:"DOKTORA YETERLİK", ects:24 }) : null;
   if (SIYASET_KAMU_DR_THESIS_CODES.has(course.code)) return course.code === "SKY911" ? withAdvisor({ ...course, code:"SKY91X", name:"TEZ ÇALIŞMASI", ects:24 }) : null;
+  return course;
+};
+
+const normalizeTurkDiliEdebiyatiDoktoraCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "Türk Dili ve Edebiyatı ABD" && course.programName === "Türk Dili ve Edebiyatı" && course.level === "Doktora";
+  if (!applies) return course;
+  if (TURK_DILI_EDEBIYATI_DR_ADVISORY_CODES.has(course.code)) return course.code === "DAN901" ? withAdvisor({ ...course, code:"DAN9XX", name:"DANIŞMANLIK", ects:1 }) : null;
+  if (TURK_DILI_EDEBIYATI_DR_SPECIALIZATION_CODES.has(course.code)) return course.code === "TDE901" ? withAdvisor({ ...course, code:"TDE9XX", name:"UZMANLIK ALAN DERSİ", ects:5 }) : null;
+  if (TURK_DILI_EDEBIYATI_DR_RESEARCH_CODES.has(course.code)) return course.code === "TDE909" ? { ...course, code:"TDE909", name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ", ects:6 } : null;
+  if (TURK_DILI_EDEBIYATI_DR_SEMINAR_CODES.has(course.code)) return course.code === "TDE910" ? withAdvisor({ ...course, code:"TDE910", name:"SEMİNER", ects:6 }) : null;
+  if (TURK_DILI_EDEBIYATI_DR_QUALIFYING_CODES.has(course.code)) return course.code === "TDE917" ? withAdvisor({ ...course, code:"TDE917", name:"DOKTORA YETERLİK", ects:24 }) : null;
+  if (TURK_DILI_EDEBIYATI_DR_THESIS_CODES.has(course.code)) return course.code === "TDE912" ? withAdvisor({ ...course, code:"TDE91X", name:"TEZ ÇALIŞMASI", ects:24 }) : null;
   return course;
 };
 
@@ -722,6 +773,9 @@ export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((
   const makineCourse = normalizeMakineTezliCourse(course);
   if (!makineCourse) return [];
   course = makineCourse;
+  const aileTezsizCourse = normalizeAileTezsizCourse(course);
+  if (!aileTezsizCourse) return [];
+  course = aileTezsizCourse;
   const arkeolojiCourse = normalizeArkeolojiTezliCourse(course);
   if (!arkeolojiCourse) return [];
   course = arkeolojiCourse;
@@ -761,6 +815,9 @@ export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((
   const siyasetKamuDoktoraCourse = normalizeSiyasetKamuYonetimiDoktoraCourse(course);
   if (!siyasetKamuDoktoraCourse) return [];
   course = siyasetKamuDoktoraCourse;
+  const turkDiliEdebiyatiDoktoraCourse = normalizeTurkDiliEdebiyatiDoktoraCourse(course);
+  if (!turkDiliEdebiyatiDoktoraCourse) return [];
+  course = turkDiliEdebiyatiDoktoraCourse;
   const ebelikCourse = normalizeEbelikTezliCourse(course);
   if (!ebelikCourse) return [];
   course = ebelikCourse;

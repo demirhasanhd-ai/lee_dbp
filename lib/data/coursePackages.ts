@@ -55,6 +55,8 @@ import { makineAcademicCoursePackages3 } from "./makineAcademicCoursePackages3";
 import { aileDanismanligiTezliCoursePackages } from "./aileDanismanligiTezliCoursePackages";
 import { aileDanismanligiCommonCoursePackages } from "./aileDanismanligiCommonCoursePackages";
 import { aileDanismanligiMissingCoursePackages } from "./aileDanismanligiMissingCoursePackages";
+import { aileDanismanligiTezsizCoursePackages } from "./aileDanismanligiTezsizCoursePackages";
+import { aileDanismanligiTezsizCommonCoursePackages } from "./aileDanismanligiTezsizCommonCoursePackages";
 import { arkeolojiTezliCoursePackages } from "./arkeolojiTezliCoursePackages";
 import { arkeolojiCommonCoursePackages } from "./arkeolojiCommonCoursePackages";
 import { arkeolojiMissingCoursePackages } from "./arkeolojiMissingCoursePackages";
@@ -128,6 +130,8 @@ import { temelIslamBilimleriTezliCoursePackages } from "./temelIslamBilimleriTez
 import { temelIslamBilimleriCommonCoursePackages } from "./temelIslamBilimleriCommonCoursePackages";
 import { turkDiliEdebiyatiTezliCoursePackages } from "./turkDiliEdebiyatiTezliCoursePackages";
 import { turkDiliEdebiyatiCommonCoursePackages } from "./turkDiliEdebiyatiCommonCoursePackages";
+import { turkDiliEdebiyatiDoktoraCoursePackages } from "./turkDiliEdebiyatiDoktoraCoursePackages";
+import { turkDiliEdebiyatiDoktoraCommonCoursePackages } from "./turkDiliEdebiyatiDoktoraCommonCoursePackages";
 import { ybsTezliCoursePackages } from "./ybsTezliCoursePackages";
 import { ybsTezliCommonCoursePackages } from "./ybsTezliCommonCoursePackages";
 import { yonetimOrganizasyonCoursePackages } from "./yonetimOrganizasyonCoursePackages";
@@ -654,6 +658,8 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...aileDanismanligiTezliCoursePackages,
   ...aileDanismanligiMissingCoursePackages,
   ...aileDanismanligiCommonCoursePackages,
+  ...aileDanismanligiTezsizCoursePackages,
+  ...aileDanismanligiTezsizCommonCoursePackages,
   ...arkeolojiTezliCoursePackages,
   ...arkeolojiMissingCoursePackages,
   ...bataryaTezliCoursePackages,
@@ -726,6 +732,8 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...temelIslamBilimleriCommonCoursePackages,
   ...turkDiliEdebiyatiTezliCoursePackages,
   ...turkDiliEdebiyatiCommonCoursePackages,
+  ...turkDiliEdebiyatiDoktoraCoursePackages,
+  ...turkDiliEdebiyatiDoktoraCommonCoursePackages,
   ...ybsTezliCoursePackages,
   ...ybsTezliCommonCoursePackages,
   ...yonetimOrganizasyonCoursePackages,

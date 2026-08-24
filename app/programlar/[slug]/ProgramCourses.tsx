@@ -66,7 +66,7 @@ function toPublicCourse(course: DbpCourse): PublicCourse {
 const columns = ["9%", "22%", "10%", "10%", "17%", "4%", "4%", "5%", "10%", "9%"];
 const mergedProcessCourseCodes = new Set([
   "YBS9XX", "YBS91X", "DAN902", "YBS910", "YBS917", "SKY9XX", "SKY909", "SKY917", "SKY91X",
-  "DAN8XX", "ADE8XX", "ADE806", "ADE81X",
+  "DAN8XX", "ADE7XX", "ADE8XX", "ADE806", "ADE81X", "TDE9XX", "TDE910", "TDE917", "TDE91X",
   "ARK8XX", "ARK806", "ARK81X",
   "MMB8XX", "MMB806", "MMB81X",
   "BHT8XX", "BHT806", "BHT831", "BHT81X",

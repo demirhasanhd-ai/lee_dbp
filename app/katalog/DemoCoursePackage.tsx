@@ -118,7 +118,7 @@ export function DemoCoursePackage({
       .catch((error) => { if (error instanceof Error && error.name !== "AbortError") console.error(error); });
     return () => controller.abort();
   }, [department, displayCode, level, name, programName, staticPackage]);
-  const displayName = repairText(saved?.name ?? name);
+  const displayName = repairText(saved?.name ?? staticPackage?.name ?? name);
   const displayType = repairText(type);
   const coursePackage = saved?.package ?? staticPackage ?? createDefaultCoursePackage({ code: displayCode, name: displayName, theory, practice, credit, ects, instructor, sdgs, level });
   const displayInstructor = coursePackage?.instructor ?? (instructor ? repairText(instructor) : "");

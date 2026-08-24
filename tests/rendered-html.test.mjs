@@ -964,3 +964,80 @@ test("Siyaset Bilimi ve Kamu Yönetimi doktora ortak havuzu ile rol yetkileri ay
   assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
   assert.match(serverSource, /siyasetKamuDrResearchCodes[\s\S]*SKY998/u);
 });
+
+test("Türk Dili ve Edebiyatı doktora paketleri handoff kalite kurallarını karşılar", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Türk Dili ve Edebiyatı ABD" && item.programName === "Türk Dili ve Edebiyatı" && item.level === "Doktora");
+  const forbidden = /(quiz|ödev|proje|sunum|konu\s+tekrarı|genel\s+tekrar|ara\s*sınav|arasınav|vize(?: sınavı)?|yarıyıl\s+sonu\s+sınavı|final(?: sınavı)?)/iu;
+  assert.equal(packages.length, 99);
+  for (const code of ["DAN9XX", "TDE9XX", "TDE910", "TDE917", "TDE91X"]) {
+    assert.equal(packages.filter((item) => item.code === code).length, 1, `${code}: tek kanonik paket`);
+  }
+  for (const course of packages) {
+    assert.equal(course.weeklyTopics.length, 15, `${course.code}: 15 hafta`);
+    assert.equal(course.weeklyTopics.some((topic) => forbidden.test(topic)), false, `${course.code}: akademik konu`);
+    assert.equal(course.outcomes.length, 5, `${course.code}: beş ölçülebilir DÖÇ`);
+    assert.equal(course.contributionMatrix.length, 5, `${course.code}: beş DÖÇ satırı`);
+    assert.ok(course.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)), `${course.code}: mevcut 11 PÇ ve 1-5 katkı`);
+    assert.equal(course.workloads.reduce((sum, row) => sum + row.total, 0), course.ects * 30, `${course.code}: 30 saat/AKTS`);
+    assert.equal(course.workloads.every((row) => row.hours >= 0 && Number.isInteger(row.hours * 2)), true, `${course.code}: tam/yarım saat`);
+    assert.equal(course.assessments.some((item) => /Ödev/iu.test(item.name)) && !course.workloads.some((item) => /Ödev/iu.test(item.name)), false, `${course.code}: ödev iş yükünde`);
+    assert.equal(course.qualityChecks.length, 21);
+    assert.equal(course.publicQualityChecklist, false);
+    assert.equal(/https?:|@|Yrd\.?\s*Doç/iu.test(course.instructor || ""), false);
+    assert.equal((course.name || "").includes("..."), false, `${course.code}: ders adı tam`);
+  }
+  assert.equal(packages.filter((item) => !["DAN9XX", "TDE9XX", "TDE910", "TDE917", "TDE91X"].includes(item.code) && !item.sourceUrl).length, 71);
+});
+
+test("Türk Dili ve Edebiyatı doktora ortak havuzu ile rol yetkileri ayrıdır", async () => {
+  const publicSource = await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx", import.meta.url), "utf8");
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  for (const code of ["DAN9XX", "TDE9XX", "TDE910", "TDE917", "TDE91X"]) {
+    assert.match(publicSource, new RegExp(`mergedProcessCourseCodes[\\s\\S]*${code}`));
+    assert.match(serverSource, new RegExp(`trustedMergedPoolCodes[\\s\\S]*${code}`));
+  }
+  assert.doesNotMatch(publicSource, /mergedProcessCourseCodes[\s\S]*"TDE909"/u);
+  assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
+  assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
+  assert.match(serverSource, /turkDiliEdebiyatiDrResearchCodes[\s\S]*TDE1012/u);
+});
+
+test("Aile Danışmanlığı tezsiz YL paketleri 29 adımlı kalite kurallarını karşılar", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Aile Danışmanlığı ve Eğitimi ABD" && item.programName === "Aile Danışmanlığı ve Eğitimi" && item.level === "Tezsiz Yüksek Lisans");
+  assert.equal(packages.length, 19);
+  assert.deepEqual(packages.find((item) => item.code === "ADE7XX").aliases, ["ADE701", "ADE702"]);
+  assert.equal(packages.find((item) => item.code === "ADE7XX").instructor, "Öğrencinin Danışmanı");
+  assert.ok(packages.every((item) => item.weeklyTopics.length === 15));
+  assert.ok(packages.every((item) => item.outcomes.length === 5));
+  assert.ok(packages.every((item) => item.contributionMatrix.length === 5));
+  assert.ok(packages.every((item) => item.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5))));
+  assert.ok(packages.every((item) => item.workloads.reduce((sum, row) => sum + row.total, 0) === item.ects * 30));
+  assert.ok(packages.every((item) => item.publicQualityChecklist === false && item.qualityChecks.length === 21));
+  assert.ok(packages.every((item) => !item.name.includes("...") && item.content.length >= 100));
+  assert.ok(packages.every((item) => !item.weeklyTopics.some((topic) => /^(quiz|ödev|proje|sunum|konu tekrarı|genel tekrar)/iu.test(topic.trim()))));
+  const homeworkCourses = packages.filter((item) => item.assessments.some((row) => /ödev/iu.test(row.name)));
+  assert.ok(homeworkCourses.every((item) => item.workloads.some((row) => /ödev/iu.test(row.name))));
+});
+
+test("Aile Danışmanlığı tezsiz bitirme projesi ortak havuz ve rol kurallarında yer alır", async () => {
+  const publicSource = await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx", import.meta.url), "utf8");
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  assert.match(publicSource, /mergedProcessCourseCodes[\s\S]*"ADE7XX"/u);
+  assert.match(serverSource, /trustedMergedPoolCodes\.add\("ADE7XX"\)/u);
+  assert.match(serverSource, /BİTİRME PROJESİ/u);
+  assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
+  assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
+});
+
+test("Aile Danışmanlığı tezsiz public listesi bitirme projesini tek ortak süreç dersi olarak gösterir", async () => {
+  const response = await render({}, "/dbp/programlar/aile-danismanligi-ve-egitimi-abd-aile-danismanligi-ve-egitimi?programKey=aile-danismanligi-ve-egitimi-abd-aile-danismanligi-ve-egitimi&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /Ortak \/ Süreç Dersleri/u);
+  assert.match(html, /ADE7XX/u);
+  assert.match(html, /BİTİRME PROJESİ/u);
+  assert.doesNotMatch(html, /ADE702/u);
+  assert.match(html, /Aile Danışmanlığının Temelleri ve Aile Danışmanlığı Kuramları/u);
+});
