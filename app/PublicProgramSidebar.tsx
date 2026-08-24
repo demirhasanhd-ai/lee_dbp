@@ -1,7 +1,7 @@
 "use client";
 
 import { BookOpenCheck, Info, ListChecks } from "lucide-react";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { dbpPath } from "../lib/dbpPath";
 import { programSlug } from "../lib/data/programs";
 import { programViewHref } from "../lib/data/programNavigation";
@@ -60,20 +60,15 @@ export function PublicProgramSidebar({
 
   const action = (item: SidebarItem, tab: "profile" | "courses", label: string, icon: ReactNode) => {
     const active = isActiveItem(item) && selectedTab === tab;
-    if (onViewChange) {
-      return (
-        <button
-          className={active ? "active" : ""}
-          type="button"
-          onClick={() => onViewChange({ level: item.level, tab, programKey: item.programKey })}
-        >
-          {icon}
-          {label}
-        </button>
-      );
-    }
     return (
-      <a className={active ? "active" : ""} href={itemHref(item, tab)}>
+      <a
+        className={active ? "active" : ""}
+        href={itemHref(item, tab)}
+        onClick={onViewChange ? (event: MouseEvent<HTMLAnchorElement>) => {
+          event.preventDefault();
+          onViewChange({ level: item.level, tab, programKey: item.programKey });
+        } : undefined}
+      >
         {icon}
         {label}
       </a>
@@ -92,22 +87,18 @@ export function PublicProgramSidebar({
               className={isActiveItem(item) ? "program-menu-card active" : "program-menu-card"}
               key={`${item.programKey ?? "program"}-${item.level}`}
             >
-              {onViewChange ? (
-                <button
-                  className="program-menu-title program-menu-title-button"
-                  type="button"
-                  onClick={() => onViewChange({ level: item.level, tab: "profile", programKey: item.programKey })}
-                  aria-label={`${item.label ?? shortLevel(item.level)} program bilgilerini göster`}
-                >
-                  <b>{item.label ?? shortLevel(item.level)}</b>
-                  {item.caption ? <small>{item.caption}</small> : null}
-                </button>
-              ) : (
-                <a className="program-menu-title program-menu-title-link" href={itemHref(item, "profile")}>
-                  <b>{item.label ?? shortLevel(item.level)}</b>
-                  {item.caption ? <small>{item.caption}</small> : null}
-                </a>
-              )}
+              <a
+                className="program-menu-title program-menu-title-link"
+                href={itemHref(item, "profile")}
+                onClick={onViewChange ? (event: MouseEvent<HTMLAnchorElement>) => {
+                  event.preventDefault();
+                  onViewChange({ level: item.level, tab: "profile", programKey: item.programKey });
+                } : undefined}
+                aria-label={`${item.label ?? shortLevel(item.level)} program bilgilerini göster`}
+              >
+                <b>{item.label ?? shortLevel(item.level)}</b>
+                {item.caption ? <small>{item.caption}</small> : null}
+              </a>
               <div className="program-menu-actions">
                 {action(item, "profile", "Bilgiler", <Info size={13} />)}
                 {action(item, "courses", "Dersler", <ListChecks size={13} />)}

@@ -102,8 +102,12 @@ import { insaatMuhendisligiDoktoraCoursePackages } from "./insaatMuhendisligiDok
 import { insaatMuhendisligiDoktoraCommonCoursePackages } from "./insaatMuhendisligiDoktoraCommonCoursePackages";
 import { isletmeTezliCoursePackages } from "./isletmeTezliCoursePackages";
 import { isletmeCommonCoursePackages } from "./isletmeCommonCoursePackages";
+import { isletmeDoktoraCoursePackages } from "./isletmeDoktoraCoursePackages";
+import { isletmeDoktoraCommonCoursePackages } from "./isletmeDoktoraCommonCoursePackages";
 import { kimyaTezliCoursePackages } from "./kimyaTezliCoursePackages";
 import { kimyaCommonCoursePackages } from "./kimyaCommonCoursePackages";
+import { kimyaDoktoraCoursePackages } from "./kimyaDoktoraCoursePackages";
+import { kimyaDoktoraCommonCoursePackages } from "./kimyaDoktoraCommonCoursePackages";
 import { matematikTezliCoursePackages } from "./matematikTezliCoursePackages";
 import { matematikCommonCoursePackages } from "./matematikCommonCoursePackages";
 import { muhasebeFinansmanTezliCoursePackages } from "./muhasebeFinansmanTezliCoursePackages";
@@ -692,8 +696,12 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...insaatMuhendisligiDoktoraCommonCoursePackages,
   ...isletmeTezliCoursePackages,
   ...isletmeCommonCoursePackages,
+  ...isletmeDoktoraCoursePackages,
+  ...isletmeDoktoraCommonCoursePackages,
   ...kimyaTezliCoursePackages,
   ...kimyaCommonCoursePackages,
+  ...kimyaDoktoraCoursePackages,
+  ...kimyaDoktoraCommonCoursePackages,
   ...matematikTezliCoursePackages,
   ...matematikCommonCoursePackages,
   ...muhasebeFinansmanTezliCoursePackages,

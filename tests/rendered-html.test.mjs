@@ -810,3 +810,78 @@ test("local preview loads version from the package endpoint", async () => {
   assert.match(html, /\bdata-app-version\b/);
   assert.doesNotMatch(html, /Versiyon:\s*\d/);
 });
+
+test("İşletme doktora paketleri handoff kalite kurallarını karşılar", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "İşletme" && item.programName === "İşletme" && item.level === "Doktora");
+  const forbidden = /^(quiz|ödev|proje|sunum|konu tekrarı|genel tekrar|ara\s*sınav|arasınav|vize(?: sınavı)?|yarıyıl sonu sınavı|final(?: sınavı)?)$/iu;
+  assert.equal(packages.length, 87);
+  for (const code of ["DAN9XX", "ISL9XX", "ISL909", "ISL917", "ISL91X"]) {
+    assert.equal(packages.filter((item) => item.code === code).length, 1, `${code}: tek kanonik paket`);
+  }
+  for (const course of packages) {
+    assert.equal(course.weeklyTopics.length, 15, `${course.code}: 15 hafta`);
+    assert.equal(course.weeklyTopics.some((topic) => forbidden.test(topic)), false, `${course.code}: akademik konu`);
+    assert.equal(course.outcomes.length, 5, `${course.code}: beş ölçülebilir DÖÇ`);
+    assert.equal(course.contributionMatrix.length, 5, `${course.code}: beş DÖÇ satırı`);
+    assert.ok(course.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)), `${course.code}: mevcut 11 PÇ ve 1-5 katkı`);
+    assert.equal(course.workloads.reduce((sum, row) => sum + row.total, 0), course.ects * 30, `${course.code}: 30 saat/AKTS`);
+    assert.equal(course.workloads.every((row) => row.hours >= 0 && Number.isInteger(row.hours * 2)), true, `${course.code}: tam/yarım saat`);
+    assert.equal(course.assessments.some((item) => /Ödev/iu.test(item.name)) && !course.workloads.some((item) => /Ödev/iu.test(item.name)), false, `${course.code}: ödev iş yükünde`);
+    assert.equal(course.qualityChecks.length, 21);
+    assert.equal(course.publicQualityChecklist, false);
+    assert.equal(/https?:|@|Yrd\.?\s*Doç/iu.test(course.instructor || ""), false);
+  }
+  assert.deepEqual(packages.filter((item) => !["DAN9XX", "ISL9XX", "ISL909", "ISL917", "ISL91X"].includes(item.code) && !item.sourceUrl).map((item) => item.code), []);
+});
+
+test("İşletme doktora ortak havuzu ile ABD başkanı ve akademisyen yetkileri ayrıdır", async () => {
+  const publicSource = await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx", import.meta.url), "utf8");
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  for (const code of ["DAN9XX", "ISL9XX", "ISL909", "ISL917", "ISL91X"]) {
+    assert.match(publicSource, new RegExp(`mergedProcessCourseCodes[\\s\\S]*${code}`));
+    assert.match(serverSource, new RegExp(`trustedMergedPoolCodes[\\s\\S]*${code}`));
+  }
+  assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
+  assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
+});
+
+test("Kimya doktora paketleri handoff kalite kurallarını karşılar", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Kimya ABD" && item.programName === "Kimya" && item.level === "Doktora");
+  const forbidden = /^(quiz|ödev|proje|sunum|konu tekrarı|genel tekrar|ara\s*sınav|arasınav|vize(?: sınavı)?|yarıyıl sonu sınavı|final(?: sınavı)?)$/iu;
+  assert.equal(packages.length, 17);
+  for (const code of ["DAN9XX", "KİM9XX", "KİM909", "KİM917", "KİM91X"]) {
+    assert.equal(packages.filter((item) => item.code === code).length, 1, `${code}: tek kanonik paket`);
+  }
+  for (const course of packages) {
+    assert.equal(course.weeklyTopics.length, 15, `${course.code}: 15 hafta`);
+    assert.equal(course.weeklyTopics.some((topic) => forbidden.test(topic)), false, `${course.code}: akademik konu`);
+    assert.equal(course.outcomes.length, 5, `${course.code}: beş ölçülebilir DÖÇ`);
+    assert.equal(course.contributionMatrix.length, 5, `${course.code}: beş DÖÇ satırı`);
+    assert.ok(course.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)), `${course.code}: mevcut 11 PÇ ve 1-5 katkı`);
+    assert.equal(course.workloads.reduce((sum, row) => sum + row.total, 0), course.ects * 30, `${course.code}: 30 saat/AKTS`);
+    assert.equal(course.workloads.every((row) => row.hours >= 0 && Number.isInteger(row.hours * 2)), true, `${course.code}: tam/yarım saat`);
+    assert.equal(course.assessments.some((item) => /Ödev/iu.test(item.name)) && !course.workloads.some((item) => /Ödev/iu.test(item.name)), false, `${course.code}: ödev iş yükünde`);
+    assert.equal(course.qualityChecks.length, 21);
+    assert.equal(course.publicQualityChecklist, false);
+    assert.equal(/https?:|@|Yrd\.?\s*Doç/iu.test(course.instructor || ""), false);
+  }
+  assert.deepEqual(
+    packages.filter((item) => !["DAN9XX", "KİM9XX", "KİM909", "KİM917", "KİM91X"].includes(item.code) && !item.sourceUrl).map((item) => item.code).sort(),
+    ["PFE901", "PFE902", "KİM925", "KİM927"].sort(),
+  );
+});
+
+test("Kimya doktora ortak havuzu ile ABD başkanı ve akademisyen yetkileri ayrıdır", async () => {
+  const publicSource = await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx", import.meta.url), "utf8");
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  for (const code of ["DAN9XX", "KİM9XX", "KİM909", "KİM917", "KİM91X"]) {
+    assert.match(publicSource, new RegExp(`mergedProcessCourseCodes[\\s\\S]*${code}`));
+    assert.match(serverSource, new RegExp(`trustedMergedPoolCodes[\\s\\S]*${code}`));
+  }
+  assert.doesNotMatch(publicSource, /mergedProcessCourseCodes[\s\S]*"KİM931"/u);
+  assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
+  assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
+  assert.match(serverSource, /kimyaDrResearchCodes[\s\S]*KİM932/u);
+});

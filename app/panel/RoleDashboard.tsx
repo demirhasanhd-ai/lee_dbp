@@ -126,6 +126,12 @@ const shortLevel = (level: Course["level"]) =>
       ? "Tezli YL"
       : "Doktora";
 const normalizeText = (value: string) => repairText(value).toLocaleLowerCase("tr-TR");
+const normalizeProgramScope = (value: string) =>
+  normalizeText(value)
+    .replace(/\b(abd|asd|anabilim dalı|anasanat dalı)\b/gu, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 const normalizePersonName = (value: string) =>
   normalizeText(value)
     .replace(/\b(prof|doç|doc|dr|öğr|ogr|üyesi|uyesi|gör|gor)\b\.?/g, " ")
@@ -434,8 +440,8 @@ export function RoleDashboard() {
   const sessionPersonName = normalizePersonName(session.name);
   const coursesForProgram = (program: LeeProgram) =>
     catalogCourses.filter((course) =>
-      normalizeText(course.department || "") === normalizeText(program.department) &&
-      normalizeText(course.programName || "") === normalizeText(program.programName),
+      normalizeProgramScope(course.department || "") === normalizeProgramScope(program.department) &&
+      normalizeProgramScope(course.programName || "") === normalizeProgramScope(program.programName),
     );
   const assignedOfficialCourses: Course[] = catalogCourses
     .filter((course) => {
