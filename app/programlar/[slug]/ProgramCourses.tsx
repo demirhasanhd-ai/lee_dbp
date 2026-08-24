@@ -65,13 +65,13 @@ function toPublicCourse(course: DbpCourse): PublicCourse {
 
 const columns = ["9%", "22%", "10%", "10%", "17%", "4%", "4%", "5%", "10%", "9%"];
 const mergedProcessCourseCodes = new Set([
-  "YBS9XX", "YBS91X", "DAN902", "YBS910", "YBS917",
+  "YBS9XX", "YBS91X", "DAN902", "YBS910", "YBS917", "SKY9XX", "SKY909", "SKY917", "SKY91X",
   "DAN8XX", "ADE8XX", "ADE806", "ADE81X",
   "ARK8XX", "ARK806", "ARK81X",
   "MMB8XX", "MMB806", "MMB81X",
   "BHT8XX", "BHT806", "BHT831", "BHT81X",
   "BES8XX", "BES806", "BEF801", "BES81X",
-  "BİO8XX", "BİO806", "BİO809", "BİO81X", "DAN9XX", "BİO9XX", "BİO909", "BİO917", "BİO91X", "EMB9XX", "EMB909", "EMB917", "EMB91X", "FZK9XX", "FZK909", "FZK917", "FZK91X", "GMB9XX", "GMB909", "GMB917", "GMB91X", "İNŞ9XX", "İNŞ909", "İNŞ917", "İNŞ91X", "ISL9XX", "ISL909", "ISL917", "ISL91X", "KİM9XX", "KİM909", "KİM917", "KİM91X",
+  "BİO8XX", "BİO806", "BİO809", "BİO81X", "DAN9XX", "BİO9XX", "BİO909", "BİO917", "BİO91X", "EMB9XX", "EMB909", "EMB917", "EMB91X", "FZK9XX", "FZK909", "FZK917", "FZK91X", "GMB9XX", "GMB909", "GMB917", "GMB91X", "İNŞ9XX", "İNŞ909", "İNŞ917", "İNŞ91X", "ISL9XX", "ISL909", "ISL917", "ISL91X", "KİM9XX", "KİM909", "KİM917", "KİM91X", "MMB9XX", "MMB909", "MMB917", "MMB91X",
   "EBE8XX", "EBE806", "EBE809", "EBE81X",
   "ETR8XX", "ETR806", "ETR855", "ETR81X",
   "EEM8XX", "EEM806", "EEM885", "EEM81X",

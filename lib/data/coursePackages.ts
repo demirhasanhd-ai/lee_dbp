@@ -108,6 +108,8 @@ import { kimyaTezliCoursePackages } from "./kimyaTezliCoursePackages";
 import { kimyaCommonCoursePackages } from "./kimyaCommonCoursePackages";
 import { kimyaDoktoraCoursePackages } from "./kimyaDoktoraCoursePackages";
 import { kimyaDoktoraCommonCoursePackages } from "./kimyaDoktoraCommonCoursePackages";
+import { makineMuhendisligiDoktoraCoursePackages } from "./makineMuhendisligiDoktoraCoursePackages";
+import { makineMuhendisligiDoktoraCommonCoursePackages } from "./makineMuhendisligiDoktoraCommonCoursePackages";
 import { matematikTezliCoursePackages } from "./matematikTezliCoursePackages";
 import { matematikCommonCoursePackages } from "./matematikCommonCoursePackages";
 import { muhasebeFinansmanTezliCoursePackages } from "./muhasebeFinansmanTezliCoursePackages";
@@ -118,6 +120,8 @@ import { resimTezliCoursePackages } from "./resimTezliCoursePackages";
 import { resimCommonCoursePackages } from "./resimCommonCoursePackages";
 import { siyasetKamuYonetimiTezliCoursePackages } from "./siyasetKamuYonetimiTezliCoursePackages";
 import { siyasetKamuYonetimiCommonCoursePackages } from "./siyasetKamuYonetimiCommonCoursePackages";
+import { siyasetKamuYonetimiDoktoraCoursePackages } from "./siyasetKamuYonetimiDoktoraCoursePackages";
+import { siyasetKamuYonetimiDoktoraCommonCoursePackages } from "./siyasetKamuYonetimiDoktoraCommonCoursePackages";
 import { tarihTezliCoursePackages } from "./tarihTezliCoursePackages";
 import { tarihCommonCoursePackages } from "./tarihCommonCoursePackages";
 import { temelIslamBilimleriTezliCoursePackages } from "./temelIslamBilimleriTezliCoursePackages";
@@ -702,6 +706,8 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...kimyaCommonCoursePackages,
   ...kimyaDoktoraCoursePackages,
   ...kimyaDoktoraCommonCoursePackages,
+  ...makineMuhendisligiDoktoraCoursePackages,
+  ...makineMuhendisligiDoktoraCommonCoursePackages,
   ...matematikTezliCoursePackages,
   ...matematikCommonCoursePackages,
   ...muhasebeFinansmanTezliCoursePackages,
@@ -712,6 +718,8 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...resimCommonCoursePackages,
   ...siyasetKamuYonetimiTezliCoursePackages,
   ...siyasetKamuYonetimiCommonCoursePackages,
+  ...siyasetKamuYonetimiDoktoraCoursePackages,
+  ...siyasetKamuYonetimiDoktoraCommonCoursePackages,
   ...tarihTezliCoursePackages,
   ...tarihCommonCoursePackages,
   ...temelIslamBilimleriTezliCoursePackages,

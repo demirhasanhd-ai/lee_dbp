@@ -863,6 +863,18 @@ const kimyaDrSeminarCodes = new Set(["KİM909", "KİM910"]);
 const kimyaDrResearchCodes = new Set(["KİM931", "KİM932"]);
 const kimyaDrQualifyingCodes = new Set(["KİM917", "KİM918"]);
 const kimyaDrThesisCodes = new Set(["KİM912", "KİM913", "KİM914", "KİM915", "KİM916"]);
+const makineDrAdvisoryCodes = new Set(["DAN901", "DAN902", "DAN903", "DAN904", "DAN905", "DAN906", "DAN907", "DAN908"]);
+const makineDrSpecializationCodes = new Set(["MMB901", "MMB902", "MMB903", "MMB904", "MMB905", "MMB906", "MMB907", "MMB908"]);
+const makineDrSeminarCodes = new Set(["MMB909", "MMB910"]);
+const makineDrResearchCodes = new Set(["MMB950", "MMB951"]);
+const makineDrQualifyingCodes = new Set(["MMB917", "MMB918"]);
+const makineDrThesisCodes = new Set(["MMB912", "MMB913", "MMB914", "MMB915", "MMB916"]);
+const siyasetKamuDrAdvisoryCodes = new Set(["DAN901", "DAN902"]);
+const siyasetKamuDrSpecializationCodes = new Set(["SKY901", "SKY902", "SKY903", "SKY904", "SKY905", "SKY906", "SKY907", "SKY908"]);
+const siyasetKamuDrSeminarCodes = new Set(["SKY909", "SKY910"]);
+const siyasetKamuDrResearchCodes = new Set(["SKY999", "SKY998"]);
+const siyasetKamuDrQualifyingCodes = new Set(["SKY917", "SKY918"]);
+const siyasetKamuDrThesisCodes = new Set(["SKY911", "SKY912", "SKY913", "SKY914", "SKY915", "SKY916"]);
 const gidaTeknolojisiYlAdvisoryCodes = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
 const gidaTeknolojisiYlSpecializationCodes = new Set(["GTB801", "GTB802", "GTB803", "GTB804"]);
 const gidaTeknolojisiYlSeminarCodes = new Set(["GTB805", "GTB806"]);
@@ -1013,6 +1025,16 @@ function canonicalCourseCode(code = "") {
   if (kimyaDrResearchCodes.has(normalizedCode)) return "KİM931";
   if (kimyaDrQualifyingCodes.has(normalizedCode)) return "KİM917";
   if (kimyaDrThesisCodes.has(normalizedCode)) return "KİM91X";
+  if (makineDrSpecializationCodes.has(normalizedCode)) return "MMB9XX";
+  if (makineDrSeminarCodes.has(normalizedCode)) return "MMB909";
+  if (makineDrResearchCodes.has(normalizedCode)) return "MMB951";
+  if (makineDrQualifyingCodes.has(normalizedCode)) return "MMB917";
+  if (makineDrThesisCodes.has(normalizedCode)) return "MMB91X";
+  if (siyasetKamuDrSpecializationCodes.has(normalizedCode)) return "SKY9XX";
+  if (siyasetKamuDrSeminarCodes.has(normalizedCode)) return "SKY909";
+  if (siyasetKamuDrResearchCodes.has(normalizedCode)) return "SKY999";
+  if (siyasetKamuDrQualifyingCodes.has(normalizedCode)) return "SKY917";
+  if (siyasetKamuDrThesisCodes.has(normalizedCode)) return "SKY91X";
   if (gidaTeknolojisiYlSpecializationCodes.has(normalizedCode)) return "GTB8XX";
   if (gidaTeknolojisiYlSeminarCodes.has(normalizedCode)) return "GTB806";
   if (gidaTeknolojisiYlResearchCodes.has(normalizedCode)) return "GTB82X";
@@ -1087,6 +1109,11 @@ function courseCodeCandidates(code = "") {
   if (canonical === "YBS91X") for (const alias of ybsThesisCodes) candidates.add(alias);
   if (canonical === "YBS999") candidates.add("YBS909");
   if (canonical === "YBS917") candidates.add("YBS918");
+  if (canonical === "SKY9XX") for (const alias of siyasetKamuDrSpecializationCodes) candidates.add(alias);
+  if (canonical === "SKY909") for (const alias of siyasetKamuDrSeminarCodes) candidates.add(alias);
+  if (canonical === "SKY999") for (const alias of siyasetKamuDrResearchCodes) candidates.add(alias);
+  if (canonical === "SKY917") for (const alias of siyasetKamuDrQualifyingCodes) candidates.add(alias);
+  if (canonical === "SKY91X") for (const alias of siyasetKamuDrThesisCodes) candidates.add(alias);
   if (canonical === "DAN8XX") for (const alias of makineYlAdvisoryCodes) candidates.add(alias);
   if (canonical === "MMB8XX") for (const alias of makineYlSpecializationCodes) candidates.add(alias);
   if (canonical === "MMB806") for (const alias of makineYlSeminarCodes) candidates.add(alias);
@@ -1178,6 +1205,12 @@ function courseCodeCandidates(code = "") {
   if (canonical === "KİM931") for (const alias of kimyaDrResearchCodes) candidates.add(alias);
   if (canonical === "KİM917") for (const alias of kimyaDrQualifyingCodes) candidates.add(alias);
   if (canonical === "KİM91X") for (const alias of kimyaDrThesisCodes) candidates.add(alias);
+  if (canonical === "DAN9XX") for (const alias of makineDrAdvisoryCodes) candidates.add(alias);
+  if (canonical === "MMB9XX") for (const alias of makineDrSpecializationCodes) candidates.add(alias);
+  if (canonical === "MMB909") for (const alias of makineDrSeminarCodes) candidates.add(alias);
+  if (canonical === "MMB951") for (const alias of makineDrResearchCodes) candidates.add(alias);
+  if (canonical === "MMB917") for (const alias of makineDrQualifyingCodes) candidates.add(alias);
+  if (canonical === "MMB91X") for (const alias of makineDrThesisCodes) candidates.add(alias);
   if (canonical === "DAN8XX") for (const alias of gidaTeknolojisiYlAdvisoryCodes) candidates.add(alias);
   if (canonical === "GTB8XX") for (const alias of gidaTeknolojisiYlSpecializationCodes) candidates.add(alias);
   if (canonical === "GTB806") for (const alias of gidaTeknolojisiYlSeminarCodes) candidates.add(alias);
@@ -1590,6 +1623,32 @@ function normalizeKimyaDoktoraCourse(course = {}) {
   return course;
 }
 
+function normalizeMakineDoktoraCourse(course = {}) {
+  const applies = levelKey(course.level) === "doktora" && normalizeScope(course.department || "") === normalizeScope("Makine Mühendisliği ABD") && normalizeScope(course.programName || course.program_name || "") === normalizeScope("Makine Mühendisliği");
+  if (!applies) return course;
+  const code=repairText(course.code||"").trim().toLocaleUpperCase("tr-TR");
+  if(makineDrAdvisoryCodes.has(code))return code==="DAN901"?{...course,code:"DAN9XX",name:"DANIŞMANLIK",ects:1,instructor:"Öğrencinin Danışmanı"}:null;
+  if(makineDrSpecializationCodes.has(code))return code==="MMB901"?{...course,code:"MMB9XX",name:"UZMANLIK ALAN DERSİ",ects:5,instructor:"Öğrencinin Danışmanı"}:null;
+  if(makineDrSeminarCodes.has(code))return code==="MMB909"?{...course,code:"MMB909",name:"SEMİNER",ects:6,instructor:"Öğrencinin Danışmanı"}:null;
+  if(makineDrResearchCodes.has(code))return code==="MMB951"?{...course,code:"MMB951",name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",ects:6}:null;
+  if(makineDrQualifyingCodes.has(code))return code==="MMB917"?{...course,code:"MMB917",name:"DOKTORA YETERLİK",ects:24,instructor:"Öğrencinin Danışmanı"}:null;
+  if(makineDrThesisCodes.has(code))return code==="MMB912"?{...course,code:"MMB91X",name:"TEZ ÇALIŞMASI",ects:24,instructor:"Öğrencinin Danışmanı"}:null;
+  return course;
+}
+
+function normalizeSiyasetKamuYonetimiDoktoraCourse(course = {}) {
+  const applies = levelKey(course.level) === "doktora" && normalizeScope(course.department || "") === normalizeScope("Siyaset Bilimi ve Kamu Yönetimi ABD") && normalizeScope(course.programName || course.program_name || "") === normalizeScope("Siyaset Bilimi ve Kamu Yönetimi");
+  if (!applies) return course;
+  const code=repairText(course.code||"").trim().toLocaleUpperCase("tr-TR");
+  if(siyasetKamuDrAdvisoryCodes.has(code))return code==="DAN901"?{...course,code:"DAN9XX",name:"DANIŞMANLIK",ects:1,instructor:"Öğrencinin Danışmanı"}:null;
+  if(siyasetKamuDrSpecializationCodes.has(code))return code==="SKY901"?{...course,code:"SKY9XX",name:"UZMANLIK ALAN DERSİ",ects:5,instructor:"Öğrencinin Danışmanı"}:null;
+  if(siyasetKamuDrSeminarCodes.has(code))return code==="SKY909"?{...course,code:"SKY909",name:"SEMİNER",ects:6,instructor:"Öğrencinin Danışmanı"}:null;
+  if(siyasetKamuDrResearchCodes.has(code))return code==="SKY999"?{...course,code:"SKY999",name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE ETİK",ects:6}:null;
+  if(siyasetKamuDrQualifyingCodes.has(code))return code==="SKY917"?{...course,code:"SKY917",name:"DOKTORA YETERLİK",ects:24,instructor:"Öğrencinin Danışmanı"}:null;
+  if(siyasetKamuDrThesisCodes.has(code))return code==="SKY911"?{...course,code:"SKY91X",name:"TEZ ÇALIŞMASI",ects:24,instructor:"Öğrencinin Danışmanı"}:null;
+  return course;
+}
+
 function isGidaTeknolojisiTezliCourse(course = {}) {
   return levelKey(course.level) === "tezli yl" && normalizeScope(course.department || "") === normalizeScope("Gıda Teknolojisi ABD") && normalizeScope(course.programName || course.program_name || "") === normalizeScope("Gıda Teknolojisi");
 }
@@ -1917,6 +1976,12 @@ function normalizeSeedCourse(course = {}) {
   const kimyaDoktoraCourse = normalizeKimyaDoktoraCourse(repaired);
   if (!kimyaDoktoraCourse) return null;
   if (kimyaDoktoraCourse !== repaired) return kimyaDoktoraCourse;
+  const makineDoktoraCourse = normalizeMakineDoktoraCourse(repaired);
+  if (!makineDoktoraCourse) return null;
+  if (makineDoktoraCourse !== repaired) return makineDoktoraCourse;
+  const siyasetKamuDoktoraCourse = normalizeSiyasetKamuYonetimiDoktoraCourse(repaired);
+  if (!siyasetKamuDoktoraCourse) return null;
+  if (siyasetKamuDoktoraCourse !== repaired) return siyasetKamuDoktoraCourse;
   const gidaTeknolojisiCourse = normalizeGidaTeknolojisiTezliCourse(repaired);
   if (!gidaTeknolojisiCourse) return null;
   if (gidaTeknolojisiCourse !== repaired) return gidaTeknolojisiCourse;
@@ -2082,7 +2147,7 @@ function canEditCoursePackage(session, body, rows) {
   if (session.role === "akademisyen") return assignedToUser;
   if (session.role === "abd_asd_baskani") {
     const trustedMergedPoolCodes = new Set(["YBS9XX", "YBS91X", "DAN8XX", "MMB8XX", "MMB806", "MMB81X", "ADE8XX", "ADE806", "ADE81X", "ARK8XX", "ARK806", "ARK81X", "BHT8XX", "BHT806", "BHT831", "BHT81X", "BES8XX", "BES806", "BEF801", "BES81X", "BİO8XX", "BİO806", "BİO809", "BİO81X", "EBE8XX", "EBE806", "EBE809", "EBE81X", "ETR8XX", "ETR806", "ETR855", "ETR81X", "EEM8XX", "EEM806", "EEM885", "EEM81X", "EMB8XX", "EMB806", "EMB829", "EMB81X", "FDB8XX", "FDB806", "FDB81X", "FZK8XX", "FZK806", "FZK899", "FZK81X", "GMS8XX", "GMS806", "GMS85X", "GMS81X", "GMB8XX", "GMB806", "GMB85X", "GMB81X", "GTB8XX", "GTB806", "GTB82X", "GTB81X", "HRM8XX", "HRM806", "HRM809", "HRM81X", "İHH8XX", "İHH806", "İHH809", "İHH81X", "İKT8XX", "İKT806", "İKT897", "İKT81X", "İNŞ8XX", "İNŞ806", "İNŞ897", "İNŞ81X", "ISL8XX", "ISL806", "ISL885", "ISL81X", "KİM8XX", "KİM806", "KİM839", "KİM81X", "MAT8XX", "MAT805", "MAT863", "MAT81X", "MUF8XX", "MUF805", "MUF849", "MUF81X", "OTİ8XX", "OTİ805", "OTİ841", "OTİ81X", "RES8XX", "RES805", "RES881", "RES81X", "SKY8XX", "SKY805", "SKY899", "SKY81X", "TTZ8XX", "TTZ805", "BES801", "TTZ81X", "TİB8XX", "TİB805", "TİB879", "TİB81X"]);
-    for (const code of ["DAN9XX", "BİO9XX", "BİO909", "BİO917", "BİO91X", "EMB9XX", "EMB909", "EMB917", "EMB91X", "FZK9XX", "FZK909", "FZK917", "FZK91X", "GMB9XX", "GMB909", "GMB917", "GMB91X", "İNŞ9XX", "İNŞ909", "İNŞ917", "İNŞ91X", "ISL9XX", "ISL909", "ISL917", "ISL91X", "KİM9XX", "KİM909", "KİM917", "KİM91X"]) trustedMergedPoolCodes.add(code);
+    for (const code of ["DAN9XX", "BİO9XX", "BİO909", "BİO917", "BİO91X", "EMB9XX", "EMB909", "EMB917", "EMB91X", "FZK9XX", "FZK909", "FZK917", "FZK91X", "GMB9XX", "GMB909", "GMB917", "GMB91X", "İNŞ9XX", "İNŞ909", "İNŞ917", "İNŞ91X", "ISL9XX", "ISL909", "ISL917", "ISL91X", "KİM9XX", "KİM909", "KİM917", "KİM91X", "MMB9XX", "MMB909", "MMB917", "MMB91X", "SKY9XX", "SKY909", "SKY917", "SKY91X"]) trustedMergedPoolCodes.add(code);
     for (const code of ["TDE8XX", "TDE805", "TDE81X", "YBS8XX", "YBS805", "YBS81X", "YON8XX", "YON805", "YON841", "YON81X"]) trustedMergedPoolCodes.add(code);
     const poolCourse = rows.some(isDepartmentPoolCourseRecord) ||
       (trustedMergedPoolCodes.has(body.code) && isDepartmentPoolCourseRecord(body));
@@ -2258,6 +2323,8 @@ async function ensureDb() {
   migrateIsletmeTezliPackagesFromSeed();
   migrateIsletmeDoktoraPackagesFromSeed();
   migrateKimyaDoktoraPackagesFromSeed();
+  migrateMakineMuhendisligiDoktoraPackagesFromSeed();
+  migrateSiyasetKamuYonetimiDoktoraPackagesFromSeed();
   migrateKimyaTezliPackagesFromSeed();
   migrateMatematikTezliPackagesFromSeed();
   migrateMuhasebeFinansmanTezliPackagesFromSeed();
@@ -2557,6 +2624,11 @@ function packageSeedCourseName(coursePackage) {
     GMB909: "SEMİNER",
     GMB917: "DOKTORA YETERLİK",
     GMB91X: "TEZ ÇALIŞMASI",
+    SKY9XX: "UZMANLIK ALAN DERSİ",
+    SKY909: "SEMİNER",
+    SKY999: "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE ETİK",
+    SKY917: "DOKTORA YETERLİK",
+    SKY91X: "TEZ ÇALIŞMASI",
     İNŞ9XX: "UZMANLIK ALAN DERSİ",
     İNŞ909: "SEMİNER",
     İNŞ917: "DOKTORA YETERLİK",
@@ -2826,6 +2898,12 @@ function normalizeDbCourseForList(course = {}) {
   const kimyaDoktoraCourse = normalizeKimyaDoktoraCourse(repaired);
   if (!kimyaDoktoraCourse) return null;
   if (kimyaDoktoraCourse !== repaired) return kimyaDoktoraCourse;
+  const makineDoktoraCourse = normalizeMakineDoktoraCourse(repaired);
+  if (!makineDoktoraCourse) return null;
+  if (makineDoktoraCourse !== repaired) return makineDoktoraCourse;
+  const siyasetKamuDoktoraCourse = normalizeSiyasetKamuYonetimiDoktoraCourse(repaired);
+  if (!siyasetKamuDoktoraCourse) return null;
+  if (siyasetKamuDoktoraCourse !== repaired) return siyasetKamuDoktoraCourse;
   const gidaTeknolojisiCourse = normalizeGidaTeknolojisiTezliCourse(repaired);
   if (!gidaTeknolojisiCourse) return null;
   if (gidaTeknolojisiCourse !== repaired) return gidaTeknolojisiCourse;
@@ -3339,6 +3417,16 @@ function migrateIsletmeDoktoraPackagesFromSeed() {
 function migrateKimyaDoktoraPackagesFromSeed() {
   const revision="2026-08-24-kimya-doktora-v1";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("kimya_doktora_packages_revision")?.value===revision)return;
   const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Kimya ABD")&&normalizeScope(x.programName||"")===normalizeScope("Kimya")&&levelKey(x.level||"")==="doktora");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const rows=courseRowsForIdentity({department:p.department,programName:p.programName,level:p.level,code:p.code});for(const c of rows){update.run(p.name||c.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("kimya_doktora_packages_revision",revision);audit("course.package.migrate","system",{scope:"Kimya Doktora",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
+}
+
+function migrateMakineMuhendisligiDoktoraPackagesFromSeed() {
+  const revision="2026-08-24-makine-muhendisligi-doktora-v3";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("makine_muhendisligi_doktora_packages_revision")?.value===revision)return;
+  const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Makine Mühendisliği ABD")&&normalizeScope(x.programName||"")===normalizeScope("Makine Mühendisliği")&&levelKey(x.level||"")==="doktora");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const rows=courseRowsForIdentity({department:p.department,programName:p.programName,level:p.level,code:p.code});for(const c of rows){const courseName=p.name||c.name;update.run(courseName,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),JSON.stringify(storedPackageFromSeed(p,{...c,name:courseName,programName:c.program_name})),now,c.id);changed+=1}}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("makine_muhendisligi_doktora_packages_revision",revision);audit("course.package.migrate","system",{scope:"Makine Mühendisliği Doktora",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
+}
+
+function migrateSiyasetKamuYonetimiDoktoraPackagesFromSeed() {
+  const revision="2026-08-24-siyaset-kamu-yonetimi-doktora-v2";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("siyaset_kamu_yonetimi_doktora_packages_revision")?.value===revision)return;
+  const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Siyaset Bilimi ve Kamu Yönetimi ABD")&&normalizeScope(x.programName||"")===normalizeScope("Siyaset Bilimi ve Kamu Yönetimi")&&levelKey(x.level||"")==="doktora");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const rows=courseRowsForIdentity({department:p.department,programName:p.programName,level:p.level,code:p.code});for(const c of rows){const courseName=p.name||c.name;update.run(courseName,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),JSON.stringify(storedPackageFromSeed(p,{...c,name:courseName,programName:c.program_name})),now,c.id);changed+=1}}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("siyaset_kamu_yonetimi_doktora_packages_revision",revision);audit("course.package.migrate","system",{scope:"Siyaset Bilimi ve Kamu Yönetimi Doktora",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
 }
 
 function migrateKimyaTezliPackagesFromSeed() {

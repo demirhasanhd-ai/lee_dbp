@@ -131,6 +131,18 @@ const KIMYA_DR_SEMINAR_CODES = new Set(["KİM909", "KİM910"]);
 const KIMYA_DR_RESEARCH_CODES = new Set(["KİM931", "KİM932"]);
 const KIMYA_DR_QUALIFYING_CODES = new Set(["KİM917", "KİM918"]);
 const KIMYA_DR_THESIS_CODES = new Set(["KİM912", "KİM913", "KİM914", "KİM915", "KİM916"]);
+const MAKINE_DR_ADVISORY_CODES = new Set(["DAN901", "DAN902", "DAN903", "DAN904", "DAN905", "DAN906", "DAN907", "DAN908"]);
+const MAKINE_DR_SPECIALIZATION_CODES = new Set(["MMB901", "MMB902", "MMB903", "MMB904", "MMB905", "MMB906", "MMB907", "MMB908"]);
+const MAKINE_DR_SEMINAR_CODES = new Set(["MMB909", "MMB910"]);
+const MAKINE_DR_RESEARCH_CODES = new Set(["MMB950", "MMB951"]);
+const MAKINE_DR_QUALIFYING_CODES = new Set(["MMB917", "MMB918"]);
+const MAKINE_DR_THESIS_CODES = new Set(["MMB912", "MMB913", "MMB914", "MMB915", "MMB916"]);
+const SIYASET_KAMU_DR_ADVISORY_CODES = new Set(["DAN901", "DAN902"]);
+const SIYASET_KAMU_DR_SPECIALIZATION_CODES = new Set(["SKY901", "SKY902", "SKY903", "SKY904", "SKY905", "SKY906", "SKY907", "SKY908"]);
+const SIYASET_KAMU_DR_SEMINAR_CODES = new Set(["SKY909", "SKY910"]);
+const SIYASET_KAMU_DR_RESEARCH_CODES = new Set(["SKY999", "SKY998"]);
+const SIYASET_KAMU_DR_QUALIFYING_CODES = new Set(["SKY917", "SKY918"]);
+const SIYASET_KAMU_DR_THESIS_CODES = new Set(["SKY911", "SKY912", "SKY913", "SKY914", "SKY915", "SKY916"]);
 const GIDA_TEKNOLOJISI_YL_ADVISORY_CODES = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
 const GIDA_TEKNOLOJISI_YL_SPECIALIZATION_CODES = new Set(["GTB801", "GTB802", "GTB803", "GTB804"]);
 const GIDA_TEKNOLOJISI_YL_SEMINAR_CODES = new Set(["GTB805", "GTB806"]);
@@ -405,6 +417,30 @@ const normalizeKimyaDoktoraCourse = (course: OfficialCourse): OfficialCourse | n
   if (KIMYA_DR_RESEARCH_CODES.has(course.code)) return course.code === "KİM931" ? { ...course, code:"KİM931", name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ", ects:6 } : null;
   if (KIMYA_DR_QUALIFYING_CODES.has(course.code)) return course.code === "KİM917" ? withAdvisor({ ...course, code:"KİM917", name:"DOKTORA YETERLİK", ects:24 }) : null;
   if (KIMYA_DR_THESIS_CODES.has(course.code)) return course.code === "KİM912" ? withAdvisor({ ...course, code:"KİM91X", name:"TEZ ÇALIŞMASI", ects:24 }) : null;
+  return course;
+};
+
+const normalizeMakineDoktoraCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "Makine Mühendisliği ABD" && course.programName === "Makine Mühendisliği" && course.level === "Doktora";
+  if (!applies) return course;
+  if (MAKINE_DR_ADVISORY_CODES.has(course.code)) return course.code === "DAN901" ? withAdvisor({ ...course, code:"DAN9XX", name:"DANIŞMANLIK", ects:1 }) : null;
+  if (MAKINE_DR_SPECIALIZATION_CODES.has(course.code)) return course.code === "MMB901" ? withAdvisor({ ...course, code:"MMB9XX", name:"UZMANLIK ALAN DERSİ", ects:5 }) : null;
+  if (MAKINE_DR_SEMINAR_CODES.has(course.code)) return course.code === "MMB909" ? withAdvisor({ ...course, code:"MMB909", name:"SEMİNER", ects:6 }) : null;
+  if (MAKINE_DR_RESEARCH_CODES.has(course.code)) return course.code === "MMB951" ? { ...course, code:"MMB951", name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ", ects:6 } : null;
+  if (MAKINE_DR_QUALIFYING_CODES.has(course.code)) return course.code === "MMB917" ? withAdvisor({ ...course, code:"MMB917", name:"DOKTORA YETERLİK", ects:24 }) : null;
+  if (MAKINE_DR_THESIS_CODES.has(course.code)) return course.code === "MMB912" ? withAdvisor({ ...course, code:"MMB91X", name:"TEZ ÇALIŞMASI", ects:24 }) : null;
+  return course;
+};
+
+const normalizeSiyasetKamuYonetimiDoktoraCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "Siyaset Bilimi ve Kamu Yönetimi ABD" && course.programName === "Siyaset Bilimi ve Kamu Yönetimi" && course.level === "Doktora";
+  if (!applies) return course;
+  if (SIYASET_KAMU_DR_ADVISORY_CODES.has(course.code)) return course.code === "DAN901" ? withAdvisor({ ...course, code:"DAN9XX", name:"DANIŞMANLIK", ects:1 }) : null;
+  if (SIYASET_KAMU_DR_SPECIALIZATION_CODES.has(course.code)) return course.code === "SKY901" ? withAdvisor({ ...course, code:"SKY9XX", name:"UZMANLIK ALAN DERSİ", ects:5 }) : null;
+  if (SIYASET_KAMU_DR_SEMINAR_CODES.has(course.code)) return course.code === "SKY909" ? withAdvisor({ ...course, code:"SKY909", name:"SEMİNER", ects:6 }) : null;
+  if (SIYASET_KAMU_DR_RESEARCH_CODES.has(course.code)) return course.code === "SKY999" ? { ...course, code:"SKY999", name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE ETİK", ects:6 } : null;
+  if (SIYASET_KAMU_DR_QUALIFYING_CODES.has(course.code)) return course.code === "SKY917" ? withAdvisor({ ...course, code:"SKY917", name:"DOKTORA YETERLİK", ects:24 }) : null;
+  if (SIYASET_KAMU_DR_THESIS_CODES.has(course.code)) return course.code === "SKY911" ? withAdvisor({ ...course, code:"SKY91X", name:"TEZ ÇALIŞMASI", ects:24 }) : null;
   return course;
 };
 
@@ -719,6 +755,12 @@ export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((
   const kimyaDoktoraCourse = normalizeKimyaDoktoraCourse(course);
   if (!kimyaDoktoraCourse) return [];
   course = kimyaDoktoraCourse;
+  const makineDoktoraCourse = normalizeMakineDoktoraCourse(course);
+  if (!makineDoktoraCourse) return [];
+  course = makineDoktoraCourse;
+  const siyasetKamuDoktoraCourse = normalizeSiyasetKamuYonetimiDoktoraCourse(course);
+  if (!siyasetKamuDoktoraCourse) return [];
+  course = siyasetKamuDoktoraCourse;
   const ebelikCourse = normalizeEbelikTezliCourse(course);
   if (!ebelikCourse) return [];
   course = ebelikCourse;
