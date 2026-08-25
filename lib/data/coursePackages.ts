@@ -82,6 +82,8 @@ import { elektrikElektronikTezliCoursePackages } from "./elektrikElektronikTezli
 import { elektrikElektronikCommonCoursePackages } from "./elektrikElektronikCommonCoursePackages";
 import { enerjiSistemleriTezliCoursePackages } from "./enerjiSistemleriTezliCoursePackages";
 import { enerjiSistemleriCommonCoursePackages } from "./enerjiSistemleriCommonCoursePackages";
+import { enerjiSistemleriTezsizCoursePackages } from "./enerjiSistemleriTezsizCoursePackages";
+import { enerjiSistemleriTezsizCommonCoursePackages } from "./enerjiSistemleriTezsizCommonCoursePackages";
 import { enerjiSistemleriDoktoraCoursePackages } from "./enerjiSistemleriDoktoraCoursePackages";
 import { enerjiSistemleriDoktoraCommonCoursePackages } from "./enerjiSistemleriDoktoraCommonCoursePackages";
 import { felsefeDinTezliCoursePackages } from "./felsefeDinTezliCoursePackages";
@@ -92,12 +94,16 @@ import { fizikDoktoraCoursePackages } from "./fizikDoktoraCoursePackages";
 import { fizikDoktoraCommonCoursePackages } from "./fizikDoktoraCommonCoursePackages";
 import { gastronomiTezliCoursePackages } from "./gastronomiTezliCoursePackages";
 import { gastronomiCommonCoursePackages } from "./gastronomiCommonCoursePackages";
+import { gastronomiTezsizCoursePackages } from "./gastronomiTezsizCoursePackages";
+import { gastronomiTezsizCommonCoursePackages } from "./gastronomiTezsizCommonCoursePackages";
 import { gidaMuhendisligiTezliCoursePackages } from "./gidaMuhendisligiTezliCoursePackages";
 import { gidaMuhendisligiCommonCoursePackages } from "./gidaMuhendisligiCommonCoursePackages";
 import { gidaMuhendisligiDoktoraCoursePackages } from "./gidaMuhendisligiDoktoraCoursePackages";
 import { gidaMuhendisligiDoktoraCommonCoursePackages } from "./gidaMuhendisligiDoktoraCommonCoursePackages";
 import { gidaTeknolojisiTezliCoursePackages } from "./gidaTeknolojisiTezliCoursePackages";
 import { gidaTeknolojisiCommonCoursePackages } from "./gidaTeknolojisiCommonCoursePackages";
+import { gidaTeknolojisiTezsizCoursePackages } from "./gidaTeknolojisiTezsizCoursePackages";
+import { gidaTeknolojisiTezsizCommonCoursePackages } from "./gidaTeknolojisiTezsizCommonCoursePackages";
 import { haritaMuhendisligiTezliCoursePackages } from "./haritaMuhendisligiTezliCoursePackages";
 import { haritaMuhendisligiCommonCoursePackages } from "./haritaMuhendisligiCommonCoursePackages";
 import { icHastaliklariHemsireligiTezliCoursePackages } from "./icHastaliklariHemsireligiTezliCoursePackages";
@@ -690,6 +696,8 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...elektrikElektronikCommonCoursePackages,
   ...enerjiSistemleriTezliCoursePackages,
   ...enerjiSistemleriCommonCoursePackages,
+  ...enerjiSistemleriTezsizCoursePackages,
+  ...enerjiSistemleriTezsizCommonCoursePackages,
   ...enerjiSistemleriDoktoraCoursePackages,
   ...enerjiSistemleriDoktoraCommonCoursePackages,
   ...felsefeDinTezliCoursePackages,
@@ -700,12 +708,16 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...fizikDoktoraCommonCoursePackages,
   ...gastronomiTezliCoursePackages,
   ...gastronomiCommonCoursePackages,
+  ...gastronomiTezsizCoursePackages,
+  ...gastronomiTezsizCommonCoursePackages,
   ...gidaMuhendisligiTezliCoursePackages,
   ...gidaMuhendisligiCommonCoursePackages,
   ...gidaMuhendisligiDoktoraCoursePackages,
   ...gidaMuhendisligiDoktoraCommonCoursePackages,
   ...gidaTeknolojisiTezliCoursePackages,
   ...gidaTeknolojisiCommonCoursePackages,
+  ...gidaTeknolojisiTezsizCoursePackages,
+  ...gidaTeknolojisiTezsizCommonCoursePackages,
   ...haritaMuhendisligiTezliCoursePackages,
   ...haritaMuhendisligiCommonCoursePackages,
   ...icHastaliklariHemsireligiTezliCoursePackages,

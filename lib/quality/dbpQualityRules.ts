@@ -83,7 +83,10 @@ const normalize = (value: string) =>
   value.toLocaleLowerCase("tr-TR").replace(/\s+/g, " ").trim();
 
 const includesAny = (text: string, items: string[]) =>
-  items.some((item) => text.includes(item));
+  items.some((item) => {
+    const escaped = item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|[^\\p{L}])${escaped}($|[^\\p{L}])`, "u").test(text);
+  });
 
 export const isGeneralAssignableCourse = (courseName: string) =>
   generalCoursePattern.test(courseName.toLocaleUpperCase("tr-TR"));

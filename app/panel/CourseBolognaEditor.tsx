@@ -240,7 +240,7 @@ export function CourseBolognaEditor({
   const usesOneToFiveContributionScale =
     ((course.department || "").toLocaleLowerCase("tr-TR").includes("yönetim bilişim sistemleri") &&
       course.level.toLocaleLowerCase("tr-TR").includes("doktora")) ||
-    ["batarya sistemleri", "beden eğitimi ve spor", "biyoloji", "ebelik", "ekoturizm"].some((scope) =>
+    ["batarya sistemleri", "beden eğitimi ve spor", "biyoloji", "ebelik", "ekoturizm", "gastronomi ve mutfak sanatları", "gıda teknolojisi"].some((scope) =>
       (course.department || "").toLocaleLowerCase("tr-TR").includes(scope));
   const [workflowStatus, setWorkflowStatus] = useState("Taslak");
   const [identity, setIdentity] = useState(() => defaultIdentity(course));

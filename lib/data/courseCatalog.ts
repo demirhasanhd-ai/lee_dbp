@@ -99,6 +99,9 @@ const BEDEN_TEZSIZ_COURSE_NAMES = new Map<string, string>([
 const BIYOLOJI_YL_ADVISORY_CODES = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
 const BIYOLOJI_TEZSIZ_PROJECT_CODES = new Set(["BİO701", "BİO702"]);
 const EKONOMI_FINANS_TEZSIZ_PROJECT_CODES = new Set(["İKT701", "İKT702"]);
+const ENERJI_TEZSIZ_PROJECT_CODES = new Set(["EPY701", "EPY702"]);
+const GASTRONOMI_TEZSIZ_PROJECT_CODES = new Set(["GMS701", "GMS702"]);
+const GIDA_TEKNOLOJISI_TEZSIZ_PROJECT_CODES = new Set(["GTB701", "GTB702"]);
 const BIYOLOJI_YL_SPECIALIZATION_CODES = new Set(["BİO801", "BİO802", "BİO803", "BİO804"]);
 const BIYOLOJI_YL_SEMINAR_CODES = new Set(["BİO805", "BİO806"]);
 const BIYOLOJI_YL_RESEARCH_CODES = new Set(["BİO809", "BİO810"]);
@@ -460,6 +463,60 @@ const normalizeEkonomiFinansTezsizCourse = (course: OfficialCourse): OfficialCou
   ]);
   const completeName = completeNames.get(course.code);
   return completeName ? { ...course, name: completeName } : course;
+};
+
+const normalizeEnerjiTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "Enerji Sistemleri Mühendisliği ABD" &&
+    course.programName === "Enerji Sistemleri Mühendisliği" && course.level === "Tezsiz Yüksek Lisans";
+  if (!applies) return course;
+  if (ENERJI_TEZSIZ_PROJECT_CODES.has(course.code)) {
+    return course.code === "EPY701"
+      ? withAdvisor({ ...course, code:"EPY7XX", name:"BİTİRME PROJESİ", ects:30 })
+      : null;
+  }
+  if (course.code === "EPY704" || course.code === "EPY512") return null;
+  const canonical = new Map<string, Partial<OfficialCourse>>([
+    ["EPY703", { name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ" }],
+    ["EPY706", { name:"ENERJİ TEKNOLOJİLERİ" }],
+    ["EPY710", { name:"ENERJİ VERİMLİLİĞİ, FİZİBİLİTE ETÜDÜ VE VAP UYGULAMALARI" }],
+    ["EPY718", { name:"KONVANSİYONEL ENERJİ KAYNAKLARI" }],
+  ]).get(course.code);
+  return canonical ? { ...course, ...canonical } : course;
+};
+
+const normalizeGastronomiTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "Gastronomi ve Mutfak Sanatları ABD" &&
+    course.programName === "Gastronomi ve Mutfak Sanatları" && course.level === "Tezsiz Yüksek Lisans";
+  if (!applies) return course;
+  if (GASTRONOMI_TEZSIZ_PROJECT_CODES.has(course.code)) {
+    return course.code === "GMS701"
+      ? withAdvisor({ ...course, code:"GMS7XX", name:"BİTİRME PROJESİ", ects:30 })
+      : null;
+  }
+  if (course.code === "GMS704") return null;
+  const completeNames = new Map<string, string>([
+    ["GMS703", "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ"],
+    ["GMS725", "GASTRONOMİDE ÜRÜN GELİŞTİRME VE DUYUSAL ANALİZ"],
+    ["GMS727", "MOLEKÜLER GASTRONOMİ VE FÜZYON MUTFAK"],
+    ["GMS708", "NİCEL ARAŞTIRMALARDA VERİ TOPLAMA VE İSTATİSTİKSEL ANALİZ"],
+    ["GMS710", "NİTEL ARAŞTIRMALARDA VERİ TOPLAMA VE İSTATİSTİKSEL ANALİZ"],
+  ]);
+  const completeName = completeNames.get(course.code);
+  return completeName ? { ...course, name:completeName } : course;
+};
+
+const normalizeGidaTeknolojisiTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "Gıda Teknolojisi ABD" &&
+    course.programName === "Gıda Teknolojisi" && course.level === "Tezsiz Yüksek Lisans";
+  if (!applies) return course;
+  if (GIDA_TEKNOLOJISI_TEZSIZ_PROJECT_CODES.has(course.code)) {
+    return course.code === "GTB701"
+      ? withAdvisor({ ...course, code:"GTB7XX", name:"BİTİRME PROJESİ", ects:30 })
+      : null;
+  }
+  if (course.code === "GTB704") return null;
+  if (course.code === "GTB703") return { ...course, name:"BİLİMSEL ARAŞTIRMA VE YAYIN ETİĞİ" };
+  return course;
 };
 
 const normalizeAileTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
@@ -862,6 +919,15 @@ export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((
   const ekonomiFinansTezsizCourse = normalizeEkonomiFinansTezsizCourse(course);
   if (!ekonomiFinansTezsizCourse) return [];
   course = ekonomiFinansTezsizCourse;
+  const enerjiTezsizCourse = normalizeEnerjiTezsizCourse(course);
+  if (!enerjiTezsizCourse) return [];
+  course = enerjiTezsizCourse;
+  const gastronomiTezsizCourse = normalizeGastronomiTezsizCourse(course);
+  if (!gastronomiTezsizCourse) return [];
+  course = gastronomiTezsizCourse;
+  const gidaTeknolojisiTezsizCourse = normalizeGidaTeknolojisiTezsizCourse(course);
+  if (!gidaTeknolojisiTezsizCourse) return [];
+  course = gidaTeknolojisiTezsizCourse;
   const biyolojiCourse = normalizeBiyolojiTezliCourse(course);
   if (!biyolojiCourse) return [];
   course = biyolojiCourse;
@@ -1001,7 +1067,7 @@ const normalizeCourseName = (name: string) =>
 
 export const isDepartmentPoolCourse = (course: Pick<OfficialCourse, "name" | "code">) => {
   const name = normalizeCourseName(course.name);
-  if (["BES7XX", "BEF7XX", "BİO7XX", "İKT7XX"].includes(course.code)) return true;
+  if (["BES7XX", "BEF7XX", "BİO7XX", "İKT7XX", "EPY7XX", "GMS7XX", "GTB7XX"].includes(course.code)) return true;
   if (course.code === "BHT831") return true;
   if (course.code === "BEF801" && normalizeCourseName(course.name).includes("BİLİMSEL ARAŞTIRMA")) return true;
   if (course.code === "BİO809" && normalizeCourseName(course.name).includes("BİLİMSEL ARAŞTIRMA")) return true;

@@ -1191,3 +1191,138 @@ test("Ekonomi ve Finans tezsiz public listesi paketleri ve tek Bitirme Projesini
   assert.match(html, /FİNANSAL PİYASALAR VE KRİPTO PARALAR/u);
   assert.match(html, /MAKROEKONOMİK VE FİNANSAL GÖSTERGELERİN TAHMİNİ/u);
 });
+
+test("Enerji Sistemleri Mühendisliği tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Enerji Sistemleri Mühendisliği ABD" && item.programName === "Enerji Sistemleri Mühendisliği" && item.level === "Tezsiz Yüksek Lisans");
+  const forbidden = /(quiz|ödev|proje|sunum|konu\s+tekrar[ıi]|genel\s+tekrar|ara\s*sınav|arasınav|vize|yarıyıl\s+sonu\s+sınavı|final)/iu;
+  assert.equal(packages.length, 20, "19 akademik ders ve bir Bitirme Projesi");
+  assert.equal(packages.some((item) => /^(?:DANIŞMANLIK|UZMANLIK ALAN DERSİ)$/iu.test(item.name)), false);
+  assert.deepEqual(packages.find((item) => item.code === "EPY7XX").aliases, ["EPY701", "EPY702"]);
+  assert.deepEqual(packages.find((item) => item.code === "EPY703").aliases, ["EPY703", "EPY704"]);
+  assert.deepEqual(packages.find((item) => item.code === "EPY706").aliases, ["EPY512", "EPY706"]);
+  for (const course of packages) {
+    assert.equal(course.weeklyTopics.length, 15, `${course.code}: 15 hafta`);
+    if (course.code !== "EPY7XX") assert.equal(course.weeklyTopics.some((topic) => forbidden.test(topic)), false, `${course.code}: akademik konu`);
+    assert.equal(course.outcomes.length, 5, `${course.code}: beş DÖÇ`);
+    assert.ok(course.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)), `${course.code}: mevcut 11 PÇ ve 1-5 katkı`);
+    assert.equal(course.workloads.reduce((sum, row) => sum + row.total, 0), course.ects * 30, `${course.code}: 30 saat/AKTS`);
+    assert.equal(course.workloads.every((row) => Number.isInteger(row.hours * 2)), true, `${course.code}: tam/yarım saat`);
+    assert.equal(course.assessments.some((item) => /Ödev/iu.test(item.name)) && !course.workloads.some((item) => /Ödev/iu.test(item.name)), false, `${course.code}: ödev iş yükünde`);
+    assert.equal(course.qualityChecks.length, 21, `${course.code}: iç kontrol`);
+    assert.equal(course.publicQualityChecklist, false, `${course.code}: kontrol public değil`);
+  }
+});
+
+test("Enerji Sistemleri Mühendisliği tezsiz Bitirme Projesi ortak havuz ve rol ayrımını korur", async () => {
+  const publicSource = await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx", import.meta.url), "utf8");
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  assert.match(publicSource, /mergedProcessCourseCodes[\s\S]*EPY7XX/u);
+  assert.match(serverSource, /trustedMergedPoolCodes[\s\S]*EPY7XX/u);
+  assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
+  assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
+});
+
+test("Enerji Sistemleri Mühendisliği tezsiz public listesi tekilleştirilmiş dersleri gösterir", async () => {
+  const response = await render({}, "/dbp/programlar/enerji-sistemleri-muhendisligi-abd-enerji-sistemleri-muhendisligi?programKey=enerji-sistemleri-muhendisligi-abd-enerji-sistemleri-muhendisligi&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /Ortak \/ Süreç Dersleri/u);
+  assert.match(html, /EPY7XX/u);
+  assert.match(html, /BİTİRME PROJESİ/u);
+  assert.doesNotMatch(html, />EPY702</u);
+  assert.doesNotMatch(html, />DANIŞMANLIK</u);
+  assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
+  assert.match(html, /ENERJİ VERİMLİLİĞİ VE TASARRUFU/u);
+  assert.match(html, /ENERJİ DÖNÜŞÜM SİSTEMLERİ/u);
+});
+
+test("Gastronomi ve Mutfak Sanatları tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Gastronomi ve Mutfak Sanatları ABD" && item.programName === "Gastronomi ve Mutfak Sanatları" && item.level === "Tezsiz Yüksek Lisans");
+  const forbidden = /(quiz|ödev|proje|sunum|konu\s+tekrar[ıi]|genel\s+tekrar|ara\s*sınav|arasınav|vize|yarıyıl\s+sonu\s+sınavı|final)/iu;
+  assert.equal(packages.length, 26, "25 akademik ders ve bir Bitirme Projesi");
+  assert.equal(packages.some((item) => /^(?:DANIŞMANLIK|UZMANLIK ALAN DERSİ)$/iu.test(item.name)), false);
+  assert.deepEqual(packages.find((item) => item.code === "GMS7XX").aliases, ["GMS701", "GMS702"]);
+  assert.deepEqual(packages.find((item) => item.code === "GMS703").aliases, ["GMS703", "GMS704"]);
+  for (const course of packages) {
+    assert.equal(course.weeklyTopics.length, 15, `${course.code}: 15 hafta`);
+    if (course.code !== "GMS7XX") assert.equal(course.weeklyTopics.some((topic) => forbidden.test(topic)), false, `${course.code}: akademik konu`);
+    assert.equal(course.outcomes.length, 5, `${course.code}: beş DÖÇ`);
+    assert.ok(course.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)), `${course.code}: mevcut 11 PÇ ve 1-5 katkı`);
+    assert.equal(course.workloads.reduce((sum, row) => sum + row.total, 0), course.ects * 30, `${course.code}: 30 saat/AKTS`);
+    assert.equal(course.workloads.every((row) => Number.isInteger(row.hours * 2)), true, `${course.code}: tam/yarım saat`);
+    assert.equal(course.assessments.some((item) => /Ödev/iu.test(item.name)) && !course.workloads.some((item) => /Ödev/iu.test(item.name)), false, `${course.code}: ödev iş yükünde`);
+    assert.equal(course.qualityChecks.length, 21, `${course.code}: iç kontrol`);
+    assert.equal(course.publicQualityChecklist, false, `${course.code}: kontrol public değil`);
+  }
+});
+
+test("Gastronomi ve Mutfak Sanatları tezsiz Bitirme Projesi ortak havuz ve rol ayrımını korur", async () => {
+  const publicSource = await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx", import.meta.url), "utf8");
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  assert.match(publicSource, /mergedProcessCourseCodes[\s\S]*GMS7XX/u);
+  assert.match(serverSource, /trustedMergedPoolCodes[\s\S]*GMS7XX/u);
+  assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
+  assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
+});
+
+test("Gastronomi ve Mutfak Sanatları tezsiz public listesi tekilleştirilmiş dersleri gösterir", async () => {
+  const response = await render({}, "/dbp/programlar/gastronomi-ve-mutfak-sanatlari-abd-gastronomi-ve-mutfak-sanatlari?programKey=gastronomi-ve-mutfak-sanatlari-abd-gastronomi-ve-mutfak-sanatlari&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /Ortak \/ Süreç Dersleri/u);
+  assert.match(html, /GMS7XX/u);
+  assert.match(html, /BİTİRME PROJESİ/u);
+  assert.doesNotMatch(html, />GMS702</u);
+  assert.doesNotMatch(html, />GMS704</u);
+  assert.doesNotMatch(html, />DANIŞMANLIK</u);
+  assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
+  assert.match(html, /TÜRK MUTFAĞI ARAŞTIRMALARI/u);
+  assert.match(html, /DÜNYA MUTFAĞINDA YENİ TRENDLER/u);
+});
+
+test("Gıda Teknolojisi tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Gıda Teknolojisi ABD" && item.programName === "Gıda Teknolojisi" && item.level === "Tezsiz Yüksek Lisans");
+  const forbidden = /(quiz|ödev|sunum|konu\s+tekrar[ıi]|genel\s+tekrar|ara\s*sınav|arasınav|vize|yarıyıl\s+sonu\s+sınavı|final)/iu;
+  assert.equal(packages.length, 18, "17 akademik ders ve bir Bitirme Projesi");
+  assert.equal(packages.some((item) => /^(?:DANIŞMANLIK|UZMANLIK ALAN DERSİ)$/iu.test(item.name)), false);
+  assert.deepEqual(packages.find((item) => item.code === "GTB7XX").aliases, ["GTB701", "GTB702"]);
+  assert.deepEqual(packages.find((item) => item.code === "GTB703").aliases, ["GTB703", "GTB704"]);
+  for (const course of packages) {
+    assert.equal(course.weeklyTopics.length, 15, `${course.code}: 15 hafta`);
+    if (course.code !== "GTB7XX") assert.equal(course.weeklyTopics.some((topic) => forbidden.test(topic)), false, `${course.code}: akademik konu`);
+    assert.equal(course.outcomes.length, 5, `${course.code}: beş DÖÇ`);
+    assert.ok(course.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)), `${course.code}: mevcut 11 PÇ ve 1-5 katkı`);
+    assert.equal(course.workloads.reduce((sum, row) => sum + row.total, 0), course.ects * 30, `${course.code}: 30 saat/AKTS`);
+    assert.equal(course.workloads.every((row) => Number.isInteger(row.hours * 2)), true, `${course.code}: tam/yarım saat`);
+    assert.equal(course.assessments.some((item) => /Ödev/iu.test(item.name)) && !course.workloads.some((item) => /Ödev/iu.test(item.name)), false, `${course.code}: ödev iş yükünde`);
+    assert.equal(course.qualityChecks.length, 21, `${course.code}: iç kontrol`);
+    assert.equal(course.publicQualityChecklist, false, `${course.code}: kontrol public değil`);
+  }
+});
+
+test("Gıda Teknolojisi tezsiz Bitirme Projesi ortak havuz ve rol ayrımını korur", async () => {
+  const publicSource = await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx", import.meta.url), "utf8");
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  assert.match(publicSource, /mergedProcessCourseCodes[\s\S]*GTB7XX/u);
+  assert.match(serverSource, /trustedMergedPoolCodes[\s\S]*GTB7XX/u);
+  assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
+  assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
+});
+
+test("Gıda Teknolojisi tezsiz public listesi tekilleştirilmiş dersleri gösterir", async () => {
+  const response = await render({}, "/dbp/programlar/gida-teknolojisi-abd-gida-teknolojisi?programKey=gida-teknolojisi-abd-gida-teknolojisi&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /Ortak \/ Süreç Dersleri/u);
+  assert.match(html, /GTB7XX/u);
+  assert.match(html, /BİTİRME PROJESİ/u);
+  assert.doesNotMatch(html, />GTB702</u);
+  assert.doesNotMatch(html, />GTB704</u);
+  assert.doesNotMatch(html, />DANIŞMANLIK</u);
+  assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
+  assert.match(html, /GELENEKSEL VE MODERN MUHAFAZA YÖNTEMLERİ/u);
+  assert.match(html, /ÇEVRE VE İNSAN/u);
+});

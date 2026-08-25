@@ -61,7 +61,10 @@ const normalize = (value: string) =>
     .trim();
 
 const includesAny = (text: string, items: string[]) =>
-  items.some((item) => text.includes(item));
+  items.some((item) => {
+    const escaped = item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|[^\\p{L}])${escaped}($|[^\\p{L}])`, "u").test(text);
+  });
 
 const countActionHints = (text: string) =>
   measurableVerbs.filter((verb) => text.includes(verb)).length +

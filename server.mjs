@@ -818,6 +818,9 @@ const bedenTezsizCourseNames = new Map([
 ]);
 const biyolojiTezsizProjectCodes = new Set(["BİO701", "BİO702"]);
 const ekonomiFinansTezsizProjectCodes = new Set(["İKT701", "İKT702"]);
+const enerjiTezsizProjectCodes = new Set(["EPY701", "EPY702"]);
+const gastronomiTezsizProjectCodes = new Set(["GMS701", "GMS702"]);
+const gidaTeknolojisiTezsizProjectCodes = new Set(["GTB701", "GTB702"]);
 const biyolojiYlAdvisoryCodes = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
 const biyolojiYlSpecializationCodes = new Set(["BİO801", "BİO802", "BİO803", "BİO804"]);
 const biyolojiYlSeminarCodes = new Set(["BİO805", "BİO806"]);
@@ -1017,6 +1020,10 @@ function canonicalCourseCode(code = "") {
   if (bedenTezsizResearchCodes.has(normalizedCode)) return "BEF7XX";
   if (biyolojiTezsizProjectCodes.has(normalizedCode)) return "BİO7XX";
   if (ekonomiFinansTezsizProjectCodes.has(normalizedCode)) return "İKT7XX";
+  if (enerjiTezsizProjectCodes.has(normalizedCode)) return "EPY7XX";
+  if (gastronomiTezsizProjectCodes.has(normalizedCode)) return "GMS7XX";
+  if (gidaTeknolojisiTezsizProjectCodes.has(normalizedCode)) return "GTB7XX";
+  if (normalizedCode === "GMS704") return "GMS703";
   if (arkeolojiYlSpecializationCodes.has(normalizedCode)) return "ARK8XX";
   if (arkeolojiYlSeminarCodes.has(normalizedCode)) return "ARK806";
   if (arkeolojiYlThesisCodes.has(normalizedCode)) return "ARK81X";
@@ -1183,6 +1190,10 @@ function courseCodeCandidates(code = "") {
   if (canonical === "BEF7XX") for (const alias of bedenTezsizResearchCodes) candidates.add(alias);
   if (canonical === "BİO7XX") for (const alias of biyolojiTezsizProjectCodes) candidates.add(alias);
   if (canonical === "İKT7XX") for (const alias of ekonomiFinansTezsizProjectCodes) candidates.add(alias);
+  if (canonical === "EPY7XX") for (const alias of enerjiTezsizProjectCodes) candidates.add(alias);
+  if (canonical === "GMS7XX") for (const alias of gastronomiTezsizProjectCodes) candidates.add(alias);
+  if (canonical === "GTB7XX") for (const alias of gidaTeknolojisiTezsizProjectCodes) candidates.add(alias);
+  if (canonical === "GMS703") candidates.add("GMS704");
   if (canonical === "ARK8XX") for (const alias of arkeolojiYlSpecializationCodes) candidates.add(alias);
   if (canonical === "ARK806") for (const alias of arkeolojiYlSeminarCodes) candidates.add(alias);
   if (canonical === "ARK81X") for (const alias of arkeolojiYlThesisCodes) candidates.add(alias);
@@ -1702,6 +1713,67 @@ function normalizeEkonomiFinansTezsizCourse(course = {}) {
   return completeName ? { ...course, name:completeName } : course;
 }
 
+function normalizeEnerjiTezsizCourse(course = {}) {
+  const applies = levelKey(course.level) === "tezsiz yl" &&
+    normalizeScope(course.department || "") === normalizeScope("Enerji Sistemleri Mühendisliği ABD") &&
+    normalizeScope(course.programName || course.program_name || "") === normalizeScope("Enerji Sistemleri Mühendisliği");
+  if (!applies) return course;
+  const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (enerjiTezsizProjectCodes.has(code)) {
+    return code === "EPY701"
+      ? { ...course, code:"EPY7XX", name:"BİTİRME PROJESİ", ects:30, instructor:"Öğrencinin Danışmanı" }
+      : null;
+  }
+  if (code === "EPY704" || code === "EPY512") return null;
+  const completeNames = new Map([
+    ["EPY703", "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ"],
+    ["EPY706", "ENERJİ TEKNOLOJİLERİ"],
+    ["EPY710", "ENERJİ VERİMLİLİĞİ, FİZİBİLİTE ETÜDÜ VE VAP UYGULAMALARI"],
+    ["EPY718", "KONVANSİYONEL ENERJİ KAYNAKLARI"],
+  ]);
+  const completeName = completeNames.get(code);
+  return completeName ? { ...course, name:completeName } : course;
+}
+
+function normalizeGastronomiTezsizCourse(course = {}) {
+  const applies = levelKey(course.level) === "tezsiz yl" &&
+    normalizeScope(course.department || "") === normalizeScope("Gastronomi ve Mutfak Sanatları ABD") &&
+    normalizeScope(course.programName || course.program_name || "") === normalizeScope("Gastronomi ve Mutfak Sanatları");
+  if (!applies) return course;
+  const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (gastronomiTezsizProjectCodes.has(code)) {
+    return code === "GMS701"
+      ? { ...course, code:"GMS7XX", name:"BİTİRME PROJESİ", ects:30, instructor:"Öğrencinin Danışmanı" }
+      : null;
+  }
+  if (code === "GMS704") return null;
+  const completeNames = new Map([
+    ["GMS703", "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ"],
+    ["GMS725", "GASTRONOMİDE ÜRÜN GELİŞTİRME VE DUYUSAL ANALİZ"],
+    ["GMS727", "MOLEKÜLER GASTRONOMİ VE FÜZYON MUTFAK"],
+    ["GMS708", "NİCEL ARAŞTIRMALARDA VERİ TOPLAMA VE İSTATİSTİKSEL ANALİZ"],
+    ["GMS710", "NİTEL ARAŞTIRMALARDA VERİ TOPLAMA VE İSTATİSTİKSEL ANALİZ"],
+  ]);
+  const completeName = completeNames.get(code);
+  return completeName ? { ...course, name:completeName } : course;
+}
+
+function normalizeGidaTeknolojisiTezsizCourse(course = {}) {
+  const applies = levelKey(course.level) === "tezsiz yl" &&
+    normalizeScope(course.department || "") === normalizeScope("Gıda Teknolojisi ABD") &&
+    normalizeScope(course.programName || course.program_name || "") === normalizeScope("Gıda Teknolojisi");
+  if (!applies) return course;
+  const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (gidaTeknolojisiTezsizProjectCodes.has(code)) {
+    return code === "GTB701"
+      ? { ...course, code:"GTB7XX", name:"BİTİRME PROJESİ", ects:30, instructor:"Öğrencinin Proje Danışmanı" }
+      : null;
+  }
+  if (code === "GTB704") return null;
+  if (code === "GTB703") return { ...course, name:"BİLİMSEL ARAŞTIRMA VE YAYIN ETİĞİ" };
+  return course;
+}
+
 function normalizeAileTezsizCourse(course = {}) {
   const applies = levelKey(course.level) === "tezsiz yl" &&
     normalizeScope(course.department || "") === normalizeScope("Aile Danışmanlığı ve Eğitimi ABD") &&
@@ -2081,6 +2153,15 @@ function normalizeSeedCourse(course = {}) {
   const ekonomiFinansTezsizCourse = normalizeEkonomiFinansTezsizCourse(repaired);
   if (!ekonomiFinansTezsizCourse) return null;
   if (ekonomiFinansTezsizCourse !== repaired) return ekonomiFinansTezsizCourse;
+  const enerjiTezsizCourse = normalizeEnerjiTezsizCourse(repaired);
+  if (!enerjiTezsizCourse) return null;
+  if (enerjiTezsizCourse !== repaired) return enerjiTezsizCourse;
+  const gastronomiTezsizCourse = normalizeGastronomiTezsizCourse(repaired);
+  if (!gastronomiTezsizCourse) return null;
+  if (gastronomiTezsizCourse !== repaired) return gastronomiTezsizCourse;
+  const gidaTeknolojisiTezsizCourse = normalizeGidaTeknolojisiTezsizCourse(repaired);
+  if (!gidaTeknolojisiTezsizCourse) return null;
+  if (gidaTeknolojisiTezsizCourse !== repaired) return gidaTeknolojisiTezsizCourse;
   const biyolojiCourse = normalizeBiyolojiTezliCourse(repaired);
   if (!biyolojiCourse) return null;
   if (biyolojiCourse !== repaired) return biyolojiCourse;
@@ -2244,7 +2325,7 @@ function normalizePerson(value = "") {
 
 function isDepartmentPoolCourseRecord(course = {}) {
   const name = repairText(course.name || "").toLocaleUpperCase("tr-TR");
-  if (["BES7XX", "BEF7XX", "BİO7XX", "İKT7XX"].includes(repairText(course.code || "").toLocaleUpperCase("tr-TR"))) return true;
+  if (["BES7XX", "BEF7XX", "BİO7XX", "İKT7XX", "EPY7XX", "GMS7XX", "GTB7XX"].includes(repairText(course.code || "").toLocaleUpperCase("tr-TR"))) return true;
   if (repairText(course.code || "").toLocaleUpperCase("tr-TR") === "BHT831") return true;
   if (repairText(course.code || "").toLocaleUpperCase("tr-TR") === "BEF801") return true;
   if (repairText(course.code || "").toLocaleUpperCase("tr-TR") === "BİO809") return true;
@@ -2309,6 +2390,9 @@ function canEditCoursePackage(session, body, rows) {
     trustedMergedPoolCodes.add("BEF7XX");
     trustedMergedPoolCodes.add("BİO7XX");
     trustedMergedPoolCodes.add("İKT7XX");
+    trustedMergedPoolCodes.add("EPY7XX");
+    trustedMergedPoolCodes.add("GMS7XX");
+    trustedMergedPoolCodes.add("GTB7XX");
     for (const code of ["DAN9XX", "BİO9XX", "BİO909", "BİO917", "BİO91X", "EMB9XX", "EMB909", "EMB917", "EMB91X", "FZK9XX", "FZK909", "FZK917", "FZK91X", "GMB9XX", "GMB909", "GMB917", "GMB91X", "İNŞ9XX", "İNŞ909", "İNŞ917", "İNŞ91X", "ISL9XX", "ISL909", "ISL917", "ISL91X", "KİM9XX", "KİM909", "KİM917", "KİM91X", "MMB9XX", "MMB909", "MMB917", "MMB91X", "SKY9XX", "SKY909", "SKY917", "SKY91X", "TDE9XX", "TDE910", "TDE917", "TDE91X"]) trustedMergedPoolCodes.add(code);
     for (const code of ["TDE8XX", "TDE805", "TDE81X", "YBS8XX", "YBS805", "YBS81X", "YON8XX", "YON805", "YON841", "YON81X"]) trustedMergedPoolCodes.add(code);
     const poolCourse = rows.some(isDepartmentPoolCourseRecord) ||
@@ -2470,6 +2554,9 @@ async function ensureDb() {
   migrateEkoturizmTezliPackagesFromSeed();
   migrateElektrikTezliPackagesFromSeed();
   migrateEnerjiTezliPackagesFromSeed();
+  migrateEnerjiTezsizPackagesFromSeed();
+  migrateGastronomiTezsizPackagesFromSeed();
+  migrateGidaTeknolojisiTezsizPackagesFromSeed();
   migrateEnerjiDoktoraPackagesFromSeed();
   migrateFelsefeDinTezliPackagesFromSeed();
   migrateFizikTezliPackagesFromSeed();
@@ -3032,6 +3119,15 @@ function normalizeDbCourseForList(course = {}) {
   const ekonomiFinansTezsizCourse = normalizeEkonomiFinansTezsizCourse(repaired);
   if (!ekonomiFinansTezsizCourse) return null;
   if (ekonomiFinansTezsizCourse !== repaired) return ekonomiFinansTezsizCourse;
+  const enerjiTezsizCourse = normalizeEnerjiTezsizCourse(repaired);
+  if (!enerjiTezsizCourse) return null;
+  if (enerjiTezsizCourse !== repaired) return enerjiTezsizCourse;
+  const gastronomiTezsizCourse = normalizeGastronomiTezsizCourse(repaired);
+  if (!gastronomiTezsizCourse) return null;
+  if (gastronomiTezsizCourse !== repaired) return gastronomiTezsizCourse;
+  const gidaTeknolojisiTezsizCourse = normalizeGidaTeknolojisiTezsizCourse(repaired);
+  if (!gidaTeknolojisiTezsizCourse) return null;
+  if (gidaTeknolojisiTezsizCourse !== repaired) return gidaTeknolojisiTezsizCourse;
   const biyolojiCourse = normalizeBiyolojiTezliCourse(repaired);
   if (!biyolojiCourse) return null;
   if (biyolojiCourse !== repaired) return biyolojiCourse;
@@ -3557,6 +3653,99 @@ function migrateGidaMuhendisligiTezliPackagesFromSeed() {
 function migrateGidaMuhendisligiDoktoraPackagesFromSeed() {
   const revision="2026-08-21-gida-muhendisligi-doktora-v3";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("gida_muhendisligi_doktora_packages_revision")?.value===revision)return;
   const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Gıda Mühendisliği ABD")&&normalizeScope(x.programName||"")===normalizeScope("Gıda Mühendisliği")&&levelKey(x.level||"")==="doktora");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const rows=courseRowsForIdentity({department:p.department,programName:p.programName,level:p.level,code:p.code});for(const c of rows){update.run(p.name||c.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("gida_muhendisligi_doktora_packages_revision",revision);audit("course.package.migrate","system",{scope:"Gıda Mühendisliği Doktora",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
+}
+
+function migrateEnerjiTezsizPackagesFromSeed() {
+  const revision = "2026-08-25-enerji-sistemleri-tezsiz-v1";
+  const metadataKey = "enerji_tezsiz_packages_revision";
+  if (db.prepare("SELECT value FROM metadata WHERE key = ?").get(metadataKey)?.value === revision) return;
+  const packages = readCoursePackageSeeds().filter((item) =>
+    normalizeScope(item.department || "") === normalizeScope("Enerji Sistemleri Mühendisliği ABD") &&
+    normalizeScope(item.programName || "") === normalizeScope("Enerji Sistemleri Mühendisliği") &&
+    levelKey(item.level || "") === "tezsiz yl"
+  );
+  const now = new Date().toISOString();
+  const update = db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);
+  let changed = 0;
+  db.exec("BEGIN");
+  try {
+    for (const packageSeed of packages) {
+      const rows = courseRowsForIdentity({ department:packageSeed.department, programName:packageSeed.programName, level:packageSeed.level, code:packageSeed.code });
+      for (const course of rows) {
+        const courseName = packageSeed.name || course.name;
+        update.run(courseName, Number(packageSeed.credit || 0), Number(packageSeed.ects || 0), Number(packageSeed.theory || 0), Number(packageSeed.practice || 0), JSON.stringify(storedPackageFromSeed(packageSeed, { ...course, name:courseName, programName:course.program_name })), now, course.id);
+        changed += 1;
+      }
+    }
+    db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(metadataKey, revision);
+    audit("course.package.migrate", "system", { scope:"Enerji Sistemleri Mühendisliği Tezsiz YL", revision, changed });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function migrateGastronomiTezsizPackagesFromSeed() {
+  const revision = "2026-08-25-gastronomi-tezsiz-v1";
+  const metadataKey = "gastronomi_tezsiz_packages_revision";
+  if (db.prepare("SELECT value FROM metadata WHERE key = ?").get(metadataKey)?.value === revision) return;
+  const packages = readCoursePackageSeeds().filter((item) =>
+    normalizeScope(item.department || "") === normalizeScope("Gastronomi ve Mutfak Sanatları ABD") &&
+    normalizeScope(item.programName || "") === normalizeScope("Gastronomi ve Mutfak Sanatları") &&
+    levelKey(item.level || "") === "tezsiz yl"
+  );
+  const now = new Date().toISOString();
+  const update = db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);
+  let changed = 0;
+  db.exec("BEGIN");
+  try {
+    for (const packageSeed of packages) {
+      const rows = courseRowsForIdentity({ department:packageSeed.department, programName:packageSeed.programName, level:packageSeed.level, code:packageSeed.code });
+      for (const course of rows) {
+        const courseName = packageSeed.name || course.name;
+        update.run(courseName, Number(packageSeed.credit || 0), Number(packageSeed.ects || 0), Number(packageSeed.theory || 0), Number(packageSeed.practice || 0), JSON.stringify(storedPackageFromSeed(packageSeed, { ...course, name:courseName, programName:course.program_name })), now, course.id);
+        changed += 1;
+      }
+    }
+    db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(metadataKey, revision);
+    audit("course.package.migrate", "system", { scope:"Gastronomi ve Mutfak Sanatları Tezsiz YL", revision, changed });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function migrateGidaTeknolojisiTezsizPackagesFromSeed() {
+  const revision = "2026-08-25-gida-teknolojisi-tezsiz-v1";
+  const metadataKey = "gida_teknolojisi_tezsiz_packages_revision";
+  if (db.prepare("SELECT value FROM metadata WHERE key = ?").get(metadataKey)?.value === revision) return;
+  const packages = readCoursePackageSeeds().filter((item) =>
+    normalizeScope(item.department || "") === normalizeScope("Gıda Teknolojisi ABD") &&
+    normalizeScope(item.programName || "") === normalizeScope("Gıda Teknolojisi") &&
+    levelKey(item.level || "") === "tezsiz yl"
+  );
+  const now = new Date().toISOString();
+  const update = db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);
+  let changed = 0;
+  db.exec("BEGIN");
+  try {
+    for (const packageSeed of packages) {
+      const rows = courseRowsForIdentity({ department:packageSeed.department, programName:packageSeed.programName, level:packageSeed.level, code:packageSeed.code });
+      for (const course of rows) {
+        const courseName = packageSeed.name || course.name;
+        update.run(courseName, Number(packageSeed.credit || 0), Number(packageSeed.ects || 0), Number(packageSeed.theory || 0), Number(packageSeed.practice || 0), JSON.stringify(storedPackageFromSeed(packageSeed, { ...course, name:courseName, programName:course.program_name })), now, course.id);
+        changed += 1;
+      }
+    }
+    db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(metadataKey, revision);
+    audit("course.package.migrate", "system", { scope:"Gıda Teknolojisi Tezsiz YL", revision, changed });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 function migrateBedenTezsizPackagesFromSeed() {
