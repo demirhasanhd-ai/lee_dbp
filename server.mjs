@@ -46,6 +46,9 @@ const eEnstituRoot = resolveEEnstituRoot();
 const eEnstituDemoUsersFile = process.env.EENSTITU_DEMO_USERS_FILE || path.join(eEnstituRoot, "src", "data", "demo-users.json");
 let db;
 let eEnstituPgPool;
+let homeInstructorCountCache;
+let homeInstructorCountRefresh;
+let homeInstructorCountRefreshedAt = 0;
 
 function openBrowser(url) {
   const child =
@@ -757,6 +760,81 @@ function displayLevel(value = "") {
   if (normalized === "Tezsiz YL") return "Tezsiz Yüksek Lisans";
   if (normalized === "Tezli YL") return "Tezli Yüksek Lisans";
   return normalized || "Tezli Yüksek Lisans";
+}
+
+function loadCourseCatalogInstructorCount() {
+  const row = db.prepare(`
+    SELECT COUNT(DISTINCT TRIM(instructor)) AS total
+    FROM courses
+    WHERE instructor IS NOT NULL
+      AND TRIM(instructor) <> ''
+      AND TRIM(instructor) NOT IN ('Öğrencinin Danışmanı', 'Öğrencinin Proje Danışmanı', 'Atama Bekliyor', 'Yok', '-')
+  `).get();
+  return {
+    count: Number(row.total || 0),
+    source: "dbp_course_catalog",
+  };
+}
+
+async function loadEEnstituInstructorCount() {
+  let client;
+  try {
+    const pool = await eEnstituPool();
+    if (!pool) {
+      const catalog = loadCourseCatalogInstructorCount();
+      if (catalog.count) return catalog;
+      const demo = loadEEnstituInstructorOptionsFromDemo();
+      return {
+        count: new Set(demo.instructors.map((item) => normalizeInstructorScope(item.name))).size,
+        source: demo.source,
+      };
+    }
+    const timeout = eEnstituDbTimeoutMs();
+    client = await withTimeout(pool.connect(), timeout, "e-Enstitu akademisyen sayısı bağlantı zaman aşımı");
+    const result = await withTimeout(client.query(`
+      SELECT COUNT(DISTINCT u.tc_kimlik)::int AS total
+      FROM directory_users u
+      LEFT JOIN advisor_affiliations aa
+        ON aa.advisor_tc_kimlik = u.tc_kimlik
+       AND aa.is_active = true
+       AND aa.role IN ('danisman', 'abd_baskani')
+      WHERE u.is_active = true
+        AND (
+          u.role IN ('danisman', 'abd_baskani')
+          OR u.extra_roles && ARRAY['danisman', 'abd_baskani']::text[]
+          OR aa.id IS NOT NULL
+          OR (
+            u.auth_source = 'ldap'
+            AND (
+              coalesce(u.profile_metadata->'ldap'->>'accountType', u.profile_metadata->'ldapProfileCompletion'->>'accountType') = 'academic'
+              OR u.title IN ('Prof. Dr.', 'Doç. Dr.', 'Dr. Öğr. Üyesi', 'Öğr. Gör. Dr.', 'Öğr. Gör.', 'Arş. Gör. Dr.', 'Arş. Gör.')
+            )
+          )
+        )
+    `), timeout, "e-Enstitu akademisyen sayısı sorgu zaman aşımı");
+    return { count: Number(result.rows[0]?.total || 0), source: "e_enstitu_database" };
+  } catch (error) {
+    console.warn(`[dbp] e-Enstitu akademisyen sayısı okunamadı: ${error instanceof Error ? error.message : error}`);
+    return loadCourseCatalogInstructorCount();
+  } finally {
+    client?.release();
+  }
+}
+
+function currentHomeInstructorCount() {
+  if (!homeInstructorCountCache) homeInstructorCountCache = loadCourseCatalogInstructorCount();
+  const stale = Date.now() - homeInstructorCountRefreshedAt > 5 * 60 * 1000;
+  if (stale && !homeInstructorCountRefresh) {
+    homeInstructorCountRefresh = loadEEnstituInstructorCount()
+      .then((result) => {
+        if (result.count > 0) homeInstructorCountCache = result;
+        homeInstructorCountRefreshedAt = Date.now();
+      })
+      .finally(() => {
+        homeInstructorCountRefresh = null;
+      });
+  }
+  return homeInstructorCountCache;
 }
 
 function isUnsupportedTezsizProcessCourse(course = {}) {
@@ -3987,6 +4065,77 @@ function qualityStats(filters = {}) {
   };
 }
 
+async function homeStats() {
+  const totals = db.prepare(`
+    SELECT
+      COUNT(*) AS total_courses,
+      COUNT(DISTINCT department) AS main_departments,
+      COALESCE(SUM(ects), 0) AS total_ects,
+      SUM(CASE WHEN type = 'Zorunlu' THEN 1 ELSE 0 END) AS compulsory_courses,
+      SUM(CASE WHEN type = 'Seçmeli' THEN 1 ELSE 0 END) AS elective_courses,
+      SUM(CASE WHEN term LIKE '%Güz%' THEN 1 ELSE 0 END) AS fall_courses,
+      SUM(CASE WHEN term LIKE '%Bahar%' THEN 1 ELSE 0 END) AS spring_courses,
+      SUM(CASE
+        WHEN instructor IS NOT NULL
+         AND TRIM(instructor) <> ''
+         AND TRIM(instructor) NOT IN ('Atama Bekliyor', 'Öğrencinin Danışmanı', 'Öğrencinin Proje Danışmanı', 'Yok', '-')
+        THEN 1 ELSE 0 END) AS assigned_courses
+    FROM courses
+  `).get();
+  const programs = db.prepare(`
+    SELECT department, program_name, level
+    FROM courses
+    GROUP BY department, program_name, level
+  `).all();
+  const academicYearRow = db.prepare(`
+    SELECT academic_year
+    FROM courses
+    WHERE academic_year IS NOT NULL AND TRIM(academic_year) <> ''
+    GROUP BY academic_year
+    ORDER BY COUNT(*) DESC, academic_year DESC
+    LIMIT 1
+  `).get();
+  const programKeys = new Map();
+  for (const program of programs) {
+    const level = levelKey(program.level || "");
+    const key = [program.department, program.program_name, level].map(normalizeScope).join("|");
+    if (!programKeys.has(key)) programKeys.set(key, level);
+  }
+  const programLevels = [...programKeys.values()];
+
+  const instructorCatalog = currentHomeInstructorCount();
+  const instructors = instructorCatalog.count;
+  const academicYear = repairText(academicYearRow?.academic_year || "2026-2027")
+    .replace(/(\d{4})-(\d{4})/u, "$1–$2");
+  const percent = (part, total) => total > 0 ? Math.round((part / total) * 100) : 0;
+  const totalCourses = Number(totals.total_courses || 0);
+  const assignedCourses = Number(totals.assigned_courses || 0);
+
+  return {
+    academicYear,
+    totalCourses,
+    totalPrograms: programKeys.size,
+    mainDepartments: Number(totals.main_departments || 0),
+    instructors,
+    assignedCourses,
+    unassignedCourses: totalCourses - assignedCourses,
+    assignmentRate: percent(assignedCourses, totalCourses),
+    compulsoryCourses: Number(totals.compulsory_courses || 0),
+    electiveCourses: Number(totals.elective_courses || 0),
+    fallCourses: Number(totals.fall_courses || 0),
+    springCourses: Number(totals.spring_courses || 0),
+    totalEcts: Number(totals.total_ects || 0),
+    levels: {
+      tezsiz: programLevels.filter((level) => level === "tezsiz yl").length,
+      tezli: programLevels.filter((level) => level === "tezli yl").length,
+      doktora: programLevels.filter((level) => level === "doktora").length,
+    },
+    source: "database",
+    instructorSource: instructorCatalog.source,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 function migrateYbsDoctorateContributionScale() {
   const rows = db.prepare(`
     SELECT id, department, level, package_json FROM courses
@@ -4717,6 +4866,10 @@ async function handleDbpApi(request) {
       });
     }
 
+    if (pathname === "/api/dbp/home-stats" && request.method === "GET") {
+      return jsonResponse(await homeStats());
+    }
+
     if (pathname === "/api/dbp/quality-stats" && request.method === "GET") {
       const filters = {
         department: url.searchParams.get("department") || "Yönetim Bilişim Sistemleri ABD",
@@ -5151,6 +5304,14 @@ const ctx = {
   waitUntil() {},
   passThroughOnException() {},
 };
+
+await ensureDb();
+const initialInstructorCatalog = await loadEEnstituInstructorOptions();
+homeInstructorCountCache = {
+  count: new Set(initialInstructorCatalog.instructors.map((item) => normalizeInstructorScope(item.name || "")).filter(Boolean)).size,
+  source: initialInstructorCatalog.source,
+};
+homeInstructorCountRefreshedAt = Date.now();
 
 createServer(async (req, res) => {
   try {

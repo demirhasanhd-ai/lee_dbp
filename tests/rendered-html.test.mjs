@@ -44,6 +44,21 @@ async function render(environment = {}, path = "/dbp/") {
   }
 }
 
+test("ana sayfa genel istatistikleri canlı DB ve mevcut akademisyen kaynağından alır", async () => {
+  const [pageSource, liveStatsSource, serverSource] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/HomeLiveStats.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../server.mjs", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(pageSource, /<HomeLiveStats\s*\/>/u);
+  assert.match(liveStatsSource, /\/api\/dbp\/home-stats/u);
+  assert.match(liveStatsSource, /data-stats-source/u);
+  assert.match(serverSource, /pathname === "\/api\/dbp\/home-stats"/u);
+  assert.match(serverSource, /loadEEnstituInstructorOptions\(\)/u);
+  assert.match(serverSource, /source: "database"/u);
+});
+
 test("course package sidebar resolves the YBS doctorate context", async () => {
   const path = "/dbp/katalog?ders=YBS921&bolum=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri%20ABD&program=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri&duzey=Doktora";
   const response = await render({}, path);

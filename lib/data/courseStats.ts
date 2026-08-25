@@ -21,7 +21,24 @@ const electiveCourses = OFFICIAL_COURSES.filter((course) => course.type === "Se�
 const fallCourses = OFFICIAL_COURSES.filter((course) => course.term === "Güz");
 const springCourses = OFFICIAL_COURSES.filter((course) => course.term === "Bahar");
 
-export const COURSE_STATS = {
+export type CourseStats = {
+  academicYear: string;
+  totalCourses: number;
+  totalPrograms: number;
+  mainDepartments: number;
+  instructors: number;
+  assignedCourses: number;
+  unassignedCourses: number;
+  assignmentRate: number;
+  compulsoryCourses: number;
+  electiveCourses: number;
+  fallCourses: number;
+  springCourses: number;
+  totalEcts: number;
+  levels: { tezsiz: number; tezli: number; doktora: number };
+};
+
+export const COURSE_STATS: CourseStats = {
   academicYear: "2026–2027",
   totalCourses: OFFICIAL_COURSES.length,
   totalPrograms: programKeys.size,
@@ -41,4 +58,3 @@ export const COURSE_STATS = {
     doktora: [...programKeys].filter((key) => key.includes("Doktora")).length,
   },
 };
-
