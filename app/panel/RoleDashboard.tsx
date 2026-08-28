@@ -352,7 +352,7 @@ export function RoleDashboard() {
   const refreshCatalogCourses = async () => {
     if (!session) return;
     try {
-      const data = await fetchDbpCourses({}, {
+      const data = await fetchDbpCourses({ limit: 5000 }, {
         headers: { "X-DBP-Session": dbpSessionHeader(session) },
       });
       setCatalogCourses(data.courses.map(toPanelCourse));

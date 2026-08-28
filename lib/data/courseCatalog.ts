@@ -103,6 +103,8 @@ const ENERJI_TEZSIZ_PROJECT_CODES = new Set(["EPY701", "EPY702"]);
 const GASTRONOMI_TEZSIZ_PROJECT_CODES = new Set(["GMS701", "GMS702"]);
 const GIDA_TEKNOLOJISI_TEZSIZ_PROJECT_CODES = new Set(["GTB701", "GTB702"]);
 const ISLETME_TEZSIZ_PROJECT_CODES = new Set(["ISL701", "ISL702"]);
+const MUHASEBE_FINANSMAN_TEZSIZ_PROJECT_CODES = new Set(["MUF701", "MUF702"]);
+const MUHENDISLIK_TEKNOLOJI_YONETIMI_TEZSIZ_PROJECT_CODES = new Set(["MTY702"]);
 const BIYOLOJI_YL_SPECIALIZATION_CODES = new Set(["BİO801", "BİO802", "BİO803", "BİO804"]);
 const BIYOLOJI_YL_SEMINAR_CODES = new Set(["BİO805", "BİO806"]);
 const BIYOLOJI_YL_RESEARCH_CODES = new Set(["BİO809", "BİO810"]);
@@ -532,6 +534,22 @@ const normalizeIsletmeTezsizCourse = (course: OfficialCourse): OfficialCourse | 
   return course;
 };
 
+const normalizeMuhasebeFinansmanTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "Muhasebe ve Finansman" && course.programName === "Muhasebe ve Finansman" && course.level === "Tezsiz Yüksek Lisans";
+  if (!applies) return course;
+  if (MUHASEBE_FINANSMAN_TEZSIZ_PROJECT_CODES.has(course.code)) return course.code === "MUF701" ? withAdvisor({ ...course, code:"MUF7XX", name:"BİTİRME PROJESİ", ects:30 }) : null;
+  if (course.code === "MUF704") return null;
+  if (course.code === "MUF723") return { ...course, ects:6 };
+  if (course.code === "MUF730") return { ...course, name:"İŞLETMELERDE SERMAYE YAPISI VE SERMAYE MALİYETİ" };
+  return course;
+};
+
+const normalizeMuhendislikTeknolojiYonetimiTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  if (course.department !== "Mühendislik ve Teknoloji Yönetimi ABD" || course.programName !== "Mühendislik ve Teknoloji Yönetimi" || course.level !== "Tezsiz Yüksek Lisans") return course;
+  if (MUHENDISLIK_TEKNOLOJI_YONETIMI_TEZSIZ_PROJECT_CODES.has(course.code)) return withAdvisor({ ...course, code:"MTY7XX", name:"BİTİRME PROJESİ", ects:30 });
+  return course;
+};
+
 const normalizeAileTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
   const applies = course.department === "Aile Danışmanlığı ve Eğitimi ABD" &&
     course.programName === "Aile Danışmanlığı ve Eğitimi" && course.level === "Tezsiz Yüksek Lisans";
@@ -944,6 +962,12 @@ export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((
   const isletmeTezsizCourse = normalizeIsletmeTezsizCourse(course);
   if (!isletmeTezsizCourse) return [];
   course = isletmeTezsizCourse;
+  const muhasebeFinansmanTezsizCourse = normalizeMuhasebeFinansmanTezsizCourse(course);
+  if (!muhasebeFinansmanTezsizCourse) return [];
+  course = muhasebeFinansmanTezsizCourse;
+  const muhendislikTeknolojiYonetimiTezsizCourse = normalizeMuhendislikTeknolojiYonetimiTezsizCourse(course);
+  if (!muhendislikTeknolojiYonetimiTezsizCourse) return [];
+  course = muhendislikTeknolojiYonetimiTezsizCourse;
   const biyolojiCourse = normalizeBiyolojiTezliCourse(course);
   if (!biyolojiCourse) return [];
   course = biyolojiCourse;

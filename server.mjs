@@ -916,6 +916,8 @@ const enerjiTezsizProjectCodes = new Set(["EPY701", "EPY702"]);
 const gastronomiTezsizProjectCodes = new Set(["GMS701", "GMS702"]);
 const gidaTeknolojisiTezsizProjectCodes = new Set(["GTB701", "GTB702"]);
 const isletmeTezsizProjectCodes = new Set(["ISL701", "ISL702"]);
+const muhasebeFinansmanTezsizProjectCodes = new Set(["MUF701", "MUF702"]);
+const muhendislikTeknolojiYonetimiTezsizProjectCodes = new Set(["MTY702"]);
 const biyolojiYlAdvisoryCodes = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
 const biyolojiYlSpecializationCodes = new Set(["BİO801", "BİO802", "BİO803", "BİO804"]);
 const biyolojiYlSeminarCodes = new Set(["BİO805", "BİO806"]);
@@ -1119,6 +1121,8 @@ function canonicalCourseCode(code = "") {
   if (gastronomiTezsizProjectCodes.has(normalizedCode)) return "GMS7XX";
   if (gidaTeknolojisiTezsizProjectCodes.has(normalizedCode)) return "GTB7XX";
   if (isletmeTezsizProjectCodes.has(normalizedCode)) return "ISL7XX";
+  if (muhasebeFinansmanTezsizProjectCodes.has(normalizedCode)) return "MUF7XX";
+  if (muhendislikTeknolojiYonetimiTezsizProjectCodes.has(normalizedCode)) return "MTY7XX";
   if (normalizedCode === "GMS704") return "GMS703";
   if (arkeolojiYlSpecializationCodes.has(normalizedCode)) return "ARK8XX";
   if (arkeolojiYlSeminarCodes.has(normalizedCode)) return "ARK806";
@@ -1290,6 +1294,8 @@ function courseCodeCandidates(code = "") {
   if (canonical === "GMS7XX") for (const alias of gastronomiTezsizProjectCodes) candidates.add(alias);
   if (canonical === "GTB7XX") for (const alias of gidaTeknolojisiTezsizProjectCodes) candidates.add(alias);
   if (canonical === "ISL7XX") for (const alias of isletmeTezsizProjectCodes) candidates.add(alias);
+  if (canonical === "MUF7XX") for (const alias of muhasebeFinansmanTezsizProjectCodes) candidates.add(alias);
+  if (canonical === "MTY7XX") for (const alias of muhendislikTeknolojiYonetimiTezsizProjectCodes) candidates.add(alias);
   if (canonical === "GMS703") candidates.add("GMS704");
   if (canonical === "ARK8XX") for (const alias of arkeolojiYlSpecializationCodes) candidates.add(alias);
   if (canonical === "ARK806") for (const alias of arkeolojiYlSeminarCodes) candidates.add(alias);
@@ -1886,6 +1892,29 @@ function normalizeIsletmeTezsizCourse(course = {}) {
   return course;
 }
 
+function normalizeMuhasebeFinansmanTezsizCourse(course = {}) {
+  const applies = levelKey(course.level) === "tezsiz yl" &&
+    normalizeScope(course.department || "") === normalizeScope("Muhasebe ve Finansman") &&
+    normalizeScope(course.programName || course.program_name || "") === normalizeScope("Muhasebe ve Finansman");
+  if (!applies) return course;
+  const code=repairText(course.code||"").trim().toLocaleUpperCase("tr-TR");
+  if (muhasebeFinansmanTezsizProjectCodes.has(code)) return code === "MUF701" ? { ...course, code:"MUF7XX", name:"BİTİRME PROJESİ", ects:30, instructor:"Öğrencinin Proje Danışmanı" } : null;
+  if (code === "MUF704") return null;
+  if (code === "MUF723") return { ...course, ects:6 };
+  if (code === "MUF730") return { ...course, name:"İŞLETMELERDE SERMAYE YAPISI VE SERMAYE MALİYETİ" };
+  return course;
+}
+
+function normalizeMuhendislikTeknolojiYonetimiTezsizCourse(course = {}) {
+  const applies = levelKey(course.level) === "tezsiz yl" &&
+    normalizeScope(course.department || "") === normalizeScope("Mühendislik ve Teknoloji Yönetimi ABD") &&
+    normalizeScope(course.programName || course.program_name || "") === normalizeScope("Mühendislik ve Teknoloji Yönetimi");
+  if (!applies) return course;
+  const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (muhendislikTeknolojiYonetimiTezsizProjectCodes.has(code)) return { ...course, code:"MTY7XX", name:"BİTİRME PROJESİ", ects:30, instructor:"Öğrencinin Proje Danışmanı" };
+  return course;
+}
+
 function normalizeAileTezsizCourse(course = {}) {
   const applies = levelKey(course.level) === "tezsiz yl" &&
     normalizeScope(course.department || "") === normalizeScope("Aile Danışmanlığı ve Eğitimi ABD") &&
@@ -2277,6 +2306,12 @@ function normalizeSeedCourse(course = {}) {
   const isletmeTezsizCourse = normalizeIsletmeTezsizCourse(repaired);
   if (!isletmeTezsizCourse) return null;
   if (isletmeTezsizCourse !== repaired) return isletmeTezsizCourse;
+  const muhasebeFinansmanTezsizCourse = normalizeMuhasebeFinansmanTezsizCourse(repaired);
+  if (!muhasebeFinansmanTezsizCourse) return null;
+  if (muhasebeFinansmanTezsizCourse !== repaired) return muhasebeFinansmanTezsizCourse;
+  const muhendislikTeknolojiYonetimiTezsizCourse = normalizeMuhendislikTeknolojiYonetimiTezsizCourse(repaired);
+  if (!muhendislikTeknolojiYonetimiTezsizCourse) return null;
+  if (muhendislikTeknolojiYonetimiTezsizCourse !== repaired) return muhendislikTeknolojiYonetimiTezsizCourse;
   const biyolojiCourse = normalizeBiyolojiTezliCourse(repaired);
   if (!biyolojiCourse) return null;
   if (biyolojiCourse !== repaired) return biyolojiCourse;
@@ -2509,6 +2544,8 @@ function canEditCoursePackage(session, body, rows) {
     trustedMergedPoolCodes.add("GMS7XX");
     trustedMergedPoolCodes.add("GTB7XX");
     trustedMergedPoolCodes.add("ISL7XX");
+    trustedMergedPoolCodes.add("MUF7XX");
+    trustedMergedPoolCodes.add("MTY7XX");
     for (const code of ["DAN9XX", "BİO9XX", "BİO909", "BİO917", "BİO91X", "EMB9XX", "EMB909", "EMB917", "EMB91X", "FZK9XX", "FZK909", "FZK917", "FZK91X", "GMB9XX", "GMB909", "GMB917", "GMB91X", "İNŞ9XX", "İNŞ909", "İNŞ917", "İNŞ91X", "ISL9XX", "ISL909", "ISL917", "ISL91X", "KİM9XX", "KİM909", "KİM917", "KİM91X", "MMB9XX", "MMB909", "MMB917", "MMB91X", "SKY9XX", "SKY909", "SKY917", "SKY91X", "TDE9XX", "TDE910", "TDE917", "TDE91X"]) trustedMergedPoolCodes.add(code);
     for (const code of ["TDE8XX", "TDE805", "TDE81X", "YBS8XX", "YBS805", "YBS81X", "YON8XX", "YON805", "YON841", "YON81X"]) trustedMergedPoolCodes.add(code);
     const poolCourse = rows.some(isDepartmentPoolCourseRecord) ||
@@ -3247,6 +3284,12 @@ function normalizeDbCourseForList(course = {}) {
   const isletmeTezsizCourse = normalizeIsletmeTezsizCourse(repaired);
   if (!isletmeTezsizCourse) return null;
   if (isletmeTezsizCourse !== repaired) return isletmeTezsizCourse;
+  const muhasebeFinansmanTezsizCourse = normalizeMuhasebeFinansmanTezsizCourse(repaired);
+  if (!muhasebeFinansmanTezsizCourse) return null;
+  if (muhasebeFinansmanTezsizCourse !== repaired) return muhasebeFinansmanTezsizCourse;
+  const muhendislikTeknolojiYonetimiTezsizCourse = normalizeMuhendislikTeknolojiYonetimiTezsizCourse(repaired);
+  if (!muhendislikTeknolojiYonetimiTezsizCourse) return null;
+  if (muhendislikTeknolojiYonetimiTezsizCourse !== repaired) return muhendislikTeknolojiYonetimiTezsizCourse;
   const biyolojiCourse = normalizeBiyolojiTezliCourse(repaired);
   if (!biyolojiCourse) return null;
   if (biyolojiCourse !== repaired) return biyolojiCourse;

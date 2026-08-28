@@ -130,6 +130,10 @@ import { matematikTezliCoursePackages } from "./matematikTezliCoursePackages";
 import { matematikCommonCoursePackages } from "./matematikCommonCoursePackages";
 import { muhasebeFinansmanTezliCoursePackages } from "./muhasebeFinansmanTezliCoursePackages";
 import { muhasebeFinansmanCommonCoursePackages } from "./muhasebeFinansmanCommonCoursePackages";
+import { muhasebeFinansmanTezsizCoursePackages } from "./muhasebeFinansmanTezsizCoursePackages";
+import { muhasebeFinansmanTezsizCommonCoursePackages } from "./muhasebeFinansmanTezsizCommonCoursePackages";
+import { muhendislikTeknolojiYonetimiTezsizCoursePackages } from "./muhendislikTeknolojiYonetimiTezsizCoursePackages";
+import { muhendislikTeknolojiYonetimiTezsizCommonCoursePackages } from "./muhendislikTeknolojiYonetimiTezsizCommonCoursePackages";
 import { organikTarimIsletmeciligiTezliCoursePackages } from "./organikTarimIsletmeciligiTezliCoursePackages";
 import { organikTarimIsletmeciligiCommonCoursePackages } from "./organikTarimIsletmeciligiCommonCoursePackages";
 import { resimTezliCoursePackages } from "./resimTezliCoursePackages";
@@ -746,6 +750,10 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...matematikCommonCoursePackages,
   ...muhasebeFinansmanTezliCoursePackages,
   ...muhasebeFinansmanCommonCoursePackages,
+  ...muhasebeFinansmanTezsizCoursePackages,
+  ...muhasebeFinansmanTezsizCommonCoursePackages,
+  ...muhendislikTeknolojiYonetimiTezsizCoursePackages,
+  ...muhendislikTeknolojiYonetimiTezsizCommonCoursePackages,
   ...organikTarimIsletmeciligiTezliCoursePackages,
   ...organikTarimIsletmeciligiCommonCoursePackages,
   ...resimTezliCoursePackages,

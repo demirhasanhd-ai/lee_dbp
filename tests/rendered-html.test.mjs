@@ -711,6 +711,8 @@ test("Muhasebe ve Finansman tezli YL paketleri handoff kalite kurallarını kar�
 
 test("Muhasebe ve Finansman ortak havuzu ile ABD başkanı ve akademisyen yetkileri ayrıdır",async()=>{const seed=JSON.parse(await readFile(new URL("../seed/course-packages.json",import.meta.url),"utf8"));const packages=seed.filter((x)=>x.department==="Muhasebe ve Finansman"&&x.programName==="Muhasebe ve Finansman"&&x.level==="Tezli Yüksek Lisans");const homework=packages.filter((x)=>x.assessments.some((a)=>/Ödev/iu.test(a.name)));assert.ok(homework.every((x)=>x.workloads.some((r)=>/Ödev/iu.test(r.name))));const publicSource=await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx",import.meta.url),"utf8"),serverSource=await readFile(new URL("../server.mjs",import.meta.url),"utf8");for(const code of ["MUF8XX","MUF805","MUF849","MUF81X"]){assert.match(publicSource,new RegExp(`mergedProcessCourseCodes[\\s\\S]*${code}`));assert.match(serverSource,new RegExp(`trustedMergedPoolCodes[\\s\\S]*${code}`))}assert.match(serverSource,/session\.role === "akademisyen"\) return assignedToUser/u);assert.match(serverSource,/return assignedToUser \|\| \(departmentMatches && poolCourse\)/u)});
 
+test("Muhasebe ve Finansman tezsiz paketleri ve rol havuzu handoff kurallarını karşılar",async()=>{const seed=JSON.parse(await readFile(new URL("../seed/course-packages.json",import.meta.url),"utf8"));const packages=seed.filter((x)=>x.department==="Muhasebe ve Finansman"&&x.programName==="Muhasebe ve Finansman"&&x.level==="Tezsiz Yüksek Lisans");const forbidden=/(quiz|ödev|proje|sunum|konu\s+tekrar[ıi]|genel\s+tekrar|ara\s*sınav|final)/iu;assert.equal(packages.length,35);assert.equal(packages.filter((x)=>x.code==="MUF7XX").length,1);assert.equal(packages.some((x)=>/DANIŞMANLIK|UZMANLIK ALAN/iu.test(x.name)),false);for(const p of packages){assert.equal(p.weeklyTopics.length,15);if(p.code!=="MUF7XX")assert.equal(p.weeklyTopics.some((x)=>forbidden.test(x)),false);assert.equal(p.outcomes.length,5);assert.equal(p.contributionMatrix.length,5);assert.ok(p.contributionMatrix.every((r)=>r.values.length===11&&r.values.every((v)=>v>=1&&v<=5)));assert.equal(p.workloads.reduce((s,r)=>s+r.total,0),p.ects*30);assert.equal(p.qualityChecks.length,21);assert.equal(p.publicQualityChecklist,false)}const publicSource=await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx",import.meta.url),"utf8"),serverSource=await readFile(new URL("../server.mjs",import.meta.url),"utf8");assert.match(publicSource,/mergedProcessCourseCodes[\s\S]*MUF7XX/u);assert.match(serverSource,/trustedMergedPoolCodes[\s\S]*MUF7XX/u);assert.match(serverSource,/session\.role === "akademisyen"\) return assignedToUser/u);assert.match(serverSource,/return assignedToUser \|\| \(departmentMatches && poolCourse\)/u)});
+
 test("Organik Tarım İşletmeciliği tezli YL paketleri handoff kalite kurallarını karşılar",async()=>{const seed=JSON.parse(await readFile(new URL("../seed/course-packages.json",import.meta.url),"utf8"));const packages=seed.filter((x)=>x.department==="Organik Tarım İşletmeciliği ABD"&&x.programName==="Organik Tarım İşletmeciliği"&&x.level==="Tezli Yüksek Lisans");const forbidden=/^(quiz|ödev|proje|sunum|konu tekrarı|genel tekrar|ara\s*sınav|yarıyıl sonu sınavı)$/iu;assert.equal(packages.length,44);for(const code of ["DAN8XX","OTİ8XX","OTİ805","OTİ841","OTİ81X"])assert.equal(packages.filter((x)=>x.code===code).length,1);for(const p of packages){assert.equal(p.weeklyTopics.length,15,`${p.code}: 15 hafta`);assert.equal(p.weeklyTopics.some((x)=>forbidden.test(x)),false);assert.equal(p.outcomes.length,5);assert.equal(p.contributionMatrix.length,5);assert.ok(p.contributionMatrix.every((r)=>r.values.length===11&&r.values.every((v)=>v>=1&&v<=5)));assert.equal(p.workloads.reduce((s,r)=>s+r.total,0),p.ects*30);assert.equal(p.workloads.every((r)=>Number.isInteger(r.hours*2)),true);assert.equal(p.qualityChecks.length,21);assert.equal(p.publicQualityChecklist,false)}assert.equal(packages.filter((x)=>!["DAN8XX","OTİ8XX","OTİ805","OTİ841","OTİ81X"].includes(x.code)&&!x.sourceUrl).length,0)});
 
 test("Organik Tarım ortak havuzu ile ABD başkanı ve akademisyen yetkileri ayrıdır",async()=>{const seed=JSON.parse(await readFile(new URL("../seed/course-packages.json",import.meta.url),"utf8"));const packages=seed.filter((x)=>x.department==="Organik Tarım İşletmeciliği ABD"&&x.programName==="Organik Tarım İşletmeciliği"&&x.level==="Tezli Yüksek Lisans");const homework=packages.filter((x)=>x.assessments.some((a)=>/Ödev/iu.test(a.name)));assert.ok(homework.every((x)=>x.workloads.some((r)=>/Ödev/iu.test(r.name))));const publicSource=await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx",import.meta.url),"utf8"),serverSource=await readFile(new URL("../server.mjs",import.meta.url),"utf8");for(const code of ["OTİ8XX","OTİ805","OTİ841","OTİ81X"]){assert.match(publicSource,new RegExp(`mergedProcessCourseCodes[\\s\\S]*${code}`));assert.match(serverSource,new RegExp(`trustedMergedPoolCodes[\\s\\S]*${code}`))}assert.match(serverSource,/session\.role === "akademisyen"\) return assignedToUser/u);assert.match(serverSource,/return assignedToUser \|\| \(departmentMatches && poolCourse\)/u)});
@@ -1390,4 +1392,36 @@ test("İşletme tezsiz public listesi tekilleştirilmiş dersleri gösterir", as
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
   assert.match(html, /FİNANSAL MUHASEBE/u);
   assert.match(html, /ELEKTRONİK TİCARET HUKUKU/u);
+});
+test("Mühendislik ve Teknoloji Yönetimi tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Mühendislik ve Teknoloji Yönetimi ABD" && item.programName === "Mühendislik ve Teknoloji Yönetimi" && item.level === "Tezsiz Yüksek Lisans");
+  const forbidden = /(quiz|ödev|sunum|konu\s+tekrar[ıi]|genel\s+tekrar|ara\s*sınav|arasınav|vize|yarıyıl\s+sonu\s+sınavı|final)/iu;
+  assert.equal(packages.length, 24);
+  assert.equal(packages.filter((item) => item.code === "MTY7XX").length, 1);
+  assert.equal(packages.some((item) => /DANIŞMANLIK|UZMANLIK ALAN/iu.test(item.name)), false);
+  for (const course of packages) {
+    assert.equal(course.weeklyTopics.length, 15, `${course.code}: 15 hafta`);
+    if (course.code !== "MTY7XX") assert.equal(course.weeklyTopics.some((topic) => forbidden.test(topic)), false, `${course.code}: akademik konu`);
+    assert.equal(course.outcomes.length, 5);
+    assert.equal(course.contributionMatrix.length, 5);
+    assert.ok(course.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)));
+    assert.equal(course.workloads.reduce((sum,row) => sum + row.total, 0), course.ects * 30);
+    assert.equal(course.workloads.every((row) => Number.isInteger(row.hours * 2)), true);
+    assert.equal(course.qualityChecks.length, 21);
+    assert.equal(course.publicQualityChecklist, false);
+    assert.equal(/https?:|@/u.test(course.instructor || ""), false);
+    if (course.assessments.some((item) => /Ödev/iu.test(item.name))) assert.ok(course.workloads.some((row) => /Ödev/iu.test(row.name)));
+  }
+});
+
+test("Mühendislik ve Teknoloji Yönetimi ortak havuzu ile ABD başkanı ve akademisyen yetkileri ayrıdır", async () => {
+  const publicSource = await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx", import.meta.url), "utf8");
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  const roleDashboardSource = await readFile(new URL("../app/panel/RoleDashboard.tsx", import.meta.url), "utf8");
+  assert.match(publicSource, /mergedProcessCourseCodes[\s\S]*MTY7XX/u);
+  assert.match(serverSource, /trustedMergedPoolCodes[\s\S]*MTY7XX/u);
+  assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
+  assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
+  assert.match(roleDashboardSource, /fetchDbpCourses\(\{ limit: 5000 \}/u);
 });
