@@ -138,7 +138,7 @@ export function ReviewQueue({
               <article className="wide"><span>15 haftalık ders planı</span><p>1. Bilim ve araştırma · 2. Araştırma problemi · 3. Literatür taraması · 4. Araştırma desenleri · 5. Örnekleme · 6. Veri toplama · 7. Ara sınav · 8–14. Analiz, raporlama ve etik · 15. Yarıyıl sonu değerlendirmesi</p></article>
               <article><span>Değerlendirme sistemi</span><p>Ara sınav: %40 · Yarıyıl sonu sınavı: %60</p></article>
               <article><span>Dersin yapısı</span><p>Alan bilgisi %60 · Fen bilimleri %20 · Sosyal bilimler %20</p></article>
-              <article className="wide"><span>DÖÇ–PÇ katkı matrisi</span><p>DÖÇ1–DÖÇ5 ile PÇ1–PÇ11 arasındaki 0–5 katkı değerleri tanımlanmıştır.</p></article>
+              <article className="wide"><span>DÖÇ–PÇ katkı matrisi</span><p>DÖÇ1–DÖÇ5 ile PÇ1–PÇ11 arasındaki 1–5 katkı değerleri tanımlanmıştır.</p></article>
               <article className="wide"><span>Sürdürülebilir Kalkınma Amaçları</span><p>Nitelikli Eğitim · Sanayi, Yenilikçilik ve Altyapı · Amaçlar için Ortaklıklar</p></article>
             </div>
             <footer>

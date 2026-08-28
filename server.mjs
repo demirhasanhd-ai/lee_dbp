@@ -48,7 +48,7 @@ let db;
 let eEnstituPgPool;
 let homeInstructorCountCache;
 let homeInstructorCountRefresh;
-let homeInstructorCountRefreshedAt = 0;
+let homeStatsCache;
 
 function openBrowser(url) {
   const child =
@@ -823,18 +823,34 @@ async function loadEEnstituInstructorCount() {
 
 function currentHomeInstructorCount() {
   if (!homeInstructorCountCache) homeInstructorCountCache = loadCourseCatalogInstructorCount();
-  const stale = Date.now() - homeInstructorCountRefreshedAt > 5 * 60 * 1000;
-  if (stale && !homeInstructorCountRefresh) {
+  return homeInstructorCountCache;
+}
+
+function invalidateHomeStatsCache({ instructors = false } = {}) {
+  homeStatsCache = undefined;
+  if (instructors) {
+    homeInstructorCountCache = undefined;
+    homeInstructorCountRefresh = undefined;
+  }
+}
+
+async function refreshHomeInstructorCount() {
+  if (!homeInstructorCountRefresh) {
     homeInstructorCountRefresh = loadEEnstituInstructorCount()
       .then((result) => {
         if (result.count > 0) homeInstructorCountCache = result;
-        homeInstructorCountRefreshedAt = Date.now();
+        return homeInstructorCountCache || loadCourseCatalogInstructorCount();
       })
       .finally(() => {
-        homeInstructorCountRefresh = null;
+        homeInstructorCountRefresh = undefined;
       });
   }
-  return homeInstructorCountCache;
+  return homeInstructorCountRefresh;
+}
+
+async function cachedHomeStats() {
+  if (!homeStatsCache) homeStatsCache = await homeStats();
+  return homeStatsCache;
 }
 
 function isUnsupportedTezsizProcessCourse(course = {}) {
@@ -899,6 +915,7 @@ const ekonomiFinansTezsizProjectCodes = new Set(["İKT701", "İKT702"]);
 const enerjiTezsizProjectCodes = new Set(["EPY701", "EPY702"]);
 const gastronomiTezsizProjectCodes = new Set(["GMS701", "GMS702"]);
 const gidaTeknolojisiTezsizProjectCodes = new Set(["GTB701", "GTB702"]);
+const isletmeTezsizProjectCodes = new Set(["ISL701", "ISL702"]);
 const biyolojiYlAdvisoryCodes = new Set(["DAN801", "DAN802", "DAN803", "DAN804"]);
 const biyolojiYlSpecializationCodes = new Set(["BİO801", "BİO802", "BİO803", "BİO804"]);
 const biyolojiYlSeminarCodes = new Set(["BİO805", "BİO806"]);
@@ -1101,6 +1118,7 @@ function canonicalCourseCode(code = "") {
   if (enerjiTezsizProjectCodes.has(normalizedCode)) return "EPY7XX";
   if (gastronomiTezsizProjectCodes.has(normalizedCode)) return "GMS7XX";
   if (gidaTeknolojisiTezsizProjectCodes.has(normalizedCode)) return "GTB7XX";
+  if (isletmeTezsizProjectCodes.has(normalizedCode)) return "ISL7XX";
   if (normalizedCode === "GMS704") return "GMS703";
   if (arkeolojiYlSpecializationCodes.has(normalizedCode)) return "ARK8XX";
   if (arkeolojiYlSeminarCodes.has(normalizedCode)) return "ARK806";
@@ -1271,6 +1289,7 @@ function courseCodeCandidates(code = "") {
   if (canonical === "EPY7XX") for (const alias of enerjiTezsizProjectCodes) candidates.add(alias);
   if (canonical === "GMS7XX") for (const alias of gastronomiTezsizProjectCodes) candidates.add(alias);
   if (canonical === "GTB7XX") for (const alias of gidaTeknolojisiTezsizProjectCodes) candidates.add(alias);
+  if (canonical === "ISL7XX") for (const alias of isletmeTezsizProjectCodes) candidates.add(alias);
   if (canonical === "GMS703") candidates.add("GMS704");
   if (canonical === "ARK8XX") for (const alias of arkeolojiYlSpecializationCodes) candidates.add(alias);
   if (canonical === "ARK806") for (const alias of arkeolojiYlSeminarCodes) candidates.add(alias);
@@ -1852,6 +1871,21 @@ function normalizeGidaTeknolojisiTezsizCourse(course = {}) {
   return course;
 }
 
+function normalizeIsletmeTezsizCourse(course = {}) {
+  const applies = levelKey(course.level) === "tezsiz yl" &&
+    normalizeScope(course.department || "") === normalizeScope("İşletme") &&
+    normalizeScope(course.programName || course.program_name || "") === normalizeScope("İşletme");
+  if (!applies) return course;
+  const code = repairText(course.code || "").trim().toLocaleUpperCase("tr-TR");
+  if (isletmeTezsizProjectCodes.has(code)) {
+    return code === "ISL701"
+      ? { ...course, code:"ISL7XX", name:"BİTİRME PROJESİ", ects:30, instructor:"Öğrencinin Proje Danışmanı" }
+      : null;
+  }
+  if (code === "ISL704") return null;
+  return course;
+}
+
 function normalizeAileTezsizCourse(course = {}) {
   const applies = levelKey(course.level) === "tezsiz yl" &&
     normalizeScope(course.department || "") === normalizeScope("Aile Danışmanlığı ve Eğitimi ABD") &&
@@ -2240,6 +2274,9 @@ function normalizeSeedCourse(course = {}) {
   const gidaTeknolojisiTezsizCourse = normalizeGidaTeknolojisiTezsizCourse(repaired);
   if (!gidaTeknolojisiTezsizCourse) return null;
   if (gidaTeknolojisiTezsizCourse !== repaired) return gidaTeknolojisiTezsizCourse;
+  const isletmeTezsizCourse = normalizeIsletmeTezsizCourse(repaired);
+  if (!isletmeTezsizCourse) return null;
+  if (isletmeTezsizCourse !== repaired) return isletmeTezsizCourse;
   const biyolojiCourse = normalizeBiyolojiTezliCourse(repaired);
   if (!biyolojiCourse) return null;
   if (biyolojiCourse !== repaired) return biyolojiCourse;
@@ -2471,6 +2508,7 @@ function canEditCoursePackage(session, body, rows) {
     trustedMergedPoolCodes.add("EPY7XX");
     trustedMergedPoolCodes.add("GMS7XX");
     trustedMergedPoolCodes.add("GTB7XX");
+    trustedMergedPoolCodes.add("ISL7XX");
     for (const code of ["DAN9XX", "BİO9XX", "BİO909", "BİO917", "BİO91X", "EMB9XX", "EMB909", "EMB917", "EMB91X", "FZK9XX", "FZK909", "FZK917", "FZK91X", "GMB9XX", "GMB909", "GMB917", "GMB91X", "İNŞ9XX", "İNŞ909", "İNŞ917", "İNŞ91X", "ISL9XX", "ISL909", "ISL917", "ISL91X", "KİM9XX", "KİM909", "KİM917", "KİM91X", "MMB9XX", "MMB909", "MMB917", "MMB91X", "SKY9XX", "SKY909", "SKY917", "SKY91X", "TDE9XX", "TDE910", "TDE917", "TDE91X"]) trustedMergedPoolCodes.add(code);
     for (const code of ["TDE8XX", "TDE805", "TDE81X", "YBS8XX", "YBS805", "YBS81X", "YON8XX", "YON805", "YON841", "YON81X"]) trustedMergedPoolCodes.add(code);
     const poolCourse = rows.some(isDepartmentPoolCourseRecord) ||
@@ -3206,6 +3244,9 @@ function normalizeDbCourseForList(course = {}) {
   const gidaTeknolojisiTezsizCourse = normalizeGidaTeknolojisiTezsizCourse(repaired);
   if (!gidaTeknolojisiTezsizCourse) return null;
   if (gidaTeknolojisiTezsizCourse !== repaired) return gidaTeknolojisiTezsizCourse;
+  const isletmeTezsizCourse = normalizeIsletmeTezsizCourse(repaired);
+  if (!isletmeTezsizCourse) return null;
+  if (isletmeTezsizCourse !== repaired) return isletmeTezsizCourse;
   const biyolojiCourse = normalizeBiyolojiTezliCourse(repaired);
   if (!biyolojiCourse) return null;
   if (biyolojiCourse !== repaired) return biyolojiCourse;
@@ -4867,7 +4908,7 @@ async function handleDbpApi(request) {
     }
 
     if (pathname === "/api/dbp/home-stats" && request.method === "GET") {
-      return jsonResponse(await homeStats());
+      return jsonResponse(await cachedHomeStats());
     }
 
     if (pathname === "/api/dbp/quality-stats" && request.method === "GET") {
@@ -4900,6 +4941,8 @@ async function handleDbpApi(request) {
         `).run(body.instructor || "", now, code, body.department, body.programName, level);
         if (!result.changes) return jsonResponse({ message: "Atama yapılacak ders kaydı bulunamadı." }, { status: 404 });
         audit("course.assignment.update", actor, { code, department: body.department, programName: body.programName, level });
+        invalidateHomeStatsCache({ instructors: true });
+        await refreshHomeInstructorCount();
         return jsonResponse({ ok: true, changed: result.changes });
       }
       const existing = db.prepare(`SELECT id FROM courses WHERE code = ? AND department = ? AND program_name = ? AND level = ?`)
@@ -4910,6 +4953,8 @@ async function handleDbpApi(request) {
         VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 'Taslak', ?, 'lee_ogrenci_isleri', '{}', ?, ?)
       `).run(body.academicYear || "2026-2027", body.department, body.programName, level, code, repairText(String(body.name || "")).trim(), body.type || "Seçmeli", Number(body.credit || 0), Number(body.ects || 0), Number(body.theory || 0), Number(body.practice || 0), body.instructor || "", now, now);
       audit("course.create", actor, { code, department: body.department, programName: body.programName, level });
+      invalidateHomeStatsCache({ instructors: true });
+      await refreshHomeInstructorCount();
       return jsonResponse({ ok: true });
     }
 
@@ -5028,6 +5073,7 @@ async function handleDbpApi(request) {
         );
       }
       audit("course.package.save", actor, { code: body.code, department: body.department || "", level });
+      invalidateHomeStatsCache();
       return jsonResponse({ ok: true, summary: { courses: countRows("courses") } });
     }
 
@@ -5045,6 +5091,7 @@ async function handleDbpApi(request) {
       const statement = db.prepare("UPDATE courses SET status = ?, updated_at = ? WHERE id = ?");
       for (const row of rows) statement.run(status, now, row.id);
       audit("course.package.status", auth.session.username || auth.session.name || "dbp-user", { code: body.code, status });
+      invalidateHomeStatsCache();
       return jsonResponse({ ok: true, status });
     }
 
@@ -5128,6 +5175,8 @@ async function handleDbpApi(request) {
     if (pathname === "/api/dbp/admin/restore" && request.method === "POST") {
       const body = await readJsonBody(request);
       await restoreBackup(body.fileName, actor);
+      invalidateHomeStatsCache({ instructors: true });
+      await refreshHomeInstructorCount();
       return jsonResponse({ ok: true, summary: await adminSummary() });
     }
 
@@ -5135,6 +5184,8 @@ async function handleDbpApi(request) {
       const payload = await readJsonBody(request);
       await writeBackup(actor);
       replaceFromExport(payload, actor);
+      invalidateHomeStatsCache({ instructors: true });
+      await refreshHomeInstructorCount();
       return jsonResponse({ ok: true, summary: await adminSummary() });
     }
 
@@ -5145,6 +5196,8 @@ async function handleDbpApi(request) {
       }
       await writeBackup(actor);
       resetDatabase(actor);
+      invalidateHomeStatsCache({ instructors: true });
+      await refreshHomeInstructorCount();
       return jsonResponse({ ok: true, summary: await adminSummary() });
     }
 
@@ -5154,6 +5207,8 @@ async function handleDbpApi(request) {
       syncCourseCatalogFromSeed();
       seedProgramProfiles(true);
       ensureTestProgramData();
+      invalidateHomeStatsCache({ instructors: true });
+      await refreshHomeInstructorCount();
       return jsonResponse({ ok: true, summary: await adminSummary() });
     }
 
@@ -5311,7 +5366,7 @@ homeInstructorCountCache = {
   count: new Set(initialInstructorCatalog.instructors.map((item) => normalizeInstructorScope(item.name || "")).filter(Boolean)).size,
   source: initialInstructorCatalog.source,
 };
-homeInstructorCountRefreshedAt = Date.now();
+homeStatsCache = await homeStats();
 
 createServer(async (req, res) => {
   try {

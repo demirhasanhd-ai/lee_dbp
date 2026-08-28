@@ -118,6 +118,10 @@ function serializeForm(form: HTMLFormElement) {
 
 const emptyOutcomes = () => Array.from({ length: fixedOutcomeCount }, () => "");
 const emptyWeeklyTopics = () => Object.fromEntries(weeks.map((week) => [week, ""])) as Record<number, string>;
+const normalizeContributionRows = (rows: Record<string, number>[]) =>
+  rows.map((row) => Object.fromEntries(
+    Object.entries(row).map(([key, score]) => [key, Math.min(5, Math.max(1, Number(score) || 1))]),
+  ));
 const emptyStructures = () => Object.fromEntries(structures.map((item) => [item, 0])) as Record<string, number>;
 const structuresForCourse = (course: CourseIdentity) => {
   const values = emptyStructures();
@@ -237,11 +241,6 @@ export function CourseBolognaEditor({
   onSave: () => void;
   onPublish: () => void;
 }) {
-  const usesOneToFiveContributionScale =
-    ((course.department || "").toLocaleLowerCase("tr-TR").includes("yönetim bilişim sistemleri") &&
-      course.level.toLocaleLowerCase("tr-TR").includes("doktora")) ||
-    ["batarya sistemleri", "beden eğitimi ve spor", "biyoloji", "ebelik", "ekoturizm", "gastronomi ve mutfak sanatları", "gıda teknolojisi"].some((scope) =>
-      (course.department || "").toLocaleLowerCase("tr-TR").includes(scope));
   const [workflowStatus, setWorkflowStatus] = useState("Taslak");
   const [identity, setIdentity] = useState(() => defaultIdentity(course));
   const [detailFields, setDetailFields] = useState(defaultDetailFields);
@@ -286,7 +285,7 @@ export function CourseBolognaEditor({
       setWorkloads(Object.fromEntries(value.workloads.map((item) => [item.name, { count: item.count, hours: item.hours }])));
       setWeeklyTopics(Object.fromEntries(value.weeklyTopics.map((item, index) => [index + 1, item])));
       setStructureValues(structuresForCourse(course));
-      setContributionMatrix(value.contributionMatrix.map((row) => Object.fromEntries(row.values.map((score, index) => [`P${index + 1}`, score]))));
+      setContributionMatrix(normalizeContributionRows(value.contributionMatrix.map((row) => Object.fromEntries(row.values.map((score, index) => [`P${index + 1}`, score])))));
       setSdgs(value.sdgs);
       setNextAssessment(value.assessments.length + 1);
       setWorkflowStatus("Mevcut Paket");
@@ -301,7 +300,7 @@ export function CourseBolognaEditor({
       if (stored.workloads && typeof stored.workloads === "object") setWorkloads(stored.workloads as Record<string, Workload>);
       if (stored.weeklyTopics && typeof stored.weeklyTopics === "object") setWeeklyTopics(stored.weeklyTopics as Record<number, string>);
       if (stored.structureValues && typeof stored.structureValues === "object" && Object.keys(stored.structureValues).length > 0) setStructureValues(stored.structureValues as Record<string, number>);
-      if (Array.isArray(stored.contributionMatrix)) setContributionMatrix(stored.contributionMatrix as Record<string, number>[]);
+      if (Array.isArray(stored.contributionMatrix)) setContributionMatrix(normalizeContributionRows(stored.contributionMatrix as Record<string, number>[]));
       if (Array.isArray(stored.sdgs)) setSdgs(stored.sdgs as string[]);
       setWorkflowStatus(status || "Taslak");
     };
@@ -510,7 +509,7 @@ export function CourseBolognaEditor({
       setStructureValues((current) => ({ ...current, ...obsDraft.structures }));
     }
     if (obsDraft.contributionMatrix.length && (mode === "overwrite" || contributionMatrix.length === 0)) {
-      setContributionMatrix(obsDraft.contributionMatrix);
+      setContributionMatrix(normalizeContributionRows(obsDraft.contributionMatrix));
     }
     setObsOpen(false);
   };
@@ -763,7 +762,7 @@ export function CourseBolognaEditor({
       </section>
       <section className="course-form-card">
         <h3>Dersin Program Çıktılarına Katkısı</h3>
-        <p className="form-help">Her öğrenme çıktısının PÇ1-PÇ11 program çıktılarına katkısını {usesOneToFiveContributionScale ? "1-5" : "0-5"} arasında belirtin.</p>
+        <p className="form-help">Her öğrenme çıktısının PÇ1-PÇ11 program çıktılarına katkısını 1-5 arasında belirtin.</p>
         <div className="contribution-wrap">
           <table>
             <thead>
@@ -782,14 +781,13 @@ export function CourseBolognaEditor({
                       <td key={i}>
                         <select
                           aria-label={`ÖÇ${outcome + 1} P${i + 1} katkısı`}
-                          value={String(contributionMatrix[outcome]?.[key] ?? (usesOneToFiveContributionScale ? 1 : 0))}
+                          value={String(contributionMatrix[outcome]?.[key] ?? 1)}
                           onChange={(event) => setContributionMatrix((current) => {
                             const next = [...current];
                             next[outcome] = { ...(next[outcome] || {}), [key]: Number(event.target.value) };
                             return next;
                           })}
                         >
-                          {!usesOneToFiveContributionScale && <option>0</option>}
                           <option>1</option>
                           <option>2</option>
                           <option>3</option>

@@ -27,10 +27,8 @@ export function HomeLiveStats() {
         });
     };
     loadStats();
-    const refreshTimer = window.setInterval(loadStats, 60_000);
     return () => {
       controller.abort();
-      window.clearInterval(refreshTimer);
     };
   }, []);
 

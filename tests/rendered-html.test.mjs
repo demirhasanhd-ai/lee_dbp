@@ -54,7 +54,10 @@ test("ana sayfa genel istatistikleri canlı DB ve mevcut akademisyen kaynağınd
   assert.match(pageSource, /<HomeLiveStats\s*\/>/u);
   assert.match(liveStatsSource, /\/api\/dbp\/home-stats/u);
   assert.match(liveStatsSource, /data-stats-source/u);
+  assert.doesNotMatch(liveStatsSource, /setInterval/u);
   assert.match(serverSource, /pathname === "\/api\/dbp\/home-stats"/u);
+  assert.match(serverSource, /cachedHomeStats/u);
+  assert.match(serverSource, /invalidateHomeStatsCache/u);
   assert.match(serverSource, /loadEEnstituInstructorOptions\(\)/u);
   assert.match(serverSource, /source: "database"/u);
 });
@@ -188,6 +191,8 @@ test("course editing and public display use the persisted package workflow", asy
   assert.match(editor, /api\/dbp\/course-package/u);
   assert.match(editor, /length: 11/u);
   assert.doesNotMatch(editor, /P1-P13|length: 13/u);
+  assert.match(editor, /katkısını 1-5 arasında belirtin/u);
+  assert.doesNotMatch(editor, /<option>0<\/option>/u);
   assert.match(publicPackage, /public: "1"/u);
   assert.match(server, /canEditCoursePackage/u);
   assert.match(server, /course\.package\.status/u);
@@ -1340,4 +1345,49 @@ test("Gıda Teknolojisi tezsiz public listesi tekilleştirilmiş dersleri göste
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
   assert.match(html, /GELENEKSEL VE MODERN MUHAFAZA YÖNTEMLERİ/u);
   assert.match(html, /ÇEVRE VE İNSAN/u);
+});
+
+test("İşletme tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "İşletme" && item.programName === "İşletme" && item.level === "Tezsiz Yüksek Lisans");
+  const forbidden = /(quiz|ödev|sunum|konu\s+tekrar[ıi]|genel\s+tekrar|ara\s*sınav|arasınav|vize|yarıyıl\s+sonu\s+sınavı|final)/iu;
+  assert.equal(packages.length, 28, "27 akademik ders ve bir Bitirme Projesi");
+  assert.equal(packages.some((item) => /^(?:DANIŞMANLIK|UZMANLIK ALAN DERSİ)$/iu.test(item.name)), false);
+  assert.deepEqual(packages.find((item) => item.code === "ISL7XX").aliases, ["ISL701", "ISL702"]);
+  assert.deepEqual(packages.find((item) => item.code === "ISL703").aliases, ["ISL703", "ISL704"]);
+  for (const course of packages) {
+    assert.equal(course.weeklyTopics.length, 15, `${course.code}: 15 hafta`);
+    if (course.code !== "ISL7XX") assert.equal(course.weeklyTopics.some((topic) => forbidden.test(topic)), false, `${course.code}: akademik konu`);
+    assert.equal(course.outcomes.length, 5, `${course.code}: beş DÖÇ`);
+    assert.ok(course.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)), `${course.code}: mevcut 11 PÇ ve 1-5 katkı`);
+    assert.equal(course.workloads.reduce((sum, row) => sum + row.total, 0), course.ects * 30, `${course.code}: 30 saat/AKTS`);
+    assert.equal(course.workloads.every((row) => Number.isInteger(row.hours * 2)), true, `${course.code}: tam/yarım saat`);
+    assert.equal(course.assessments.some((item) => /Ödev/iu.test(item.name)) && !course.workloads.some((item) => /Ödev/iu.test(item.name)), false, `${course.code}: ödev iş yükünde`);
+    assert.equal(course.qualityChecks.length, 21, `${course.code}: iç kontrol`);
+    assert.equal(course.publicQualityChecklist, false, `${course.code}: kontrol public değil`);
+  }
+});
+
+test("İşletme tezsiz Bitirme Projesi ortak havuz ve rol ayrımını korur", async () => {
+  const publicSource = await readFile(new URL("../app/programlar/[slug]/ProgramCourses.tsx", import.meta.url), "utf8");
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  assert.match(publicSource, /mergedProcessCourseCodes[\s\S]*ISL7XX/u);
+  assert.match(serverSource, /trustedMergedPoolCodes[\s\S]*ISL7XX/u);
+  assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
+  assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
+});
+
+test("İşletme tezsiz public listesi tekilleştirilmiş dersleri gösterir", async () => {
+  const response = await render({}, "/dbp/programlar/isletme-isletme?programKey=isletme-isletme&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /Ortak \/ Süreç Dersleri/u);
+  assert.match(html, /ISL7XX/u);
+  assert.match(html, /BİTİRME PROJESİ/u);
+  assert.doesNotMatch(html, />ISL702</u);
+  assert.doesNotMatch(html, />ISL704</u);
+  assert.doesNotMatch(html, />DANIŞMANLIK</u);
+  assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
+  assert.match(html, /FİNANSAL MUHASEBE/u);
+  assert.match(html, /ELEKTRONİK TİCARET HUKUKU/u);
 });

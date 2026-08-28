@@ -74,6 +74,8 @@ const sourceFiles = new Map([
   ["./insaatMuhendisligiCommonCoursePackages", path.join(rootDir, "lib", "data", "insaatMuhendisligiCommonCoursePackages.ts")],
   ["./insaatMuhendisligiDoktoraCoursePackages", path.join(rootDir, "lib", "data", "insaatMuhendisligiDoktoraCoursePackages.ts")],
   ["./insaatMuhendisligiDoktoraCommonCoursePackages", path.join(rootDir, "lib", "data", "insaatMuhendisligiDoktoraCommonCoursePackages.ts")],
+  ["./isletmeTezsizCoursePackages", path.join(rootDir, "lib", "data", "isletmeTezsizCoursePackages.ts")],
+  ["./isletmeTezsizCommonCoursePackages", path.join(rootDir, "lib", "data", "isletmeTezsizCommonCoursePackages.ts")],
   ["./isletmeTezliCoursePackages", path.join(rootDir, "lib", "data", "isletmeTezliCoursePackages.ts")],
   ["./isletmeCommonCoursePackages", path.join(rootDir, "lib", "data", "isletmeCommonCoursePackages.ts")],
   ["./isletmeDoktoraCoursePackages", path.join(rootDir, "lib", "data", "isletmeDoktoraCoursePackages.ts")],

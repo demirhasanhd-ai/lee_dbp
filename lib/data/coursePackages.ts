@@ -114,6 +114,8 @@ import { insaatMuhendisligiTezliCoursePackages } from "./insaatMuhendisligiTezli
 import { insaatMuhendisligiCommonCoursePackages } from "./insaatMuhendisligiCommonCoursePackages";
 import { insaatMuhendisligiDoktoraCoursePackages } from "./insaatMuhendisligiDoktoraCoursePackages";
 import { insaatMuhendisligiDoktoraCommonCoursePackages } from "./insaatMuhendisligiDoktoraCommonCoursePackages";
+import { isletmeTezsizCoursePackages } from "./isletmeTezsizCoursePackages";
+import { isletmeTezsizCommonCoursePackages } from "./isletmeTezsizCommonCoursePackages";
 import { isletmeTezliCoursePackages } from "./isletmeTezliCoursePackages";
 import { isletmeCommonCoursePackages } from "./isletmeCommonCoursePackages";
 import { isletmeDoktoraCoursePackages } from "./isletmeDoktoraCoursePackages";
@@ -728,6 +730,8 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...insaatMuhendisligiCommonCoursePackages,
   ...insaatMuhendisligiDoktoraCoursePackages,
   ...insaatMuhendisligiDoktoraCommonCoursePackages,
+  ...isletmeTezsizCoursePackages,
+  ...isletmeTezsizCommonCoursePackages,
   ...isletmeTezliCoursePackages,
   ...isletmeCommonCoursePackages,
   ...isletmeDoktoraCoursePackages,

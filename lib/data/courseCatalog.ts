@@ -102,6 +102,7 @@ const EKONOMI_FINANS_TEZSIZ_PROJECT_CODES = new Set(["İKT701", "İKT702"]);
 const ENERJI_TEZSIZ_PROJECT_CODES = new Set(["EPY701", "EPY702"]);
 const GASTRONOMI_TEZSIZ_PROJECT_CODES = new Set(["GMS701", "GMS702"]);
 const GIDA_TEKNOLOJISI_TEZSIZ_PROJECT_CODES = new Set(["GTB701", "GTB702"]);
+const ISLETME_TEZSIZ_PROJECT_CODES = new Set(["ISL701", "ISL702"]);
 const BIYOLOJI_YL_SPECIALIZATION_CODES = new Set(["BİO801", "BİO802", "BİO803", "BİO804"]);
 const BIYOLOJI_YL_SEMINAR_CODES = new Set(["BİO805", "BİO806"]);
 const BIYOLOJI_YL_RESEARCH_CODES = new Set(["BİO809", "BİO810"]);
@@ -519,6 +520,18 @@ const normalizeGidaTeknolojisiTezsizCourse = (course: OfficialCourse): OfficialC
   return course;
 };
 
+const normalizeIsletmeTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  const applies = course.department === "İşletme" && course.programName === "İşletme" && course.level === "Tezsiz Yüksek Lisans";
+  if (!applies) return course;
+  if (ISLETME_TEZSIZ_PROJECT_CODES.has(course.code)) {
+    return course.code === "ISL701"
+      ? withAdvisor({ ...course, code:"ISL7XX", name:"BİTİRME PROJESİ", ects:30 })
+      : null;
+  }
+  if (course.code === "ISL704") return null;
+  return course;
+};
+
 const normalizeAileTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
   const applies = course.department === "Aile Danışmanlığı ve Eğitimi ABD" &&
     course.programName === "Aile Danışmanlığı ve Eğitimi" && course.level === "Tezsiz Yüksek Lisans";
@@ -928,6 +941,9 @@ export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((
   const gidaTeknolojisiTezsizCourse = normalizeGidaTeknolojisiTezsizCourse(course);
   if (!gidaTeknolojisiTezsizCourse) return [];
   course = gidaTeknolojisiTezsizCourse;
+  const isletmeTezsizCourse = normalizeIsletmeTezsizCourse(course);
+  if (!isletmeTezsizCourse) return [];
+  course = isletmeTezsizCourse;
   const biyolojiCourse = normalizeBiyolojiTezliCourse(course);
   if (!biyolojiCourse) return [];
   course = biyolojiCourse;
