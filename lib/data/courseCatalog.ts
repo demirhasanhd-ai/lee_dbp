@@ -105,6 +105,11 @@ const GIDA_TEKNOLOJISI_TEZSIZ_PROJECT_CODES = new Set(["GTB701", "GTB702"]);
 const ISLETME_TEZSIZ_PROJECT_CODES = new Set(["ISL701", "ISL702"]);
 const MUHASEBE_FINANSMAN_TEZSIZ_PROJECT_CODES = new Set(["MUF701", "MUF702"]);
 const MUHENDISLIK_TEKNOLOJI_YONETIMI_TEZSIZ_PROJECT_CODES = new Set(["MTY702"]);
+const ORGANIK_TARIM_ISLETMECILIGI_TEZSIZ_PROJECT_CODES = new Set(["OTİ701", "OTİ702"]);
+const RESIM_TEZSIZ_PROJECT_CODES = new Set(["RES701", "RES702"]);
+const SIYASET_KAMU_TEZSIZ_PROJECT_CODES = new Set(["SKY701", "SKY702"]);
+const TARIH_TEZSIZ_PROJECT_CODES = new Set(["TTS701", "TTS702"]);
+const TURK_DILI_EDEBIYATI_TEZSIZ_PROJECT_CODES = new Set(["TDE701", "TDE702"]);
 const BIYOLOJI_YL_SPECIALIZATION_CODES = new Set(["BİO801", "BİO802", "BİO803", "BİO804"]);
 const BIYOLOJI_YL_SEMINAR_CODES = new Set(["BİO805", "BİO806"]);
 const BIYOLOJI_YL_RESEARCH_CODES = new Set(["BİO809", "BİO810"]);
@@ -550,6 +555,42 @@ const normalizeMuhendislikTeknolojiYonetimiTezsizCourse = (course: OfficialCours
   return course;
 };
 
+const normalizeOrganikTarimIsletmeciligiTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  if (course.department !== "Organik Tarım İşletmeciliği ABD" || course.programName !== "Organik Tarım İşletmeciliği" || course.level !== "Tezsiz Yüksek Lisans") return course;
+  if (/DANIŞMANLIK|UZMANLIK ALAN/iu.test(course.name) || /^DAN7/u.test(course.code)) return null;
+  if (ORGANIK_TARIM_ISLETMECILIGI_TEZSIZ_PROJECT_CODES.has(course.code)) return course.code === "OTİ702" ? withAdvisor({ ...course, code:"OTİ7XX", name:"BİTİRME PROJESİ", ects:30 }) : null;
+  if (course.code === "OTİ704") return null;
+  return course;
+};
+
+const normalizeResimTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  if (course.department !== "Resim ASD" || course.programName !== "Resim" || course.level !== "Tezsiz Yüksek Lisans") return course;
+  if (/DANIŞMANLIK|UZMANLIK ALAN/iu.test(course.name) || /^DAN7/u.test(course.code)) return null;
+  if (RESIM_TEZSIZ_PROJECT_CODES.has(course.code)) return course.code === "RES701" ? withAdvisor({ ...course, code:"RES7XX", name:"BİTİRME PROJESİ", ects:30 }) : null;
+  return course;
+};
+
+const normalizeSiyasetKamuTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  if (course.department !== "Siyaset Bilimi ve Kamu Yönetimi ABD" || course.programName !== "Siyaset Bilimi ve Kamu Yönetimi" || course.level !== "Tezsiz Yüksek Lisans") return course;
+  if (/DANIŞMANLIK|UZMANLIK ALAN/iu.test(course.name) || /^DAN7/u.test(course.code)) return null;
+  if (SIYASET_KAMU_TEZSIZ_PROJECT_CODES.has(course.code)) return course.code === "SKY701" ? withAdvisor({ ...course, code:"SKY7XX", name:"BİTİRME PROJESİ", ects:30 }) : null;
+  return course;
+};
+
+const normalizeTarihTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  if (course.department !== "Tarih ABD" || course.programName !== "Tarih" || course.level !== "Tezsiz Yüksek Lisans") return course;
+  if (/DANIŞMANLIK|UZMANLIK ALAN/iu.test(course.name) || /^DAN7/u.test(course.code)) return null;
+  if (TARIH_TEZSIZ_PROJECT_CODES.has(course.code)) return course.code === "TTS701" ? withAdvisor({ ...course, code:"TTS7XX", name:"BİTİRME PROJESİ", ects:30 }) : null;
+  return course;
+};
+
+const normalizeTurkDiliEdebiyatiTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  if (course.department !== "Türk Dili ve Edebiyatı ABD" || course.programName !== "Türk Dili ve Edebiyatı" || course.level !== "Tezsiz Yüksek Lisans") return course;
+  if (/DANIŞMANLIK|UZMANLIK ALAN/iu.test(course.name) || /^DAN7/u.test(course.code)) return null;
+  if (TURK_DILI_EDEBIYATI_TEZSIZ_PROJECT_CODES.has(course.code)) return course.code === "TDE701" ? withAdvisor({ ...course, code:"TDE7XX", name:"BİTİRME PROJESİ", ects:30 }) : null;
+  return course;
+};
+
 const normalizeAileTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
   const applies = course.department === "Aile Danışmanlığı ve Eğitimi ABD" &&
     course.programName === "Aile Danışmanlığı ve Eğitimi" && course.level === "Tezsiz Yüksek Lisans";
@@ -968,6 +1009,21 @@ export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((
   const muhendislikTeknolojiYonetimiTezsizCourse = normalizeMuhendislikTeknolojiYonetimiTezsizCourse(course);
   if (!muhendislikTeknolojiYonetimiTezsizCourse) return [];
   course = muhendislikTeknolojiYonetimiTezsizCourse;
+  const organikTarimIsletmeciligiTezsizCourse = normalizeOrganikTarimIsletmeciligiTezsizCourse(course);
+  if (!organikTarimIsletmeciligiTezsizCourse) return [];
+  course = organikTarimIsletmeciligiTezsizCourse;
+  const resimTezsizCourse = normalizeResimTezsizCourse(course);
+  if (!resimTezsizCourse) return [];
+  course = resimTezsizCourse;
+  const siyasetKamuTezsizCourse = normalizeSiyasetKamuTezsizCourse(course);
+  if (!siyasetKamuTezsizCourse) return [];
+  course = siyasetKamuTezsizCourse;
+  const tarihTezsizCourse = normalizeTarihTezsizCourse(course);
+  if (!tarihTezsizCourse) return [];
+  course = tarihTezsizCourse;
+  const turkDiliEdebiyatiTezsizCourse = normalizeTurkDiliEdebiyatiTezsizCourse(course);
+  if (!turkDiliEdebiyatiTezsizCourse) return [];
+  course = turkDiliEdebiyatiTezsizCourse;
   const biyolojiCourse = normalizeBiyolojiTezliCourse(course);
   if (!biyolojiCourse) return [];
   course = biyolojiCourse;
@@ -1082,7 +1138,12 @@ export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((
       (course.code === "DAN902" &&
         (course.programName.includes("Yönetim Bilişim") ||
           course.programName.includes("YÃ¶netim BiliÅŸim"))));
-  if (!isYbsDoctorate) return [{ ...course, instructor: sanitizeInstructorName(course.instructor || "") }];
+  if (!isYbsDoctorate) {
+    const instructor = course.level === "Tezsiz Yüksek Lisans" && ["bitirme projesi", "dönem projesi"].includes(course.name.trim().toLocaleLowerCase("tr-TR"))
+      ? "Öğrencinin Danışmanı"
+      : sanitizeInstructorName(course.instructor || "");
+    return [{ ...course, instructor }];
+  }
   const normalized = normalizeYbsDoctorateCourse(course);
   return normalized ? [{ ...normalized, instructor: sanitizeInstructorName(normalized.instructor || "") }] : [];
 });

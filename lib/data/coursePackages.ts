@@ -39,6 +39,7 @@ export type CoursePackage = {
 };
 
 export const sanitizeInstructorName = (value = "") => value
+  .replace(/Öğrencinin Proje Danışmanı/giu, "Öğrencinin Danışmanı")
   .replace(/\bYrd\.?\s*Doç\.?\s*Dr\.?\b/giu, "Dr. Öğr. Üyesi")
   .replace(/(?:https?:\/\/|www\.)\S+/giu, " ")
   .replace(/\b(?:akbis\.)?osmaniye\.edu\.tr\/\S+/giu, " ")
@@ -136,12 +137,22 @@ import { muhendislikTeknolojiYonetimiTezsizCoursePackages } from "./muhendislikT
 import { muhendislikTeknolojiYonetimiTezsizCommonCoursePackages } from "./muhendislikTeknolojiYonetimiTezsizCommonCoursePackages";
 import { organikTarimIsletmeciligiTezliCoursePackages } from "./organikTarimIsletmeciligiTezliCoursePackages";
 import { organikTarimIsletmeciligiCommonCoursePackages } from "./organikTarimIsletmeciligiCommonCoursePackages";
+import { organikTarimIsletmeciligiTezsizCoursePackages } from "./organikTarimIsletmeciligiTezsizCoursePackages";
+import { organikTarimIsletmeciligiTezsizCommonCoursePackages } from "./organikTarimIsletmeciligiTezsizCommonCoursePackages";
+import { resimTezsizCoursePackages } from "./resimTezsizCoursePackages";
+import { resimTezsizCommonCoursePackages } from "./resimTezsizCommonCoursePackages";
 import { resimTezliCoursePackages } from "./resimTezliCoursePackages";
 import { resimCommonCoursePackages } from "./resimCommonCoursePackages";
+import { siyasetKamuYonetimiTezsizCoursePackages } from "./siyasetKamuYonetimiTezsizCoursePackages";
+import { siyasetKamuYonetimiTezsizCommonCoursePackages } from "./siyasetKamuYonetimiTezsizCommonCoursePackages";
 import { siyasetKamuYonetimiTezliCoursePackages } from "./siyasetKamuYonetimiTezliCoursePackages";
 import { siyasetKamuYonetimiCommonCoursePackages } from "./siyasetKamuYonetimiCommonCoursePackages";
 import { siyasetKamuYonetimiDoktoraCoursePackages } from "./siyasetKamuYonetimiDoktoraCoursePackages";
 import { siyasetKamuYonetimiDoktoraCommonCoursePackages } from "./siyasetKamuYonetimiDoktoraCommonCoursePackages";
+import { tarihTezsizCoursePackages } from "./tarihTezsizCoursePackages";
+import { tarihTezsizCommonCoursePackages } from "./tarihTezsizCommonCoursePackages";
+import { turkDiliEdebiyatiTezsizCoursePackages } from "./turkDiliEdebiyatiTezsizCoursePackages";
+import { turkDiliEdebiyatiTezsizCommonCoursePackages } from "./turkDiliEdebiyatiTezsizCommonCoursePackages";
 import { tarihTezliCoursePackages } from "./tarihTezliCoursePackages";
 import { tarihCommonCoursePackages } from "./tarihCommonCoursePackages";
 import { temelIslamBilimleriTezliCoursePackages } from "./temelIslamBilimleriTezliCoursePackages";
@@ -756,12 +767,22 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...muhendislikTeknolojiYonetimiTezsizCommonCoursePackages,
   ...organikTarimIsletmeciligiTezliCoursePackages,
   ...organikTarimIsletmeciligiCommonCoursePackages,
+  ...organikTarimIsletmeciligiTezsizCoursePackages,
+  ...organikTarimIsletmeciligiTezsizCommonCoursePackages,
+  ...resimTezsizCoursePackages,
+  ...resimTezsizCommonCoursePackages,
   ...resimTezliCoursePackages,
   ...resimCommonCoursePackages,
+  ...siyasetKamuYonetimiTezsizCoursePackages,
+  ...siyasetKamuYonetimiTezsizCommonCoursePackages,
   ...siyasetKamuYonetimiTezliCoursePackages,
   ...siyasetKamuYonetimiCommonCoursePackages,
   ...siyasetKamuYonetimiDoktoraCoursePackages,
   ...siyasetKamuYonetimiDoktoraCommonCoursePackages,
+  ...tarihTezsizCoursePackages,
+  ...tarihTezsizCommonCoursePackages,
+  ...turkDiliEdebiyatiTezsizCoursePackages,
+  ...turkDiliEdebiyatiTezsizCommonCoursePackages,
   ...tarihTezliCoursePackages,
   ...tarihCommonCoursePackages,
   ...temelIslamBilimleriTezliCoursePackages,
