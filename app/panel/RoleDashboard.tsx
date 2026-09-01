@@ -454,10 +454,23 @@ export function RoleDashboard() {
           sessionPersonName.includes(instructorName)),
       );
     });
-  const departmentPoolCourses: Course[] = scopedPrograms.flatMap((program) =>
-    coursesForProgram(program)
-      .filter(isDepartmentPoolCourse)
-  );
+  const scopedProgramCourses = scopedPrograms.flatMap(coursesForProgram);
+  const sessionProgramScope = normalizeProgramScope(session.department);
+  const departmentPoolCourses: Course[] = catalogCourses.filter((course) => {
+    const belongsToStaticScope = scopedProgramCourses.some((candidate) =>
+      candidate.code === course.code &&
+      candidate.level === course.level &&
+      normalizeProgramScope(candidate.department || "") === normalizeProgramScope(course.department || "") &&
+      normalizeProgramScope(candidate.programName || "") === normalizeProgramScope(course.programName || ""),
+    );
+    const belongsToSessionScope = Boolean(
+      sessionProgramScope &&
+      [course.department, course.programName]
+        .filter((value): value is string => Boolean(value))
+        .some((value) => normalizeProgramScope(value) === sessionProgramScope),
+    );
+    return (belongsToStaticScope || belongsToSessionScope) && isDepartmentPoolCourse(course);
+  });
   const myAssignedCourses = assignedOfficialCourses.length > 0
     ? assignedOfficialCourses
     : session.role === "abd_asd_baskani"

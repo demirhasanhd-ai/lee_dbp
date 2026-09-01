@@ -110,6 +110,10 @@ const RESIM_TEZSIZ_PROJECT_CODES = new Set(["RES701", "RES702"]);
 const SIYASET_KAMU_TEZSIZ_PROJECT_CODES = new Set(["SKY701", "SKY702"]);
 const TARIH_TEZSIZ_PROJECT_CODES = new Set(["TTS701", "TTS702"]);
 const TURK_DILI_EDEBIYATI_TEZSIZ_PROJECT_CODES = new Set(["TDE701", "TDE702"]);
+const YBS_TEZSIZ_PROJECT_CODES = new Set(["YBS701", "YBS702"]);
+const YBS_TEZSIZ_RESEARCH_CODES = new Set(["YBS703", "YBS704"]);
+const YONETIM_ORGANIZASYON_TEZSIZ_PROJECT_CODES = new Set(["YON701", "YON702"]);
+const YONETIM_ORGANIZASYON_TEZSIZ_RESEARCH_CODES = new Set(["YON703", "BES704"]);
 const BIYOLOJI_YL_SPECIALIZATION_CODES = new Set(["BİO801", "BİO802", "BİO803", "BİO804"]);
 const BIYOLOJI_YL_SEMINAR_CODES = new Set(["BİO805", "BİO806"]);
 const BIYOLOJI_YL_RESEARCH_CODES = new Set(["BİO809", "BİO810"]);
@@ -591,6 +595,22 @@ const normalizeTurkDiliEdebiyatiTezsizCourse = (course: OfficialCourse): Officia
   return course;
 };
 
+const normalizeYbsTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  if (course.department !== "Yönetim Bilişim Sistemleri ABD" || course.programName !== "Yönetim Bilişim Sistemleri" || course.level !== "Tezsiz Yüksek Lisans") return course;
+  if (/DANIŞMANLIK|UZMANLIK ALAN/iu.test(course.name) || /^DAN7/u.test(course.code)) return null;
+  if (YBS_TEZSIZ_PROJECT_CODES.has(course.code)) return course.code === "YBS701" ? withAdvisor({ ...course, code:"YBS7XX", name:"BİTİRME PROJESİ", ects:30, term:"Güz ve Bahar" }) : null;
+  if (YBS_TEZSIZ_RESEARCH_CODES.has(course.code)) return course.code === "YBS703" ? { ...course, code:"YBS703", name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ", ects:6, term:"Güz ve Bahar" } : null;
+  return course;
+};
+
+const normalizeYonetimOrganizasyonTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
+  if (course.department !== "Yönetim Organizasyon" || course.programName !== "Yönetim Organizasyon" || course.level !== "Tezsiz Yüksek Lisans") return course;
+  if (/DANIŞMANLIK|UZMANLIK ALAN/iu.test(course.name) || /^DAN7/u.test(course.code)) return null;
+  if (YONETIM_ORGANIZASYON_TEZSIZ_PROJECT_CODES.has(course.code)) return course.code === "YON701" ? withAdvisor({ ...course, code:"YON7XX", name:"BİTİRME PROJESİ", ects:30, term:"Güz ve Bahar" }) : null;
+  if (YONETIM_ORGANIZASYON_TEZSIZ_RESEARCH_CODES.has(course.code)) return course.code === "YON703" ? { ...course, code:"YON703", name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ", ects:6, term:"Güz ve Bahar" } : null;
+  return course;
+};
+
 const normalizeAileTezsizCourse = (course: OfficialCourse): OfficialCourse | null => {
   const applies = course.department === "Aile Danışmanlığı ve Eğitimi ABD" &&
     course.programName === "Aile Danışmanlığı ve Eğitimi" && course.level === "Tezsiz Yüksek Lisans";
@@ -661,7 +681,7 @@ const normalizeMakineDoktoraCourse = (course: OfficialCourse): OfficialCourse | 
   if (MAKINE_DR_ADVISORY_CODES.has(course.code)) return course.code === "DAN901" ? withAdvisor({ ...course, code:"DAN9XX", name:"DANIŞMANLIK", ects:1 }) : null;
   if (MAKINE_DR_SPECIALIZATION_CODES.has(course.code)) return course.code === "MMB901" ? withAdvisor({ ...course, code:"MMB9XX", name:"UZMANLIK ALAN DERSİ", ects:5 }) : null;
   if (MAKINE_DR_SEMINAR_CODES.has(course.code)) return course.code === "MMB909" ? withAdvisor({ ...course, code:"MMB909", name:"SEMİNER", ects:6 }) : null;
-  if (MAKINE_DR_RESEARCH_CODES.has(course.code)) return course.code === "MMB951" ? { ...course, code:"MMB951", name:"BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ", ects:6 } : null;
+  if (MAKINE_DR_RESEARCH_CODES.has(course.code)) return course.code === "MMB951" ? { ...course, code:"MMB951", name:"Bilimsel Araştırma Yöntemleri ve Yayın Etiği", term:"Güz ve Bahar", ects:6 } : null;
   if (MAKINE_DR_QUALIFYING_CODES.has(course.code)) return course.code === "MMB917" ? withAdvisor({ ...course, code:"MMB917", name:"DOKTORA YETERLİK", ects:24 }) : null;
   if (MAKINE_DR_THESIS_CODES.has(course.code)) return course.code === "MMB912" ? withAdvisor({ ...course, code:"MMB91X", name:"TEZ ÇALIŞMASI", ects:24 }) : null;
   return course;
@@ -1024,6 +1044,12 @@ export const OFFICIAL_COURSES: OfficialCourse[] = OBS_OFFICIAL_COURSES.flatMap((
   const turkDiliEdebiyatiTezsizCourse = normalizeTurkDiliEdebiyatiTezsizCourse(course);
   if (!turkDiliEdebiyatiTezsizCourse) return [];
   course = turkDiliEdebiyatiTezsizCourse;
+  const ybsTezsizCourse = normalizeYbsTezsizCourse(course);
+  if (!ybsTezsizCourse) return [];
+  course = ybsTezsizCourse;
+  const yonetimOrganizasyonTezsizCourse = normalizeYonetimOrganizasyonTezsizCourse(course);
+  if (!yonetimOrganizasyonTezsizCourse) return [];
+  course = yonetimOrganizasyonTezsizCourse;
   const biyolojiCourse = normalizeBiyolojiTezliCourse(course);
   if (!biyolojiCourse) return [];
   course = biyolojiCourse;

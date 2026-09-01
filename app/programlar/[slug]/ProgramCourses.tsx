@@ -20,7 +20,7 @@ export type PublicCourse = {
   code: string;
   name: string;
   level: string;
-  term: "Güz" | "Bahar";
+  term: "Güz" | "Bahar" | "Güz ve Bahar";
   type: "Zorunlu" | "Seçmeli";
   theory: number;
   practice: number;
@@ -52,8 +52,8 @@ function toPublicCourse(course: DbpCourse): PublicCourse {
     code: course.code,
     name: course.name,
     level: course.level,
-    term: repairText(course.term || "") === "Bahar" ? "Bahar" : "GÃ¼z",
-    type: repairText(course.type || "") === "Seçmeli" ? "SeÃ§meli" : "Zorunlu",
+    term: repairText(course.term || "") === "Güz ve Bahar" ? "Güz ve Bahar" : repairText(course.term || "") === "Bahar" ? "Bahar" : "Güz",
+    type: repairText(course.type || "") === "Seçmeli" ? "Seçmeli" : "Zorunlu",
     theory: Number(course.theory || 0),
     practice: Number(course.practice || 0),
     ects: Number(course.ects || 0),
@@ -71,7 +71,7 @@ const mergedProcessCourseCodes = new Set([
   "MMB8XX", "MMB806", "MMB81X",
   "BHT8XX", "BHT806", "BHT831", "BHT81X",
   "BES8XX", "BES806", "BEF801", "BES81X",
-  "BES7XX", "BEF7XX", "BİO7XX", "İKT7XX", "EPY7XX", "GMS7XX", "GTB7XX", "ISL7XX", "MUF7XX", "MTY7XX", "OTİ7XX", "RES7XX", "SKY7XX", "TTS7XX", "TDE7XX",
+  "BES7XX", "BEF7XX", "BİO7XX", "İKT7XX", "EPY7XX", "GMS7XX", "GTB7XX", "ISL7XX", "MUF7XX", "MTY7XX", "OTİ7XX", "RES7XX", "SKY7XX", "TTS7XX", "TDE7XX", "YBS7XX", "YON7XX",
   "BİO8XX", "BİO806", "BİO809", "BİO81X", "DAN9XX", "BİO9XX", "BİO909", "BİO917", "BİO91X", "EMB9XX", "EMB909", "EMB917", "EMB91X", "FZK9XX", "FZK909", "FZK917", "FZK91X", "GMB9XX", "GMB909", "GMB917", "GMB91X", "İNŞ9XX", "İNŞ909", "İNŞ917", "İNŞ91X", "ISL9XX", "ISL909", "ISL917", "ISL91X", "KİM9XX", "KİM909", "KİM917", "KİM91X", "MMB9XX", "MMB909", "MMB917", "MMB91X",
   "EBE8XX", "EBE806", "EBE809", "EBE81X",
   "ETR8XX", "ETR806", "ETR855", "ETR81X",
@@ -324,7 +324,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       key: term,
       title: `${term} Yarıyılı`,
       courses: visible.filter(
-        (course) => repairText(course.term) === term && !mergedProcessCourseCodes.has(course.code),
+        (course) => [term, "Güz ve Bahar"].includes(repairText(course.term)) && !mergedProcessCourseCodes.has(course.code),
       ),
     })),
   ].filter((section) => section.courses.length > 0);

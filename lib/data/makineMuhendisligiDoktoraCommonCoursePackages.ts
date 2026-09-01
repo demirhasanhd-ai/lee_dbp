@@ -37,12 +37,11 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
     "resources": "Güncel makine mühendisliği literatürü; ulusal ve uluslararası mühendislik standartları ve veri kaynakları; bilimsel araştırma ve yayın etiği rehberleri.",
     "sdgs": [
       "9",
-      "12",
-      "13"
+      "12"
     ],
     "outcomes": [
       "Danışmanlık kapsamındaki ileri kuramsal bilgileri eleştirel biçimde analiz eder.",
-      "İleri makine mühendisliği modelleme yöntemleri alanındaki yöntemleri karşılaştırır.",
+      "İleri makine mühendisliği alanındaki yöntemleri karşılaştırır.",
       "Danışmanlık için bilimsel gerekçeli bir model veya araştırma yaklaşımı geliştirir.",
       "Danışmanlık bulgularını güvenlik, etik ve sürdürülebilirlik ölçütleriyle değerlendirir.",
       "Danışmanlık alanındaki araştırma sonuçlarını bilimsel bütünlük içinde yorumlar ve savunur."
@@ -89,17 +88,17 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
       {
         "outcome": "DÖÇ1",
         "values": [
-          3,
+          5,
           5,
           1,
-          3,
+          1,
+          1,
           5,
+          3,
+          1,
           4,
           4,
-          2,
-          4,
-          4,
-          1
+          2
         ]
       },
       {
@@ -109,43 +108,43 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
           4,
           5,
           5,
-          2,
-          5,
-          4,
           1,
           4,
-          4,
+          3,
+          1,
+          5,
+          5,
           2
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
+          2,
+          4,
+          1,
+          1,
+          5,
+          5,
+          3,
           1,
           4,
           5,
-          2,
-          3,
-          5,
-          4,
-          3,
-          5,
-          4,
-          3
+          2
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          3,
-          4,
           2,
+          4,
+          1,
+          1,
+          1,
+          4,
           3,
           5,
-          4,
-          4,
           5,
-          4,
           4,
           5
         ]
@@ -153,17 +152,17 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
       {
         "outcome": "DÖÇ5",
         "values": [
+          2,
+          4,
+          1,
+          1,
+          5,
+          5,
+          5,
           1,
           4,
-          3,
-          2,
-          1,
           5,
-          5,
-          2,
-          5,
-          5,
-          1
+          2
         ]
       }
     ],
@@ -292,12 +291,11 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
     "resources": "Güncel makine mühendisliği literatürü; ulusal ve uluslararası mühendislik standartları ve veri kaynakları; bilimsel araştırma ve yayın etiği rehberleri.",
     "sdgs": [
       "9",
-      "12",
-      "13"
+      "12"
     ],
     "outcomes": [
       "Uzmanlık alan dersi kapsamındaki ileri kuramsal bilgileri eleştirel biçimde analiz eder.",
-      "İleri makine mühendisliği modelleme yöntemleri alanındaki yöntemleri karşılaştırır.",
+      "İleri makine mühendisliği alanındaki yöntemleri karşılaştırır.",
       "Uzmanlık alan dersi için bilimsel gerekçeli bir model veya araştırma yaklaşımı geliştirir.",
       "Uzmanlık alan dersi bulgularını güvenlik, etik ve sürdürülebilirlik ölçütleriyle değerlendirir.",
       "Uzmanlık alan dersi alanındaki araştırma sonuçlarını bilimsel bütünlük içinde yorumlar ve savunur."
@@ -345,16 +343,16 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
         "outcome": "DÖÇ1",
         "values": [
           5,
-          5,
-          4,
-          3,
-          5,
-          4,
-          4,
-          2,
           1,
+          5,
+          1,
+          4,
+          4,
           3,
-          1
+          1,
+          2,
+          2,
+          2
         ]
       },
       {
@@ -364,12 +362,12 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
           1,
           5,
           5,
-          4,
-          4,
-          4,
-          1,
+          5,
+          5,
           3,
           1,
+          2,
+          2,
           2
         ]
       },
@@ -377,16 +375,16 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
         "outcome": "DÖÇ3",
         "values": [
           4,
-          3,
+          1,
           5,
-          2,
+          1,
           5,
           5,
-          4,
           3,
           1,
           2,
-          3
+          2,
+          2
         ]
       },
       {
@@ -395,13 +393,13 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
           4,
           1,
           4,
+          1,
+          4,
+          4,
           3,
           5,
-          4,
-          4,
           5,
           2,
-          3,
           5
         ]
       },
@@ -409,16 +407,16 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
         "outcome": "DÖÇ5",
         "values": [
           4,
-          2,
+          1,
           4,
+          1,
+          5,
+          5,
+          5,
+          1,
           2,
-          4,
           5,
-          5,
-          2,
-          5,
-          5,
-          1
+          2
         ]
       }
     ],
@@ -541,12 +539,11 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
     "resources": "Güncel makine mühendisliği literatürü; ulusal ve uluslararası mühendislik standartları ve veri kaynakları; bilimsel araştırma ve yayın etiği rehberleri.",
     "sdgs": [
       "9",
-      "12",
-      "13"
+      "12"
     ],
     "outcomes": [
       "Seminer kapsamındaki ileri kuramsal bilgileri eleştirel biçimde analiz eder.",
-      "İleri makine mühendisliği modelleme yöntemleri alanındaki yöntemleri karşılaştırır.",
+      "İleri makine mühendisliği alanındaki yöntemleri karşılaştırır.",
       "Seminer için bilimsel gerekçeli bir model veya araştırma yaklaşımı geliştirir.",
       "Seminer bulgularını güvenlik, etik ve sürdürülebilirlik ölçütleriyle değerlendirir.",
       "Seminer alanındaki araştırma sonuçlarını bilimsel bütünlük içinde yorumlar ve savunur."
@@ -593,17 +590,17 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
       {
         "outcome": "DÖÇ1",
         "values": [
-          3,
+          5,
           5,
           1,
-          3,
+          1,
           5,
           2,
+          3,
           4,
+          2,
           4,
-          1,
-          4,
-          1
+          2
         ]
       },
       {
@@ -613,43 +610,43 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
           4,
           5,
           5,
+          4,
+          2,
+          3,
           5,
-          3,
-          4,
-          4,
-          3,
-          4,
+          2,
+          5,
           2
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
-          1,
-          4,
-          5,
           2,
           4,
-          5,
-          4,
-          5,
           1,
+          1,
+          5,
+          5,
+          3,
           4,
-          3
+          2,
+          5,
+          2
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          3,
-          4,
           2,
-          3,
-          5,
+          4,
+          1,
           1,
           4,
-          5,
           2,
+          3,
+          5,
+          5,
           4,
           5
         ]
@@ -657,17 +654,17 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          4,
-          3,
           2,
           4,
+          1,
+          1,
+          5,
           5,
           5,
           4,
+          2,
           5,
-          5,
-          1
+          2
         ]
       }
     ],
@@ -790,12 +787,11 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
     "resources": "Güncel makine mühendisliği literatürü; ulusal ve uluslararası mühendislik standartları ve veri kaynakları; bilimsel araştırma ve yayın etiği rehberleri.",
     "sdgs": [
       "9",
-      "12",
-      "13"
+      "12"
     ],
     "outcomes": [
       "Doktora yeterlik kapsamındaki ileri kuramsal bilgileri eleştirel biçimde analiz eder.",
-      "İleri makine mühendisliği modelleme yöntemleri alanındaki yöntemleri karşılaştırır.",
+      "İleri makine mühendisliği alanındaki yöntemleri karşılaştırır.",
       "Doktora yeterlik için bilimsel gerekçeli bir model veya araştırma yaklaşımı geliştirir.",
       "Doktora yeterlik bulgularını güvenlik, etik ve sürdürülebilirlik ölçütleriyle değerlendirir.",
       "Doktora yeterlik alanındaki araştırma sonuçlarını bilimsel bütünlük içinde yorumlar ve savunur."
@@ -846,28 +842,28 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
           5,
           4,
           4,
-          5,
-          2,
-          3,
+          1,
           2,
           1,
-          4,
-          1
+          1,
+          2,
+          3,
+          2
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
           4,
+          4,
           5,
           5,
-          5,
-          2,
-          3,
+          1,
           2,
           1,
+          1,
+          2,
           3,
-          4,
           2
         ]
       },
@@ -875,16 +871,16 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
         "outcome": "DÖÇ3",
         "values": [
           4,
-          4,
           5,
           4,
-          3,
+          5,
+          5,
           5,
           1,
-          3,
           1,
-          4,
-          3
+          2,
+          3,
+          2
         ]
       },
       {
@@ -894,12 +890,12 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
           4,
           4,
           4,
-          5,
           1,
-          3,
-          5,
           2,
-          4,
+          1,
+          5,
+          5,
+          3,
           5
         ]
       },
@@ -910,13 +906,13 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
           4,
           4,
           4,
+          5,
+          5,
+          5,
           1,
-          5,
-          5,
           2,
           5,
-          5,
-          1
+          2
         ]
       }
     ],
@@ -1042,12 +1038,11 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
     "resources": "Güncel makine mühendisliği literatürü; ulusal ve uluslararası mühendislik standartları ve veri kaynakları; bilimsel araştırma ve yayın etiği rehberleri.",
     "sdgs": [
       "9",
-      "12",
-      "13"
+      "12"
     ],
     "outcomes": [
       "Tez çalışması kapsamındaki ileri kuramsal bilgileri eleştirel biçimde analiz eder.",
-      "İleri makine mühendisliği modelleme yöntemleri alanındaki yöntemleri karşılaştırır.",
+      "İleri makine mühendisliği alanındaki yöntemleri karşılaştırır.",
       "Tez çalışması için bilimsel gerekçeli bir model veya araştırma yaklaşımı geliştirir.",
       "Tez çalışması bulgularını güvenlik, etik ve sürdürülebilirlik ölçütleriyle değerlendirir.",
       "Tez çalışması alanındaki araştırma sonuçlarını bilimsel bütünlük içinde yorumlar ve savunur."
@@ -1094,17 +1089,17 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
       {
         "outcome": "DÖÇ1",
         "values": [
-          3,
+          5,
           5,
           1,
-          3,
+          1,
+          1,
           5,
           4,
+          1,
           4,
-          2,
-          4,
-          4,
-          1
+          3,
+          2
         ]
       },
       {
@@ -1114,61 +1109,61 @@ export const makineMuhendisligiDoktoraCommonCoursePackages: CoursePackage[] = [
           4,
           5,
           5,
-          2,
-          5,
-          4,
           1,
           4,
-          4,
+          5,
+          1,
+          5,
+          3,
           2
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
-          1,
-          4,
-          5,
           2,
-          3,
+          4,
+          1,
+          1,
           5,
           5,
+          4,
+          1,
+          5,
           3,
-          4,
-          4,
-          3
+          2
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          3,
-          4,
           2,
+          4,
+          1,
+          1,
+          1,
+          4,
+          4,
+          5,
+          5,
           3,
-          5,
-          4,
-          4,
-          5,
-          4,
-          4,
           5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
+          2,
+          4,
+          1,
+          1,
+          5,
+          5,
+          5,
           1,
           4,
-          3,
-          2,
-          1,
           5,
-          5,
-          2,
-          5,
-          5,
-          1
+          2
         ]
       }
     ],

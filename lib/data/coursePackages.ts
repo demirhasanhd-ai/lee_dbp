@@ -163,6 +163,10 @@ import { turkDiliEdebiyatiDoktoraCoursePackages } from "./turkDiliEdebiyatiDokto
 import { turkDiliEdebiyatiDoktoraCommonCoursePackages } from "./turkDiliEdebiyatiDoktoraCommonCoursePackages";
 import { ybsTezliCoursePackages } from "./ybsTezliCoursePackages";
 import { ybsTezliCommonCoursePackages } from "./ybsTezliCommonCoursePackages";
+import { ybsTezsizCoursePackages } from "./ybsTezsizCoursePackages";
+import { ybsTezsizCommonCoursePackages } from "./ybsTezsizCommonCoursePackages";
+import { yonetimOrganizasyonTezsizCoursePackages } from "./yonetimOrganizasyonTezsizCoursePackages";
+import { yonetimOrganizasyonTezsizCommonCoursePackages } from "./yonetimOrganizasyonTezsizCommonCoursePackages";
 import { yonetimOrganizasyonCoursePackages } from "./yonetimOrganizasyonCoursePackages";
 import { yonetimOrganizasyonCommonCoursePackages } from "./yonetimOrganizasyonCommonCoursePackages";
 
@@ -793,6 +797,10 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...turkDiliEdebiyatiDoktoraCommonCoursePackages,
   ...ybsTezliCoursePackages,
   ...ybsTezliCommonCoursePackages,
+  ...ybsTezsizCoursePackages,
+  ...ybsTezsizCommonCoursePackages,
+  ...yonetimOrganizasyonTezsizCoursePackages,
+  ...yonetimOrganizasyonTezsizCommonCoursePackages,
   ...yonetimOrganizasyonCoursePackages,
   ...yonetimOrganizasyonCommonCoursePackages,
   ...arkeolojiCommonCoursePackages,
