@@ -243,6 +243,8 @@ const createLocalDevelopmentSession = (): Session => ({
   authProvider: "e-enstitu",
   expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
 });
+const catalogKeyForSession = (value: Session) =>
+  `${value.username}|${value.role}|${value.department}`;
 
 export function RoleDashboard() {
   const [session, setSession] = useState<Session | null>(null);
@@ -259,7 +261,9 @@ export function RoleDashboard() {
   const [assignCourse, setAssignCourse] = useState<Course | null>(null);
   const [assignmentMessage, setAssignmentMessage] = useState("");
   const [catalogCourses, setCatalogCourses] = useState<Course[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogMessage, setCatalogMessage] = useState("");
+  const [catalogSessionKey, setCatalogSessionKey] = useState("");
   const [instructorOptions, setInstructorOptions] = useState<InstructorOption[]>([]);
   const eEnstituDbpUrl = `${getEEnstituUrl()}/#/modul/ders-bilgi-paketi`;
   useEffect(() => {
@@ -351,19 +355,48 @@ export function RoleDashboard() {
   }, [eEnstituDbpUrl]);
   const refreshCatalogCourses = async () => {
     if (!session) return;
+    const requestKey = catalogKeyForSession(session);
+    setCatalogLoading(true);
+    setCatalogMessage("");
     try {
       const data = await fetchDbpCourses({ limit: 5000 }, {
         headers: { "X-DBP-Session": dbpSessionHeader(session) },
       });
       setCatalogCourses(data.courses.map(toPanelCourse));
+      setCatalogSessionKey(requestKey);
       setCatalogMessage("");
     } catch {
-      setCatalogMessage("Ders kataloğu veritabanından alınamadı; geçici demo liste gösteriliyor.");
+      setCatalogMessage("Ders kataloğu veritabanından alınamadı. Lütfen bağlantınızı kontrol edip tekrar deneyin.");
       setCatalogCourses([]);
+      setCatalogSessionKey(requestKey);
+    } finally {
+      setCatalogLoading(false);
     }
   };
   useEffect(() => {
-    void refreshCatalogCourses();
+    if (!session) return;
+    let cancelled = false;
+    const requestKey = catalogKeyForSession(session);
+    const loadCatalogCourses = async () => {
+      try {
+        const data = await fetchDbpCourses({ limit: 5000 }, {
+          headers: { "X-DBP-Session": dbpSessionHeader(session) },
+        });
+        if (cancelled) return;
+        setCatalogCourses(data.courses.map(toPanelCourse));
+        setCatalogSessionKey(requestKey);
+        setCatalogMessage("");
+      } catch {
+        if (cancelled) return;
+        setCatalogMessage("Ders kataloğu veritabanından alınamadı. Lütfen bağlantınızı kontrol edip tekrar deneyin.");
+        setCatalogCourses([]);
+        setCatalogSessionKey(requestKey);
+      }
+    };
+    void loadCatalogCourses();
+    return () => {
+      cancelled = true;
+    };
   }, [session?.username, session?.role, session?.department]);
   useEffect(() => {
     if (!session) return;
@@ -384,6 +417,10 @@ export function RoleDashboard() {
   }, [session?.username, session?.role, session?.department]);
   if (!session)
     return <main className="panel-loading">Panel hazırlanıyor…</main>;
+  const currentCatalogKey = catalogKeyForSession(session);
+  const catalogIsCurrent = catalogSessionKey === currentCatalogKey;
+  const displayedCatalogCourses = catalogIsCurrent ? catalogCourses : [];
+  const catalogBusy = catalogLoading || !catalogIsCurrent;
   const modules = roleAccess[session.role] ?? DEFAULT_ROLE_ACCESS[session.role];
   const save = () => {
     setSaved(true);
@@ -426,6 +463,7 @@ export function RoleDashboard() {
   const canCreateCourse = ["lee_ogrenci_isleri", "admin"].includes(session.role);
   const canEditAcademicContent = session.role === "admin";
   const isCentralRole = centralRoles.includes(session.role);
+  const useDemoFallback = !catalogBusy && displayedCatalogCourses.length === 0 && isLocalDevelopmentHost();
   const scopedPrograms = isCentralRole
     ? LEE_PROGRAMS
     : LEE_PROGRAMS.filter((program) => {
@@ -439,11 +477,11 @@ export function RoleDashboard() {
   const scopedDefaultProgram = activeProfileProgram;
   const sessionPersonName = normalizePersonName(session.name);
   const coursesForProgram = (program: LeeProgram) =>
-    catalogCourses.filter((course) =>
+    displayedCatalogCourses.filter((course) =>
       normalizeProgramScope(course.department || "") === normalizeProgramScope(program.department) &&
       normalizeProgramScope(course.programName || "") === normalizeProgramScope(program.programName),
     );
-  const assignedOfficialCourses: Course[] = catalogCourses
+  const assignedOfficialCourses: Course[] = displayedCatalogCourses
     .filter((course) => {
       const instructorName = normalizePersonName(course.instructor ?? "");
       return Boolean(
@@ -456,7 +494,7 @@ export function RoleDashboard() {
     });
   const scopedProgramCourses = scopedPrograms.flatMap(coursesForProgram);
   const sessionProgramScope = normalizeProgramScope(session.department);
-  const departmentPoolCourses: Course[] = catalogCourses.filter((course) => {
+  const departmentPoolCourses: Course[] = displayedCatalogCourses.filter((course) => {
     const belongsToStaticScope = scopedProgramCourses.some((candidate) =>
       candidate.code === course.code &&
       candidate.level === course.level &&
@@ -473,7 +511,7 @@ export function RoleDashboard() {
   });
   const myAssignedCourses = assignedOfficialCourses.length > 0
     ? assignedOfficialCourses
-    : session.role === "abd_asd_baskani"
+    : session.role === "abd_asd_baskani" || !useDemoFallback
       ? []
       : courses;
   const roleCourseSections = session.role === "abd_asd_baskani"
@@ -497,11 +535,16 @@ export function RoleDashboard() {
         description: "Görevlendirildiğiniz dersleri program düzeylerine göre görüntüleyin.",
         courses: myAssignedCourses,
       }];
+  const selectedProgramCourses = selectedProgram ? coursesForProgram(selectedProgram) : [];
   const activeCourses = selectedProgram
-    ? coursesForProgram(selectedProgram).length
-      ? coursesForProgram(selectedProgram)
-      : demoCoursesForProgram(selectedProgram)
-    : courses;
+    ? selectedProgramCourses.length
+      ? selectedProgramCourses
+      : useDemoFallback
+        ? demoCoursesForProgram(selectedProgram)
+        : []
+    : useDemoFallback
+      ? courses
+      : [];
   const activeProgramLevels = selectedProgram
     ? orderedLevelsForProgram(selectedProgram.levels, activeCourses)
     : levels;
@@ -509,7 +552,7 @@ export function RoleDashboard() {
     ? activeCourses
     : session.role === "abd_asd_baskani"
       ? scopedPrograms.flatMap((program) => coursesForProgram(program))
-      : catalogCourses.length ? catalogCourses : courses;
+      : displayedCatalogCourses.length ? displayedCatalogCourses : useDemoFallback ? courses : [];
   const pickerDepartments = [...new Set(scopedPrograms.map((program) => program.mainDepartment))];
   const changeModule = (module: DbpModule) => {
     setActive(module);
@@ -664,7 +707,7 @@ export function RoleDashboard() {
           onClose={() => setShowCourseCreate(false)}
           onCreated={save}
           session={session}
-          catalogCourses={catalogCourses}
+          catalogCourses={displayedCatalogCourses}
         />
         {showProgramCreate && (
           <div className="course-dialog-backdrop" role="presentation">
@@ -790,42 +833,48 @@ export function RoleDashboard() {
             {assignmentMessage && (
               <div className="assignment-message">{assignmentMessage}</div>
             )}
-            <div className="course-program-columns">
-              {activeProgramLevels.map((level, index) => (
-                <section
-                  className={`program-column tone-${index + 1}`}
-                  key={level}
-                >
-                  <header>
-                    <h3>{shortLevel(level)}</h3>
-                  </header>
-                  <div className="program-course-list">
-                    {activeCourses
-                      .filter((course) => course.level === level)
-                      .map((course) => (
-                        <article key={course.code}>
-                          <span className="course-code">{course.code}</span>
-                          <div>
-                            <b>{course.name}</b>
-                            <small>{course.status}</small>
-                            <small className="course-instructor-line">
-                              Öğretim elemanı: {course.instructor?.trim() || "Atama bekliyor"}
-                            </small>
-                          </div>
-                          <p className="course-row-actions">
-                            <button onClick={() => setSelectedCourse(course)}>
-                              {canEditAcademicContent ? "Güncelle" : "Görüntüle"}
-                            </button>
-                            <button type="button" onClick={save}>
-                              Düzeltme İste
-                            </button>
-                          </p>
-                        </article>
-                      ))}
-                  </div>
-                </section>
-              ))}
-            </div>
+            {catalogBusy ? (
+              <div className="course-loading-state" role="status">Dersler yükleniyor…</div>
+            ) : activeCourses.length === 0 ? (
+              <div className="course-loading-state">Bu program için veritabanında ders bulunamadı.</div>
+            ) : (
+              <div className="course-program-columns">
+                {activeProgramLevels.map((level, index) => (
+                  <section
+                    className={`program-column tone-${index + 1}`}
+                    key={level}
+                  >
+                    <header>
+                      <h3>{shortLevel(level)}</h3>
+                    </header>
+                    <div className="program-course-list">
+                      {activeCourses
+                        .filter((course) => course.level === level)
+                        .map((course) => (
+                          <article key={course.code}>
+                            <span className="course-code">{course.code}</span>
+                            <div>
+                              <b>{course.name}</b>
+                              <small>{course.status}</small>
+                              <small className="course-instructor-line">
+                                Öğretim elemanı: {course.instructor?.trim() || "Atama bekliyor"}
+                              </small>
+                            </div>
+                            <p className="course-row-actions">
+                              <button onClick={() => setSelectedCourse(course)}>
+                                {canEditAcademicContent ? "Güncelle" : "Görüntüle"}
+                              </button>
+                              <button type="button" onClick={save}>
+                                Düzeltme İste
+                              </button>
+                            </p>
+                          </article>
+                        ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
           </section>
         )}
         {active === "my_courses" && !isCentralRole && !selectedCourse && (
@@ -834,24 +883,30 @@ export function RoleDashboard() {
               <section key={section.key}>
                 <div className="panel-intro">
                   <div><h2>{section.title}</h2><p>{section.description}</p></div>
-                  <span>{section.courses.length} ders</span>
+                  <span>{catalogBusy ? "Yükleniyor" : `${section.courses.length} ders`}</span>
                 </div>
-                <div className="course-program-columns">
-                  {levels.map((level, index) => (
-                    <section className={`program-column tone-${index + 1}`} key={level}>
-                      <header><h3>{level === "Tezsiz Yüksek Lisans" ? "Tezsiz YL" : level === "Tezli Yüksek Lisans" ? "Tezli YL" : "Doktora"}</h3></header>
-                      <div className="program-course-list">
-                        {section.courses.filter((course) => course.level === level).map((course) => (
-                          <article key={`${section.key}-${course.code}-${course.level}`}>
-                            <span className="course-code">{course.code}</span>
-                            <div><b>{course.name}</b><small>{course.status}</small></div>
-                            <button onClick={() => setSelectedCourse(course)}>Güncelle</button>
-                          </article>
-                        ))}
-                      </div>
-                    </section>
-                  ))}
-                </div>
+                {catalogBusy ? (
+                  <div className="course-loading-state" role="status">Dersler yükleniyor…</div>
+                ) : section.courses.length === 0 ? (
+                  <div className="course-loading-state">Üzerinize atanmış ders bulunamadı.</div>
+                ) : (
+                  <div className="course-program-columns">
+                    {levels.map((level, index) => (
+                      <section className={`program-column tone-${index + 1}`} key={level}>
+                        <header><h3>{level === "Tezsiz Yüksek Lisans" ? "Tezsiz YL" : level === "Tezli Yüksek Lisans" ? "Tezli YL" : "Doktora"}</h3></header>
+                        <div className="program-course-list">
+                          {section.courses.filter((course) => course.level === level).map((course) => (
+                            <article key={`${section.key}-${course.code}-${course.level}`}>
+                              <span className="course-code">{course.code}</span>
+                              <div><b>{course.name}</b><small>{course.status}</small></div>
+                              <button onClick={() => setSelectedCourse(course)}>Güncelle</button>
+                            </article>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                )}
               </section>
             ))}
           </div>

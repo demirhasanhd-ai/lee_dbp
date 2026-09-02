@@ -28,6 +28,7 @@ export type PublicCourse = {
   credit?: number;
   instructor?: string;
   programCode?: string;
+  updatedAt?: string;
 };
 
 type Props = {
@@ -60,6 +61,7 @@ function toPublicCourse(course: DbpCourse): PublicCourse {
     credit: Number(course.credit ?? course.theory + course.practice),
     instructor: course.instructor,
     programCode: course.programCode,
+    updatedAt: course.updatedAt,
   };
 }
 
@@ -354,6 +356,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       akts: String(course.ects),
       sdg: DEFAULT_COURSE_SDG_IDS.join(","),
     });
+    if (course.updatedAt) query.set("guncelleme", course.updatedAt);
     query.set("pdf", pdfUrl(course));
     if (course.programCode) query.set("programKodu", course.programCode);
     if (course.instructor) query.set("ogretimElemani", course.instructor);
@@ -366,6 +369,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       program: repairText(activeProgram.programName),
       department: repairText(department),
       level: course.level,
+      version: course.updatedAt,
     }) ?? "#";
   const changeView = (next: ViewState) => {
     setActiveView(next);

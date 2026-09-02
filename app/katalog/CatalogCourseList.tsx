@@ -18,6 +18,7 @@ function courseHref(course: DbpCourse) {
     duzey: course.level,
   });
   if (course.instructor) params.set("ogretimElemani", course.instructor);
+  if (course.updatedAt) params.set("guncelleme", course.updatedAt);
   return dbpPath(`/katalog?${params.toString()}`);
 }
 

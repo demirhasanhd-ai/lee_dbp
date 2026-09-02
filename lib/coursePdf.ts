@@ -30,7 +30,7 @@ export function coursePdfSlug(value: string) {
   );
 }
 
-function coursePdfApiHref(code: string, name: string, program?: string, department?: string, level?: string) {
+function coursePdfApiHref(code: string, name: string, program?: string, department?: string, level?: string, version?: string) {
   const params = new URLSearchParams({
     code,
     name,
@@ -44,6 +44,9 @@ function coursePdfApiHref(code: string, name: string, program?: string, departme
   if (level?.trim()) {
     params.set("level", level);
   }
+  if (version?.trim()) {
+    params.set("v", version);
+  }
   return dbpPath(`/api/dbp/course-pdf?${params.toString()}`);
 }
 
@@ -54,6 +57,7 @@ export function coursePdfHref({
   department,
   level,
   explicitHref,
+  version,
 }: {
   code: string;
   name: string;
@@ -61,10 +65,11 @@ export function coursePdfHref({
   department?: string;
   level?: string;
   explicitHref?: string;
+  version?: string;
 }) {
   if (explicitHref?.trim()) {
     return explicitHref;
   }
 
-  return coursePdfApiHref(code, name, program, department, level);
+  return coursePdfApiHref(code, name, program, department, level, version);
 }

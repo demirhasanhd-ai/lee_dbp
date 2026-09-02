@@ -83,9 +83,31 @@ const repairText = (value: string) =>
     .replaceAll("Ã", "Ç");
 
 const shouldShowInstructor = (name: string, instructor?: string) => {
-  if (!instructor?.trim()) return false;
+  if (!isMeaningfulInstructor(instructor)) return false;
   const normalized = repairText(name).toLocaleLowerCase("tr-TR");
   return !genericInstructorCourseTerms.some((term) => normalized.includes(term));
+};
+
+const isMeaningfulInstructor = (value?: string) => {
+  const normalized = repairText(value || "")
+    .toLocaleLowerCase("tr-TR")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return false;
+  return ![
+    "atama bekliyor",
+    "şimdilik boş / atama bekliyor",
+    "öğrencinin danışmanı",
+    "öğrencinin proje danışmanı",
+    "yok",
+    "-",
+  ].includes(normalized);
+};
+
+const resolveDisplayInstructor = (currentInstructor?: string, packageInstructor?: string) => {
+  if (isMeaningfulInstructor(currentInstructor)) return repairText(currentInstructor || "");
+  if (isMeaningfulInstructor(packageInstructor)) return repairText(packageInstructor || "");
+  return "";
 };
 
 export function DemoCoursePackage({
@@ -121,7 +143,7 @@ export function DemoCoursePackage({
   const displayName = repairText(saved?.name ?? staticPackage?.name ?? name);
   const displayType = repairText(type);
   const coursePackage = saved?.package ?? staticPackage ?? createDefaultCoursePackage({ code: displayCode, name: displayName, theory, practice, credit, ects, instructor, sdgs, level });
-  const displayInstructor = coursePackage?.instructor ?? (instructor ? repairText(instructor) : "");
+  const displayInstructor = resolveDisplayInstructor(instructor, coursePackage?.instructor);
   const showInstructor = shouldShowInstructor(displayName, displayInstructor);
   const packageOutcomes = coursePackage?.outcomes ?? outcomes;
   const packageWeeks = coursePackage?.weeklyTopics ?? weeks;

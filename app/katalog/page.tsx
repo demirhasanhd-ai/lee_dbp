@@ -26,6 +26,7 @@ type CatalogSearchParams = {
   bolum?: string;
   program?: string;
   duzey?: string;
+  guncelleme?: string;
 };
 
 function toDbpCourse(course: OfficialCourse): DbpCourse {
@@ -61,6 +62,7 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
       department: params.bolum,
       level: params.duzey,
       explicitHref: params.pdf,
+      version: params.guncelleme,
     });
     return (
       <div className="package-with-sidebar">

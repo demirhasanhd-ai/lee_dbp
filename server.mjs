@@ -168,6 +168,20 @@ function sanitizeInstructorName(value) {
     .trim();
 }
 
+const placeholderInstructorNames = new Set([
+  "atama bekliyor",
+  "simdilik bos atama bekliyor",
+  "ogrencinin danismani",
+  "ogrencinin proje danismani",
+  "yok",
+]);
+
+function isMeaningfulInstructorName(value) {
+  const normalized = normalizeScope(sanitizeInstructorName(value || ""));
+  if (!normalized) return false;
+  return !placeholderInstructorNames.has(normalized) && normalized !== "-";
+}
+
 function repairObject(value, fieldName = "") {
   if (typeof value === "string") {
     const repaired = repairText(value);
@@ -178,6 +192,24 @@ function repairObject(value, fieldName = "") {
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, repairObject(item, key)]));
   }
   return value;
+}
+
+function packageWithCourseInstructor(packageData = {}, course = {}) {
+  const instructor = sanitizeInstructorName(course.instructor || "");
+  if (!isMeaningfulInstructorName(instructor)) return repairObject(packageData || {});
+  const repairedPackage = repairObject(packageData || {});
+  const detailFields = repairedPackage.detailFields && typeof repairedPackage.detailFields === "object"
+    ? { ...repairedPackage.detailFields }
+    : {};
+  return {
+    ...repairedPackage,
+    instructor,
+    detailFields: {
+      ...detailFields,
+      coordinator: instructor,
+      instructors: instructor,
+    },
+  };
 }
 
 function readEnvValue(file, key) {
@@ -566,8 +598,10 @@ function cacheSlug(value, fallback = "ders") {
   return text || fallback;
 }
 
+const pdfCacheVersion = "v2";
+
 function pdfCacheFile({ code, program, name }) {
-  const parts = [cacheSlug(code, "kod")];
+  const parts = [pdfCacheVersion, cacheSlug(code, "kod")];
   if (program) parts.push(cacheSlug(program, "program"));
   parts.push(cacheSlug(name, "ders"));
   return path.join(pdfCacheDir, `${parts.join("-")}.pdf`);
@@ -611,11 +645,11 @@ async function findStaticPdf({ code, program, name }) {
   }
 }
 
-function pdfResponseFromFile(request, file, info) {
+function pdfResponseFromFile(request, file, info, cacheControl = "public, max-age=3600") {
   const headers = {
     "Content-Type": "application/pdf",
     "Content-Length": String(info.size),
-    "Cache-Control": "public, max-age=3600",
+    "Cache-Control": cacheControl,
     "Content-Disposition": `inline; filename="${pdfSlug(path.basename(file, ".pdf"), "ders")}.pdf"`,
   };
   return new Response(request.method === "HEAD" ? null : createReadStream(file), { headers });
@@ -655,27 +689,28 @@ function coursePackagePdfPayload({ code, name, department, programName, level })
       instructor: courseRow.instructor || seedPackage.instructor || "",
       updatedAt: courseRow.updated_at || "",
     };
-    return repairObject({ course, package: storedPackageFromSeed(seedPackage, course) });
+    return repairObject({ course, package: packageWithCourseInstructor(storedPackageFromSeed(seedPackage, course), course) });
   }
+  const course = {
+    academicYear: row.academic_year || "2026-2027",
+    department: row.department || department || "",
+    programName: row.program_name || programName || "",
+    level: displayLevel(row.level || level || ""),
+    code: row.code || code,
+    name: row.name || name,
+    type: row.type || "",
+    credit: Number(row.credit || 0),
+    ects: Number(row.ects || 0),
+    theory: Number(row.theory || 0),
+    practice: Number(row.practice || 0),
+    term: row.term || "",
+    status: row.status || "",
+    instructor: row.instructor || "",
+    updatedAt: row.updated_at || "",
+  };
   return repairObject({
-    course: {
-      academicYear: row.academic_year || "2026-2027",
-      department: row.department || department || "",
-      programName: row.program_name || programName || "",
-      level: displayLevel(row.level || level || ""),
-      code: row.code || code,
-      name: row.name || name,
-      type: row.type || "",
-      credit: Number(row.credit || 0),
-      ects: Number(row.ects || 0),
-      theory: Number(row.theory || 0),
-      practice: Number(row.practice || 0),
-      term: row.term || "",
-      status: row.status || "",
-      instructor: row.instructor || "",
-      updatedAt: row.updated_at || "",
-    },
-    package: JSON.parse(row.package_json || "{}"),
+    course,
+    package: packageWithCourseInstructor(JSON.parse(row.package_json || "{}"), course),
   });
 }
 
@@ -727,17 +762,24 @@ async function coursePdfResponse(request, url) {
     return jsonResponse({ message: "PDF için ders kodu ve ders adi gerekir." }, { status: 400 });
   }
 
-  const staticPdf = await findStaticPdf({ code, program, name });
-  if (staticPdf) return pdfResponseFromFile(request, staticPdf.file, staticPdf.info);
-
   await mkdir(pdfCacheDir, { recursive: true });
   const target = pdfCacheFile({ code, program, name });
   const packagePayload = coursePackagePdfPayload({ code, name, department, programName: program, level });
   const packageJsonPath = packagePayload ? `${target}.json` : "";
   let info = null;
   if (!packagePayload) {
+    const staticPdf = await findStaticPdf({ code, program, name });
+    if (staticPdf) return pdfResponseFromFile(request, staticPdf.file, staticPdf.info);
     try {
       info = await stat(target);
+    } catch {
+      info = null;
+    }
+  } else {
+    try {
+      info = await stat(target);
+      const updatedAt = Date.parse(packagePayload.course?.updatedAt || "");
+      if (Number.isFinite(updatedAt) && updatedAt > info.mtimeMs) info = null;
     } catch {
       info = null;
     }
@@ -771,7 +813,7 @@ async function coursePdfResponse(request, url) {
     }
   }
 
-  return pdfResponseFromFile(request, target, info);
+  return pdfResponseFromFile(request, target, info, packagePayload ? "no-cache" : "public, max-age=3600");
 }
 
 async function readJsonBody(request) {
@@ -5667,8 +5709,11 @@ async function handleDbpApi(request) {
         return ["Yayımlandı", "Yayınlandı", "Public"].includes(repairText(item.status || "")) && item.package_json && item.package_json !== "{}";
       });
       if (!row) return jsonResponse({ package: null, status: "" });
+      const course = {
+        instructor: row.instructor || "",
+      };
       return jsonResponse({
-        package: repairObject(JSON.parse(row.package_json || "{}")),
+        package: packageWithCourseInstructor(JSON.parse(row.package_json || "{}"), course),
         status: repairText(row.status || ""),
         updatedAt: row.updated_at,
       });
