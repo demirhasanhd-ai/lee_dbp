@@ -27,7 +27,7 @@ type InstructorOption = {
   source?: string;
 };
 
-const trustedInstructorSources = new Set(["e_enstitu_database", "dbp_course_catalog"]);
+const trustedInstructorSources = new Set(["e_enstitu_api", "e_enstitu_database", "dbp_course_catalog"]);
 const unassignedInstructorLabel = "Şimdilik boş / atama bekliyor";
 
 const sameText = (left = "", right = "") =>

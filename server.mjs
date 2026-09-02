@@ -201,6 +201,20 @@ function eEnstituDatabaseUrl() {
     "";
 }
 
+function eEnstituApiBaseUrls() {
+  const candidates = [
+    process.env.EENSTITU_API_BASE_URL,
+    process.env.NEXT_PUBLIC_EENSTITU_API_BASE_URL,
+    process.env.EENSTITU_INTERNAL_API_BASE_URL,
+    "http://e-enstitu:8080",
+    "http://web:8080",
+    "http://localhost:3001",
+  ];
+  return [...new Set(candidates
+    .map((value) => (value || "").trim().replace(/\/+$/, ""))
+    .filter(Boolean))];
+}
+
 function eEnstituSearchPath() {
   return process.env.EENSTITU_DB_SEARCH_PATH || process.env.E_ENSTITU_DB_SEARCH_PATH || "live, shared, public";
 }
@@ -280,7 +294,11 @@ function sortInstructorOptions(options, filters = {}) {
 function normalizeInstructorOption(value) {
   const title = sanitizeInstructorName(value.title || "");
   const rawName = sanitizeInstructorName(value.name || value.displayName || "");
-  const name = rawName || sanitizeInstructorName(`${title} ${value.firstName || ""} ${value.lastName || ""}`);
+  const titlePrefix = title.toLocaleLowerCase("tr-TR");
+  const rawNameLower = rawName.toLocaleLowerCase("tr-TR");
+  const name = rawName
+    ? title && !rawNameLower.startsWith(titlePrefix) ? `${title} ${rawName}`.replace(/\s+/g, " ").trim() : rawName
+    : sanitizeInstructorName(`${title} ${value.firstName || ""} ${value.lastName || ""}`);
   if (!name) return null;
   const departmentNames = [...new Set((value.departmentNames || []).map(repairText).filter(Boolean))];
   const departmentIds = [...new Set((value.departmentIds || []).map(repairText).filter(Boolean))];
@@ -296,6 +314,48 @@ function normalizeInstructorOption(value) {
   };
 }
 
+async function loadEEnstituInstructorOptionsFromApi(filters = {}) {
+  const timeout = eEnstituDbTimeoutMs();
+  let lastError = "";
+
+  for (const apiBaseUrl of eEnstituApiBaseUrls()) {
+    try {
+      const response = await withTimeout(
+        fetch(`${apiBaseUrl}/api/public/dbp/instructors`, { cache: "no-store" }),
+        timeout,
+        "e-Enstitu akademisyen API zaman asimi",
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        lastError = payload?.message || `HTTP ${response.status}`;
+        continue;
+      }
+
+      const all = (Array.isArray(payload.instructors) ? payload.instructors : [])
+        .map((item) => normalizeInstructorOption({
+          ...item,
+          source: "e_enstitu_api",
+        }))
+        .filter(Boolean);
+      if (!all.length) continue;
+
+      const scoped = all.filter((item) => departmentMatchesInstructorScope(item, filters));
+      return {
+        instructors: sortInstructorOptions(all, filters),
+        source: "e_enstitu_api",
+        scopeApplied: Boolean(scoped.length && scoped.length !== all.length),
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  if (lastError) {
+    console.warn(`[dbp] e-Enstitu akademisyen API okunamadi: ${lastError}`);
+  }
+  return null;
+}
+
 async function loadEEnstituInstructorOptions(filters = {}) {
   const fallback = () => {
     const catalog = loadCourseCatalogInstructorOptions(filters);
@@ -303,6 +363,9 @@ async function loadEEnstituInstructorOptions(filters = {}) {
   };
   let client;
   try {
+    const apiCatalog = await loadEEnstituInstructorOptionsFromApi(filters);
+    if (apiCatalog) return apiCatalog;
+
     const pool = await eEnstituPool();
     if (!pool) return fallback();
     const timeout = eEnstituDbTimeoutMs();
@@ -782,6 +845,14 @@ function loadCourseCatalogInstructorCount() {
 async function loadEEnstituInstructorCount() {
   let client;
   try {
+    const apiCatalog = await loadEEnstituInstructorOptionsFromApi();
+    if (apiCatalog) {
+      return {
+        count: new Set(apiCatalog.instructors.map((item) => normalizeInstructorScope(item.name || "")).filter(Boolean)).size,
+        source: apiCatalog.source,
+      };
+    }
+
     const pool = await eEnstituPool();
     if (!pool) {
       const catalog = loadCourseCatalogInstructorCount();
