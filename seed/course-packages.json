@@ -11669,81 +11669,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
-          1,
-          1,
-          1,
-          1,
-          1,
+          3,
+          4,
+          3,
+          3,
+          2,
           5,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          3,
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
           4,
-          1,
           4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
+          3,
+          5,
+          3,
           4,
-          1
+          2,
+          3,
+          3,
+          2,
+          4
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
-          1,
-          1,
-          1,
-          5,
-          5,
+          3,
           4,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          4,
+          5,
+          5,
+          2,
+          3,
+          2,
+          3,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
-          5,
-          1,
-          1,
+          3,
+          3,
+          2,
+          3,
           4,
-          1,
-          1,
-          1,
-          1,
-          1
+          5,
+          3,
+          4,
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
+          2,
+          2,
           1,
-          1,
-          1,
-          1,
-          1,
+          2,
+          3,
           4,
-          1,
-          1,
+          2,
+          3,
           5,
-          1,
-          1
+          3,
+          2
         ]
       }
     ],
@@ -11921,32 +11921,32 @@
         "outcome": "DÖÇ1",
         "values": [
           5,
-          1,
-          1,
-          1,
-          5,
-          1,
-          1,
+          3,
           2,
-          1,
-          1,
-          1
+          3,
+          4,
+          4,
+          2,
+          3,
+          2,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          1,
-          5,
-          1,
           4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          5,
+          4,
+          4,
+          4,
+          4,
+          2,
+          3,
+          2,
+          3,
+          4
         ]
       },
       {
@@ -11954,47 +11954,47 @@
         "values": [
           4,
           4,
+          3,
+          5,
           4,
-          1,
-          1,
           4,
-          1,
-          1,
+          2,
           3,
           3,
-          1
+          3,
+          4
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
           4,
+          4,
+          3,
           5,
           5,
           4,
-          1,
-          1,
-          1,
-          1,
-          1
+          2,
+          3,
+          2,
+          3,
+          4
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
+          3,
+          4,
           5,
-          5,
-          1,
-          1,
+          4,
+          4,
           5,
           2,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3,
+          4
         ]
       }
     ],
@@ -12179,81 +12179,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
-          1,
           4,
-          1,
-          1,
-          1,
           4,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          3,
+          3,
+          5,
+          2,
+          4,
+          2,
+          2,
+          4
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
           5,
-          1,
-          1,
-          1,
-          5,
-          1,
-          1,
+          3,
           2,
-          1,
-          1,
-          1
+          3,
+          4,
+          4,
+          2,
+          4,
+          2,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
-          1,
-          1,
-          1,
-          1,
           4,
+          3,
+          2,
+          3,
+          5,
           4,
-          1,
-          1,
-          1,
+          2,
+          5,
           4,
-          1
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          4,
-          1
+          3,
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          5,
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
+          3,
+          3,
+          2,
+          2,
+          3,
           4,
-          1
+          2,
+          5,
+          3,
+          2,
+          3
         ]
       }
     ],
@@ -12445,17 +12445,17 @@
       {
         "outcome": "DÖÇ1",
         "values": [
-          1,
-          1,
-          1,
-          1,
-          1,
+          5,
           4,
-          1,
-          1,
-          1,
-          1,
-          1
+          4,
+          4,
+          4,
+          5,
+          3,
+          4,
+          3,
+          3,
+          4
         ]
       },
       {
@@ -12463,63 +12463,63 @@
         "values": [
           4,
           4,
-          5,
-          1,
-          1,
           4,
-          1,
-          1,
+          5,
+          4,
+          5,
+          2,
           3,
-          1,
-          1
+          3,
+          3,
+          4
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
-          1,
+          4,
+          5,
+          4,
+          5,
+          5,
+          5,
+          2,
+          4,
+          2,
           3,
-          1,
-          4,
-          4,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1
+          4
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          3,
-          5,
-          1,
           4,
-          3,
           5,
-          1,
-          1,
-          1,
-          3
+          5,
+          4,
+          4,
+          5,
+          3,
+          4,
+          2,
+          4,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
-          1,
+          4,
+          3,
+          3,
+          3,
           4,
           5,
-          1,
-          1,
+          3,
           5,
-          4,
-          1
+          5,
+          3,
+          3
         ]
       }
     ],
@@ -12614,6 +12614,7 @@
   },
   {
     "code": "MMB809",
+    "name": "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",
     "instructor": "Atama Bekliyor",
     "sourceEmpty": true,
     "sourceUrl": "https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=278716&lang=tr",
@@ -12650,7 +12651,100 @@
       "Akademik yazım, atıf ve kaynak gösterme",
       "Araştırma tasarımının yöntemsel ve etik açıdan bütünleştirilmesi"
     ],
-    "assessments": [],
+    "assessments": [
+      {
+        "name": "Ara Sınav",
+        "count": 1,
+        "weight": 40
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı",
+        "count": 1,
+        "weight": 60
+      }
+    ],
+    "contributionMatrix": [
+      {
+        "outcome": "DÖÇ1",
+        "values": [
+          4,
+          4,
+          3,
+          3,
+          4,
+          5,
+          2,
+          3,
+          3,
+          2,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ2",
+        "values": [
+          4,
+          5,
+          4,
+          4,
+          4,
+          5,
+          2,
+          3,
+          3,
+          2,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ3",
+        "values": [
+          3,
+          4,
+          3,
+          3,
+          5,
+          5,
+          2,
+          4,
+          3,
+          2,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ4",
+        "values": [
+          2,
+          3,
+          2,
+          1,
+          3,
+          4,
+          2,
+          3,
+          5,
+          3,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ5",
+        "values": [
+          3,
+          3,
+          3,
+          2,
+          4,
+          5,
+          2,
+          5,
+          5,
+          3,
+          3
+        ]
+      }
+    ],
     "department": "Makine Mühendisliği ABD",
     "programName": "Makine Mühendisliği",
     "language": "Türkçe",
@@ -12672,90 +12766,20 @@
       {
         "name": "Sınıf Dışı Çalışma Süresi",
         "count": 15,
-        "hours": 9,
-        "total": 135
-      }
-    ],
-    "contributionMatrix": [
-      {
-        "outcome": "DÖÇ1",
-        "values": [
-          1,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1
-        ]
+        "hours": 6,
+        "total": 90
       },
       {
-        "outcome": "DÖÇ2",
-        "values": [
-          1,
-          4,
-          4,
-          1,
-          1,
-          4,
-          1,
-          1,
-          3,
-          3,
-          1
-        ]
+        "name": "Ara Sınav Hazırlığı",
+        "count": 1,
+        "hours": 20,
+        "total": 20
       },
       {
-        "outcome": "DÖÇ3",
-        "values": [
-          1,
-          1,
-          1,
-          5,
-          5,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
-        ]
-      },
-      {
-        "outcome": "DÖÇ4",
-        "values": [
-          1,
-          3,
-          1,
-          4,
-          1,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1
-        ]
-      },
-      {
-        "outcome": "DÖÇ5",
-        "values": [
-          1,
-          1,
-          1,
-          1,
-          4,
-          5,
-          1,
-          1,
-          1,
-          4,
-          1
-        ]
+        "name": "Yarıyıl Sonu Sınavı Hazırlığı",
+        "count": 1,
+        "hours": 25,
+        "total": 25
       }
     ],
     "qualityChecks": [
@@ -12850,13 +12874,13 @@
   {
     "code": "MMB861",
     "name": "KÜTLE AKTARIM TEORİSİ VE BİLGİSAYAR UYGULAMALARI",
-    "instructor": "Atama Bekliyor",
-    "sourceEmpty": true,
+    "instructor": "Prof. Dr. Hasan DEMİR",
+    "sourceEmpty": false,
     "sourceUrl": "https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=327156&lang=tr",
     "purpose": "Kütle aktarımının ileri kuramsal temellerini analiz etme ve ilgili mühendislik problemlerini bilgisayar destekli yöntemlerle çözümleme yetkinliği kazandırmak.",
     "content": "Difüzyon ve taşınım mekanizmaları; kütle aktarım katsayıları; kararlı ve kararsız kütle aktarımı; sınır koşulları; çok bileşenli sistemler; sayısal modelleme ve bilgisayar uygulamaları.",
     "methods": "Kuramsal anlatım, matematiksel modelleme, problem çözümü, sayısal çözüm ve bilgisayar destekli sonuç analizi.",
-    "resources": "OBS kaynağında ders ayrıntısı bulunmadığından kaynakça akademik onay beklemektedir.",
+    "resources": "Welty, Wicks, Wilson ve Rorrer, Fundamentals of Momentum, Heat and Mass Transfer; Bird, Stewart ve Lightfoot, Transport Phenomena.",
     "sdgs": [
       "4",
       "9",
@@ -12886,7 +12910,148 @@
       "Bilgisayar destekli kütle aktarım modeli",
       "Model sonuçlarının doğrulanması ve mühendislik yorumu"
     ],
-    "assessments": [],
+    "assessments": [
+      {
+        "name": "Ara Sınav",
+        "count": 1,
+        "weight": 30
+      },
+      {
+        "name": "Ödev",
+        "count": 2,
+        "weight": 10
+      },
+      {
+        "name": "Proje",
+        "count": 1,
+        "weight": 20
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı",
+        "count": 1,
+        "weight": 40
+      }
+    ],
+    "workloads": [
+      {
+        "name": "Ders Süresi",
+        "count": 15,
+        "hours": 3,
+        "total": 45
+      },
+      {
+        "name": "Sınıf Dışı Çalışma Süresi",
+        "count": 15,
+        "hours": 3,
+        "total": 45
+      },
+      {
+        "name": "Ödev Hazırlığı",
+        "count": 2,
+        "hours": 10,
+        "total": 20
+      },
+      {
+        "name": "Ara Sınav Hazırlığı",
+        "count": 1,
+        "hours": 15,
+        "total": 15
+      },
+      {
+        "name": "Proje Çalışması",
+        "count": 1,
+        "hours": 30,
+        "total": 30
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı Hazırlığı",
+        "count": 1,
+        "hours": 25,
+        "total": 25
+      }
+    ],
+    "contributionMatrix": [
+      {
+        "outcome": "DÖÇ1",
+        "values": [
+          5,
+          4,
+          3,
+          3,
+          3,
+          2,
+          1,
+          2,
+          2,
+          2,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ2",
+        "values": [
+          4,
+          5,
+          3,
+          4,
+          3,
+          3,
+          1,
+          2,
+          2,
+          3,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ3",
+        "values": [
+          4,
+          5,
+          3,
+          4,
+          5,
+          3,
+          1,
+          3,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ4",
+        "values": [
+          4,
+          4,
+          5,
+          5,
+          5,
+          4,
+          2,
+          3,
+          2,
+          3,
+          5
+        ]
+      },
+      {
+        "outcome": "DÖÇ5",
+        "values": [
+          4,
+          4,
+          4,
+          4,
+          5,
+          4,
+          2,
+          4,
+          3,
+          4,
+          5
+        ]
+      }
+    ],
     "department": "Makine Mühendisliği ABD",
     "programName": "Makine Mühendisliği",
     "language": "Türkçe",
@@ -12898,102 +13063,6 @@
     "ects": 6,
     "prerequisites": "Yok",
     "publicQualityChecklist": false,
-    "workloads": [
-      {
-        "name": "Ders Süresi",
-        "count": 15,
-        "hours": 3,
-        "total": 45
-      },
-      {
-        "name": "Sınıf Dışı Çalışma Süresi",
-        "count": 15,
-        "hours": 9,
-        "total": 135
-      }
-    ],
-    "contributionMatrix": [
-      {
-        "outcome": "DÖÇ1",
-        "values": [
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          2,
-          1,
-          1,
-          1,
-          1
-        ]
-      },
-      {
-        "outcome": "DÖÇ2",
-        "values": [
-          1,
-          5,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
-        ]
-      },
-      {
-        "outcome": "DÖÇ3",
-        "values": [
-          1,
-          5,
-          1,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1,
-          1
-        ]
-      },
-      {
-        "outcome": "DÖÇ4",
-        "values": [
-          1,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
-        ]
-      },
-      {
-        "outcome": "DÖÇ5",
-        "values": [
-          1,
-          1,
-          4,
-          5,
-          5,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
-        ]
-      }
-    ],
     "qualityChecks": [
       {
         "item": "Ders adı ve kodları doğrulandı mı?",
@@ -13001,8 +13070,8 @@
       },
       {
         "item": "Tüm OBS linkleri gerçek mi?",
-        "status": "Doğrulanmalı",
-        "note": "OBS bağlantısı gerçek olmakla birlikte ayrıntılar \"Veri yok\" dönüyor: https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=327156&lang=tr"
+        "status": "Uygun",
+        "note": "OBS kaydı doğrulandı: https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=327156&lang=tr"
       },
       {
         "item": "Dersin program düzeyi doğru mu?",
@@ -13050,7 +13119,7 @@
       },
       {
         "item": "DÖÇ–ölçme/değerlendirme uyumu sağlandı mı?",
-        "status": "Doğrulanmalı"
+        "status": "Uygun"
       },
       {
         "item": "AKTS–iş yükü tutarlı mı?",
@@ -13075,11 +13144,11 @@
       },
       {
         "item": "Kaynakta olmayan bilgi kesin bilgi gibi yazılmış mı?",
-        "status": "Doğrulanmalı"
+        "status": "Uygun"
       },
       {
         "item": "Eksik/doğrulanması gereken alan kaldı mı?",
-        "status": "Doğrulanmalı"
+        "status": "Uygun"
       }
     ]
   },
@@ -13124,7 +13193,100 @@
       "Enerji verimliliği senaryolarının karşılaştırılması",
       "Sürdürülebilir bina çözümünün bütüncül değerlendirilmesi"
     ],
-    "assessments": [],
+    "assessments": [
+      {
+        "name": "Ara Sınav",
+        "count": 1,
+        "weight": 40
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı",
+        "count": 1,
+        "weight": 60
+      }
+    ],
+    "contributionMatrix": [
+      {
+        "outcome": "DÖÇ1",
+        "values": [
+          5,
+          4,
+          2,
+          3,
+          3,
+          2,
+          1,
+          2,
+          2,
+          3,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ2",
+        "values": [
+          5,
+          5,
+          3,
+          4,
+          4,
+          3,
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ3",
+        "values": [
+          5,
+          5,
+          3,
+          4,
+          5,
+          3,
+          1,
+          3,
+          2,
+          4,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ4",
+        "values": [
+          5,
+          5,
+          4,
+          4,
+          4,
+          3,
+          2,
+          3,
+          2,
+          4,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ5",
+        "values": [
+          4,
+          4,
+          5,
+          5,
+          5,
+          4,
+          2,
+          4,
+          3,
+          5,
+          5
+        ]
+      }
+    ],
     "department": "Makine Mühendisliği ABD",
     "programName": "Makine Mühendisliği",
     "language": "Türkçe",
@@ -13146,90 +13308,20 @@
       {
         "name": "Sınıf Dışı Çalışma Süresi",
         "count": 15,
-        "hours": 9,
-        "total": 135
-      }
-    ],
-    "contributionMatrix": [
-      {
-        "outcome": "DÖÇ1",
-        "values": [
-          1,
-          1,
-          4,
-          4,
-          1,
-          4,
-          1,
-          1,
-          4,
-          1,
-          1
-        ]
+        "hours": 6,
+        "total": 90
       },
       {
-        "outcome": "DÖÇ2",
-        "values": [
-          1,
-          2,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
-        ]
+        "name": "Ara Sınav Hazırlığı",
+        "count": 1,
+        "hours": 20,
+        "total": 20
       },
       {
-        "outcome": "DÖÇ3",
-        "values": [
-          1,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
-        ]
-      },
-      {
-        "outcome": "DÖÇ4",
-        "values": [
-          1,
-          1,
-          1,
-          5,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
-        ]
-      },
-      {
-        "outcome": "DÖÇ5",
-        "values": [
-          1,
-          1,
-          5,
-          1,
-          1,
-          3,
-          2,
-          1,
-          5,
-          1,
-          1
-        ]
+        "name": "Yarıyıl Sonu Sınavı Hazırlığı",
+        "count": 1,
+        "hours": 25,
+        "total": 25
       }
     ],
     "qualityChecks": [
@@ -20198,7 +20290,100 @@
       "Isıtma sistemi kontrol stratejileri",
       "Sistem alternatiflerinin enerji performansıyla değerlendirilmesi"
     ],
-    "assessments": [],
+    "assessments": [
+      {
+        "name": "Ara Sınav",
+        "count": 1,
+        "weight": 40
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı",
+        "count": 1,
+        "weight": 60
+      }
+    ],
+    "contributionMatrix": [
+      {
+        "outcome": "DÖÇ1",
+        "values": [
+          5,
+          4,
+          2,
+          3,
+          3,
+          2,
+          1,
+          2,
+          2,
+          3,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ2",
+        "values": [
+          5,
+          5,
+          3,
+          4,
+          4,
+          3,
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ3",
+        "values": [
+          5,
+          5,
+          3,
+          4,
+          5,
+          3,
+          1,
+          3,
+          2,
+          4,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ4",
+        "values": [
+          5,
+          5,
+          4,
+          4,
+          4,
+          3,
+          2,
+          3,
+          2,
+          4,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ5",
+        "values": [
+          4,
+          4,
+          5,
+          5,
+          5,
+          4,
+          2,
+          4,
+          3,
+          5,
+          5
+        ]
+      }
+    ],
     "department": "Makine Mühendisliği ABD",
     "programName": "Makine Mühendisliği",
     "language": "Türkçe",
@@ -20220,90 +20405,20 @@
       {
         "name": "Sınıf Dışı Çalışma Süresi",
         "count": 15,
-        "hours": 9,
-        "total": 135
-      }
-    ],
-    "contributionMatrix": [
-      {
-        "outcome": "DÖÇ1",
-        "values": [
-          1,
-          1,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
-        ]
+        "hours": 6,
+        "total": 90
       },
       {
-        "outcome": "DÖÇ2",
-        "values": [
-          1,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
-        ]
+        "name": "Ara Sınav Hazırlığı",
+        "count": 1,
+        "hours": 20,
+        "total": 20
       },
       {
-        "outcome": "DÖÇ3",
-        "values": [
-          1,
-          4,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
-        ]
-      },
-      {
-        "outcome": "DÖÇ4",
-        "values": [
-          2,
-          1,
-          4,
-          4,
-          3,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
-        ]
-      },
-      {
-        "outcome": "DÖÇ5",
-        "values": [
-          1,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          3,
-          2,
-          1
-        ]
+        "name": "Yarıyıl Sonu Sınavı Hazırlığı",
+        "count": 1,
+        "hours": 25,
+        "total": 25
       }
     ],
     "qualityChecks": [
@@ -25161,6 +25276,1819 @@
       {
         "item": "Eksik/doğrulanması gereken alan kaldı mı?",
         "status": "Uygun"
+      }
+    ]
+  },
+  {
+    "code": "MMB810",
+    "name": "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",
+    "instructor": "Dr. Öğr. Üyesi Betül TEYMUR",
+    "sourceUrl": "https://obs.osmaniye.edu.tr/oibs/bologna/",
+    "sourceEmpty": true,
+    "purpose": "Bilimsel bir araştırmayı yöntemsel ve etik ilkelere uygun biçimde planlama, yürütme, değerlendirme ve raporlama yetkinliği kazandırmak.",
+    "content": "Bilimsel bilgi ve araştırma problemi; literatür taraması; araştırma desenleri; örnekleme; veri toplama ve analiz yaklaşımları; geçerlik ve güvenirlik; araştırma ve yayın etiği; akademik yazım ve kaynak gösterme.",
+    "methods": "Kuramsal anlatım, bilimsel metin incelemesi, yöntem karşılaştırması, etik vaka çözümlemesi ve araştırma tasarımı çalışmaları.",
+    "resources": "Creswell ve Creswell, Research Design; Büyüköztürk ve diğerleri, Bilimsel Araştırma Yöntemleri; COPE yayın etiği rehberleri.",
+    "sdgs": [
+      "4",
+      "9",
+      "16"
+    ],
+    "outcomes": [
+      "Bilimsel araştırma problemini ve araştırma sorularını yapılandırır.",
+      "Araştırma problemine uygun yöntemi gerekçelendirir.",
+      "Bilimsel kaynakları eleştirel ölçütlerle değerlendirir.",
+      "Araştırma ve yayın etiği ihlallerini analiz eder.",
+      "Araştırma sonuçlarını akademik yazım ilkelerine göre raporlar."
+    ],
+    "weeklyTopics": [
+      "Bilimsel bilgi, araştırma ve bilimsel yöntem",
+      "Araştırma problemi ve araştırma sorularının yapılandırılması",
+      "Bilimsel literatür tarama stratejileri",
+      "Kaynakların güvenilirlik ve uygunluk ölçütleri",
+      "Nicel araştırma desenleri",
+      "Nitel araştırma desenleri",
+      "Karma yöntem araştırmaları",
+      "Evren, örneklem ve örnekleme yaklaşımları",
+      "Veri toplama araçlarının geçerlik ve güvenirliği",
+      "Nicel veri analizine ilişkin temel kararlar",
+      "Nitel verilerin çözümlenmesi ve yorumlanması",
+      "Araştırma etiği ve katılımcı hakları",
+      "Yayın etiği, yazarlık ve çıkar çatışması",
+      "Akademik yazım, atıf ve kaynak gösterme",
+      "Araştırma tasarımının yöntemsel ve etik açıdan bütünleştirilmesi"
+    ],
+    "assessments": [
+      {
+        "name": "Ara Sınav",
+        "count": 1,
+        "weight": 40
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı",
+        "count": 1,
+        "weight": 60
+      }
+    ],
+    "contributionMatrix": [
+      {
+        "outcome": "DÖÇ1",
+        "values": [
+          4,
+          4,
+          3,
+          3,
+          4,
+          5,
+          2,
+          3,
+          3,
+          2,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ2",
+        "values": [
+          4,
+          5,
+          4,
+          4,
+          4,
+          5,
+          2,
+          3,
+          3,
+          2,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ3",
+        "values": [
+          3,
+          4,
+          3,
+          3,
+          5,
+          5,
+          2,
+          4,
+          3,
+          2,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ4",
+        "values": [
+          2,
+          3,
+          2,
+          1,
+          3,
+          4,
+          2,
+          3,
+          5,
+          3,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ5",
+        "values": [
+          3,
+          3,
+          3,
+          2,
+          4,
+          5,
+          2,
+          5,
+          5,
+          3,
+          3
+        ]
+      }
+    ],
+    "department": "Makine Mühendisliği ABD",
+    "programName": "Makine Mühendisliği",
+    "language": "Türkçe",
+    "level": "Tezli Yüksek Lisans",
+    "teachingMode": "Yüz Yüze",
+    "theory": 3,
+    "practice": 0,
+    "credit": 3,
+    "ects": 6,
+    "prerequisites": "Yok",
+    "publicQualityChecklist": false,
+    "workloads": [
+      {
+        "name": "Ders Süresi",
+        "count": 15,
+        "hours": 3,
+        "total": 45
+      },
+      {
+        "name": "Sınıf Dışı Çalışma Süresi",
+        "count": 15,
+        "hours": 6,
+        "total": 90
+      },
+      {
+        "name": "Ara Sınav Hazırlığı",
+        "count": 1,
+        "hours": 20,
+        "total": 20
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı Hazırlığı",
+        "count": 1,
+        "hours": 25,
+        "total": 25
+      }
+    ],
+    "qualityChecks": [
+      {
+        "item": "Ders adı ve kodları doğrulandı mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tüm OBS linkleri gerçek mi?",
+        "status": "Doğrulanmalı",
+        "note": "OBS bağlantısı gerçek olmakla birlikte ayrıntılar \"Veri yok\" dönüyor: https://obs.osmaniye.edu.tr/oibs/bologna/"
+      },
+      {
+        "item": "Dersin program düzeyi doğru mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Ders amacı açık ve uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Ders amacı program düzeyine uygun mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "DÖÇ sayısı ve kapsamı uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ'ler ölçülebilir mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom fiilleri uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom düzeyi program düzeyine uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Amaç–DÖÇ uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–içerik uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "İçerik–haftalık plan uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–öğretim yöntemi uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–ölçme/değerlendirme uyumu sağlandı mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "AKTS–iş yükü tutarlı mı?",
+        "status": "Revize Edildi",
+        "note": "İş yükü 15 haftalık ders süresi üzerinden 180 saat / 6 AKTS olarak düzenlendi."
+      },
+      {
+        "item": "DÖÇ–PÇ matrisi gerçekçi mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "1–5 katkı düzeyleri doğru kullanılmış mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Yapay yüksek ilişkilendirme var mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tekrarlı kodlar doğru tekilleştirildi mi?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Kaynakta olmayan bilgi kesin bilgi gibi yazılmış mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "Eksik/doğrulanması gereken alan kaldı mı?",
+        "status": "Doğrulanmalı"
+      }
+    ]
+  },
+  {
+    "code": "MMB813",
+    "name": "YAKITLAR VE YANMA",
+    "instructor": "Prof. Dr. Önder KAŞKA",
+    "sourceUrl": "https://obs.osmaniye.edu.tr/oibs/bologna/",
+    "sourceEmpty": true,
+    "purpose": "Yakıt özellikleri ile yanma süreçlerini termodinamik, kinetik, verim ve emisyon ölçütleri üzerinden analiz ederek mühendislik çözümleri geliştirme yetkinliği kazandırmak.",
+    "content": "Yakıtların sınıflandırılması ve özellikleri; stokiyometri; yanma termokimyası; kimyasal denge ve kinetik; tutuşma ve alevler; sıvı ve katı yakıt yanması; yakıcı sistemler; emisyon oluşumu, ölçümü ve azaltılması.",
+    "methods": "Kuramsal anlatım, yanma denklemi ve enerji dengesi çözümü, vaka incelemesi, emisyon hesabı ve sistem performansı karşılaştırması.",
+    "resources": "Turns, An Introduction to Combustion; Glassman, Yetter ve Glumac, Combustion; Warnatz, Maas ve Dibble, Combustion.",
+    "sdgs": [
+      "7",
+      "9",
+      "13"
+    ],
+    "outcomes": [
+      "Yakıtların fiziksel ve kimyasal özelliklerini karşılaştırır.",
+      "Yanma sistemlerinde stokiyometrik ve enerji dengesi hesaplarını uygular.",
+      "Tutuşma, alev ve reaksiyon kinetiği süreçlerini analiz eder.",
+      "Yanma kaynaklı kirletici oluşum mekanizmalarını değerlendirir.",
+      "Verim ve emisyon ölçütlerine uygun bir yanma çözümünü geliştirir."
+    ],
+    "weeklyTopics": [
+      "Yakıtların sınıflandırılması ve temel özellikleri",
+      "Gaz, sıvı ve katı yakıtların karakterizasyonu",
+      "Yanma stokiyometrisi ve hava-yakıt oranı",
+      "Yanma termokimyası ve enerji dengeleri",
+      "Adyabatik alev sıcaklığı",
+      "Kimyasal denge ve ayrışma",
+      "Yanma reaksiyonlarının kimyasal kinetiği",
+      "Tutuşma gecikmesi ve alev hızı",
+      "Ön karışımlı alevlerin yapısı",
+      "Difüzyon alevleri",
+      "Sıvı yakıt püskürtme ve damlacık yanması",
+      "Katı yakıt ve kömür yanması",
+      "Yakıcılar ve endüstriyel yanma sistemleri",
+      "Kirletici oluşumu ve emisyon kontrolü",
+      "Yanma performansının verim ve çevresel etkilerle değerlendirilmesi"
+    ],
+    "assessments": [
+      {
+        "name": "Ara Sınav",
+        "count": 1,
+        "weight": 40
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı",
+        "count": 1,
+        "weight": 60
+      }
+    ],
+    "contributionMatrix": [
+      {
+        "outcome": "DÖÇ1",
+        "values": [
+          5,
+          4,
+          2,
+          3,
+          3,
+          2,
+          1,
+          2,
+          2,
+          3,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ2",
+        "values": [
+          5,
+          5,
+          3,
+          4,
+          4,
+          3,
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ3",
+        "values": [
+          5,
+          5,
+          3,
+          4,
+          5,
+          3,
+          1,
+          3,
+          2,
+          4,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ4",
+        "values": [
+          5,
+          5,
+          4,
+          4,
+          4,
+          3,
+          2,
+          3,
+          2,
+          4,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ5",
+        "values": [
+          4,
+          4,
+          5,
+          5,
+          5,
+          4,
+          2,
+          4,
+          3,
+          5,
+          5
+        ]
+      }
+    ],
+    "department": "Makine Mühendisliği ABD",
+    "programName": "Makine Mühendisliği",
+    "language": "Türkçe",
+    "level": "Tezli Yüksek Lisans",
+    "teachingMode": "Yüz Yüze",
+    "theory": 3,
+    "practice": 0,
+    "credit": 3,
+    "ects": 6,
+    "prerequisites": "Yok",
+    "publicQualityChecklist": false,
+    "workloads": [
+      {
+        "name": "Ders Süresi",
+        "count": 15,
+        "hours": 3,
+        "total": 45
+      },
+      {
+        "name": "Sınıf Dışı Çalışma Süresi",
+        "count": 15,
+        "hours": 6,
+        "total": 90
+      },
+      {
+        "name": "Ara Sınav Hazırlığı",
+        "count": 1,
+        "hours": 20,
+        "total": 20
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı Hazırlığı",
+        "count": 1,
+        "hours": 25,
+        "total": 25
+      }
+    ],
+    "qualityChecks": [
+      {
+        "item": "Ders adı ve kodları doğrulandı mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tüm OBS linkleri gerçek mi?",
+        "status": "Doğrulanmalı",
+        "note": "OBS bağlantısı gerçek olmakla birlikte ayrıntılar \"Veri yok\" dönüyor: https://obs.osmaniye.edu.tr/oibs/bologna/"
+      },
+      {
+        "item": "Dersin program düzeyi doğru mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Ders amacı açık ve uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Ders amacı program düzeyine uygun mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "DÖÇ sayısı ve kapsamı uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ'ler ölçülebilir mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom fiilleri uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom düzeyi program düzeyine uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Amaç–DÖÇ uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–içerik uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "İçerik–haftalık plan uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–öğretim yöntemi uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–ölçme/değerlendirme uyumu sağlandı mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "AKTS–iş yükü tutarlı mı?",
+        "status": "Revize Edildi",
+        "note": "İş yükü 15 haftalık ders süresi üzerinden 180 saat / 6 AKTS olarak düzenlendi."
+      },
+      {
+        "item": "DÖÇ–PÇ matrisi gerçekçi mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "1–5 katkı düzeyleri doğru kullanılmış mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Yapay yüksek ilişkilendirme var mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tekrarlı kodlar doğru tekilleştirildi mi?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Kaynakta olmayan bilgi kesin bilgi gibi yazılmış mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "Eksik/doğrulanması gereken alan kaldı mı?",
+        "status": "Doğrulanmalı"
+      }
+    ]
+  },
+  {
+    "code": "MMB816",
+    "name": "İLERİ IŞINIMLA ISI GEÇİŞİ",
+    "instructor": "Atama Bekliyor",
+    "sourceUrl": "https://obs.osmaniye.edu.tr/oibs/bologna/",
+    "sourceEmpty": true,
+    "purpose": "Yüzeyler ve katılımcı ortamlar arasındaki ışınımla ısı geçişini modelleme, çözme ve ısıl sistem performansı açısından değerlendirme yetkinliği kazandırmak.",
+    "content": "Işınım yasaları ve yüzey özellikleri; görüş faktörleri; gri yüzey kapalı hacimleri; ışınım kalkanları; katılımcı ortamlarda ışınım aktarımı; gaz ışınımı; sayısal çözüm, ölçüm ve birleşik ısı geçişi uygulamaları.",
+    "methods": "Kuramsal anlatım, ışınım bağıntılarının türetilmesi, kapalı hacim çözümü, sayısal modelleme ve mühendislik uygulaması analizi.",
+    "resources": "Modest, Radiative Heat Transfer; Howell, Mengüç ve Daun, Thermal Radiation Heat Transfer; Siegel ve Howell, Thermal Radiation Heat Transfer.",
+    "sdgs": [
+      "7",
+      "9",
+      "13"
+    ],
+    "outcomes": [
+      "Isıl ışınımın temel yasalarını mühendislik yüzeylerine uygular.",
+      "Görüş faktörlerini farklı geometriler için hesaplar.",
+      "Gri yüzeyli kapalı hacimlerde ışınım alışverişini analiz eder.",
+      "Katılımcı ortamlarda ışınım aktarımını modeller.",
+      "Işınımla ısı geçişi çözümünü verim ve güvenlik ölçütleriyle değerlendirir."
+    ],
+    "weeklyTopics": [
+      "Isıl ışınımın fiziksel temelleri",
+      "Siyah cisim ışınımı ve Planck yasası",
+      "Wien ve Stefan-Boltzmann bağıntıları",
+      "Gerçek yüzeylerin ışınım özellikleri",
+      "Kirchhoff yasası ve spektral özellikler",
+      "Görüş faktörlerinin geometrik bağıntıları",
+      "Görüş faktörü hesap yöntemleri",
+      "Gri yüzeyli kapalı hacimlerde ışınım",
+      "Işınım kalkanları ve yalıtım",
+      "Katılımcı ortamlarda ışınım aktarım denklemi",
+      "Gaz ışınımı ve bant modelleri",
+      "Işınım problemlerinin sayısal çözümü",
+      "Birleşik iletim, taşınım ve ışınım",
+      "Işınım ölçüm teknikleri",
+      "Işınım çözümünün ısıl performans ve güvenlik açısından değerlendirilmesi"
+    ],
+    "assessments": [
+      {
+        "name": "Ara Sınav",
+        "count": 1,
+        "weight": 40
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı",
+        "count": 1,
+        "weight": 60
+      }
+    ],
+    "contributionMatrix": [
+      {
+        "outcome": "DÖÇ1",
+        "values": [
+          5,
+          4,
+          3,
+          3,
+          3,
+          2,
+          1,
+          2,
+          2,
+          2,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ2",
+        "values": [
+          4,
+          5,
+          3,
+          4,
+          3,
+          3,
+          1,
+          2,
+          2,
+          3,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ3",
+        "values": [
+          4,
+          5,
+          3,
+          4,
+          5,
+          3,
+          1,
+          3,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ4",
+        "values": [
+          4,
+          4,
+          5,
+          5,
+          5,
+          4,
+          2,
+          3,
+          2,
+          3,
+          5
+        ]
+      },
+      {
+        "outcome": "DÖÇ5",
+        "values": [
+          4,
+          4,
+          4,
+          4,
+          5,
+          4,
+          2,
+          4,
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "department": "Makine Mühendisliği ABD",
+    "programName": "Makine Mühendisliği",
+    "language": "Türkçe",
+    "level": "Tezli Yüksek Lisans",
+    "teachingMode": "Yüz Yüze",
+    "theory": 3,
+    "practice": 0,
+    "credit": 3,
+    "ects": 6,
+    "prerequisites": "Yok",
+    "publicQualityChecklist": false,
+    "workloads": [
+      {
+        "name": "Ders Süresi",
+        "count": 15,
+        "hours": 3,
+        "total": 45
+      },
+      {
+        "name": "Sınıf Dışı Çalışma Süresi",
+        "count": 15,
+        "hours": 6,
+        "total": 90
+      },
+      {
+        "name": "Ara Sınav Hazırlığı",
+        "count": 1,
+        "hours": 20,
+        "total": 20
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı Hazırlığı",
+        "count": 1,
+        "hours": 25,
+        "total": 25
+      }
+    ],
+    "qualityChecks": [
+      {
+        "item": "Ders adı ve kodları doğrulandı mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tüm OBS linkleri gerçek mi?",
+        "status": "Doğrulanmalı",
+        "note": "OBS bağlantısı gerçek olmakla birlikte ayrıntılar \"Veri yok\" dönüyor: https://obs.osmaniye.edu.tr/oibs/bologna/"
+      },
+      {
+        "item": "Dersin program düzeyi doğru mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Ders amacı açık ve uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Ders amacı program düzeyine uygun mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "DÖÇ sayısı ve kapsamı uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ'ler ölçülebilir mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom fiilleri uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom düzeyi program düzeyine uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Amaç–DÖÇ uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–içerik uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "İçerik–haftalık plan uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–öğretim yöntemi uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–ölçme/değerlendirme uyumu sağlandı mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "AKTS–iş yükü tutarlı mı?",
+        "status": "Revize Edildi",
+        "note": "İş yükü 15 haftalık ders süresi üzerinden 180 saat / 6 AKTS olarak düzenlendi."
+      },
+      {
+        "item": "DÖÇ–PÇ matrisi gerçekçi mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "1–5 katkı düzeyleri doğru kullanılmış mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Yapay yüksek ilişkilendirme var mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tekrarlı kodlar doğru tekilleştirildi mi?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Kaynakta olmayan bilgi kesin bilgi gibi yazılmış mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "Eksik/doğrulanması gereken alan kaldı mı?",
+        "status": "Doğrulanmalı"
+      }
+    ]
+  },
+  {
+    "code": "MMB842",
+    "name": "SÜREKLİ ORTAMLAR MEKANİĞİ",
+    "instructor": "Doç. Dr. Mehmet Seha TATLIER",
+    "sourceUrl": "https://obs.osmaniye.edu.tr/oibs/bologna/",
+    "sourceEmpty": true,
+    "purpose": "Katı ve akışkan ortamların hareket, şekil değiştirme ve gerilme davranışlarını korunum yasaları ile bünye bağıntıları üzerinden modelleme yetkinliği kazandırmak.",
+    "content": "Sürekli ortam varsayımı; tensör hesabı; hareket ve deformasyon kinematiği; gerilme; kütle, momentum ve enerji dengeleri; bünye ilkeleri; elastik, hiperelastik ve akışkan modeller; sınır değer ve varyasyonel yaklaşımlar.",
+    "methods": "Kuramsal anlatım, tensör işlemleri, denklem türetme, sınır değer problemi çözümü ve mekanik model karşılaştırması.",
+    "resources": "Malvern, Introduction to the Mechanics of a Continuous Medium; Gurtin, Fried ve Anand, The Mechanics and Thermodynamics of Continua; Chadwick, Continuum Mechanics.",
+    "sdgs": [
+      "4",
+      "9",
+      "12"
+    ],
+    "outcomes": [
+      "Sürekli ortam kinematiğini tensör gösterimiyle ifade eder.",
+      "Gerilme ve şekil değiştirme ölçülerini fiziksel olarak yorumlar.",
+      "Kütle, momentum ve enerji korunum denklemlerini türetir.",
+      "Katı ve akışkanlar için uygun bünye modelini seçer.",
+      "Sınır değer problemlerini analitik veya sayısal çözüme hazırlar."
+    ],
+    "weeklyTopics": [
+      "Sürekli ortam varsayımı ve temel kavramlar",
+      "İndis gösterimi ve tensör cebri",
+      "Hareket ve malzeme koordinatları",
+      "Deformasyon gradyanı",
+      "Şekil değiştirme tensörleri",
+      "Hız gradyanı ve deformasyon hızı",
+      "Cauchy gerilme tensörü",
+      "Kütlenin korunumu",
+      "Doğrusal ve açısal momentum dengesi",
+      "Enerji dengesi ve termodinamik kısıtlar",
+      "Bünye ilkeleri ve nesnellik",
+      "Doğrusal elastik katı modeli",
+      "Hiperelastik ve viskoelastik modeller",
+      "Newtonyen akışkan modeli",
+      "Sınır değer problemlerinin bütüncül değerlendirilmesi"
+    ],
+    "assessments": [
+      {
+        "name": "Ara Sınav",
+        "count": 1,
+        "weight": 40
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı",
+        "count": 1,
+        "weight": 60
+      }
+    ],
+    "contributionMatrix": [
+      {
+        "outcome": "DÖÇ1",
+        "values": [
+          5,
+          4,
+          3,
+          3,
+          3,
+          2,
+          1,
+          2,
+          2,
+          2,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ2",
+        "values": [
+          4,
+          5,
+          3,
+          4,
+          3,
+          3,
+          1,
+          2,
+          2,
+          3,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ3",
+        "values": [
+          4,
+          5,
+          3,
+          4,
+          5,
+          3,
+          1,
+          3,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ4",
+        "values": [
+          4,
+          4,
+          5,
+          5,
+          5,
+          4,
+          2,
+          3,
+          2,
+          3,
+          5
+        ]
+      },
+      {
+        "outcome": "DÖÇ5",
+        "values": [
+          4,
+          4,
+          4,
+          4,
+          5,
+          4,
+          2,
+          4,
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "department": "Makine Mühendisliği ABD",
+    "programName": "Makine Mühendisliği",
+    "language": "Türkçe",
+    "level": "Tezli Yüksek Lisans",
+    "teachingMode": "Yüz Yüze",
+    "theory": 3,
+    "practice": 0,
+    "credit": 3,
+    "ects": 6,
+    "prerequisites": "Yok",
+    "publicQualityChecklist": false,
+    "workloads": [
+      {
+        "name": "Ders Süresi",
+        "count": 15,
+        "hours": 3,
+        "total": 45
+      },
+      {
+        "name": "Sınıf Dışı Çalışma Süresi",
+        "count": 15,
+        "hours": 6,
+        "total": 90
+      },
+      {
+        "name": "Ara Sınav Hazırlığı",
+        "count": 1,
+        "hours": 20,
+        "total": 20
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı Hazırlığı",
+        "count": 1,
+        "hours": 25,
+        "total": 25
+      }
+    ],
+    "qualityChecks": [
+      {
+        "item": "Ders adı ve kodları doğrulandı mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tüm OBS linkleri gerçek mi?",
+        "status": "Doğrulanmalı",
+        "note": "OBS bağlantısı gerçek olmakla birlikte ayrıntılar \"Veri yok\" dönüyor: https://obs.osmaniye.edu.tr/oibs/bologna/"
+      },
+      {
+        "item": "Dersin program düzeyi doğru mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Ders amacı açık ve uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Ders amacı program düzeyine uygun mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "DÖÇ sayısı ve kapsamı uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ'ler ölçülebilir mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom fiilleri uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom düzeyi program düzeyine uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Amaç–DÖÇ uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–içerik uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "İçerik–haftalık plan uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–öğretim yöntemi uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–ölçme/değerlendirme uyumu sağlandı mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "AKTS–iş yükü tutarlı mı?",
+        "status": "Revize Edildi",
+        "note": "İş yükü 15 haftalık ders süresi üzerinden 180 saat / 6 AKTS olarak düzenlendi."
+      },
+      {
+        "item": "DÖÇ–PÇ matrisi gerçekçi mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "1–5 katkı düzeyleri doğru kullanılmış mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Yapay yüksek ilişkilendirme var mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tekrarlı kodlar doğru tekilleştirildi mi?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Kaynakta olmayan bilgi kesin bilgi gibi yazılmış mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "Eksik/doğrulanması gereken alan kaldı mı?",
+        "status": "Doğrulanmalı"
+      }
+    ]
+  },
+  {
+    "code": "MMB845",
+    "name": "PLAKLAR VE KABUKLAR",
+    "instructor": "Atama Bekliyor",
+    "sourceUrl": "https://obs.osmaniye.edu.tr/oibs/bologna/",
+    "sourceEmpty": true,
+    "purpose": "İnce ve kalın plaklar ile kabukların yük altındaki davranışını modelleme, çözme ve yapısal güvenlik açısından değerlendirme yetkinliği kazandırmak.",
+    "content": "Klasik ve kayma deformasyonlu plak kuramları; dikdörtgen ve dairesel plaklar; enerji yöntemleri; burkulma ve titreşim; kabuk geometrisi; membran ve eğilme kuramları; silindirik ve küresel kabuklar; sonlu eleman uygulamaları.",
+    "methods": "Kuramsal anlatım, diferansiyel denklem çözümü, enerji yöntemleri, analitik-sayısal sonuç karşılaştırması ve yapısal değerlendirme.",
+    "resources": "Timoshenko ve Woinowsky-Krieger, Theory of Plates and Shells; Reddy, Theory and Analysis of Elastic Plates and Shells; Ventsel ve Krauthammer, Thin Plates and Shells.",
+    "sdgs": [
+      "9",
+      "11",
+      "12"
+    ],
+    "outcomes": [
+      "Plak ve kabukların temel varsayımlarını karşılaştırır.",
+      "Plakların eğilme denklemlerini sınır koşullarıyla çözer.",
+      "Plak ve kabuklarda burkulma ve titreşim davranışını analiz eder.",
+      "Kabukların membran ve eğilme çözümlerini uygular.",
+      "Analitik ve sayısal sonuçları yapısal güvenlik ölçütleriyle değerlendirir."
+    ],
+    "weeklyTopics": [
+      "Plak ve kabuk sistemlerinin sınıflandırılması",
+      "Klasik ince plak kuramının varsayımları",
+      "Plak denge ve eğilme denklemleri",
+      "Dikdörtgen plakların Navier çözümü",
+      "Dikdörtgen plakların Levy çözümü",
+      "Dairesel plakların eksenel simetrik çözümü",
+      "Plaklarda enerji yöntemleri",
+      "Plakların burkulması",
+      "Plakların serbest titreşimi",
+      "Mindlin-Reissner kalın plak kuramı",
+      "Kabuk geometrisi ve eğrilikler",
+      "Kabukların membran kuramı",
+      "Silindirik kabukların eğilmesi",
+      "Küresel ve dönel kabuklar",
+      "Plak ve kabuk çözümlerinin sonlu eleman sonuçlarıyla değerlendirilmesi"
+    ],
+    "assessments": [
+      {
+        "name": "Ara Sınav",
+        "count": 1,
+        "weight": 40
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı",
+        "count": 1,
+        "weight": 60
+      }
+    ],
+    "contributionMatrix": [
+      {
+        "outcome": "DÖÇ1",
+        "values": [
+          5,
+          4,
+          2,
+          3,
+          3,
+          2,
+          1,
+          2,
+          2,
+          3,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ2",
+        "values": [
+          5,
+          5,
+          3,
+          4,
+          4,
+          3,
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ3",
+        "values": [
+          5,
+          5,
+          3,
+          4,
+          5,
+          3,
+          1,
+          3,
+          2,
+          4,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ4",
+        "values": [
+          5,
+          5,
+          4,
+          4,
+          4,
+          3,
+          2,
+          3,
+          2,
+          4,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ5",
+        "values": [
+          4,
+          4,
+          5,
+          5,
+          5,
+          4,
+          2,
+          4,
+          3,
+          5,
+          5
+        ]
+      }
+    ],
+    "department": "Makine Mühendisliği ABD",
+    "programName": "Makine Mühendisliği",
+    "language": "Türkçe",
+    "level": "Tezli Yüksek Lisans",
+    "teachingMode": "Yüz Yüze",
+    "theory": 3,
+    "practice": 0,
+    "credit": 3,
+    "ects": 6,
+    "prerequisites": "Yok",
+    "publicQualityChecklist": false,
+    "workloads": [
+      {
+        "name": "Ders Süresi",
+        "count": 15,
+        "hours": 3,
+        "total": 45
+      },
+      {
+        "name": "Sınıf Dışı Çalışma Süresi",
+        "count": 15,
+        "hours": 6,
+        "total": 90
+      },
+      {
+        "name": "Ara Sınav Hazırlığı",
+        "count": 1,
+        "hours": 20,
+        "total": 20
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı Hazırlığı",
+        "count": 1,
+        "hours": 25,
+        "total": 25
+      }
+    ],
+    "qualityChecks": [
+      {
+        "item": "Ders adı ve kodları doğrulandı mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tüm OBS linkleri gerçek mi?",
+        "status": "Doğrulanmalı",
+        "note": "OBS bağlantısı gerçek olmakla birlikte ayrıntılar \"Veri yok\" dönüyor: https://obs.osmaniye.edu.tr/oibs/bologna/"
+      },
+      {
+        "item": "Dersin program düzeyi doğru mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Ders amacı açık ve uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Ders amacı program düzeyine uygun mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "DÖÇ sayısı ve kapsamı uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ'ler ölçülebilir mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom fiilleri uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom düzeyi program düzeyine uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Amaç–DÖÇ uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–içerik uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "İçerik–haftalık plan uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–öğretim yöntemi uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–ölçme/değerlendirme uyumu sağlandı mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "AKTS–iş yükü tutarlı mı?",
+        "status": "Revize Edildi",
+        "note": "İş yükü 15 haftalık ders süresi üzerinden 180 saat / 6 AKTS olarak düzenlendi."
+      },
+      {
+        "item": "DÖÇ–PÇ matrisi gerçekçi mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "1–5 katkı düzeyleri doğru kullanılmış mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Yapay yüksek ilişkilendirme var mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tekrarlı kodlar doğru tekilleştirildi mi?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Kaynakta olmayan bilgi kesin bilgi gibi yazılmış mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "Eksik/doğrulanması gereken alan kaldı mı?",
+        "status": "Doğrulanmalı"
+      }
+    ]
+  },
+  {
+    "code": "MMB852",
+    "name": "HESAPLAMALI AKIŞKANLAR DİNAMİĞİ",
+    "instructor": "Atama Bekliyor",
+    "sourceUrl": "https://obs.osmaniye.edu.tr/oibs/bologna/",
+    "sourceEmpty": true,
+    "purpose": "Akış ve ısı transferi problemlerini sayısal olarak modelleme, çözüm doğruluğunu sınama ve sonuçları mühendislik ölçütleriyle yorumlama yetkinliği kazandırmak.",
+    "content": "Korunum denklemleri; akış sınıflandırması; ağ üretimi; sonlu hacim ayrıklaştırması; taşınım ve difüzyon şemaları; basınç-hız bağlaşımı; türbülans; sınır koşulları; zamana bağlı çözüm; doğrulama, geçerleme ve belirsizlik.",
+    "methods": "Kuramsal anlatım, ayrık denklem türetme, ağ ve çözücü uygulamaları, yakınsama incelemesi, doğrulama ve mühendislik sonucu yorumlama.",
+    "resources": "Versteeg ve Malalasekera, An Introduction to Computational Fluid Dynamics; Ferziger, Perić ve Street, Computational Methods for Fluid Dynamics; Anderson, Computational Fluid Dynamics.",
+    "sdgs": [
+      "7",
+      "9",
+      "12"
+    ],
+    "outcomes": [
+      "Akış ve ısı transferi korunum denklemlerini sayısal çözüme hazırlar.",
+      "Probleme uygun ağ, ayrıklaştırma ve sınır koşullarını seçer.",
+      "Basınç-hız bağlaşımı ile türbülans modellerini uygular.",
+      "Sayısal çözümün yakınsama ve ağ bağımsızlığını değerlendirir.",
+      "Hesaplamalı sonuçları doğrulama ve geçerleme kanıtlarıyla yorumlar."
+    ],
+    "weeklyTopics": [
+      "Hesaplamalı akışkanlar dinamiğinin kapsamı",
+      "Akış ve enerji korunum denklemleri",
+      "Diferansiyel denklemlerin sınıflandırılması",
+      "Hesaplama ağları ve ağ kalitesi",
+      "Sonlu hacim yönteminin temel ilkeleri",
+      "Difüzyon terimlerinin ayrıklaştırılması",
+      "Taşınım terimleri ve sayısal şemalar",
+      "Basınç-hız bağlaşımı",
+      "SIMPLE ailesi algoritmaları",
+      "Sınır koşullarının sayısal uygulanması",
+      "Türbülans modellemesinin temelleri",
+      "Zamana bağlı akışların çözümü",
+      "Yakınsama ve ağ bağımsızlığı",
+      "Doğrulama, geçerleme ve belirsizlik",
+      "Hesaplamalı sonuçların mühendislik ölçütleriyle değerlendirilmesi"
+    ],
+    "assessments": [
+      {
+        "name": "Ara Sınav",
+        "count": 1,
+        "weight": 40
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı",
+        "count": 1,
+        "weight": 60
+      }
+    ],
+    "contributionMatrix": [
+      {
+        "outcome": "DÖÇ1",
+        "values": [
+          5,
+          4,
+          3,
+          3,
+          3,
+          2,
+          1,
+          2,
+          2,
+          2,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ2",
+        "values": [
+          4,
+          5,
+          3,
+          4,
+          3,
+          3,
+          1,
+          2,
+          2,
+          3,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ3",
+        "values": [
+          4,
+          5,
+          3,
+          4,
+          5,
+          3,
+          1,
+          3,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ4",
+        "values": [
+          4,
+          4,
+          5,
+          5,
+          5,
+          4,
+          2,
+          3,
+          2,
+          3,
+          5
+        ]
+      },
+      {
+        "outcome": "DÖÇ5",
+        "values": [
+          4,
+          4,
+          4,
+          4,
+          5,
+          4,
+          2,
+          4,
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "department": "Makine Mühendisliği ABD",
+    "programName": "Makine Mühendisliği",
+    "language": "Türkçe",
+    "level": "Tezli Yüksek Lisans",
+    "teachingMode": "Yüz Yüze",
+    "theory": 3,
+    "practice": 0,
+    "credit": 3,
+    "ects": 6,
+    "prerequisites": "Yok",
+    "publicQualityChecklist": false,
+    "workloads": [
+      {
+        "name": "Ders Süresi",
+        "count": 15,
+        "hours": 3,
+        "total": 45
+      },
+      {
+        "name": "Sınıf Dışı Çalışma Süresi",
+        "count": 15,
+        "hours": 6,
+        "total": 90
+      },
+      {
+        "name": "Ara Sınav Hazırlığı",
+        "count": 1,
+        "hours": 20,
+        "total": 20
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı Hazırlığı",
+        "count": 1,
+        "hours": 25,
+        "total": 25
+      }
+    ],
+    "qualityChecks": [
+      {
+        "item": "Ders adı ve kodları doğrulandı mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tüm OBS linkleri gerçek mi?",
+        "status": "Doğrulanmalı",
+        "note": "OBS bağlantısı gerçek olmakla birlikte ayrıntılar \"Veri yok\" dönüyor: https://obs.osmaniye.edu.tr/oibs/bologna/"
+      },
+      {
+        "item": "Dersin program düzeyi doğru mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Ders amacı açık ve uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Ders amacı program düzeyine uygun mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "DÖÇ sayısı ve kapsamı uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ'ler ölçülebilir mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom fiilleri uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom düzeyi program düzeyine uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Amaç–DÖÇ uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–içerik uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "İçerik–haftalık plan uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–öğretim yöntemi uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–ölçme/değerlendirme uyumu sağlandı mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "AKTS–iş yükü tutarlı mı?",
+        "status": "Revize Edildi",
+        "note": "İş yükü 15 haftalık ders süresi üzerinden 180 saat / 6 AKTS olarak düzenlendi."
+      },
+      {
+        "item": "DÖÇ–PÇ matrisi gerçekçi mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "1–5 katkı düzeyleri doğru kullanılmış mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Yapay yüksek ilişkilendirme var mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tekrarlı kodlar doğru tekilleştirildi mi?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Kaynakta olmayan bilgi kesin bilgi gibi yazılmış mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "Eksik/doğrulanması gereken alan kaldı mı?",
+        "status": "Doğrulanmalı"
+      }
+    ]
+  },
+  {
+    "code": "MMB856",
+    "name": "SONLU HACİMLER YÖNTEMİ",
+    "instructor": "Atama Bekliyor",
+    "sourceUrl": "https://obs.osmaniye.edu.tr/oibs/bologna/",
+    "sourceEmpty": true,
+    "purpose": "Korunum denklemlerini sonlu hacimler yöntemiyle ayrıklaştırma, çözüm algoritması geliştirme ve sayısal sonuçları korunum ile hata ölçütleri üzerinden değerlendirme yetkinliği kazandırmak.",
+    "content": "Kontrol hacmi yaklaşımı; ağlar; difüzyon, taşınım ve kaynak terimlerinin ayrıklaştırılması; sınır koşulları; basınç-hız bağlaşımı; zamansal ayrıklaştırma; doğrusal denklem çözücüleri; kararlılık, yakınsama, korunum ve hata analizi.",
+    "methods": "Kuramsal anlatım, ayrık denklem türetme, algoritma geliştirme, sayısal uygulama, hata ve korunum analizi.",
+    "resources": "Moukalled, Mangani ve Darwish, The Finite Volume Method in Computational Fluid Dynamics; Patankar, Numerical Heat Transfer and Fluid Flow; Versteeg ve Malalasekera, An Introduction to Computational Fluid Dynamics.",
+    "sdgs": [
+      "4",
+      "9",
+      "12"
+    ],
+    "outcomes": [
+      "Korunum denklemlerini kontrol hacimleri üzerinde bütünleştirir.",
+      "Difüzyon, taşınım ve kaynak terimlerini uygun şemalarla ayrıklaştırır.",
+      "Basınç-hız bağlaşımı ve zamansal çözüm algoritmalarını uygular.",
+      "Sayısal çözümün kararlılık, yakınsama ve korunum özelliklerini analiz eder.",
+      "Sonlu hacim çözümünü doğruluk ve mühendislik uygunluğu açısından değerlendirir."
+    ],
+    "weeklyTopics": [
+      "Korunum yasaları ve kontrol hacmi yaklaşımı",
+      "Hesaplama ağı ve geometrik büyüklükler",
+      "Bir boyutlu difüzyon denkleminin ayrıklaştırılması",
+      "Çok boyutlu difüzyon ve sınır koşulları",
+      "Taşınım-difüzyon denklemi",
+      "Merkezi ve yukarı akış şemaları",
+      "Yüksek çözünürlüklü taşınım şemaları",
+      "Kaynak terimlerinin doğrusallaştırılması",
+      "Basınç-hız bağlaşımı",
+      "SIMPLE algoritmasının uygulanması",
+      "Yapısal olmayan ağlarda sonlu hacimler",
+      "Zamansal ayrıklaştırma yöntemleri",
+      "Doğrusal denklem çözücüleri ve yakınsama",
+      "Korunum, hata ve doğrulama analizi",
+      "Bağlaşık taşınım problemlerinin sayısal değerlendirilmesi"
+    ],
+    "assessments": [
+      {
+        "name": "Ara Sınav",
+        "count": 1,
+        "weight": 40
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı",
+        "count": 1,
+        "weight": 60
+      }
+    ],
+    "contributionMatrix": [
+      {
+        "outcome": "DÖÇ1",
+        "values": [
+          5,
+          4,
+          3,
+          3,
+          3,
+          2,
+          1,
+          2,
+          2,
+          2,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ2",
+        "values": [
+          4,
+          5,
+          3,
+          4,
+          3,
+          3,
+          1,
+          2,
+          2,
+          3,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ3",
+        "values": [
+          4,
+          5,
+          3,
+          4,
+          5,
+          3,
+          1,
+          3,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "outcome": "DÖÇ4",
+        "values": [
+          4,
+          4,
+          5,
+          5,
+          5,
+          4,
+          2,
+          3,
+          2,
+          3,
+          5
+        ]
+      },
+      {
+        "outcome": "DÖÇ5",
+        "values": [
+          4,
+          4,
+          4,
+          4,
+          5,
+          4,
+          2,
+          4,
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "department": "Makine Mühendisliği ABD",
+    "programName": "Makine Mühendisliği",
+    "language": "Türkçe",
+    "level": "Tezli Yüksek Lisans",
+    "teachingMode": "Yüz Yüze",
+    "theory": 3,
+    "practice": 0,
+    "credit": 3,
+    "ects": 6,
+    "prerequisites": "Yok",
+    "publicQualityChecklist": false,
+    "workloads": [
+      {
+        "name": "Ders Süresi",
+        "count": 15,
+        "hours": 3,
+        "total": 45
+      },
+      {
+        "name": "Sınıf Dışı Çalışma Süresi",
+        "count": 15,
+        "hours": 6,
+        "total": 90
+      },
+      {
+        "name": "Ara Sınav Hazırlığı",
+        "count": 1,
+        "hours": 20,
+        "total": 20
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı Hazırlığı",
+        "count": 1,
+        "hours": 25,
+        "total": 25
+      }
+    ],
+    "qualityChecks": [
+      {
+        "item": "Ders adı ve kodları doğrulandı mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tüm OBS linkleri gerçek mi?",
+        "status": "Doğrulanmalı",
+        "note": "OBS bağlantısı gerçek olmakla birlikte ayrıntılar \"Veri yok\" dönüyor: https://obs.osmaniye.edu.tr/oibs/bologna/"
+      },
+      {
+        "item": "Dersin program düzeyi doğru mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Ders amacı açık ve uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Ders amacı program düzeyine uygun mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "DÖÇ sayısı ve kapsamı uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ'ler ölçülebilir mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom fiilleri uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom düzeyi program düzeyine uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Amaç–DÖÇ uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–içerik uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "İçerik–haftalık plan uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–öğretim yöntemi uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–ölçme/değerlendirme uyumu sağlandı mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "AKTS–iş yükü tutarlı mı?",
+        "status": "Revize Edildi",
+        "note": "İş yükü 15 haftalık ders süresi üzerinden 180 saat / 6 AKTS olarak düzenlendi."
+      },
+      {
+        "item": "DÖÇ–PÇ matrisi gerçekçi mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "1–5 katkı düzeyleri doğru kullanılmış mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Yapay yüksek ilişkilendirme var mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tekrarlı kodlar doğru tekilleştirildi mi?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Kaynakta olmayan bilgi kesin bilgi gibi yazılmış mı?",
+        "status": "Doğrulanmalı"
+      },
+      {
+        "item": "Eksik/doğrulanması gereken alan kaldı mı?",
+        "status": "Doğrulanmalı"
       }
     ]
   },
@@ -396915,81 +398843,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
-          3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
-          3,
           4,
           4,
-          1,
-          1,
           4,
+          4,
+          5,
+          5,
+          5,
+          1,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -397171,81 +399099,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          5,
+          4,
           4,
           3,
           1,
-          4,
+          1,
           3,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
+          2,
+          4,
+          5,
+          5,
+          5,
           3,
           1,
-          4,
-          4,
+          1,
           3,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
+          2,
           4,
-          1,
           5,
           4,
-          1,
           5,
+          5,
+          1,
+          1,
           3,
-          1,
-          1,
-          1,
-          1
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          2,
+          4,
+          4,
+          4,
+          4,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
-          5,
-          4,
-          4,
-          1,
-          1,
-          4,
           2,
-          1
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
+          1,
+          3,
+          5,
+          3
         ]
       }
     ],
@@ -397427,81 +399355,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          5,
+          4,
           4,
           3,
-          4,
-          4,
-          4,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
+          2,
+          4,
+          5,
+          5,
+          5,
           3,
           1,
-          4,
           1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
+          2,
           4,
-          1,
+          5,
+          4,
+          5,
           5,
           1,
           1,
-          5,
           3,
-          1,
-          1,
-          1,
-          1
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          2,
           4,
+          4,
+          4,
+          4,
+          3,
+          1,
           5,
           5,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
+          2,
           4,
+          4,
+          4,
+          5,
+          5,
+          5,
+          1,
           3,
           5,
-          4,
-          1,
-          1,
-          4,
-          2,
-          1
+          3
         ]
       }
     ],
@@ -397684,81 +399612,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
-          3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
-          3,
           4,
           4,
-          1,
-          1,
           4,
           4,
-          1
+          5,
+          5,
+          5,
+          1,
+          2,
+          5,
+          3
         ]
       }
     ],
@@ -397945,81 +399873,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          1,
+          5,
           4,
+          4,
+          1,
+          1,
           3,
-          4,
-          4,
-          4,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1
+          3,
+          2
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
+          2,
+          4,
+          5,
+          5,
+          5,
+          5,
+          1,
+          1,
           3,
-          1,
-          4,
-          1,
-          4,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1
+          3,
+          2
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
+          2,
           4,
           1,
           5,
-          1,
-          1,
           5,
+          5,
+          1,
+          1,
           3,
-          1,
-          1,
-          4,
-          1
+          3,
+          2
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
+          2,
+          4,
           1,
           4,
+          4,
+          4,
+          1,
           5,
           5,
-          4,
-          1,
-          1,
-          4,
-          4,
-          1
+          3,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
+          2,
+          4,
           1,
           4,
+          5,
+          5,
+          5,
+          1,
           3,
           5,
-          4,
-          1,
-          1,
-          4,
-          4,
-          1
+          2
         ]
       }
     ],
@@ -398201,81 +400129,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
-          3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
-          3,
           4,
           4,
-          1,
-          1,
           4,
+          4,
+          5,
+          5,
+          5,
+          1,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -398458,81 +400386,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          4,
           3,
-          1,
-          1,
-          1,
-          1
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
           1,
           3,
-          4,
-          3,
-          1,
-          1,
-          4,
-          2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -398714,81 +400642,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
-          3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
-          3,
           4,
           4,
-          1,
-          1,
           4,
+          4,
+          5,
+          5,
+          5,
+          1,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -398970,81 +400898,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
-          3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
-          3,
           4,
           4,
-          1,
-          1,
           4,
+          4,
+          5,
+          5,
+          5,
+          1,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -399226,81 +401154,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
           5,
           4,
-          1,
           5,
-          3,
+          5,
+          5,
           1,
           1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
           5,
-          4,
-          4,
+          5,
+          5,
           1,
-          1,
-          4,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -399484,81 +401412,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
           4,
+          4,
+          1,
           3,
-          4,
-          4,
+          1,
           3,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
+          4,
+          4,
+          5,
+          5,
+          1,
           3,
           1,
-          4,
-          1,
           3,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
-          1,
-          5,
           3,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
           4,
+          4,
+          4,
+          4,
+          1,
+          3,
+          1,
           5,
-          4,
-          4,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
           4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
           3,
-          4,
-          4,
-          1,
-          1,
-          4,
-          2,
-          1
+          3,
+          5,
+          3
         ]
       }
     ],
@@ -399741,81 +401669,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          4,
-          4,
           3,
-          4,
           1,
           1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
+          4,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
-          4,
           1,
-          3,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
-          3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
           4,
+          4,
+          4,
+          4,
+          3,
+          3,
+          1,
           5,
-          4,
-          4,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          4,
-          3,
           4,
           4,
-          1,
-          1,
           4,
+          4,
+          5,
+          5,
+          5,
+          1,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -399997,81 +401925,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
-          3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
-          3,
           4,
           4,
-          1,
-          1,
           4,
+          4,
+          5,
+          5,
+          5,
+          1,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -400253,81 +402181,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
           3,
-          1,
-          1,
-          1,
-          1
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
           1,
           3,
-          4,
-          4,
-          1,
-          1,
-          4,
-          2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -400510,81 +402438,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
-          3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
-          3,
           4,
           4,
-          1,
-          1,
           4,
+          4,
+          5,
+          5,
+          5,
+          1,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -400766,81 +402694,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
-          3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
-          3,
           4,
           4,
-          1,
-          1,
           4,
+          4,
+          5,
+          5,
+          5,
+          1,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -401022,81 +402950,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
-          3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
           4,
-          1,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
           4,
-          1,
-          1,
-          3,
           4,
           4,
-          1,
-          1,
           4,
+          5,
+          5,
+          5,
+          1,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -401278,81 +403206,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          4,
-          4,
           3,
           1,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
-          1,
-          5,
           3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
           4,
+          4,
+          4,
+          4,
+          3,
+          3,
+          1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
           4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
           3,
-          4,
-          4,
-          1,
-          1,
-          4,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -401536,81 +403464,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
           4,
+          4,
+          1,
           3,
-          4,
-          4,
+          1,
           3,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
           4,
+          5,
+          5,
+          1,
           3,
           1,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
           5,
           4,
-          1,
           5,
+          5,
+          5,
+          1,
           3,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
           4,
+          4,
+          4,
+          4,
+          1,
+          3,
+          1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
           4,
           5,
-          4,
-          4,
-          1,
-          1,
-          4,
-          2,
-          1
+          5,
+          5,
+          3,
+          3,
+          5,
+          3
         ]
       }
     ],
@@ -401792,81 +403720,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
           3,
-          1,
-          1,
-          1,
-          1
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
           1,
           3,
-          4,
-          4,
-          1,
-          1,
-          4,
-          2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -402048,81 +403976,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
-          3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
-          3,
           4,
           4,
-          1,
-          1,
           4,
+          4,
+          5,
+          5,
+          5,
+          1,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -402306,81 +404234,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
           4,
+          4,
+          1,
           3,
           1,
-          4,
           3,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
+          4,
+          5,
+          5,
           1,
           3,
           1,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
-          1,
-          5,
           3,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
+          4,
+          4,
+          4,
+          4,
           1,
-          1,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
           3,
-          4,
-          4,
-          1,
-          1,
-          4,
-          2,
-          1
+          3,
+          5,
+          3
         ]
       }
     ],
@@ -402562,81 +404490,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
           4,
+          4,
+          1,
           3,
-          4,
-          4,
+          1,
           3,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
+          4,
+          5,
+          5,
           1,
           3,
           1,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
-          1,
-          5,
           3,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
           4,
+          4,
+          4,
+          4,
+          1,
+          3,
+          1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
           4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
           3,
-          4,
-          4,
-          1,
-          1,
-          4,
-          2,
-          1
+          3,
+          5,
+          3
         ]
       }
     ],
@@ -402818,81 +404746,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          1,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
           3,
-          1,
-          1,
-          1,
-          1
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          3,
+          3,
           1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
           1,
           3,
-          4,
-          4,
-          1,
-          1,
-          4,
-          2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -403075,81 +405003,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          4,
-          4,
           3,
           1,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
-          1,
-          1,
-          1,
-          1,
-          1
+          3,
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
-          1,
-          5,
           3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
           4,
+          4,
+          4,
+          4,
+          3,
+          3,
+          1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
           4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
           3,
-          4,
-          4,
-          1,
-          1,
-          4,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -403331,81 +405259,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          4,
           4,
           3,
-          4,
-          4,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
-          3,
-          1,
           4,
-          1,
+          4,
+          5,
+          5,
+          3,
           3,
           1,
           1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
-          3,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          3
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
           4,
+          4,
+          4,
+          4,
+          3,
+          3,
+          1,
           5,
-          4,
-          1,
-          1,
-          1,
-          4,
-          1,
-          1
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          4,
-          3,
           4,
           4,
-          1,
-          1,
           4,
+          4,
+          5,
+          5,
+          5,
+          1,
           2,
-          1
+          5,
+          3
         ]
       }
     ],
@@ -403586,81 +405514,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
-          4,
+          5,
+          5,
+          1,
+          1,
+          1,
+          5,
           3,
           1,
           4,
           4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          2
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
+          2,
+          4,
+          5,
+          5,
+          1,
+          4,
           3,
           1,
-          4,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          5,
+          5,
+          2
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
+          2,
           4,
           1,
+          1,
           5,
-          1,
-          1,
           5,
           3,
           1,
-          1,
-          1,
-          1
+          4,
+          5,
+          2
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
-          1,
-          5,
-          5,
+          2,
+          4,
           1,
           1,
           1,
           4,
-          1,
-          1
+          3,
+          5,
+          5,
+          4,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
+          2,
+          4,
           1,
           1,
-          1,
-          3,
           5,
-          4,
+          5,
+          5,
           1,
-          1,
           4,
-          4,
-          1
+          5,
+          2
         ]
       }
     ],
@@ -403840,33 +405768,33 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          1,
+          5,
+          1,
+          4,
           4,
           3,
           1,
-          4,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          2
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
+          4,
+          1,
+          5,
+          5,
+          5,
+          5,
           3,
           1,
-          4,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          2,
+          2,
+          2
         ]
       },
       {
@@ -403876,45 +405804,45 @@
           1,
           5,
           1,
-          1,
+          5,
           5,
           3,
           1,
-          1,
-          1,
-          1
+          2,
+          2,
+          2
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
-          1,
-          5,
-          5,
-          1,
-          1,
+          4,
           1,
           4,
           1,
-          1
+          4,
+          4,
+          3,
+          5,
+          5,
+          2,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
+          4,
           1,
+          4,
           1,
-          1,
-          3,
           5,
-          4,
+          5,
+          5,
           1,
-          1,
-          4,
-          3,
-          1
+          2,
+          5,
+          2
         ]
       }
     ],
@@ -404088,81 +406016,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
-          4,
+          5,
+          5,
+          1,
+          1,
+          5,
+          2,
           3,
-          1,
           4,
+          2,
           4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          2
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
+          2,
+          4,
+          5,
+          5,
+          4,
+          2,
           3,
-          1,
-          4,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          5,
+          2,
+          5,
+          2
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
+          2,
           4,
           1,
+          1,
           5,
-          1,
-          1,
           5,
           3,
-          1,
-          1,
-          1,
-          1
+          4,
+          2,
+          5,
+          2
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
-          1,
-          5,
-          5,
-          1,
+          2,
+          4,
           1,
           1,
           4,
-          1,
-          1
+          2,
+          3,
+          5,
+          5,
+          4,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
+          2,
+          4,
           1,
           1,
-          1,
-          3,
+          5,
+          5,
           5,
           4,
-          1,
-          1,
-          4,
-          4,
-          1
+          2,
+          5,
+          2
         ]
       }
     ],
@@ -404336,81 +406264,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
           4,
+          4,
+          1,
+          2,
+          1,
+          1,
+          2,
           3,
-          1,
-          4,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          2
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
+          4,
+          4,
+          5,
+          5,
+          1,
+          2,
+          1,
+          1,
+          2,
           3,
-          1,
-          4,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          2
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
           4,
-          1,
+          5,
+          4,
+          5,
+          5,
           5,
           1,
           1,
-          5,
+          2,
           3,
-          1,
-          1,
-          1,
-          1
+          2
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
-          1,
-          5,
-          5,
-          1,
-          1,
-          1,
+          4,
+          4,
+          4,
           4,
           1,
-          1
+          2,
+          1,
+          5,
+          5,
+          3,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
-          1,
-          1,
-          1,
-          3,
+          4,
+          4,
+          4,
+          4,
           5,
-          4,
+          5,
+          5,
           1,
-          1,
-          4,
-          4,
-          1
+          2,
+          5,
+          2
         ]
       }
     ],
@@ -404587,81 +406515,81 @@
       {
         "outcome": "DÖÇ1",
         "values": [
+          5,
+          5,
+          1,
+          1,
+          1,
+          5,
+          4,
+          1,
           4,
           3,
-          1,
-          4,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          2
         ]
       },
       {
         "outcome": "DÖÇ2",
         "values": [
+          2,
+          4,
+          5,
+          5,
+          1,
+          4,
+          5,
+          1,
+          5,
           3,
-          1,
-          4,
-          1,
-          4,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1
+          2
         ]
       },
       {
         "outcome": "DÖÇ3",
         "values": [
+          2,
+          4,
+          1,
+          1,
+          5,
+          5,
           4,
           1,
           5,
-          1,
-          1,
-          5,
           3,
-          1,
-          1,
-          1,
-          1
+          2
         ]
       },
       {
         "outcome": "DÖÇ4",
         "values": [
-          1,
-          1,
-          1,
-          5,
-          5,
+          2,
+          4,
           1,
           1,
           1,
           4,
-          1,
-          1
+          4,
+          5,
+          5,
+          3,
+          5
         ]
       },
       {
         "outcome": "DÖÇ5",
         "values": [
+          2,
+          4,
           1,
           1,
-          1,
-          3,
           5,
-          4,
+          5,
+          5,
           1,
-          1,
           4,
-          4,
-          1
+          5,
+          2
         ]
       }
     ],
@@ -662264,6 +664192,261 @@
     ],
     "publicQualityChecklist": false,
     "code": "BES801",
+    "name": "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",
+    "teachingMode": "Yüz Yüze",
+    "theory": 3,
+    "practice": 0,
+    "ects": 6,
+    "purpose": "Öğrencinin arkeolojik araştırma problemini bilimsel yöntemlerle yapılandırması, uygun araştırma tasarımını seçmesi ve araştırma etiği ilkelerini uygulaması.",
+    "content": "Bilimsel bilgi, arkeolojik araştırma problemi, literatür taraması, araştırma tasarımı, arkeolojik veri toplama ve analiz yaklaşımları, bilimsel yazım, araştırma ve yayın etiği.",
+    "methods": "Anlatım, arkeolojik araştırma örneklerinin incelenmesi, yöntem karşılaştırması, bilimsel makale analizi ve tartışma.",
+    "resources": "OBS kaydında belirtilen araştırma yöntemleri kaynakları ve güncel arkeoloji metodolojisi yayınları.",
+    "sdgs": [
+      "4",
+      "11",
+      "16"
+    ],
+    "outcomes": [
+      "Arkeolojik araştırma problemini bilimsel ölçütlerle yapılandırır.",
+      "Araştırma problemine uygun yöntemi gerekçelendirir.",
+      "Arkeolojik veri toplama ve analiz yaklaşımlarını karşılaştırır.",
+      "Bilimsel araştırma bulgularını akademik biçimde raporlar.",
+      "Araştırma ve yayın etiği ilkelerini arkeoloji çalışmalarına uygular."
+    ],
+    "weeklyTopics": [
+      "Bilimsel bilgi ve arkeolojik araştırma",
+      "Araştırma problemi",
+      "Araştırma soruları",
+      "Literatür tarama stratejileri",
+      "Kaynakların eleştirel değerlendirilmesi",
+      "Araştırma tasarımı",
+      "Nitel araştırma yaklaşımları",
+      "Nicel araştırma yaklaşımları",
+      "Arkeolojik veri toplama",
+      "Belgeleme ve örnekleme",
+      "Veri analiz yaklaşımları",
+      "Geçerlik ve güvenirlik",
+      "Bilimsel yazım ve kaynak gösterme",
+      "Araştırma ve yayın etiği",
+      "Araştırma önerisinin yöntemsel değerlendirilmesi"
+    ],
+    "assessments": [
+      {
+        "name": "Ara Sınav",
+        "count": 1,
+        "weight": 40
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı",
+        "count": 1,
+        "weight": 60
+      }
+    ],
+    "workloads": [
+      {
+        "name": "Ders Süresi",
+        "count": 15,
+        "hours": 3,
+        "total": 45
+      },
+      {
+        "name": "Sınıf Dışı Çalışma Süresi",
+        "count": 15,
+        "hours": 6,
+        "total": 90
+      },
+      {
+        "name": "Ara Sınav Hazırlığı",
+        "count": 1,
+        "hours": 20,
+        "total": 20
+      },
+      {
+        "name": "Yarıyıl Sonu Sınavı Hazırlığı",
+        "count": 1,
+        "hours": 25,
+        "total": 25
+      }
+    ],
+    "contributionMatrix": [
+      {
+        "outcome": "DÖÇ1",
+        "values": [
+          3,
+          4,
+          3,
+          5,
+          2,
+          3,
+          4,
+          2,
+          3,
+          2,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ2",
+        "values": [
+          3,
+          5,
+          4,
+          5,
+          2,
+          4,
+          4,
+          2,
+          4,
+          2,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ3",
+        "values": [
+          3,
+          5,
+          3,
+          4,
+          3,
+          5,
+          3,
+          2,
+          3,
+          3,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ4",
+        "values": [
+          2,
+          4,
+          2,
+          4,
+          2,
+          3,
+          4,
+          5,
+          4,
+          2,
+          3
+        ]
+      },
+      {
+        "outcome": "DÖÇ5",
+        "values": [
+          2,
+          3,
+          2,
+          4,
+          2,
+          3,
+          3,
+          3,
+          5,
+          4,
+          3
+        ]
+      }
+    ]
+  },
+  {
+    "department": "Arkeoloji ABD",
+    "programName": "Arkeoloji",
+    "language": "Türkçe",
+    "level": "Tezli Yüksek Lisans",
+    "instructor": "Doç. Dr. Fatih Erhan",
+    "credit": 3,
+    "prerequisites": "Yok",
+    "qualityChecks": [
+      {
+        "item": "Ders adı ve kodları doğrulandı mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tüm OBS linkleri gerçek mi?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Dersin program düzeyi doğru mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Ders amacı açık ve uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Ders amacı program düzeyine uygun mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "DÖÇ sayısı ve kapsamı uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ'ler ölçülebilir mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom fiilleri uygun mu?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Bloom düzeyi program düzeyine uygun mu?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Amaç–DÖÇ uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–içerik uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "İçerik–haftalık plan uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–öğretim yöntemi uyumu sağlandı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–ölçme/değerlendirme uyumu sağlandı mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "AKTS–iş yükü tutarlı mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "DÖÇ–PÇ matrisi gerçekçi mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "1–5 katkı düzeyleri doğru kullanılmış mı?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Yapay yüksek ilişkilendirme var mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Tekrarlı kodlar doğru tekilleştirildi mi?",
+        "status": "Revize Edildi"
+      },
+      {
+        "item": "Kaynakta olmayan bilgi kesin bilgi gibi yazılmış mı?",
+        "status": "Uygun"
+      },
+      {
+        "item": "Eksik/doğrulanması gereken alan kaldı mı?",
+        "status": "Uygun"
+      }
+    ],
+    "publicQualityChecklist": false,
+    "code": "BES802",
     "name": "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ",
     "teachingMode": "Yüz Yüze",
     "theory": 3,

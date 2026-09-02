@@ -26,6 +26,8 @@ const checklist = (sourceUrl: string, sourceEmpty = false): CourseQualityCheck[]
 export type MakineAcademicInput = Pick<CoursePackage, "code" | "name" | "instructor" | "purpose" | "content" | "methods" | "resources" | "sdgs" | "outcomes" | "weeklyTopics" | "assessments"> & {
   sourceUrl: string;
   sourceEmpty?: boolean;
+  workloads?: CoursePackage["workloads"];
+  contributionMatrix?: CoursePackage["contributionMatrix"];
 };
 
 const normalizeHomeworkAssessment = (assessments: CoursePackage["assessments"]): CoursePackage["assessments"] => {
@@ -99,8 +101,8 @@ export const createMakineAcademicPackage = (data: MakineAcademicInput): CoursePa
   prerequisites: "Yok",
   publicQualityChecklist: false,
   assessments,
-  workloads: academicWorkloads(assessments),
-  contributionMatrix: buildSemanticContributionMatrix(data.outcomes, data),
+  workloads: data.workloads ?? academicWorkloads(assessments),
+  contributionMatrix: data.contributionMatrix ?? buildSemanticContributionMatrix(data.outcomes, data),
   qualityChecks: checklist(data.sourceUrl, data.sourceEmpty),
   });
 };
@@ -110,9 +112,35 @@ export const makineExam4060 = [
   { name: "Yarıyıl Sonu Sınavı", count: 1, weight: 60 },
 ];
 
+const matrix = (rows: number[][]): CoursePackage["contributionMatrix"] => rows.map((values, index) => ({ outcome: `DÖÇ${index + 1}`, values }));
+
+export const makineResearchMatrix = matrix([
+  [4, 4, 3, 3, 4, 5, 2, 3, 3, 2, 3],
+  [4, 5, 4, 4, 4, 5, 2, 3, 3, 2, 4],
+  [3, 4, 3, 3, 5, 5, 2, 4, 3, 2, 4],
+  [2, 3, 2, 1, 3, 4, 2, 3, 5, 3, 3],
+  [3, 3, 3, 2, 4, 5, 2, 5, 5, 3, 3],
+]);
+
+export const makineAnalysisMatrix = matrix([
+  [5, 4, 3, 3, 3, 2, 1, 2, 2, 2, 3],
+  [4, 5, 3, 4, 3, 3, 1, 2, 2, 3, 3],
+  [4, 5, 3, 4, 5, 3, 1, 3, 2, 3, 4],
+  [4, 4, 5, 5, 5, 4, 2, 3, 2, 3, 5],
+  [4, 4, 4, 4, 5, 4, 2, 4, 3, 4, 5],
+]);
+
+export const makineDesignMatrix = matrix([
+  [5, 4, 2, 3, 3, 2, 1, 2, 2, 3, 3],
+  [5, 5, 3, 4, 4, 3, 1, 2, 2, 3, 4],
+  [5, 5, 3, 4, 5, 3, 1, 3, 2, 4, 4],
+  [5, 5, 4, 4, 4, 3, 2, 3, 2, 4, 4],
+  [4, 4, 5, 5, 5, 4, 2, 4, 3, 5, 5],
+]);
+
 export const makineAcademicCoursePackages: CoursePackage[] = [
   createMakineAcademicPackage({
-    code: "MMB809", instructor: "Atama Bekliyor", sourceEmpty: true,
+    code: "MMB809", name: "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ", instructor: "Atama Bekliyor", sourceEmpty: true,
     sourceUrl: "https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=278716&lang=tr",
     purpose: "Bilimsel bir araştırmayı yöntemsel ve etik ilkelere uygun biçimde planlama, yürütme, değerlendirme ve raporlama yetkinliği kazandırmak.",
     content: "Bilimsel bilgi ve araştırma problemi; literatür taraması; araştırma desenleri; örnekleme; veri toplama ve analiz yaklaşımları; geçerlik ve güvenirlik; araştırma ve yayın etiği; akademik yazım ve kaynak gösterme.",
@@ -120,18 +148,33 @@ export const makineAcademicCoursePackages: CoursePackage[] = [
     resources: "OBS kaynağında ders ayrıntısı bulunmadığından kaynakça akademik onay beklemektedir.", sdgs: ["4", "9", "16"],
     outcomes: ["Bilimsel araştırma problemini ve araştırma sorularını yapılandırır.", "Araştırma problemine uygun yöntemi gerekçelendirir.", "Bilimsel kaynakları eleştirel ölçütlerle değerlendirir.", "Araştırma ve yayın etiği ihlallerini analiz eder.", "Araştırma sonuçlarını akademik yazım ilkelerine göre raporlar."],
     weeklyTopics: ["Bilimsel bilgi, araştırma ve bilimsel yöntem", "Araştırma problemi ve araştırma sorularının yapılandırılması", "Bilimsel literatür tarama stratejileri", "Kaynakların güvenilirlik ve uygunluk ölçütleri", "Nicel araştırma desenleri", "Nitel araştırma desenleri", "Karma yöntem araştırmaları", "Evren, örneklem ve örnekleme yaklaşımları", "Veri toplama araçlarının geçerlik ve güvenirliği", "Nicel veri analizine ilişkin temel kararlar", "Nitel verilerin çözümlenmesi ve yorumlanması", "Araştırma etiği ve katılımcı hakları", "Yayın etiği, yazarlık ve çıkar çatışması", "Akademik yazım, atıf ve kaynak gösterme", "Araştırma tasarımının yöntemsel ve etik açıdan bütünleştirilmesi"],
-    assessments: [],
+    assessments: makineExam4060,
+    contributionMatrix: makineResearchMatrix,
   }),
   createMakineAcademicPackage({
-    code: "MMB861", name: "KÜTLE AKTARIM TEORİSİ VE BİLGİSAYAR UYGULAMALARI", instructor: "Atama Bekliyor", sourceEmpty: true,
+    code: "MMB861", name: "KÜTLE AKTARIM TEORİSİ VE BİLGİSAYAR UYGULAMALARI", instructor: "Prof. Dr. Hasan DEMİR", sourceEmpty: false,
     sourceUrl: "https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=327156&lang=tr",
     purpose: "Kütle aktarımının ileri kuramsal temellerini analiz etme ve ilgili mühendislik problemlerini bilgisayar destekli yöntemlerle çözümleme yetkinliği kazandırmak.",
     content: "Difüzyon ve taşınım mekanizmaları; kütle aktarım katsayıları; kararlı ve kararsız kütle aktarımı; sınır koşulları; çok bileşenli sistemler; sayısal modelleme ve bilgisayar uygulamaları.",
     methods: "Kuramsal anlatım, matematiksel modelleme, problem çözümü, sayısal çözüm ve bilgisayar destekli sonuç analizi.",
-    resources: "OBS kaynağında ders ayrıntısı bulunmadığından kaynakça akademik onay beklemektedir.", sdgs: ["4", "9", "12"],
+    resources: "Welty, Wicks, Wilson ve Rorrer, Fundamentals of Momentum, Heat and Mass Transfer; Bird, Stewart ve Lightfoot, Transport Phenomena.", sdgs: ["4", "9", "12"],
     outcomes: ["Kütle aktarımının temel denklemlerini türetir.", "Kütle aktarım problemleri için başlangıç ve sınır koşullarını belirler.", "Kararlı ve kararsız kütle aktarımı problemlerini analiz eder.", "Kütle aktarım modellerini sayısal yöntemlerle çözer.", "Bilgisayar çözümü sonuçlarını fiziksel ve mühendislik ölçütleriyle değerlendirir."],
     weeklyTopics: ["Kütle aktarımının temel kavramları ve taşınım mekanizmaları", "Fick yasaları ve difüzyon katsayıları", "Durgun ortamda moleküler difüzyon", "Hareketli ortamda kütle aktarımı", "Kararlı tek boyutlu kütle aktarımı", "Sınır koşulları ve ara yüzey dengeleri", "Kütle aktarım katsayıları ve boyutsuz sayılar", "Konvektif kütle aktarımı bağıntıları", "Kararsız kütle aktarımı", "Çok bileşenli sistemlerde difüzyon", "Reaksiyonlu kütle aktarımı", "Kütle aktarım denklemlerinin ayrıklaştırılması", "Sayısal çözüm kararlılığı ve yakınsama", "Bilgisayar destekli kütle aktarım modeli", "Model sonuçlarının doğrulanması ve mühendislik yorumu"],
-    assessments: [],
+    assessments: [
+      { name: "Ara Sınav", count: 1, weight: 30 },
+      { name: "Ödev", count: 2, weight: 10 },
+      { name: "Proje", count: 1, weight: 20 },
+      { name: "Yarıyıl Sonu Sınavı", count: 1, weight: 40 },
+    ],
+    workloads: [
+      { name: "Ders Süresi", count: 15, hours: 3, total: 45 },
+      { name: "Sınıf Dışı Çalışma Süresi", count: 15, hours: 3, total: 45 },
+      { name: "Ödev Hazırlığı", count: 2, hours: 10, total: 20 },
+      { name: "Ara Sınav Hazırlığı", count: 1, hours: 15, total: 15 },
+      { name: "Proje Çalışması", count: 1, hours: 30, total: 30 },
+      { name: "Yarıyıl Sonu Sınavı Hazırlığı", count: 1, hours: 25, total: 25 },
+    ],
+    contributionMatrix: makineAnalysisMatrix,
   }),
   createMakineAcademicPackage({
     code: "MMB863", name: "SÜRDÜRÜLEBİLİR BİNA TASARIMI VE ENERJİ MODELLEME", instructor: "Atama Bekliyor", sourceEmpty: true,
@@ -142,7 +185,8 @@ export const makineAcademicCoursePackages: CoursePackage[] = [
     resources: "OBS kaynağında ders ayrıntısı bulunmadığından kaynakça akademik onay beklemektedir.", sdgs: ["7", "9", "11", "12", "13"],
     outcomes: ["Sürdürülebilir bina tasarım ölçütlerini açıklar.", "Bina kabuğu ve iklim verilerinin enerji performansına etkisini analiz eder.", "Bir bina için enerji modelinin temel girdilerini yapılandırır.", "Enerji verimliliği senaryolarını karşılaştırarak değerlendirir.", "Sürdürülebilirlik hedeflerine uygun bina enerji çözümü geliştirir."],
     weeklyTopics: ["Sürdürülebilir bina tasarımına giriş ve performans göstergeleri", "İklim verileri ve bina enerji dengesi", "Bina geometrisi, yönlenme ve gölgeleme", "Bina kabuğunda ısı geçişi", "Saydam yüzeyler ve güneş kazançları", "Hava sızdırmazlığı ve doğal havalandırma", "Pasif ısıtma ve soğutma stratejileri", "İç yükler ve kullanım çizelgeleri", "HVAC sistemlerinin enerji modelinde tanımlanması", "Aydınlatma ve elektrik yükleri", "Yenilenebilir enerji sistemlerinin modele entegrasyonu", "Bina enerji modelinin kurulması", "Model doğrulama ve hata kaynakları", "Enerji verimliliği senaryolarının karşılaştırılması", "Sürdürülebilir bina çözümünün bütüncül değerlendirilmesi"],
-    assessments: [],
+    assessments: makineExam4060,
+    contributionMatrix: makineDesignMatrix,
   }),
   createMakineAcademicPackage({
     code: "MMB811", instructor: "Prof. Dr. Ertuğrul CİHAN", sourceUrl: "https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=251461&lang=tr",

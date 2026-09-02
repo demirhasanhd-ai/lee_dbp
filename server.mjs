@@ -2852,6 +2852,8 @@ async function ensureDb() {
   `);
   seedInitialData();
   syncCourseCatalogFromSeed();
+  migrateArkeolojiBes802PackageFromSeed();
+  migrateMakineTezliQualityPackagesFromSeed();
   migrateBataryaTezliPackagesFromSeed();
   migrateBedenTezliPackagesFromSeed();
   migrateBedenTezsizPackagesFromSeed();
@@ -3819,6 +3821,95 @@ function syncCourseCatalogFromSeed() {
     `).run(now);
     db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("course_catalog_synced_at", now);
     audit("course_catalog.sync", "system", { inserted, updated, packages: packageSeeds.length });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function migrateArkeolojiBes802PackageFromSeed() {
+  const revision = "2026-09-02-arkeoloji-bes802-v1";
+  if (db.prepare("SELECT value FROM metadata WHERE key = ?").get("arkeoloji_bes802_package_revision")?.value === revision) return;
+  const packageSeed = readCoursePackageSeeds().find((item) =>
+    normalizeScope(item.department || "") === normalizeScope("Arkeoloji ABD") &&
+    normalizeScope(item.programName || "") === normalizeScope("Arkeoloji") &&
+    levelKey(item.level || "") === "tezli yl" &&
+    repairText(item.code || "").trim().toLocaleUpperCase("tr-TR") === "BES802"
+  );
+  const course = findExactCourseRow({
+    department: "Arkeoloji ABD",
+    programName: "Arkeoloji",
+    level: "Tezli Yüksek Lisans",
+    code: "BES802",
+  });
+  const now = new Date().toISOString();
+  let changed = 0;
+  db.exec("BEGIN");
+  try {
+    if (packageSeed && course) {
+      db.prepare(`
+        UPDATE courses
+        SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ?
+        WHERE id = ?
+      `).run(
+        course.name || packageSeed.name,
+        Number(packageSeed.credit || 0),
+        Number(packageSeed.ects || 0),
+        Number(packageSeed.theory || 0),
+        Number(packageSeed.practice || 0),
+        JSON.stringify(storedPackageFromSeed(packageSeed, { ...course, programName: course.program_name })),
+        now,
+        course.id,
+      );
+      changed = 1;
+    }
+    db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("arkeoloji_bes802_package_revision", revision);
+    audit("course.package.migrate", "system", { scope: "Arkeoloji Tezli YL BES802", revision, changed });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function migrateMakineTezliQualityPackagesFromSeed() {
+  const revision = "2026-09-02-makine-tezli-quality-v3";
+  if (db.prepare("SELECT value FROM metadata WHERE key = ?").get("makine_tezli_quality_packages_revision")?.value === revision) return;
+  const targetCodes = new Set(["MMB809", "MMB810", "MMB813", "MMB816", "MMB820", "MMB842", "MMB845", "MMB852", "MMB856", "MMB861", "MMB863"]);
+  const packages = readCoursePackageSeeds().filter((item) =>
+    normalizeScope(item.department || "") === normalizeScope("Makine Mühendisliği ABD") &&
+    normalizeScope(item.programName || "") === normalizeScope("Makine Mühendisliği") &&
+    levelKey(item.level || "") === "tezli yl" &&
+    targetCodes.has(repairText(item.code || "").trim().toLocaleUpperCase("tr-TR"))
+  );
+  const now = new Date().toISOString();
+  const update = db.prepare(`
+    UPDATE courses
+    SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ?
+    WHERE id = ?
+  `);
+  let changed = 0;
+  db.exec("BEGIN");
+  try {
+    for (const packageSeed of packages) {
+      const course = findExactCourseRow({ department: packageSeed.department, programName: packageSeed.programName, level: packageSeed.level, code: packageSeed.code });
+      if (!course) continue;
+      const courseView = { ...course, programName: course.program_name };
+      update.run(
+        course.name || packageSeed.name,
+        Number(packageSeed.credit || 0),
+        Number(packageSeed.ects || 0),
+        Number(packageSeed.theory || 0),
+        Number(packageSeed.practice || 0),
+        JSON.stringify(storedPackageFromSeed(packageSeed, courseView)),
+        now,
+        course.id,
+      );
+      changed += 1;
+    }
+    db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("makine_tezli_quality_packages_revision", revision);
+    audit("course.package.migrate", "system", { scope: "Makine Mühendisliği Tezli YL kalite düzeltmeleri", revision, changed });
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");

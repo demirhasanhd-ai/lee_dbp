@@ -13,6 +13,7 @@ const sourceFiles = new Map([
   ["./makineAcademicCoursePackages", path.join(rootDir, "lib", "data", "makineAcademicCoursePackages.ts")],
   ["./makineAcademicCoursePackages2", path.join(rootDir, "lib", "data", "makineAcademicCoursePackages2.ts")],
   ["./makineAcademicCoursePackages3", path.join(rootDir, "lib", "data", "makineAcademicCoursePackages3.ts")],
+  ["./makineQualityCompletionCoursePackages", path.join(rootDir, "lib", "data", "makineQualityCompletionCoursePackages.ts")],
   ["./aileDanismanligiTezliCoursePackages", path.join(rootDir, "lib", "data", "aileDanismanligiTezliCoursePackages.ts")],
   ["./aileDanismanligiCommonCoursePackages", path.join(rootDir, "lib", "data", "aileDanismanligiCommonCoursePackages.ts")],
   ["./aileDanismanligiMissingCoursePackages", path.join(rootDir, "lib", "data", "aileDanismanligiMissingCoursePackages.ts")],

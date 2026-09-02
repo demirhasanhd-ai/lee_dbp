@@ -1,4 +1,4 @@
-import { createMakineAcademicPackage, makineExam4060 } from "./makineAcademicCoursePackages";
+import { createMakineAcademicPackage, makineDesignMatrix, makineExam4060 } from "./makineAcademicCoursePackages";
 
 const obs = (course: number) => `https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=${course}&lang=tr`;
 
@@ -141,6 +141,6 @@ export const makineAcademicCoursePackages2 = [
     methods: "Kuramsal anlatım, ısı kaybı hesabı, hidronik sistem çözümlemesi, bileşen boyutlandırma ve sistem karşılaştırması.",
     resources: "OBS kaynağında ders ayrıntısı bulunmadığından kaynakça akademik onay beklemektedir.", sdgs: ["4", "7", "9", "11", "13"],
     outcomes: ["Bina ısıtma yükünü iklim ve yapı verileriyle hesaplar.", "Isıtma sistemi bileşenlerini kapasite ve çalışma koşullarına göre boyutlandırır.", "Hidronik boru ağı ve pompa gereksinimlerini analiz eder.", "Farklı ısıtma sistemlerini enerji verimliliği açısından karşılaştırır.", "Bir bina için uygun ısıtma sistemi çözümünü geliştirerek gerekçelendirir."],
-    weeklyTopics: ["Isıl konfor ve ısıtma sistemlerine giriş", "İklim verileri ve tasarım sıcaklıkları", "Yapı bileşenlerinde ısı geçişi", "İletim yoluyla bina ısı kayıpları", "Havalandırma ve sızıntı ısı kayıpları", "Toplam ısıtma yükünün hesaplanması", "Kazan sistemleri ve verim", "Isı pompaları ve düşük sıcaklıklı ısıtma", "Radyatör ve konvektörlerin boyutlandırılması", "Yerden ısıtma sistemleri", "Boru ağlarında basınç kaybı", "Sirkülasyon pompası seçimi", "Genleşme ve emniyet sistemleri", "Isıtma sistemi kontrol stratejileri", "Sistem alternatiflerinin enerji performansıyla değerlendirilmesi"], assessments: [],
+    weeklyTopics: ["Isıl konfor ve ısıtma sistemlerine giriş", "İklim verileri ve tasarım sıcaklıkları", "Yapı bileşenlerinde ısı geçişi", "İletim yoluyla bina ısı kayıpları", "Havalandırma ve sızıntı ısı kayıpları", "Toplam ısıtma yükünün hesaplanması", "Kazan sistemleri ve verim", "Isı pompaları ve düşük sıcaklıklı ısıtma", "Radyatör ve konvektörlerin boyutlandırılması", "Yerden ısıtma sistemleri", "Boru ağlarında basınç kaybı", "Sirkülasyon pompası seçimi", "Genleşme ve emniyet sistemleri", "Isıtma sistemi kontrol stratejileri", "Sistem alternatiflerinin enerji performansıyla değerlendirilmesi"], assessments: makineExam4060, contributionMatrix: makineDesignMatrix,
   }),
 ];

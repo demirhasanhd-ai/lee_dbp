@@ -53,6 +53,7 @@ import { makineCommonCoursePackages } from "./makineCommonCoursePackages";
 import { makineAcademicCoursePackages } from "./makineAcademicCoursePackages";
 import { makineAcademicCoursePackages2 } from "./makineAcademicCoursePackages2";
 import { makineAcademicCoursePackages3 } from "./makineAcademicCoursePackages3";
+import { makineQualityCompletionCoursePackages } from "./makineQualityCompletionCoursePackages";
 import { aileDanismanligiTezliCoursePackages } from "./aileDanismanligiTezliCoursePackages";
 import { aileDanismanligiCommonCoursePackages } from "./aileDanismanligiCommonCoursePackages";
 import { aileDanismanligiMissingCoursePackages } from "./aileDanismanligiMissingCoursePackages";
@@ -688,6 +689,7 @@ export const COURSE_PACKAGES: CoursePackage[] = [
   ...makineAcademicCoursePackages,
   ...makineAcademicCoursePackages2,
   ...makineAcademicCoursePackages3,
+  ...makineQualityCompletionCoursePackages,
   ...aileDanismanligiTezliCoursePackages,
   ...aileDanismanligiMissingCoursePackages,
   ...aileDanismanligiCommonCoursePackages,
@@ -816,7 +818,7 @@ export const COURSE_PACKAGES: CoursePackage[] = [
 ].map((coursePackage) => ({
   ...coursePackage,
   instructor: sanitizeInstructorName(coursePackage.instructor || ""),
-  contributionMatrix: ["Arkeoloji ABD", "Biyoloji ABD", "Ebelik ABD", "Ekoturizm Rehberliği ABD", "Elektrik Elektronik Mühendisliği ABD", "Enerji Sistemleri Mühendisliği ABD", "Felsefe ve Din Bilimleri ABD", "Fizik ABD", "Gastronomi ve Mutfak Sanatları ABD", "Gıda Mühendisliği ABD", "Gıda Teknolojisi ABD", "Harita Mühendisliği ABD", "Hemşirelik ABD", "İktisat ABD", "İnşaat Mühendisliği ABD", "İşletme", "Kimya ABD", "Matematik ABD", "Muhasebe ve Finansman", "Organik Tarım İşletmeciliği ABD", "Resim ASD", "Siyaset Bilimi ve Kamu Yönetimi ABD", "Tarih ABD", "Temel İslam Bilimleri ABD", "Türk Dili ve Edebiyatı ABD", "Yönetim Bilişim Sistemleri ABD", "Yönetim Organizasyon"].includes(coursePackage.department || "")
+  contributionMatrix: ["Arkeoloji ABD", "Biyoloji ABD", "Ebelik ABD", "Ekoturizm Rehberliği ABD", "Elektrik Elektronik Mühendisliği ABD", "Enerji Sistemleri Mühendisliği ABD", "Felsefe ve Din Bilimleri ABD", "Fizik ABD", "Gastronomi ve Mutfak Sanatları ABD", "Gıda Mühendisliği ABD", "Gıda Teknolojisi ABD", "Harita Mühendisliği ABD", "Hemşirelik ABD", "İktisat ABD", "İnşaat Mühendisliği ABD", "İşletme", "Kimya ABD", "Makine Mühendisliği ABD", "Matematik ABD", "Muhasebe ve Finansman", "Organik Tarım İşletmeciliği ABD", "Resim ASD", "Siyaset Bilimi ve Kamu Yönetimi ABD", "Tarih ABD", "Temel İslam Bilimleri ABD", "Türk Dili ve Edebiyatı ABD", "Yönetim Bilişim Sistemleri ABD", "Yönetim Organizasyon"].includes(coursePackage.department || "")
     ? coursePackage.contributionMatrix
     : buildSemanticContributionMatrix(coursePackage.outcomes, coursePackage),
 }));

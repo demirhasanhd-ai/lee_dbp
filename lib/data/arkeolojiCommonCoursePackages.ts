@@ -41,3 +41,11 @@ export const arkeolojiCommonCoursePackages: CoursePackage[] = [
     outcomes: ["Arkeolojik araştırma problemini bilimsel ölçütlerle yapılandırır.", "Araştırma problemine uygun yöntemi gerekçelendirir.", "Arkeolojik veri toplama ve analiz yaklaşımlarını karşılaştırır.", "Bilimsel araştırma bulgularını akademik biçimde raporlar.", "Araştırma ve yayın etiği ilkelerini arkeoloji çalışmalarına uygular."], weeklyTopics: ["Bilimsel bilgi ve arkeolojik araştırma", "Araştırma problemi", "Araştırma soruları", "Literatür tarama stratejileri", "Kaynakların eleştirel değerlendirilmesi", "Araştırma tasarımı", "Nitel araştırma yaklaşımları", "Nicel araştırma yaklaşımları", "Arkeolojik veri toplama", "Belgeleme ve örnekleme", "Veri analiz yaklaşımları", "Geçerlik ve güvenirlik", "Bilimsel yazım ve kaynak gösterme", "Araştırma ve yayın etiği", "Araştırma önerisinin yöntemsel değerlendirilmesi"], assessments: [{ name: "Ara Sınav", count: 1, weight: 40 }, { name: "Yarıyıl Sonu Sınavı", count: 1, weight: 60 }], workloads: [{ name: "Ders Süresi", count: 15, hours: 3, total: 45 }, { name: "Sınıf Dışı Çalışma Süresi", count: 15, hours: 6, total: 90 }, { name: "Ara Sınav Hazırlığı", count: 1, hours: 20, total: 20 }, { name: "Yarıyıl Sonu Sınavı Hazırlığı", count: 1, hours: 25, total: 25 }], contributionMatrix: matrix([[3,4,3,5,2,3,4,2,3,2,3],[3,5,4,5,2,4,4,2,4,2,3],[3,5,3,4,3,5,3,2,3,3,3],[2,4,2,4,2,3,4,5,4,2,3],[2,3,2,4,2,3,3,3,5,4,3]]),
   },
 ];
+
+const arkeolojiResearchMethodsFall = arkeolojiCommonCoursePackages.find((course) => course.code === "BES801");
+if (arkeolojiResearchMethodsFall) {
+  arkeolojiCommonCoursePackages.push({
+    ...arkeolojiResearchMethodsFall,
+    code: "BES802",
+  });
+}

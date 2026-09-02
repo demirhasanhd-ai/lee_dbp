@@ -354,6 +354,26 @@ test("handoff 15-2 Makine courses preserve DB-backed public package requirements
   }
 });
 
+test("Makine tezli YL kalite gündemi dersleri tamamlanmış paket ve ölçme-değerlendirme taşır", async () => {
+  const codes = ["MMB809", "MMB810", "MMB813", "MMB816", "MMB820", "MMB842", "MMB845", "MMB852", "MMB856", "MMB861", "MMB863"];
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const packages = seed.filter((item) => item.department === "Makine Mühendisliği ABD" && item.programName === "Makine Mühendisliği" && item.level === "Tezli Yüksek Lisans" && codes.includes(item.code));
+  assert.equal(packages.length, codes.length);
+  for (const coursePackage of packages) {
+    assert.equal(coursePackage.weeklyTopics.length, 15, `${coursePackage.code}: 15 hafta`);
+    assert.equal(coursePackage.outcomes.length, 5, `${coursePackage.code}: 5 DÖÇ`);
+    assert.ok(coursePackage.assessments.length > 0, `${coursePackage.code}: ölçme-değerlendirme`);
+    assert.equal(coursePackage.assessments.reduce((sum, item) => sum + item.weight, 0), 100, `${coursePackage.code}: değerlendirme toplamı`);
+    assert.equal(coursePackage.workloads.reduce((sum, item) => sum + item.total, 0), 180, `${coursePackage.code}: 180 saat`);
+    assert.equal(coursePackage.contributionMatrix.length, 5, `${coursePackage.code}: DÖÇ–PÇ matrisi`);
+    assert.ok(coursePackage.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)), `${coursePackage.code}: 1–5 katkı`);
+    assert.deepEqual([...new Set(coursePackage.contributionMatrix.flatMap((row) => row.values))].sort(), [1, 2, 3, 4, 5], `${coursePackage.code}: amaç ve içerikle derecelendirilmiş tam ölçek`);
+    assert.equal(coursePackage.publicQualityChecklist, false, `${coursePackage.code}: iç kontrol public değil`);
+  }
+  const mmb861 = packages.find((item) => item.code === "MMB861");
+  assert.deepEqual(mmb861.assessments.map(({ name, count, weight }) => [name, count, weight]), [["Ara Sınav", 1, 30], ["Ödev", 2, 10], ["Proje", 1, 20], ["Yarıyıl Sonu Sınavı", 1, 40]]);
+});
+
 test("latest Makine handoff courses keep 15 academic weeks, semantic matrices and homework-aware workloads", async () => {
   const codes = [
     "MMB822", "MMB824", "MMB826", "MMB828", "MMB830", "MMB832",
@@ -456,7 +476,7 @@ test("Aile Danışmanlığı JSON üreticisi program profilini değiştirmez", a
 test("Arkeoloji tezli YL paketleri 15 hafta, 11 PÇ ve iç kalite kontrolü taşır", async () => {
   const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
   const packages = seed.filter((item) => item.department === "Arkeoloji ABD");
-  assert.equal(packages.length, 27);
+  assert.equal(packages.length, 28);
   const forbidden = /^(Quiz|Ödev|Proje|Sunum|Konu Tekrarı|Genel Tekrar|Genel Değerlendirme)(\s|$)/iu;
   for (const course of packages) {
     assert.equal(course.weeklyTopics.length, 15, `${course.code} 15 hafta olmalı`);
@@ -833,6 +853,21 @@ test("local preview loads version from the package endpoint", async () => {
   assert.match(html, /<script\s+src=["']\/app-version\.js["']\s+defer><\/script>/i);
   assert.match(html, /\bdata-app-version\b/);
   assert.doesNotMatch(html, /Versiyon:\s*\d/);
+});
+
+test("Arkeoloji BES802 genel araştırma-yayın etiği paketini Arkeoloji PÇ matrisiyle kullanır", async () => {
+  const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
+  const fall = seed.find((item) => item.department === "Arkeoloji ABD" && item.code === "BES801");
+  const spring = seed.find((item) => item.department === "Arkeoloji ABD" && item.code === "BES802");
+  assert.ok(fall);
+  assert.ok(spring);
+  assert.equal(spring.name, "BİLİMSEL ARAŞTIRMA YÖNTEMLERİ VE YAYIN ETİĞİ");
+  for (const field of ["purpose", "content", "methods", "resources", "outcomes", "weeklyTopics", "assessments", "workloads", "contributionMatrix"]) {
+    assert.deepEqual(spring[field], fall[field], `BES802 ${field} alanı genel ders paketiyle aynı olmalı`);
+  }
+  assert.equal(spring.contributionMatrix.every((row) => row.values.length === 11 && row.values.every((value) => value >= 1 && value <= 5)), true);
+  assert.equal(spring.workloads.reduce((sum, row) => sum + row.total, 0), 180);
+  assert.equal(spring.publicQualityChecklist, false);
 });
 
 test("İşletme doktora paketleri handoff kalite kurallarını karşılar", async () => {
