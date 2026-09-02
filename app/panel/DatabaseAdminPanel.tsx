@@ -48,6 +48,11 @@ type DbSummary = {
     updated_at: string;
   }[];
   backups: BackupInfo[];
+  qualitySnapshot: {
+    generatedAt: string;
+    nextRefreshAt: string;
+    schedule: string[];
+  };
 };
 
 function formatBytes(value = 0) {
@@ -175,6 +180,15 @@ export function DatabaseAdminPanel() {
       if (!response.ok) throw new Error("Baslangic verisi yuklenemedi.");
     });
 
+  const refreshQualityIndicators = () =>
+    runAction("Kalite ve SKA göstergeleri canlı veriden yenilendi.", async () => {
+      const response = await fetch(dbpPath("/api/dbp/admin/quality-refresh"), {
+        method: "POST",
+        headers: jsonHeaders(),
+      });
+      if (!response.ok) throw new Error("Kalite göstergeleri yenilenemedi.");
+    });
+
   return (
     <section className="database-admin">
       <div className="panel-intro">
@@ -263,6 +277,12 @@ export function DatabaseAdminPanel() {
               </header>
               <div className="database-actions">
                 <button onClick={reseed} disabled={busy}><RefreshCw size={15} /> Mevcut Veriyi Yeniden Yükle</button>
+                <button onClick={refreshQualityIndicators} disabled={busy}><RefreshCw size={15} /> Kalite ve SKA Göstergelerini Yenile</button>
+              </div>
+              <div className="database-quality-schedule">
+                <b>Kalite göstergesi takvimi</b>
+                <span>Son yenileme: {summary.qualitySnapshot.generatedAt ? new Date(summary.qualitySnapshot.generatedAt).toLocaleString("tr-TR") : "Henüz oluşturulmadı"}</span>
+                <span>Sonraki otomatik yenileme: {summary.qualitySnapshot.nextRefreshAt ? new Date(summary.qualitySnapshot.nextRefreshAt).toLocaleString("tr-TR") : "Planlanmadı"}</span>
               </div>
               <div className="database-reset">
                 <input value={resetConfirm} onChange={(event) => setResetConfirm(event.target.value)} placeholder="DBP_RESET yazın" />

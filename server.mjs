@@ -49,6 +49,9 @@ let eEnstituPgPool;
 let homeInstructorCountCache;
 let homeInstructorCountRefresh;
 let homeStatsCache;
+let qualitySnapshotCache;
+let qualitySnapshotRefreshPromise;
+let qualityRefreshTimer;
 
 function openBrowser(url) {
   const child =
@@ -2893,6 +2896,7 @@ async function ensureDb() {
   migrateYbsTezsizPackagesFromSeed();
   migrateYonetimOrganizasyonTezsizPackagesFromSeed();
   migrateYonetimOrganizasyonTezliPackagesFromSeed();
+  removeCourseLevelCodeMismatches();
   migrateYbsDoctorateContributionScale();
   seedProgramProfiles();
   ensureTestProgramData();
@@ -3997,6 +4001,45 @@ function migrateGidaMuhendisligiDoktoraPackagesFromSeed() {
   const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Gıda Mühendisliği ABD")&&normalizeScope(x.programName||"")===normalizeScope("Gıda Mühendisliği")&&levelKey(x.level||"")==="doktora");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const rows=courseRowsForIdentity({department:p.department,programName:p.programName,level:p.level,code:p.code});for(const c of rows){update.run(p.name||c.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("gida_muhendisligi_doktora_packages_revision",revision);audit("course.package.migrate","system",{scope:"Gıda Mühendisliği Doktora",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
 }
 
+function courseLevelFromCode(code) {
+  const firstDigit = repairText(String(code || "")).match(/\d/u)?.[0];
+  if (firstDigit === "7") return "tezsiz yl";
+  if (firstDigit === "8") return "tezli yl";
+  if (firstDigit === "9") return "doktora";
+  return "";
+}
+
+function courseCodeMatchesLevel(code, level) {
+  const expected = courseLevelFromCode(code);
+  return !expected || levelKey(level) === expected;
+}
+
+function removeCourseLevelCodeMismatches() {
+  const rows = db.prepare("SELECT id, department, program_name, level, code, name FROM courses").all();
+  const invalidRows = rows.filter((row) => !courseCodeMatchesLevel(row.code, row.level));
+  if (!invalidRows.length) return 0;
+  const remove = db.prepare("DELETE FROM courses WHERE id = ?");
+  db.exec("BEGIN");
+  try {
+    for (const row of invalidRows) remove.run(row.id);
+    audit("course.level-code.cleanup", "system", {
+      removed: invalidRows.map((row) => ({
+        id: row.id,
+        code: row.code,
+        level: displayLevel(row.level),
+        department: row.department,
+        programName: row.program_name,
+        name: row.name,
+      })),
+    });
+    db.exec("COMMIT");
+    return invalidRows.length;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 function migrateEnerjiTezsizPackagesFromSeed() {
   const revision = "2026-08-25-enerji-sistemleri-tezsiz-v1";
   const metadataKey = "enerji_tezsiz_packages_revision";
@@ -4258,22 +4301,83 @@ function migrateYonetimOrganizasyonTezliPackagesFromSeed() {
   const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Yönetim Organizasyon")&&normalizeScope(x.programName||"")===normalizeScope("Yönetim Organizasyon")&&levelKey(x.level||"")==="tezli yl");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const rows=courseRowsForIdentity({department:p.department,programName:p.programName,level:p.level,code:p.code});for(const c of rows){update.run(p.name||c.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("yonetim_organizasyon_tezli_packages_revision",revision);audit("course.package.migrate","system",{scope:"Yönetim Organizasyon Tezli YL",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
 }
 
-function qualityStats(filters = {}) {
-  const courses = dbCourseList(filters);
-  const instructorLoads = new Map();
+const qualitySdgTitles = {
+  1: "Yoksulluğa Son", 2: "Açlığa Son", 3: "Sağlık ve Kaliteli Yaşam", 4: "Nitelikli Eğitim",
+  5: "Toplumsal Cinsiyet Eşitliği", 6: "Temiz Su ve Sanitasyon", 7: "Erişilebilir ve Temiz Enerji",
+  8: "İnsana Yakışır İş ve Ekonomik Büyüme", 9: "Sanayi, Yenilikçilik ve Altyapı",
+  10: "Eşitsizliklerin Azaltılması", 11: "Sürdürülebilir Şehirler ve Topluluklar",
+  12: "Sorumlu Üretim ve Tüketim", 13: "İklim Eylemi", 14: "Sudaki Yaşam", 15: "Karasal Yaşam",
+  16: "Barış, Adalet ve Güçlü Kurumlar", 17: "Amaçlar için Ortaklıklar",
+};
+
+function academicTitle(value = "") {
+  const text = repairText(String(value));
+  if (/Prof\.?\s*Dr\.?/iu.test(text)) return "Prof. Dr.";
+  if (/Doç\.?\s*Dr\.?/iu.test(text)) return "Doç. Dr.";
+  if (/(Dr\.?\s*Öğr\.?\s*Üyesi|Yrd\.?\s*Doç\.?\s*Dr\.?)/iu.test(text)) return "Dr. Öğr. Üyesi";
+  if (/Öğr\.?\s*Gör\.?\s*Dr\.?/iu.test(text)) return "Öğr. Gör. Dr.";
+  if (/Öğr\.?\s*Gör\.?/iu.test(text)) return "Öğr. Gör.";
+  if (/Arş\.?\s*Gör\.?\s*Dr\.?/iu.test(text)) return "Arş. Gör. Dr.";
+  if (/Arş\.?\s*Gör\.?/iu.test(text)) return "Arş. Gör.";
+  return "Diğer akademik unvan";
+}
+
+function instructorPeople(value = "") {
+  return repairText(String(value))
+    .split(/\s+\/\s+|\s*;\s*|\s*\|\s*/u)
+    .map((item) => item.trim())
+    .filter((item) => item && !["atama bekliyor", "öğrencinin danışmanı", "öğrencinin proje danışmanı", "yok", "-"].includes(normalizeScope(item)));
+}
+
+function titleLoadStats(courses, instructorOptions = []) {
+  const rows = new Map();
+  const ensure = (title) => {
+    if (!rows.has(title)) rows.set(title, { title, academics: 0, assignedCourses: 0, theory: 0, practice: 0, weeklyHours: 0, ects: 0 });
+    return rows.get(title);
+  };
+  const known = new Map();
+  for (const option of instructorOptions) {
+    const name = repairText(option?.name || "").trim();
+    if (name) known.set(normalizeInstructorScope(name), name);
+  }
+  for (const course of courses) {
+    for (const person of instructorPeople(course.instructor)) {
+      known.set(normalizeInstructorScope(person), person);
+      const row = ensure(academicTitle(person));
+      row.assignedCourses += 1;
+      row.theory += Number(course.theory || 0);
+      row.practice += Number(course.practice || 0);
+      row.ects += Number(course.ects || 0);
+    }
+  }
+  for (const person of known.values()) ensure(academicTitle(person)).academics += 1;
+  for (const row of rows.values()) row.weeklyHours = row.theory + row.practice;
+  return [...rows.values()].sort((a, b) => b.weeklyHours - a.weeklyHours || b.academics - a.academics || a.title.localeCompare(b.title, "tr-TR"));
+}
+
+function qualityStats(filters = {}, options = {}) {
+  const courses = options.courses || dbCourseList(filters);
   const termCounts = {};
   const typeCounts = {};
+  const levelCounts = {};
+  const sdgCounts = Object.fromEntries(Object.keys(qualitySdgTitles).map((id) => [id, 0]));
   const warnings = [];
   let completePackages = 0;
   let packagedCourses = 0;
   let workloadConsistent = 0;
   let matrixComplete = 0;
+  let weeklyPlanComplete = 0;
+  let outcomesComplete = 0;
+  let assessmentComplete = 0;
+  let resourcesComplete = 0;
+  let sdgCoverageCourses = 0;
+  let sdgLinks = 0;
   let assignedCourses = 0;
   let processCourses = 0;
   let processResponsible = 0;
 
   for (const course of courses) {
-    const row = findExactCourseRow(course);
+    const row = options.rowsByCourse?.get(course) || findExactCourseRow(course);
     const hasPackage = Boolean(row?.package_json && row.package_json !== "{}");
     const packageData = parseJsonField(row?.package_json, {});
     if (hasPackage) packagedCourses += 1;
@@ -4283,9 +4387,7 @@ function qualityStats(filters = {}) {
       ? Object.values(packageData.weeklyTopics).filter((value) => String(value || "").trim())
       : [];
     const matrix = Array.isArray(packageData.contributionMatrix) ? packageData.contributionMatrix : [];
-    const workloads = packageData.workloads && typeof packageData.workloads === "object"
-      ? Object.values(packageData.workloads)
-      : [];
+    const workloads = packageData.workloads && typeof packageData.workloads === "object" ? Object.values(packageData.workloads) : [];
     const workloadTotal = workloads.reduce((sum, item) => sum + Number(item?.count || 0) * Number(item?.hours || 0), 0);
     const ects = Number(packageData.ects ?? course.ects ?? 0);
     const matrixOk = outcomes.length > 0 && matrix.length >= outcomes.length && matrix.slice(0, outcomes.length).every((matrixRow) =>
@@ -4300,7 +4402,18 @@ function qualityStats(filters = {}) {
     );
     if (hasPackage && matrixOk) matrixComplete += 1;
     if (hasPackage && workloadOk) workloadConsistent += 1;
+    if (hasPackage && weeks.length === 15) weeklyPlanComplete += 1;
+    if (hasPackage && outcomes.length > 0) outcomesComplete += 1;
+    if (hasPackage && Array.isArray(packageData.assessments) && packageData.assessments.length > 0) assessmentComplete += 1;
+    if (hasPackage && String(details.resources || "").trim()) resourcesComplete += 1;
     if (packageOk) completePackages += 1;
+
+    const sdgs = [...new Set((Array.isArray(packageData.sdgs) ? packageData.sdgs : [])
+      .map((value) => String(value).match(/\d+/u)?.[0] || "")
+      .filter((id) => Object.hasOwn(qualitySdgTitles, id)))];
+    if (sdgs.length) sdgCoverageCourses += 1;
+    sdgLinks += sdgs.length;
+    for (const id of sdgs) sdgCounts[id] += 1;
 
     const normalizedName = normalizeScope(course.name || "");
     const processCourse = ["danismanlik", "uzmanlik alan", "tez calismasi", "doktora tezi", "doktora yeterlik", "seminer"]
@@ -4311,46 +4424,174 @@ function qualityStats(filters = {}) {
       if (responsible) processResponsible += 1;
     }
     if (responsible) assignedCourses += 1;
-    if (responsible && normalizeScope(responsible) !== "ogrencinin danismani") {
-      const current = instructorLoads.get(responsible) || { instructor: responsible, courses: 0, theory: 0, practice: 0, ects: 0 };
-      current.courses += 1;
-      current.theory += Number(course.theory || 0);
-      current.practice += Number(course.practice || 0);
-      current.ects += Number(course.ects || 0);
-      instructorLoads.set(responsible, current);
-    }
     const term = repairText(course.term || "Belirtilmemiş");
     const type = repairText(course.type || "Belirtilmemiş");
+    const level = displayLevel(course.level || "Belirtilmemiş");
     termCounts[term] = (termCounts[term] || 0) + 1;
     typeCounts[type] = (typeCounts[type] || 0) + 1;
+    levelCounts[level] = (levelCounts[level] || 0) + 1;
     const issues = [];
     if (!responsible) issues.push("Sorumlu atanmamış");
-    if (!hasPackage) {
-      issues.push("Ders bilgi paketi oluşturulmamış");
-    } else {
+    if (!hasPackage) issues.push("Ders bilgi paketi oluşturulmamış");
+    else {
+      if (!String(details.purpose || "").trim()) issues.push("Ders amacı eksik");
+      if (!String(details.content || "").trim()) issues.push("Ders içeriği eksik");
+      if (!String(details.methods || "").trim()) issues.push("Öğretim yöntemleri eksik");
+      if (!String(details.resources || "").trim()) issues.push("Kaynakça eksik");
+      if (!outcomes.length) issues.push("Ders öğrenme çıktıları eksik");
       if (weeks.length !== 15) issues.push("15 haftalık plan eksik");
       if (!workloadOk) issues.push("AKTS–iş yükü tutarsız");
       if (!matrixOk) issues.push("DÖÇ–PÇ matrisi eksik");
-      if (!packageOk && !issues.length) issues.push("Paket içeriği eksik");
+      if (!Array.isArray(packageData.assessments) || !packageData.assessments.length) issues.push("Ölçme–değerlendirme eksik");
     }
-    if (issues.length) warnings.push({ code: course.code, name: course.name, issues });
+    if (issues.length && warnings.length < 30) warnings.push({
+      code: course.code,
+      name: course.name,
+      department: repairText(course.department || ""),
+      programName: repairText(course.programName || course.program_name || ""),
+      level: displayLevel(course.level || ""),
+      status: repairText(course.status || ""),
+      issues,
+    });
   }
   return {
     scope: filters,
-    generatedAt: new Date().toISOString(),
     totalCourses: courses.length,
     packagedCourses,
     completePackages,
     workloadConsistent,
     matrixComplete,
+    weeklyPlanComplete,
+    outcomesComplete,
+    assessmentComplete,
+    resourcesComplete,
+    sdgCoverageCourses,
+    sdgLinks,
     assignedCourses,
     processCourses,
     processResponsible,
     termCounts,
     typeCounts,
-    instructorLoads: [...instructorLoads.values()].sort((a, b) => b.courses - a.courses || a.instructor.localeCompare(b.instructor, "tr-TR")),
+    levelCounts,
+    sdgCounts,
+    sdgGoals: Object.entries(qualitySdgTitles).map(([id, title]) => ({ id, title, count: sdgCounts[id] || 0 })),
+    titleLoads: options.includeTitleLoads ? titleLoadStats(courses, options.instructorOptions || []) : [],
     warnings,
   };
+}
+
+const qualitySnapshotMetadataKey = "quality_indicators_snapshot_v3";
+const qualitySchedule = ["Şubat ortasındaki Pazartesi 01:00", "Eylül ayının son Pazartesi günü 01:00"];
+
+function qualityRefreshDates(year) {
+  const mondayOffset = (day) => (day + 6) % 7;
+  const february15 = new Date(Date.UTC(year, 1, 15));
+  const februaryMonday = 15 - mondayOffset(february15.getUTCDay());
+  const september30 = new Date(Date.UTC(year, 8, 30));
+  const septemberMonday = 30 - mondayOffset(september30.getUTCDay());
+  return [new Date(Date.UTC(year, 1, februaryMonday - 1, 22)), new Date(Date.UTC(year, 8, septemberMonday - 1, 22))];
+}
+
+function nextQualityRefreshDate(now = new Date()) {
+  return [now.getUTCFullYear(), now.getUTCFullYear() + 1].flatMap(qualityRefreshDates).find((date) => date > now);
+}
+
+function latestQualityRefreshDate(now = new Date()) {
+  return [now.getUTCFullYear() - 1, now.getUTCFullYear()].flatMap(qualityRefreshDates)
+    .filter((date) => date <= now).sort((a, b) => b - a)[0];
+}
+
+function readQualitySnapshot() {
+  if (qualitySnapshotCache) return qualitySnapshotCache;
+  const row = db.prepare("SELECT value FROM metadata WHERE key = ?").get(qualitySnapshotMetadataKey);
+  qualitySnapshotCache = parseJsonField(row?.value, null);
+  return qualitySnapshotCache;
+}
+
+async function refreshQualitySnapshot(actor = "system") {
+  const instructorCatalog = await loadEEnstituInstructorOptions();
+  const generatedAt = new Date().toISOString();
+  const allCourses = dbCourseList({});
+  const rowIndex = new Map();
+  const rowKey = (value) => [
+    normalizeScope(value.department || ""),
+    normalizeScope(value.programName || value.program_name || ""),
+    levelKey(value.level || ""),
+    repairText(value.code || "").toLocaleUpperCase("tr-TR").trim(),
+  ].join("|");
+  for (const row of db.prepare("SELECT * FROM courses ORDER BY updated_at DESC, id DESC").all()) {
+    const key = rowKey(row);
+    if (!rowIndex.has(key)) rowIndex.set(key, row);
+  }
+  const rowsByCourse = new Map(allCourses.map((course) => [course, rowIndex.get(rowKey(course)) || findExactCourseRow(course)]));
+  const institute = qualityStats({}, { courses: allCourses, rowsByCourse, includeTitleLoads: true, instructorOptions: instructorCatalog.instructors });
+  const scopes = db.prepare(`SELECT department, program_name, level FROM courses GROUP BY department, program_name, level ORDER BY department, program_name, level`).all();
+  const programs = scopes.map((scope) => {
+    const filters = { department: scope.department, programName: scope.program_name, level: scope.level };
+    return {
+      key: [scope.department, scope.program_name, displayLevel(scope.level)].map(normalizeScope).join("|"),
+      department: repairText(scope.department), programName: repairText(scope.program_name), level: displayLevel(scope.level),
+      label: `${repairText(scope.department)} · ${repairText(scope.program_name)} · ${displayLevel(scope.level)}`,
+      stats: qualityStats(filters, {
+        courses: allCourses.filter((course) => courseMatchesFilters(course, filters)),
+        rowsByCourse,
+      }),
+    };
+  });
+  qualitySnapshotCache = { generatedAt, source: "database_snapshot", instructorSource: instructorCatalog.source, schedule: qualitySchedule, institute, programs };
+  db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(qualitySnapshotMetadataKey, JSON.stringify(qualitySnapshotCache));
+  audit("quality.snapshot.refresh", actor, { generatedAt, programs: programs.length, courses: institute.totalCourses });
+  return qualitySnapshotCache;
+}
+
+function latestCourseUpdateDate() {
+  const value = db.prepare("SELECT MAX(updated_at) AS updated_at FROM courses").get()?.updated_at;
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date : null;
+}
+
+function queueQualitySnapshotRefresh(actor = "course-change") {
+  qualitySnapshotCache = undefined;
+  if (!qualitySnapshotRefreshPromise) {
+    qualitySnapshotRefreshPromise = Promise.resolve()
+      .then(() => refreshQualitySnapshot(actor))
+      .catch((error) => {
+        console.error(`[dbp] Kalite göstergeleri yenileme hatası: ${error instanceof Error ? error.message : error}`);
+        return null;
+      })
+      .finally(() => {
+        qualitySnapshotRefreshPromise = undefined;
+      });
+  }
+  return qualitySnapshotRefreshPromise;
+}
+
+async function currentQualitySnapshot() {
+  if (qualitySnapshotRefreshPromise) return qualitySnapshotRefreshPromise;
+  const snapshot = readQualitySnapshot();
+  const latestScheduled = latestQualityRefreshDate();
+  const latestCourseUpdate = latestCourseUpdateDate();
+  const generatedAt = snapshot?.generatedAt ? new Date(snapshot.generatedAt) : null;
+  if (!generatedAt || Number.isNaN(generatedAt.getTime())) return refreshQualitySnapshot("missing-snapshot");
+  if (latestScheduled && generatedAt < latestScheduled) return refreshQualitySnapshot("scheduled-startup");
+  if (latestCourseUpdate && generatedAt < latestCourseUpdate) return refreshQualitySnapshot("course-change");
+  return snapshot;
+}
+
+function scheduleQualityRefresh() {
+  if (qualityRefreshTimer) clearTimeout(qualityRefreshTimer);
+  const next = nextQualityRefreshDate();
+  const delay = Math.min(Math.max((next?.getTime() || Date.now()) - Date.now(), 1_000), 2_000_000_000);
+  qualityRefreshTimer = setTimeout(async () => {
+    try {
+      if (next && Date.now() >= next.getTime()) await refreshQualitySnapshot("scheduled");
+    } catch (error) {
+      console.error(`[dbp] Kalite göstergeleri zamanlanmış yenileme hatası: ${error instanceof Error ? error.message : error}`);
+    } finally {
+      scheduleQualityRefresh();
+    }
+  }, delay);
+  qualityRefreshTimer.unref?.();
 }
 
 function migrateYbsTezsizPackagesFromSeed() {
@@ -4837,6 +5078,7 @@ async function databaseSize() {
 
 async function adminSummary() {
   await ensureDb();
+  const qualitySnapshot = readQualitySnapshot();
   const latestCourses = db.prepare(`
     SELECT id, code, name, department, program_name, level, status, instructor, updated_at
     FROM courses
@@ -4877,6 +5119,11 @@ async function adminSummary() {
     latestCourses,
     latestPrograms,
     backups: await listBackups(),
+    qualitySnapshot: {
+      generatedAt: qualitySnapshot?.generatedAt || "",
+      nextRefreshAt: nextQualityRefreshDate()?.toISOString() || "",
+      schedule: qualitySchedule,
+    },
   };
 }
 
@@ -5186,12 +5433,11 @@ async function handleDbpApi(request) {
     }
 
     if (pathname === "/api/dbp/quality-stats" && request.method === "GET") {
-      const filters = {
-        department: url.searchParams.get("department") || "Yönetim Bilişim Sistemleri ABD",
-        programName: url.searchParams.get("programName") || "Yönetim Bilişim Sistemleri",
-        level: url.searchParams.get("level") || "Doktora",
-      };
-      return jsonResponse({ ...qualityStats(filters), source: "database" });
+      const snapshot = await currentQualitySnapshot();
+      return jsonResponse({
+        ...snapshot,
+        nextRefreshAt: nextQualityRefreshDate()?.toISOString() || "",
+      });
     }
 
     if (pathname === "/api/dbp/course-management" && request.method === "POST") {
@@ -5208,6 +5454,9 @@ async function handleDbpApi(request) {
       if (!code || !body.department || !body.programName) {
         return jsonResponse({ message: "Ders kodu, ABD/ASD ve program zorunludur." }, { status: 400 });
       }
+      if (!courseCodeMatchesLevel(code, level)) {
+        return jsonResponse({ message: "Ders kodu program düzeyiyle uyumlu değil: 700 Tezsiz YL, 800 Tezli YL, 900 Doktora olmalıdır." }, { status: 422 });
+      }
       if (body.action === "assign") {
         const result = db.prepare(`
           UPDATE courses SET instructor = ?, updated_at = ?
@@ -5216,6 +5465,7 @@ async function handleDbpApi(request) {
         if (!result.changes) return jsonResponse({ message: "Atama yapılacak ders kaydı bulunamadı." }, { status: 404 });
         audit("course.assignment.update", actor, { code, department: body.department, programName: body.programName, level });
         invalidateHomeStatsCache({ instructors: true });
+        queueQualitySnapshotRefresh("course.assignment.update");
         await refreshHomeInstructorCount();
         return jsonResponse({ ok: true, changed: result.changes });
       }
@@ -5228,6 +5478,7 @@ async function handleDbpApi(request) {
       `).run(body.academicYear || "2026-2027", body.department, body.programName, level, code, repairText(String(body.name || "")).trim(), body.type || "Seçmeli", Number(body.credit || 0), Number(body.ects || 0), Number(body.theory || 0), Number(body.practice || 0), body.instructor || "", now, now);
       audit("course.create", actor, { code, department: body.department, programName: body.programName, level });
       invalidateHomeStatsCache({ instructors: true });
+      queueQualitySnapshotRefresh("course.create");
       await refreshHomeInstructorCount();
       return jsonResponse({ ok: true });
     }
@@ -5271,6 +5522,9 @@ async function handleDbpApi(request) {
       const actor = auth.session?.username || auth.session?.name || "dbp-user";
       if (!body.code || !body.name) {
         return jsonResponse({ message: "Ders kodu ve adi zorunludur." }, { status: 400 });
+      }
+      if (!courseCodeMatchesLevel(body.code, level)) {
+        return jsonResponse({ message: "Ders kodu program düzeyiyle uyumlu değil: 700 Tezsiz YL, 800 Tezli YL, 900 Doktora olmalıdır." }, { status: 422 });
       }
       const matchingRows = courseRowsForIdentity(body);
       if (!canEditCoursePackage(auth.session, body, matchingRows)) {
@@ -5348,6 +5602,7 @@ async function handleDbpApi(request) {
       }
       audit("course.package.save", actor, { code: body.code, department: body.department || "", level });
       invalidateHomeStatsCache();
+      queueQualitySnapshotRefresh("course.package.save");
       return jsonResponse({ ok: true, summary: { courses: countRows("courses") } });
     }
 
@@ -5366,6 +5621,7 @@ async function handleDbpApi(request) {
       for (const row of rows) statement.run(status, now, row.id);
       audit("course.package.status", auth.session.username || auth.session.name || "dbp-user", { code: body.code, status });
       invalidateHomeStatsCache();
+      queueQualitySnapshotRefresh("course.package.status");
       return jsonResponse({ ok: true, status });
     }
 
@@ -5417,6 +5673,16 @@ async function handleDbpApi(request) {
       return jsonResponse(await adminSummary());
     }
 
+    if (pathname === "/api/dbp/admin/quality-refresh" && request.method === "POST") {
+      const snapshot = await refreshQualitySnapshot(actor);
+      scheduleQualityRefresh();
+      return jsonResponse({
+        ok: true,
+        generatedAt: snapshot.generatedAt,
+        nextRefreshAt: nextQualityRefreshDate()?.toISOString() || "",
+      });
+    }
+
     if (pathname === "/api/dbp/admin/role-module-access" && request.method === "GET") {
       return jsonResponse({ access: roleAccessMap() });
     }
@@ -5450,6 +5716,7 @@ async function handleDbpApi(request) {
       const body = await readJsonBody(request);
       await restoreBackup(body.fileName, actor);
       invalidateHomeStatsCache({ instructors: true });
+      queueQualitySnapshotRefresh("admin.restore");
       await refreshHomeInstructorCount();
       return jsonResponse({ ok: true, summary: await adminSummary() });
     }
@@ -5459,6 +5726,7 @@ async function handleDbpApi(request) {
       await writeBackup(actor);
       replaceFromExport(payload, actor);
       invalidateHomeStatsCache({ instructors: true });
+      queueQualitySnapshotRefresh("admin.import");
       await refreshHomeInstructorCount();
       return jsonResponse({ ok: true, summary: await adminSummary() });
     }
@@ -5471,6 +5739,7 @@ async function handleDbpApi(request) {
       await writeBackup(actor);
       resetDatabase(actor);
       invalidateHomeStatsCache({ instructors: true });
+      queueQualitySnapshotRefresh("admin.reset");
       await refreshHomeInstructorCount();
       return jsonResponse({ ok: true, summary: await adminSummary() });
     }
@@ -5482,6 +5751,7 @@ async function handleDbpApi(request) {
       seedProgramProfiles(true);
       ensureTestProgramData();
       invalidateHomeStatsCache({ instructors: true });
+      queueQualitySnapshotRefresh("admin.seed");
       await refreshHomeInstructorCount();
       return jsonResponse({ ok: true, summary: await adminSummary() });
     }
@@ -5596,6 +5866,15 @@ async function sendWebResponse(res, response) {
     headers[key] = value;
   });
 
+  const contentType = response.headers.get("content-type") || "";
+  if (response.body && contentType.includes("application/json")) {
+    const body = Buffer.from(await response.arrayBuffer());
+    headers["content-length"] = String(body.byteLength);
+    res.writeHead(response.status, headers);
+    res.end(body);
+    return;
+  }
+
   res.writeHead(response.status, headers);
   if (!response.body) {
     res.end();
@@ -5641,6 +5920,8 @@ homeInstructorCountCache = {
   source: initialInstructorCatalog.source,
 };
 homeStatsCache = await homeStats();
+await currentQualitySnapshot();
+scheduleQualityRefresh();
 
 createServer(async (req, res) => {
   try {

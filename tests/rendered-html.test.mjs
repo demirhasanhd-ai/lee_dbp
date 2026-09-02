@@ -1767,3 +1767,32 @@ test("Yönetim ve Organizasyon tezsiz public listesi kanonik dersleri gösterir"
   const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
   assert.match(serverSource, /yonetim_organizasyon_tezsiz_packages_revision/u);
 });
+
+test("kalite göstergeleri enstitü ve program kapsamını canlı DB anlık görüntüsünden sunar", async () => {
+  const page = await readFile(new URL("../app/kalite/page.tsx", import.meta.url), "utf8");
+  const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  const admin = await readFile(new URL("../app/panel/DatabaseAdminPanel.tsx", import.meta.url), "utf8");
+  assert.match(page, /Lisansüstü Eğitim Enstitüsü · Tüm programlar/u);
+  assert.match(page, /snapshot\.programs\.map/u);
+  assert.match(page, /stats\.sdgGoals/u);
+  assert.match(page, /isInstitute && <section className="quality-panel instructor-panel"/u);
+  assert.match(page, /12_000/u, "takılan veri isteği zaman aşımına uğramalı");
+  assert.match(page, /Yeniden dene/u, "hata ekranı yeniden deneme olanağı sunmalı");
+  assert.doesNotMatch(page, /item\.instructor/u, "public kalite ekranında kişi adı gösterilmemeli");
+  assert.match(server, /quality_indicators_snapshot_v3/u);
+  assert.match(server, /qualityRefreshDates/u);
+  assert.match(server, /februaryMonday/u);
+  assert.match(server, /septemberMonday/u);
+  assert.match(server, /api\/dbp\/admin\/quality-refresh/u);
+  assert.match(server, /titleLoadStats/u);
+  assert.match(server, /packageData\.sdgs/u);
+  assert.match(server, /content-type[\s\S]*application\/json[\s\S]*content-length/u, "JSON API yanıtı gecikmeden tamamlanmalı");
+  assert.match(server, /latestCourseUpdateDate/u, "ders güncellemesi anlık görüntünün tarihine karşı denetlenmeli");
+  assert.match(server, /queueQualitySnapshotRefresh\("course\.package\.save"\)/u, "paket kaydı kalite anlık görüntüsünü yenilemeli");
+  assert.match(server, /queueQualitySnapshotRefresh\("course\.assignment\.update"\)/u, "öğretim elemanı ataması kalite anlık görüntüsünü yenilemeli");
+  assert.match(server, /courseLevelFromCode/u, "700/800/900 kodları program düzeyine bağlanmalı");
+  assert.match(server, /removeCourseLevelCodeMismatches/u, "yanlış düzeydeki ders kaydı başlangıçta temizlenmeli");
+  assert.match(server, /Ders kodu program düzeyiyle uyumlu değil/u, "yanlış düzey koduyla yeni kayıt engellenmeli");
+  assert.doesNotMatch(server, /setInterval\([^)]*quality/iu);
+  assert.match(admin, /Kalite ve SKA Göstergelerini Yenile/u);
+});
