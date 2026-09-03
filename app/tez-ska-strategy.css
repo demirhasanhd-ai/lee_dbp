@@ -1,0 +1,129 @@
+.thesis-strategy-panel,
+.thesis-matrix-panel {
+  margin-top: 18px;
+}
+
+.thesis-strategy-panel header h2,
+.thesis-matrix-panel header h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.thesis-strategy-intro {
+  margin: 0 0 18px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.thesis-strategy-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.thesis-strategy-cards article {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--background);
+  box-shadow: 0 8px 26px -24px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.thesis-strategy-cards h3 {
+  min-height: 58px;
+  margin: 0;
+  padding: 14px;
+  color: var(--primary-foreground);
+  font-size: 12px;
+  line-height: 1.35;
+  background: var(--chart-4);
+}
+
+.thesis-strategy-cards .strategy-tone-2 h3 { background: var(--chart-3); }
+.thesis-strategy-cards .strategy-tone-3 h3 { background: var(--chart-2); }
+.thesis-strategy-cards .strategy-tone-4 h3 { background: var(--chart-1); }
+.thesis-strategy-cards .strategy-tone-5 h3 { background: color-mix(in srgb, var(--chart-2) 72%, var(--chart-3)); }
+
+.thesis-strategy-cards article p {
+  min-height: 120px;
+  margin: 0;
+  padding: 14px 14px 8px;
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.thesis-strategy-cards article div {
+  padding: 0 14px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.thesis-strategy-cards button,
+.thesis-strategy-table button {
+  border: 0;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.thesis-strategy-cards button {
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--chart-4) 10%, var(--background));
+  font-size: 8px;
+}
+
+.thesis-strategy-cards button:hover,
+.thesis-strategy-table button:hover {
+  text-decoration: underline;
+}
+
+.thesis-strategy-table {
+  min-width: 980px;
+}
+
+.thesis-strategy-table th {
+  background: color-mix(in srgb, var(--foreground) 88%, var(--chart-4));
+  color: var(--background);
+}
+
+.thesis-strategy-table td {
+  vertical-align: top;
+  line-height: 1.55;
+}
+
+.thesis-strategy-table td:first-child {
+  min-width: 190px;
+}
+
+.thesis-strategy-table td:nth-child(2) {
+  text-align: center;
+}
+
+.thesis-strategy-table button {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 12%, var(--background));
+  font-size: 9px;
+}
+
+.thesis-matrix-panel {
+  margin-bottom: 36px;
+}
+
+@media (max-width: 1200px) {
+  .thesis-strategy-cards { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 720px) {
+  .thesis-strategy-cards { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 640px) {
+  .thesis-strategy-cards { grid-template-columns: 1fr; }
+  .thesis-strategy-cards article p { min-height: 0; }
+}

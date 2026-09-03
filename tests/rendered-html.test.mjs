@@ -62,6 +62,53 @@ test("ana sayfa genel istatistikleri canlı DB ve mevcut akademisyen kaynağınd
   assert.match(serverSource, /source: "database"/u);
 });
 
+test("TEZ_SKA Analiz menüde kalite göstergeleri ile duyurular arasında yer alır", async () => {
+  const [homeSource, headerSource] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/PublicSiteHeader.tsx", import.meta.url), "utf8"),
+  ]);
+
+  for (const source of [homeSource, headerSource]) {
+    const qualityIndex = source.indexOf("Kalite Göstergeleri");
+    const thesisIndex = source.indexOf("TEZ_SKA Analiz");
+    const announcementsIndex = source.indexOf("Duyurular");
+    assert.ok(qualityIndex >= 0 && qualityIndex < thesisIndex, "TEZ_SKA kalite bağlantısından sonra gelmeli");
+    assert.ok(thesisIndex < announcementsIndex, "TEZ_SKA duyurulardan önce gelmeli");
+    assert.match(source, /dbpPath\("\/tez-ska"\)/u);
+  }
+
+  const response = await render({}, "/dbp/tez-ska");
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /TEZ_SKA Analiz/u);
+  assert.match(html, /DSpace açık arşivindeki tezleri/u);
+});
+
+test("TEZ_SKA canlı OAI-PMH anlık görüntüsünü kullanır ve Şubat-Eylül takvimini korur", async () => {
+  const [page, server, moduleSource, dockerfile] = await Promise.all([
+    readFile(new URL("../app/tez-ska/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../server.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../lib/thesisSdg.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /\/api\/dbp\/thesis-ska/u);
+  assert.doesNotMatch(page, /oku-ska-stratejik-plan-raporu/u);
+  assert.match(server, /pathname === "\/api\/dbp\/thesis-ska"/u);
+  assert.match(server, /scheduleThesisRefresh\(\)/u);
+  assert.match(moduleSource, /metadataPrefix", "dim"/u);
+  assert.match(moduleSource, /resumptionToken/u);
+  assert.match(moduleSource, /Şubat ortasındaki Pazartesi 01:00/u);
+  assert.match(moduleSource, /Eylül ayının son Pazartesi günü 01:00/u);
+  assert.match(dockerfile, /COPY lib\/thesisSdg\.mjs \.\/lib\/thesisSdg\.mjs/u);
+  assert.match(dockerfile, /VOLUME \["\/app\/data"\]/u);
+  assert.match(page, /SKA–Stratejik Plan Uyum Matrisi/u);
+  assert.doesNotMatch(page, /Filtrelenen tezler/u);
+  const { displayDepartment, thesisRefreshDates } = await import(new URL("../lib/thesisSdg.mjs", import.meta.url));
+  assert.equal(displayDepartment("Enstitüler, Lisansüstü Eğitim Enstitüsü, Makine Mühendisliği Ana Bilim Dalı"), "Makine Mühendisliği ABD");
+  assert.equal(displayDepartment("Lisansüstü Eğitim Enstitüsü, Resim Ana Sanat Dalı"), "Resim ASD");
+  assert.deepEqual(thesisRefreshDates(2026).map((date) => date.toISOString()), ["2026-02-08T22:00:00.000Z", "2026-09-27T22:00:00.000Z"]);
+});
+
 test("course package sidebar resolves the YBS doctorate context", async () => {
   const path = "/dbp/katalog?ders=YBS921&bolum=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri%20ABD&program=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri&duzey=Doktora";
   const response = await render({}, path);
