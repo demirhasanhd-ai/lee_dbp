@@ -7,6 +7,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
 import * as cheerio from "cheerio";
+import {
+  harvestTheses,
+  latestThesisRefreshDate,
+  nextThesisRefreshDate,
+  readThesisSnapshot,
+  thesisDashboard,
+} from "./lib/thesisSdg.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,6 +59,9 @@ let homeStatsCache;
 let qualitySnapshotCache;
 let qualitySnapshotRefreshPromise;
 let qualityRefreshTimer;
+let thesisSnapshotCache;
+let thesisSyncPromise;
+let thesisRefreshTimer;
 
 function openBrowser(url) {
   const child =
@@ -4798,6 +4808,43 @@ function scheduleQualityRefresh() {
   qualityRefreshTimer.unref?.();
 }
 
+function currentThesisSnapshot() {
+  if (!thesisSnapshotCache) thesisSnapshotCache = readThesisSnapshot(db);
+  return thesisSnapshotCache;
+}
+
+function queueThesisSync(actor = "system", full = false) {
+  if (!thesisSyncPromise) {
+    thesisSyncPromise = harvestTheses(db, { actor, full })
+      .then((snapshot) => {
+        thesisSnapshotCache = snapshot;
+        return snapshot;
+      })
+      .catch((error) => {
+        console.error(`[dbp] DSpace tez senkronizasyonu başarısız: ${error instanceof Error ? error.message : error}`);
+        return currentThesisSnapshot();
+      })
+      .finally(() => {
+        thesisSyncPromise = undefined;
+      });
+  }
+  return thesisSyncPromise;
+}
+
+function scheduleThesisRefresh() {
+  if (thesisRefreshTimer) clearTimeout(thesisRefreshTimer);
+  const next = nextThesisRefreshDate();
+  const delay = Math.min(Math.max((next?.getTime() || Date.now()) - Date.now(), 1_000), 2_000_000_000);
+  thesisRefreshTimer = setTimeout(async () => {
+    try {
+      if (next && Date.now() >= next.getTime()) await queueThesisSync("scheduled", false);
+    } finally {
+      scheduleThesisRefresh();
+    }
+  }, delay);
+  thesisRefreshTimer.unref?.();
+}
+
 function migrateYbsTezsizPackagesFromSeed() {
   const revision="2026-08-31-ybs-tezsiz-v1";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("ybs_tezsiz_packages_revision")?.value===revision)return;
   const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Yönetim Bilişim Sistemleri ABD")&&normalizeScope(x.programName||"")===normalizeScope("Yönetim Bilişim Sistemleri")&&levelKey(x.level||"")==="tezsiz yl");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, term = ?, instructor = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const rows=courseRowsForIdentity({department:p.department,programName:p.programName,level:p.level,code:p.code});for(const c of rows){update.run(p.name||c.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),p.code==="YBS7XX"||p.code==="YBS703"?"Güz ve Bahar":c.term,p.instructor||c.instructor||"",JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("ybs_tezsiz_packages_revision",revision);audit("course.package.migrate","system",{scope:"Yönetim Bilişim Sistemleri Tezsiz YL",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
@@ -5644,6 +5691,24 @@ async function handleDbpApi(request) {
       });
     }
 
+    if (pathname === "/api/dbp/thesis-ska" && request.method === "GET") {
+      const snapshot = currentThesisSnapshot();
+      if (!snapshot) {
+        queueThesisSync("public-startup", true);
+        return jsonResponse({
+          status: "syncing",
+          message: "DSpace tez verileri ilk kez senkronize ediliyor.",
+          nextRefreshAt: nextThesisRefreshDate()?.toISOString() || "",
+        }, { status: 202 });
+      }
+      return jsonResponse(thesisDashboard(snapshot, {
+        year: url.searchParams.get("year") || "",
+        degree: url.searchParams.get("degree") || "",
+        department: url.searchParams.get("department") || "",
+        sdg: url.searchParams.get("sdg") || "",
+      }));
+    }
+
     if (pathname === "/api/dbp/course-management" && request.method === "POST") {
       const auth = requireDbpSession(request, { write: true });
       if (auth.error) return auth.error;
@@ -6129,6 +6194,12 @@ homeInstructorCountCache = {
 homeStatsCache = await homeStats();
 await currentQualitySnapshot();
 scheduleQualityRefresh();
+thesisSnapshotCache = readThesisSnapshot(db);
+const latestThesisRefresh = latestThesisRefreshDate();
+const thesisGeneratedAt = thesisSnapshotCache?.generatedAt ? new Date(thesisSnapshotCache.generatedAt) : null;
+if (!thesisSnapshotCache) queueThesisSync("startup", true);
+else if (latestThesisRefresh && (!thesisGeneratedAt || thesisGeneratedAt < latestThesisRefresh)) queueThesisSync("scheduled-startup", false);
+scheduleThesisRefresh();
 
 createServer(async (req, res) => {
   try {

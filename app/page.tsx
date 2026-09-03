@@ -8,6 +8,7 @@ import {
   CircleHelp,
   House,
   LibraryBig,
+  PieChart,
   Search,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
@@ -50,6 +51,7 @@ export default function Home() {
               <a className="active" href={dbpPath("/")}><House size={18}/>Ana Sayfa</a>
               <a href="#programlar"><LibraryBig size={18}/>Ders Kataloğu</a>
               <a href={dbpPath("/kalite")}><BarChart3 size={18}/>Kalite Göstergeleri</a>
+              <a href={dbpPath("/tez-ska")}><PieChart size={18}/>TEZ_SKA Analiz</a>
               <a href="#duyurular"><Bell size={18}/>Duyurular</a>
               <a href="#yardim"><CircleHelp size={18}/>Yardım</a>
             </nav>

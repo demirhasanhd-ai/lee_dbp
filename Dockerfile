@@ -22,6 +22,7 @@ RUN apk add --no-cache python3 py3-reportlab \
   && npm cache clean --force
 COPY package.json ./package.json
 COPY server.mjs ./server.mjs
+COPY lib/thesisSdg.mjs ./lib/thesisSdg.mjs
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/local-preview/program-data-local.js ./seed/program-data-local.js
 COPY --from=build /app/seed/course-packages.json ./seed/course-packages.json
