@@ -3035,6 +3035,25 @@ function recordWorkflowRequest({ kind, body, route, note, status, actor }) {
   );
 }
 
+function latestWorkflowCorrection(body = {}) {
+  const row = db.prepare(`
+    SELECT route, note, status, created_by, created_at
+    FROM workflow_requests
+    WHERE target = ?
+      AND status = ?
+    ORDER BY datetime(created_at) DESC, id DESC
+    LIMIT 1
+  `).get(workflowTarget(body), "Düzeltme İstendi");
+  if (!row) return null;
+  return {
+    route: repairText(row.route || ""),
+    note: repairText(row.note || ""),
+    status: repairText(row.status || ""),
+    requestedBy: repairText(row.created_by || ""),
+    requestedAt: row.created_at || "",
+  };
+}
+
 function expectedStatusesForTransition(status, body = {}) {
   const normalized = normalizeScope(status || "");
   const providedExpected = body.expectedStatus ? normalizeScope(body.expectedStatus) : "";
@@ -6126,6 +6145,9 @@ async function handleDbpApi(request) {
         package: packageWithCourseInstructor(JSON.parse(row.package_json || "{}"), course),
         status: repairText(row.status || ""),
         updatedAt: row.updated_at,
+        workflow: {
+          latestCorrection: latestWorkflowCorrection(query),
+        },
       });
     }
 
@@ -6136,7 +6158,7 @@ async function handleDbpApi(request) {
       const body = await readJsonBody(request);
       const now = new Date().toISOString();
       const level = displayLevel(body.level);
-      const actor = auth.session?.username || auth.session?.name || "dbp-user";
+      const actor = auth.session?.name || auth.session?.username || "dbp-user";
       if (!body.code || !body.name) {
         return jsonResponse({ message: "Ders kodu ve adi zorunludur." }, { status: 400 });
       }
@@ -6245,7 +6267,7 @@ async function handleDbpApi(request) {
         return jsonResponse({ message: "Bu ders paketini onaylama yetkiniz yok." }, { status: 403 });
       }
       const status = requestedStatus || "Yayımlandı";
-      const transition = transitionCoursePackageStatus(body, status, auth.session.username || auth.session.name || "dbp-user");
+      const transition = transitionCoursePackageStatus(body, status, auth.session.name || auth.session.username || "dbp-user");
       if (transition.missing) return jsonResponse({ message: "Onaylanacak kayıtlı ders paketi bulunamadı." }, { status: 404 });
       if (transition.conflict) {
         return jsonResponse({

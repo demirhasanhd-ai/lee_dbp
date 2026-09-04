@@ -1555,6 +1555,45 @@ input {
   min-width: 0;
 }
 
+.course-submit-actions button:disabled,
+.course-save-bar button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.course-correction-note {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 18px;
+  padding: 13px 14px;
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger) 7%, var(--background));
+}
+
+.course-correction-note small {
+  color: var(--danger);
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.course-correction-note b {
+  font-size: 11px;
+  color: var(--foreground);
+}
+
+.course-correction-note span {
+  color: var(--muted-foreground);
+  font-size: 9px;
+}
+
+.course-correction-note p {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
 .contribution-wrap select {
   width: 46px !important;
   min-width: 46px !important;

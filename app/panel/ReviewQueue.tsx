@@ -257,7 +257,9 @@ export function ReviewQueue({
   const approvalLabel = approvalLabelForMode(reviewMode);
   const courseSearchParams = (course: ReviewCourse) => new URLSearchParams({
     code: course.code,
+    name: course.name,
     department: course.department || department,
+    program: course.programName || programName,
     programName: course.programName || programName,
     level: course.level || "Doktora",
   });

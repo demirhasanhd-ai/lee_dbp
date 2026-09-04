@@ -29,6 +29,13 @@ type SessionIdentity = {
   role: string;
   readOnly?: boolean;
 };
+type CorrectionNote = {
+  route?: string;
+  note?: string;
+  status?: string;
+  requestedBy?: string;
+  requestedAt?: string;
+};
 type ObsDraft = {
   sourceUrl: string;
   obsCourseId: string;
@@ -294,6 +301,7 @@ export function CourseBolognaEditor({
   const [nextAssessment, setNextAssessment] = useState(3);
   const [workloads, setWorkloads] = useState<Record<string, Workload>>(defaultWorkloads);
   const [nextWorkload, setNextWorkload] = useState(1);
+  const [latestCorrection, setLatestCorrection] = useState<CorrectionNote | null>(null);
   const [weeklyTopics, setWeeklyTopics] = useState<Record<number, string>>(emptyWeeklyTopics);
   const [structureValues, setStructureValues] = useState<Record<string, number>>(emptyStructures);
   const [contributionMatrix, setContributionMatrix] = useState<Record<string, number>[]>([]);
@@ -335,8 +343,9 @@ export function CourseBolognaEditor({
       setSdgs(value.sdgs);
       setNextAssessment(value.assessments.length + 1);
       setWorkflowStatus("Mevcut Paket");
+      setLatestCorrection(null);
     };
-    const applySavedPackage = (stored: Record<string, unknown>, status: string) => {
+    const applySavedPackage = (stored: Record<string, unknown>, status: string, correction?: CorrectionNote | null) => {
       const savedIdentity = stored.identity as typeof identity | undefined;
       const savedDetails = stored.detailFields as Record<string, string> | undefined;
       if (savedIdentity) setIdentity(savedIdentity);
@@ -349,6 +358,7 @@ export function CourseBolognaEditor({
       if (Array.isArray(stored.contributionMatrix)) setContributionMatrix(normalizeContributionRows(stored.contributionMatrix as Record<string, number>[]));
       if (Array.isArray(stored.sdgs)) setSdgs(stored.sdgs as string[]);
       setWorkflowStatus(status || "Taslak");
+      setLatestCorrection(correction || null);
     };
 
     const staticPackage = getCoursePackage(course.code, course.department, course.programName);
@@ -366,6 +376,7 @@ export function CourseBolognaEditor({
       setSdgs(emptySdgs());
       setNextAssessment(3);
       setWorkflowStatus("Taslak");
+      setLatestCorrection(null);
     }
 
     const query = new URLSearchParams({
@@ -380,7 +391,7 @@ export function CourseBolognaEditor({
       signal: controller.signal,
     })
       .then(async (response) => response.ok ? response.json() : null)
-      .then((data) => { if (data?.package) applySavedPackage(data.package, data.status); })
+      .then((data) => { if (data?.package) applySavedPackage(data.package, data.status, data.workflow?.latestCorrection || null); })
       .catch((error) => { if (error instanceof Error && error.name !== "AbortError") console.error(error); });
     return () => controller.abort();
   }, [course.code, course.department, course.level, course.name, course.programName, session]);
@@ -461,6 +472,25 @@ export function CourseBolognaEditor({
     totalWorkload,
     weeklyTopics,
   ]);
+  const normalizedWorkflow = normalizeWorkflowStatus(workflowStatus);
+  const approvalLocked = [
+    normalizeWorkflowStatus("Komisyon Onayı Bekliyor"),
+    normalizeWorkflowStatus("ABD Son Onayı Bekliyor"),
+    normalizeWorkflowStatus("ABD Onayı Bekliyor"),
+    normalizeWorkflowStatus("Enstitü Onayı Bekliyor"),
+  ].includes(normalizedWorkflow);
+  const correctionRequested = normalizedWorkflow.includes("duzeltme");
+  const correctionTime = Date.parse(latestCorrection?.requestedAt || "");
+  const correctionDate = Number.isFinite(correctionTime)
+    ? new Intl.DateTimeFormat("tr-TR", { dateStyle: "short", timeStyle: "short" }).format(correctionTime)
+    : "";
+  const saveBarText = approvalLocked
+    ? "Paket onay sürecinde olduğu için süreç tamamlanmadan veya düzeltme istenmeden tekrar kaydedilemez."
+    : correctionRequested
+      ? "Düzeltme talebi sonrası gerekli değişiklikleri kaydedip dersi yeniden onaya gönderebilirsiniz."
+      : workflowStage(workflowStatus) >= 4
+        ? "Yayımlanmış paket üzerinde yeni değişiklik yapıp tekrar onay sürecine gönderebilirsiniz."
+        : "Çalışmanızı taslak olarak kaydedebilir veya komisyon incelemesine gönderebilirsiniz.";
   const updateWorkload = (name: string, key: "count" | "hours", value: number) =>
     setWorkloads((current) => ({
       ...current,
@@ -625,10 +655,12 @@ export function CourseBolognaEditor({
       onSubmit={async (event) => {
         event.preventDefault();
         if (readOnly) return;
+        if (approvalLocked) return;
         if (publishIssues.length > 0) return;
         if (!window.confirm("Ders bilgi paketini onaya göndermek istediğinize emin misiniz?")) return;
         await persistPackage(event.currentTarget, "Komisyon Onayı Bekliyor");
         setWorkflowStatus("Komisyon Onayı Bekliyor");
+        setLatestCorrection(null);
         localStorage.setItem("lee-dbp-course-status", "komisyon_onayi_bekliyor");
         onPublish();
       }}
@@ -647,6 +679,14 @@ export function CourseBolognaEditor({
           </div>
         </header>
         <ApprovalWorkflow status={workflowStatus} />
+        {correctionRequested && latestCorrection && (
+          <div className="course-correction-note">
+            <small>DÜZELTME TALEBİ</small>
+            <b>{latestCorrection.requestedBy || "Yetkili kullanıcı"}{correctionDate ? ` · ${correctionDate}` : ""}</b>
+            {latestCorrection.route && <span>{latestCorrection.route}</span>}
+            <p>{latestCorrection.note || "Düzeltme notu girilmemiş."}</p>
+          </div>
+        )}
         <h3>Ders Genel Bilgileri</h3>
         <div className="course-general-grid">
           <label className="name">
@@ -936,7 +976,7 @@ export function CourseBolognaEditor({
       </section>
       {!readOnly && <div className="course-save-bar">
         <div className="course-publish-status">
-          <span>{workflowStatus === "Taslak" ? "Çalışmanızı taslak olarak kaydedebilir veya komisyon incelemesine gönderebilirsiniz." : "Paket onay sürecinde; komisyon, ABD/ASD ve enstitü aşamaları tamamlanmadan public görünmez."}</span>
+          <span>{saveBarText}</span>
           {publishIssues.length > 0 && (
             <details className="publish-validation">
               <summary>Yayın için {publishIssues.length} eksik veya hatalı bölüm var</summary>
@@ -945,8 +985,8 @@ export function CourseBolognaEditor({
           )}
         </div>
         <div className="course-submit-actions">
-          <button type="button" className="draft" onClick={async (event) => { const form = event.currentTarget.form; if (!form) return; await persistPackage(form, "Taslak"); setWorkflowStatus("Taslak"); localStorage.setItem("lee-dbp-course-status", "taslak"); onSave(); }}><Save size={15} />Taslağı Kaydet</button>
-          <button type="submit" className="publish" disabled={publishIssues.length > 0} title={publishIssues[0] ?? "Komisyon incelemesine gönder"}><Send size={15} />Onaya gönder</button>
+          <button type="button" className="draft" disabled={approvalLocked} title={approvalLocked ? "Paket onay sürecinde." : "Taslak olarak kaydet"} onClick={async (event) => { if (approvalLocked) return; const form = event.currentTarget.form; if (!form) return; await persistPackage(form, "Taslak"); setWorkflowStatus("Taslak"); localStorage.setItem("lee-dbp-course-status", "taslak"); onSave(); }}><Save size={15} />Taslağı Kaydet</button>
+          <button type="submit" className="publish" disabled={approvalLocked || publishIssues.length > 0} title={approvalLocked ? "Paket onay sürecinde." : publishIssues[0] ?? "Komisyon incelemesine gönder"}><Send size={15} />Onaya gönder</button>
         </div>
       </div>}
       {obsOpen && (
