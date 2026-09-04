@@ -9,6 +9,7 @@ import {
   House,
   LibraryBig,
   PieChart,
+  ScatterChart,
   Search,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
@@ -52,6 +53,7 @@ export default function Home() {
               <a href="#programlar"><LibraryBig size={18}/>Ders Kataloğu</a>
               <a href={dbpPath("/kalite")}><BarChart3 size={18}/>Kalite Göstergeleri</a>
               <a href={dbpPath("/tez-ska")}><PieChart size={18}/>TEZ_SKA Analiz</a>
+              <a href={dbpPath("/article")}><ScatterChart size={18}/>Bibliyometrik Göstergeler</a>
               <a href="#duyurular"><Bell size={18}/>Duyurular</a>
               <a href="#yardim"><CircleHelp size={18}/>Yardım</a>
             </nav>
@@ -105,6 +107,7 @@ export default function Home() {
             <a href={dbpPath("/katalog")}><Search size={18}/><span><b>Ders bilgi paketi ara</b><small>Public katalogda arama yapın</small></span><i>→</i></a>
             <a href={dbpPath("/kalite")}><BarChart3 size={18}/><span><b>Kalite Göstergeleri</b><small>Ders paketi kalite metriklerini inceleyin</small></span><i>→</i></a>
             <a href={dbpPath("/tez-ska")}><PieChart size={18}/><span><b>TEZ SKA Analizi</b><small>Tezlerin SKA dağılımını görüntüleyin</small></span><i>→</i></a>
+            <a href={dbpPath("/article")}><ScatterChart size={18}/><span><b>Bibliyometrik Göstergeler</b><small>Canlı Scopus yayın ve atıf analizini inceleyin</small></span><i>→</i></a>
             <a href="https://osmaniye.edu.tr" target="_blank" rel="noopener noreferrer"><ExternalLink size={18}/><span><b>OKÜ ana sayfa</b><small>Üniversite web sitesine gidin</small></span><i>→</i></a>
           </aside>
         </section>

@@ -14,6 +14,17 @@ import {
   readThesisSnapshot,
   thesisDashboard,
 } from "./lib/thesisSdg.mjs";
+import {
+  latestScopusCitationRefreshDate,
+  latestScopusRefreshDate,
+  nextScopusCitationRefreshDate,
+  nextScopusRefreshDate,
+  readScopusSnapshot,
+  rebuildScopusUnitMappings,
+  refreshScopusCitations,
+  refreshScopusSnapshot,
+  scopusConfigured,
+} from "./lib/scopusBibliometrics.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,6 +73,10 @@ let qualityRefreshTimer;
 let thesisSnapshotCache;
 let thesisSyncPromise;
 let thesisRefreshTimer;
+let scopusSnapshotCache;
+let scopusSyncPromise;
+let scopusRefreshTimer;
+let scopusCitationRefreshTimer;
 
 function openBrowser(url) {
   const child =
@@ -5151,6 +5166,78 @@ function scheduleThesisRefresh() {
   thesisRefreshTimer.unref?.();
 }
 
+function currentScopusSnapshot() {
+  const storedSnapshot = readScopusSnapshot(db);
+  if (storedSnapshot) scopusSnapshotCache = storedSnapshot;
+  return scopusSnapshotCache;
+}
+
+function queueScopusSync(actor = "system") {
+  if (!scopusConfigured()) return Promise.resolve(currentScopusSnapshot());
+  if (!scopusSyncPromise) {
+    scopusSyncPromise = refreshScopusSnapshot(db, { actor, instructors: scopusInstructorCatalog })
+      .then((snapshot) => {
+        scopusSnapshotCache = snapshot;
+        return snapshot;
+      })
+      .catch((error) => {
+        console.error(`[dbp] Scopus bibliyometri senkronizasyonu başarısız: ${error instanceof Error ? error.message : error}`);
+        return currentScopusSnapshot();
+      })
+      .finally(() => {
+        scopusSyncPromise = undefined;
+      });
+  }
+  return scopusSyncPromise;
+}
+
+function queueScopusCitationSync(actor = "system") {
+  if (!scopusConfigured()) return Promise.resolve(currentScopusSnapshot());
+  if (!scopusSyncPromise) {
+    scopusSyncPromise = refreshScopusCitations(db, { actor, instructors: scopusInstructorCatalog })
+      .then((snapshot) => {
+        scopusSnapshotCache = snapshot;
+        return snapshot;
+      })
+      .catch((error) => {
+        console.error(`[dbp] Scopus haftalık atıf güncellemesi başarısız: ${error instanceof Error ? error.message : error}`);
+        return currentScopusSnapshot();
+      })
+      .finally(() => {
+        scopusSyncPromise = undefined;
+      });
+  }
+  return scopusSyncPromise;
+}
+
+function scheduleScopusRefresh() {
+  if (scopusRefreshTimer) clearTimeout(scopusRefreshTimer);
+  const next = nextScopusRefreshDate();
+  const delay = Math.min(Math.max((next?.getTime() || Date.now()) - Date.now(), 1_000), 2_000_000_000);
+  scopusRefreshTimer = setTimeout(async () => {
+    try {
+      if (next && Date.now() >= next.getTime()) await queueScopusSync("scheduled");
+    } finally {
+      scheduleScopusRefresh();
+    }
+  }, delay);
+  scopusRefreshTimer.unref?.();
+}
+
+function scheduleScopusCitationRefresh() {
+  if (scopusCitationRefreshTimer) clearTimeout(scopusCitationRefreshTimer);
+  const next = nextScopusCitationRefreshDate();
+  const delay = Math.min(Math.max(next.getTime() - Date.now(), 1_000), 2_000_000_000);
+  scopusCitationRefreshTimer = setTimeout(async () => {
+    try {
+      if (Date.now() >= next.getTime()) await queueScopusCitationSync("weekly-citations");
+    } finally {
+      scheduleScopusCitationRefresh();
+    }
+  }, delay);
+  scopusCitationRefreshTimer.unref?.();
+}
+
 function migrateYbsTezsizPackagesFromSeed() {
   const revision="2026-08-31-ybs-tezsiz-v1";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("ybs_tezsiz_packages_revision")?.value===revision)return;
   const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Yönetim Bilişim Sistemleri ABD")&&normalizeScope(x.programName||"")===normalizeScope("Yönetim Bilişim Sistemleri")&&levelKey(x.level||"")==="tezsiz yl");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, term = ?, instructor = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const rows=courseRowsForIdentity({department:p.department,programName:p.programName,level:p.level,code:p.code});for(const c of rows){update.run(p.name||c.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),p.code==="YBS7XX"||p.code==="YBS703"?"Güz ve Bahar":c.term,p.instructor||c.instructor||"",JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("ybs_tezsiz_packages_revision",revision);audit("course.package.migrate","system",{scope:"Yönetim Bilişim Sistemleri Tezsiz YL",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
@@ -6076,6 +6163,32 @@ async function handleDbpApi(request) {
       }));
     }
 
+    if (pathname === "/api/dbp/bibliometrics" && request.method === "GET") {
+      const snapshot = currentScopusSnapshot();
+      if (!snapshot) {
+        if (!scopusConfigured()) {
+          return jsonResponse({
+            status: "not_configured",
+            message: "Scopus veri kaynağı sunucuda henüz yapılandırılmadı.",
+            nextRefreshAt: nextScopusRefreshDate()?.toISOString() || "",
+            nextCitationRefreshAt: nextScopusCitationRefreshDate()?.toISOString() || "",
+          }, { status: 503 });
+        }
+        queueScopusSync("public-bootstrap");
+        return jsonResponse({
+          status: "syncing",
+          message: "İlk Scopus bibliyometri görüntüsü hazırlanıyor.",
+          nextRefreshAt: nextScopusRefreshDate()?.toISOString() || "",
+          nextCitationRefreshAt: nextScopusCitationRefreshDate()?.toISOString() || "",
+        }, { status: 202 });
+      }
+      return jsonResponse({
+        ...snapshot,
+        nextRefreshAt: nextScopusRefreshDate()?.toISOString() || "",
+        nextCitationRefreshAt: nextScopusCitationRefreshDate()?.toISOString() || "",
+      });
+    }
+
     if (pathname === "/api/dbp/course-management" && request.method === "POST") {
       const auth = requireDbpSession(request, { write: true });
       if (auth.error) return auth.error;
@@ -6576,6 +6689,8 @@ const ctx = {
 
 await ensureDb();
 const initialInstructorCatalog = await loadEEnstituInstructorOptions();
+const courseCatalogForScopus = loadCourseCatalogInstructorOptions();
+const scopusInstructorCatalog = [...initialInstructorCatalog.instructors, ...courseCatalogForScopus.instructors];
 homeInstructorCountCache = {
   count: new Set(initialInstructorCatalog.instructors.map((item) => normalizeInstructorScope(item.name || "")).filter(Boolean)).size,
   source: initialInstructorCatalog.source,
@@ -6589,6 +6704,19 @@ const thesisGeneratedAt = thesisSnapshotCache?.generatedAt ? new Date(thesisSnap
 if (!thesisSnapshotCache) queueThesisSync("startup", true);
 else if (latestThesisRefresh && (!thesisGeneratedAt || thesisGeneratedAt < latestThesisRefresh)) queueThesisSync("scheduled-startup", false);
 scheduleThesisRefresh();
+scopusSnapshotCache = rebuildScopusUnitMappings(db, {
+  instructors: scopusInstructorCatalog,
+  actor: "startup-unit-directory",
+}) || readScopusSnapshot(db);
+const latestScopusRefresh = latestScopusRefreshDate();
+const scopusGeneratedAt = scopusSnapshotCache?.generatedAt ? new Date(scopusSnapshotCache.generatedAt) : null;
+if (!scopusSnapshotCache && scopusConfigured()) queueScopusSync("startup");
+else if (scopusConfigured() && latestScopusRefresh && (!scopusGeneratedAt || scopusGeneratedAt < latestScopusRefresh)) queueScopusSync("scheduled-startup");
+scheduleScopusRefresh();
+const latestCitationRefresh = latestScopusCitationRefreshDate();
+const citationGeneratedAt = scopusSnapshotCache?.lastCitationRefreshAt ? new Date(scopusSnapshotCache.lastCitationRefreshAt) : null;
+if (scopusConfigured() && scopusSnapshotCache && (!citationGeneratedAt || citationGeneratedAt < latestCitationRefresh)) queueScopusCitationSync("weekly-startup");
+scheduleScopusCitationRefresh();
 
 createServer(async (req, res) => {
   try {

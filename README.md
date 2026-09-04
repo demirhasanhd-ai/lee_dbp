@@ -29,3 +29,15 @@ Komut satırından çalıştırmak için:
 npm run dev
 npm run build
 ```
+
+## Canlı Scopus ortam değişkenleri
+
+Bibliyometrik Göstergeler sayfasının canlı sunucuda veri çekebilmesi için dağıtım ortamında aşağıdaki sunucu değişkenleri tanımlanır. API anahtarı repoya veya istemci koduna yazılmaz.
+
+```ini
+SCOPUS_API_KEY=...
+SCOPUS_AFFILIATION_ID=60088374
+SCOPUS_INSTTOKEN=...
+```
+
+`SCOPUS_API_KEY` zorunludur. `SCOPUS_INSTTOKEN` yalnız kurum aboneliği bunu gerektiriyorsa tanımlanır.

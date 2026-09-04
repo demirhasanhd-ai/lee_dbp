@@ -109,6 +109,58 @@ test("TEZ_SKA canlı OAI-PMH anlık görüntüsünü kullanır ve Şubat-Eylül 
   assert.deepEqual(thesisRefreshDates(2026).map((date) => date.toISOString()), ["2026-02-08T22:00:00.000Z", "2026-09-27T22:00:00.000Z"]);
 });
 
+test("Bibliyometrik Göstergeler menüde TEZ_SKA ile Duyurular arasında yer alır", async () => {
+  const [home, header] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/PublicSiteHeader.tsx", import.meta.url), "utf8"),
+  ]);
+  for (const source of [home, header]) {
+    const thesis = source.indexOf("TEZ_SKA Analiz");
+    const bibliometrics = source.indexOf("Bibliyometrik Göstergeler");
+    const announcements = source.indexOf("Duyurular");
+    assert.ok(thesis >= 0 && thesis < bibliometrics, "Bibliyometri TEZ_SKA'dan sonra gelmeli");
+    assert.ok(bibliometrics < announcements, "Bibliyometri Duyurulardan önce gelmeli");
+    assert.match(source, /dbpPath\("\/article"\)/u);
+  }
+  const response = await render({}, "/dbp/article");
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /Bibliyometrik Göstergeler/u);
+  assert.match(html, /OKÜ adresli bilimsel yayınların/u);
+});
+
+test("Scopus bibliyometrisi yayınları yılda iki, atıfları haftalık günceller", async () => {
+  const [page, server, source, dockerfile, envExample, launcher] = await Promise.all([
+    readFile(new URL("../app/article/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../server.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../lib/scopusBibliometrics.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
+    readFile(new URL("../.env.example", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/start-local-dbp.mjs", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /\/api\/dbp\/bibliometrics/u);
+  assert.match(page, /Yıllık yayın trendi/u);
+  assert.match(page, /Uluslararası iş birliği yoğunluk haritası/u);
+  assert.doesNotMatch(page, /Yıllık birim yayın trendi/u);
+  assert.doesNotMatch(page, /Bars data=\{data\.countries\}/u);
+  assert.match(page, /SubjectBubbleMatrix/u);
+  assert.match(page, /Yayın–SKA Stratejik Plan Uyum Matrisi/u);
+  assert.match(page, /Geliştirilebilecek SKA hedefleri/u);
+  assert.match(server, /pathname === "\/api\/dbp\/bibliometrics"/u);
+  assert.match(server, /scheduleScopusRefresh\(\)/u);
+  assert.match(server, /scheduleScopusCitationRefresh\(\)/u);
+  assert.match(source, /AF-ID\(\$\{AFFILIATION_ID\}\)/u);
+  assert.match(source, /Her Pazartesi 01:00/u);
+  assert.match(source, /SCOPUS_API_KEY/u);
+  assert.match(source, /PUBYEAR = \$\{year\}/u);
+  assert.match(source, /Mühendislik ve Doğa Bilimleri Fakültesi/u);
+  assert.match(dockerfile, /COPY lib\/scopusBibliometrics\.mjs \.\/lib\/scopusBibliometrics\.mjs/u);
+  assert.match(envExample, /SCOPUS_API_KEY=/u);
+  assert.match(launcher, /\.env\.local/u);
+  const { scopusRefreshDates } = await import(new URL("../lib/scopusBibliometrics.mjs", import.meta.url));
+  assert.deepEqual(scopusRefreshDates(2026).map((date) => date.toISOString()), ["2026-02-08T22:00:00.000Z", "2026-09-27T22:00:00.000Z"]);
+});
+
 test("course package sidebar resolves the YBS doctorate context", async () => {
   const path = "/dbp/katalog?ders=YBS921&bolum=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri%20ABD&program=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri&duzey=Doktora";
   const response = await render({}, path);

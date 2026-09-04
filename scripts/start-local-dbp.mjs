@@ -1,9 +1,11 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const localEnvFile = path.join(rootDir, ".env.local");
+if (existsSync(localEnvFile)) process.loadEnvFile(localEnvFile);
 const localVolumeDir = process.env.DBP_LOCAL_VOLUME_DIR || path.join(rootDir, "local-volume");
 const localDataDir = path.join(localVolumeDir, "data");
 const localBackupDir = path.join(localDataDir, "backups");
