@@ -989,7 +989,7 @@ export function RoleDashboard() {
               session={session}
               readOnly={isCentralRole && !canEditAcademicContent}
               onSave={save}
-              onPublish={() => { localStorage.setItem("lee-dbp-review-queue", JSON.stringify({ code: selectedCourse.code, status: "Komisyon Onayı Bekliyor", public: false })); save("Ders onaya gönderildi."); }}
+              onPublish={(status) => { localStorage.setItem("lee-dbp-review-queue", JSON.stringify({ code: selectedCourse.code, status, public: false })); save("Ders onaya gönderildi."); }}
             />
           </section>
         )}

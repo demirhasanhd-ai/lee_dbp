@@ -2859,6 +2859,9 @@ function canEditCoursePackage(session, body, rows) {
 function canReadCoursePackage(session, body) {
   if (["admin", "lee_ogrenci_isleri", "enstitu_sekreteri", "enstitu_yoneticisi"].includes(session.role)) return true;
   if (isCommitteeMemberForCourse(session, body)) return true;
+  if (session.role === "abd_asd_baskani") {
+    return normalizeScope(session.department || "") === normalizeScope(body.department || "");
+  }
   if (session.role === "abd_sekreteri") {
     return normalizeScope(session.department || "") === normalizeScope(body.department || "");
   }
@@ -6169,6 +6172,9 @@ async function handleDbpApi(request) {
       if (!canEditCoursePackage(auth.session, body, matchingRows)) {
         return jsonResponse({ message: "Bu ders paketi üzerinde kayıt yetkiniz yok." }, { status: 403 });
       }
+      const submittedForCommittee = normalizeScope(body.status || "") === normalizeScope("Komisyon Onayı Bekliyor");
+      const committeeExists = submittedForCommittee && committeeMembersForDepartment(body.department || "").length > 0;
+      const actualStatus = submittedForCommittee && !committeeExists ? "ABD Son Onayı Bekliyor" : body.status || "Taslak";
 
       let update = { changes: 0 };
       if (matchingRows.length) {
@@ -6179,7 +6185,7 @@ async function handleDbpApi(request) {
         `);
         let changes = 0;
         for (const row of matchingRows) {
-          changes += updateById.run(body.status || "Taslak", JSON.stringify(body.package || {}), now, row.id).changes;
+          changes += updateById.run(actualStatus, JSON.stringify(body.package || {}), now, row.id).changes;
         }
         update = { changes };
       }
@@ -6193,7 +6199,7 @@ async function handleDbpApi(request) {
           AND level = ?
       `).run(
         body.name,
-        body.status || "Taslak",
+        actualStatus,
         JSON.stringify(body.package || {}),
         now,
         body.code,
@@ -6213,7 +6219,7 @@ async function handleDbpApi(request) {
             WHERE id = ?
           `).run(
             body.name,
-            body.status || "Taslak",
+            actualStatus,
             JSON.stringify(body.package || {}),
             now,
             codeLevelMatches[0].id,
@@ -6232,27 +6238,27 @@ async function handleDbpApi(request) {
           level,
           body.code,
           body.name,
-          body.status || "Taslak",
+          actualStatus,
           actor,
           JSON.stringify(body.package || {}),
           now,
           now,
         );
       }
-      audit("course.package.save", actor, { code: body.code, department: body.department || "", level });
-      if (normalizeScope(body.status || "") === normalizeScope("Komisyon Onayı Bekliyor")) {
+      audit("course.package.save", actor, { code: body.code, department: body.department || "", level, status: actualStatus });
+      if (submittedForCommittee) {
         recordWorkflowRequest({
           kind: "course-package-submit",
           body,
-          route: "Akademisyen -> DBP Komisyonu",
+          route: committeeExists ? "Akademisyen -> DBP Komisyonu" : "Akademisyen -> ABD/ASD Başkanı",
           note: body.note || "",
-          status: body.status,
+          status: actualStatus,
           actor,
         });
       }
       invalidateHomeStatsCache();
       queueQualitySnapshotRefresh("course.package.save");
-      return jsonResponse({ ok: true, summary: { courses: countRows("courses") } });
+      return jsonResponse({ ok: true, status: actualStatus, committeeSkipped: submittedForCommittee && !committeeExists, summary: { courses: countRows("courses") } });
     }
 
     if (pathname === "/api/dbp/course-package/status" && request.method === "POST") {

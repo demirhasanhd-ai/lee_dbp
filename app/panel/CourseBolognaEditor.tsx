@@ -291,7 +291,7 @@ export function CourseBolognaEditor({
   session: SessionIdentity;
   readOnly?: boolean;
   onSave: () => void;
-  onPublish: () => void;
+  onPublish: (status: string) => void;
 }) {
   const [workflowStatus, setWorkflowStatus] = useState("Taslak");
   const [identity, setIdentity] = useState(() => defaultIdentity(course));
@@ -644,10 +644,11 @@ export function CourseBolognaEditor({
         },
       }),
     });
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: "Ders paketi kaydedilemedi." }));
-      throw new Error(error.message || "Ders paketi kaydedilemedi.");
+      throw new Error(result.message || "Ders paketi kaydedilemedi.");
     }
+    return { status: result.status || status };
   };
   return (
     <form
@@ -658,11 +659,12 @@ export function CourseBolognaEditor({
         if (approvalLocked) return;
         if (publishIssues.length > 0) return;
         if (!window.confirm("Ders bilgi paketini onaya göndermek istediğinize emin misiniz?")) return;
-        await persistPackage(event.currentTarget, "Komisyon Onayı Bekliyor");
-        setWorkflowStatus("Komisyon Onayı Bekliyor");
+        const result = await persistPackage(event.currentTarget, "Komisyon Onayı Bekliyor");
+        const nextStatus = result.status || "Komisyon Onayı Bekliyor";
+        setWorkflowStatus(nextStatus);
         setLatestCorrection(null);
-        localStorage.setItem("lee-dbp-course-status", "komisyon_onayi_bekliyor");
-        onPublish();
+        localStorage.setItem("lee-dbp-course-status", normalizeWorkflowStatus(nextStatus).replace(/\s+/g, "_"));
+        onPublish(nextStatus);
       }}
     >
       <section className="course-form-card">

@@ -285,6 +285,7 @@ test("DBP commission workflow exposes management, review stages and homepage sho
   assert.match(server, /BEGIN IMMEDIATE/u);
   assert.match(server, /expectedStatusesForTransition/u);
   assert.match(server, /workflow_requests/u);
+  assert.match(server, /function canReadCoursePackage[\s\S]*session\.role === "abd_asd_baskani"/u);
 });
 
 test("course editing and public display use the persisted package workflow", async () => {
