@@ -232,6 +232,61 @@ test("ABD chair course workspace separates instructor assignments from the depar
   assert.match(source, /belongsToSessionScope/u);
 });
 
+test("ABD chair scope matching tolerates Turkish character differences and shows pending approvals", async () => {
+  const [dashboardSource, reviewSource, serverSource] = await Promise.all([
+    readFile(new URL("../app/panel/RoleDashboard.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/panel/ReviewQueue.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../server.mjs", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(dashboardSource, /foldTurkishText/u);
+  assert.match(dashboardSource, /normalizeProgramScope\(session\.department\)/u);
+  assert.equal(dashboardSource.includes('normalizeText(session.department).replace(/\\sabd|\\sasd/g, "").trim()'), false);
+  assert.match(dashboardSource, /mode=\{session\.role === "abd_asd_baskani" \? "chair" : "institute"\}/u);
+  assert.match(reviewSource, /ABD Son Onayı Bekliyor/u);
+  assert.match(reviewSource, /course\.status \|\| "İncelemede"/u);
+  assert.match(serverSource, /replaceAll\("ü", "u"\)/u);
+  assert.match(serverSource, /anabilim dali\|anasanat dali/u);
+  assert.match(serverSource, /canApproveCoursePackage/u);
+});
+
+test("DBP commission workflow exposes management, review stages and homepage shortcuts", async () => {
+  const [access, dashboard, review, editor, committee, home, server] = await Promise.all([
+    readFile(new URL("../lib/auth/access.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/panel/RoleDashboard.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/panel/ReviewQueue.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/panel/CourseBolognaEditor.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/panel/CommitteeManagement.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../server.mjs", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(access, /committee_management/u);
+  assert.match(access, /commission_review/u);
+  assert.match(dashboard, /CommitteeManagement/u);
+  assert.match(dashboard, /committee\/memberships/u);
+  assert.match(review, /Onay bekleyenler/u);
+  assert.match(review, /Onaylananlar/u);
+  assert.match(review, /expectedStatus: course\.status/u);
+  assert.match(review, /status: "Düzeltme İstendi"/u);
+  assert.match(review, /Komisyon Onayı Bekliyor/u);
+  assert.match(review, /ABD Son Onayı Bekliyor/u);
+  assert.match(editor, /ApprovalWorkflow/u);
+  assert.match(editor, /Komisyon Onayı Bekliyor/u);
+  assert.match(committee, /api\/dbp\/instructors/u);
+  assert.match(committee, /trustedInstructorSources/u);
+  assert.match(committee, /Komisyonu Kaydet/u);
+  assert.match(home, /Kalite Göstergeleri/u);
+  assert.match(home, /TEZ SKA Analizi/u);
+  assert.match(home, /aria-disabled="true"/u);
+  assert.match(server, /CREATE TABLE IF NOT EXISTS committee_members/u);
+  assert.match(server, /\/api\/dbp\/committee\/memberships/u);
+  assert.match(server, /committee\.members\.replace/u);
+  assert.match(server, /BEGIN IMMEDIATE/u);
+  assert.match(server, /expectedStatusesForTransition/u);
+  assert.match(server, /workflow_requests/u);
+});
+
 test("course editing and public display use the persisted package workflow", async () => {
   const editor = await readFile(new URL("../app/panel/CourseBolognaEditor.tsx", import.meta.url), "utf8");
   const publicPackage = await readFile(new URL("../app/katalog/DemoCoursePackage.tsx", import.meta.url), "utf8");

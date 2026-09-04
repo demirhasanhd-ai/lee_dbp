@@ -1261,3 +1261,406 @@ input {
     transition: none !important;
   }
 }
+
+.notice-list article[aria-disabled="true"] {
+  cursor: default;
+  pointer-events: none;
+}
+
+.notice-list article[aria-disabled="true"] * {
+  pointer-events: none;
+}
+
+.permission-head,
+.permission-row {
+  grid-template-columns: 180px repeat(10, minmax(105px, 1fr)) !important;
+}
+
+.review-filters {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  gap: 10px;
+  margin: 0 0 14px;
+  align-items: center;
+}
+
+.review-filters label,
+.review-filters > div {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.review-filters input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 11px;
+}
+
+.review-filters button {
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.review-filters button.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.review-head-v2,
+.review-row-v2 {
+  grid-template-columns: minmax(180px, 1.05fr) minmax(360px, 1.55fr) minmax(130px, .6fr) minmax(290px, 1.1fr) !important;
+}
+
+.review-empty-state {
+  min-width: 900px;
+  padding: 24px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.dbp-workflow-stepper,
+.course-approval-workflow {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  align-items: start;
+}
+
+.dbp-workflow-stepper span,
+.course-approval-workflow span {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.dbp-workflow-stepper span::before,
+.course-approval-workflow span::before {
+  content: "";
+  position: absolute;
+  top: 13px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+
+.dbp-workflow-stepper span:first-child::before,
+.course-approval-workflow span:first-child::before {
+  left: 50%;
+}
+
+.dbp-workflow-stepper span:last-child::before,
+.course-approval-workflow span:last-child::before {
+  right: 50%;
+}
+
+.dbp-workflow-stepper i,
+.course-approval-workflow i {
+  position: relative;
+  z-index: 1;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.dbp-workflow-stepper b,
+.course-approval-workflow b {
+  min-width: 0;
+  font-size: 9px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.dbp-workflow-stepper .done::before,
+.dbp-workflow-stepper .current::before,
+.course-approval-workflow .done::before,
+.course-approval-workflow .current::before {
+  background: var(--success);
+}
+
+.dbp-workflow-stepper .done i,
+.dbp-workflow-stepper .current i,
+.course-approval-workflow .done i,
+.course-approval-workflow .current i {
+  border-color: var(--success);
+  background: var(--success);
+  color: white;
+}
+
+.course-approval-workflow {
+  margin: 18px 0 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 4%, var(--background));
+}
+
+.committee-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, .75fr) minmax(0, 1.25fr);
+  gap: 14px;
+}
+
+.committee-picker,
+.committee-list {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  overflow: hidden;
+}
+
+.committee-picker header,
+.committee-list header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px;
+  background: color-mix(in srgb, var(--primary) 5%, var(--card));
+  border-bottom: 1px solid var(--border);
+}
+
+.committee-picker header {
+  justify-content: flex-start;
+}
+
+.committee-picker b,
+.committee-list b {
+  font-size: 12px;
+}
+
+.committee-picker small,
+.committee-list small,
+.committee-list span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.committee-add-row {
+  display: grid;
+  gap: 9px;
+  padding: 15px;
+}
+
+.committee-add-row input,
+.committee-add-row select,
+.committee-add-row button {
+  width: 100%;
+  min-height: 39px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 11px;
+}
+
+.committee-add-row button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 800;
+}
+
+.committee-add-row button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.committee-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--border);
+}
+
+.committee-list article:last-child {
+  border-bottom: 0;
+}
+
+.committee-list article button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--primary);
+}
+
+.committee-empty {
+  padding: 24px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  text-align: center;
+}
+
+.workload-table > div {
+  grid-template-columns: minmax(190px, 1fr) 68px 78px 90px 30px !important;
+}
+
+.workload-table > div > button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--primary);
+}
+
+.workload-table > div > input:first-child {
+  min-width: 0;
+}
+
+.contribution-wrap select {
+  width: 46px !important;
+  min-width: 46px !important;
+  max-width: 46px !important;
+  color: var(--foreground) !important;
+  background: var(--card) !important;
+  text-align: center;
+  text-align-last: center;
+  appearance: auto;
+}
+
+.contribution-wrap option {
+  color: #171717;
+  background: #fff;
+}
+
+.preview-summary-full {
+  grid-template-columns: 1fr;
+}
+
+.preview-field-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.preview-field-grid p {
+  margin: 0;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.preview-field-grid b {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted-foreground);
+  font-size: 8px;
+}
+
+.preview-data-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+}
+
+.preview-data-table th,
+.preview-data-table td {
+  padding: 8px;
+  border: 1px solid var(--border);
+  font-size: 10px;
+  line-height: 1.45;
+  text-align: left;
+  vertical-align: top;
+}
+
+.preview-data-table th {
+  background: var(--muted);
+  font-size: 8px;
+  font-weight: 800;
+  color: var(--foreground);
+}
+
+.preview-summary article.wide {
+  overflow-x: auto;
+}
+
+.review-preview-modal footer {
+  align-items: center;
+}
+
+.review-preview-modal footer .package-print-button {
+  min-height: 37px;
+  margin-right: auto;
+}
+
+@media (max-width: 950px) {
+  .review-filters,
+  .committee-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .review-filters > div {
+    flex-wrap: wrap;
+  }
+
+  .course-approval-workflow {
+    overflow-x: auto;
+  }
+
+  .course-approval-workflow span {
+    min-width: 105px;
+  }
+
+  .preview-field-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .workload-table > div {
+    grid-template-columns: minmax(150px, 1fr) 58px 68px 78px 30px !important;
+  }
+
+  .preview-field-grid {
+    grid-template-columns: 1fr;
+  }
+}

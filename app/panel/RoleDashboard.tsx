@@ -6,11 +6,13 @@ import {
   CheckCircle2,
   ChevronDown,
   ClipboardCheck,
+  ClipboardList,
   HardDrive,
   Plus,
   Save,
   Settings,
   ShieldCheck,
+  UserCog,
   Users,
 } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
@@ -27,6 +29,7 @@ import { ProgramPublishControl } from "./ProgramPublishControl";
 import { QualityReports } from "./QualityReports";
 import { ReviewQueue } from "./ReviewQueue";
 import { DatabaseAdminPanel } from "./DatabaseAdminPanel";
+import { CommitteeManagement } from "./CommitteeManagement";
 import { ThemeToggle } from "../ThemeToggle";
 import { LEE_PROGRAMS, type LeeProgram } from "../../lib/data/programs";
 import { isDepartmentPoolCourse } from "../../lib/data/courseCatalog";
@@ -58,7 +61,13 @@ type Course = {
 type InstructorOption = {
   id: string;
   name: string;
+  email?: string | null;
   departmentNames?: string[];
+};
+type CommitteeMembership = {
+  departmentScope: string;
+  department: string;
+  programName?: string;
 };
 type RoleAccess = Record<DbpRole, DbpModule[]>;
 const moduleKeys = Object.keys(DBP_MODULES) as DbpModule[];
@@ -125,16 +134,29 @@ const shortLevel = (level: Course["level"]) =>
     : level === "Tezli Yüksek Lisans"
       ? "Tezli YL"
       : "Doktora";
-const normalizeText = (value: string) => repairText(value).toLocaleLowerCase("tr-TR");
+const foldTurkishText = (value: string) =>
+  value
+    .replaceAll("ç", "c")
+    .replaceAll("ğ", "g")
+    .replaceAll("ı", "i")
+    .replaceAll("ö", "o")
+    .replaceAll("ş", "s")
+    .replaceAll("ü", "u")
+    .replaceAll("â", "a")
+    .replaceAll("î", "i")
+    .replaceAll("û", "u")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+const normalizeText = (value: string) => foldTurkishText(repairText(value).toLocaleLowerCase("tr-TR"));
 const normalizeProgramScope = (value: string) =>
   normalizeText(value)
-    .replace(/\b(abd|asd|anabilim dalı|anasanat dalı)\b/gu, " ")
+    .replace(/\b(abd|asd|anabilim dali|anasanat dali)\b/gu, " ")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 const normalizePersonName = (value: string) =>
   normalizeText(value)
-    .replace(/\b(prof|doç|doc|dr|öğr|ogr|üyesi|uyesi|gör|gor)\b\.?/g, " ")
+    .replace(/\b(prof|doc|dr|ogr|uyesi|gor)\b\.?/g, " ")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -254,6 +276,7 @@ export function RoleDashboard() {
   const [permissionsBusy, setPermissionsBusy] = useState(false);
   const [permissionMessage, setPermissionMessage] = useState("");
   const [saved, setSaved] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("Değişiklikler kaydedildi.");
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedProgram, setSelectedProgram] = useState<LeeProgram | null>(null);
   const [showCourseCreate, setShowCourseCreate] = useState(false);
@@ -265,6 +288,7 @@ export function RoleDashboard() {
   const [catalogMessage, setCatalogMessage] = useState("");
   const [catalogSessionKey, setCatalogSessionKey] = useState("");
   const [instructorOptions, setInstructorOptions] = useState<InstructorOption[]>([]);
+  const [committeeMemberships, setCommitteeMemberships] = useState<CommitteeMembership[]>([]);
   const eEnstituDbpUrl = `${getEEnstituUrl()}/#/modul/ders-bilgi-paketi`;
   useEffect(() => {
     let cancelled = false;
@@ -415,14 +439,35 @@ export function RoleDashboard() {
       });
     return () => controller.abort();
   }, [session?.username, session?.role, session?.department]);
+  useEffect(() => {
+    if (!session) return;
+    const controller = new AbortController();
+    fetch(dbpPath("/api/dbp/committee/memberships"), {
+      headers: { "X-DBP-Session": dbpSessionHeader(session) },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || "Komisyon üyeliği alınamadı.");
+        setCommitteeMemberships(Array.isArray(data.memberships) ? data.memberships : []);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setCommitteeMemberships([]);
+      });
+    return () => controller.abort();
+  }, [session?.username, session?.role, session?.department]);
   if (!session)
     return <main className="panel-loading">Panel hazırlanıyor…</main>;
   const currentCatalogKey = catalogKeyForSession(session);
   const catalogIsCurrent = catalogSessionKey === currentCatalogKey;
   const displayedCatalogCourses = catalogIsCurrent ? catalogCourses : [];
   const catalogBusy = catalogLoading || !catalogIsCurrent;
-  const modules = roleAccess[session.role] ?? DEFAULT_ROLE_ACCESS[session.role];
-  const save = () => {
+  const baseModules = roleAccess[session.role] ?? DEFAULT_ROLE_ACCESS[session.role];
+  const modules = committeeMemberships.length > 0 && !baseModules.includes("commission_review")
+    ? [...baseModules, "commission_review" as DbpModule]
+    : baseModules;
+  const save = (message = "Değişiklikler kaydedildi.") => {
+    setSaveMessage(message);
     setSaved(true);
     void refreshCatalogCourses();
     setTimeout(() => setSaved(false), 1800);
@@ -467,9 +512,9 @@ export function RoleDashboard() {
   const scopedPrograms = isCentralRole
     ? LEE_PROGRAMS
     : LEE_PROGRAMS.filter((program) => {
-        const scope = normalizeText(session.department).replace(/\sabd|\sasd/g, "").trim();
-        const department = normalizeText(program.department).replace(/\sabd|\sasd/g, "").trim();
-        const programName = normalizeText(program.programName).replace(/\sabd|\sasd/g, "").trim();
+        const scope = normalizeProgramScope(session.department);
+        const department = normalizeProgramScope(program.department);
+        const programName = normalizeProgramScope(program.programName);
         return department === scope || programName === scope;
       });
   const activeProfileProgram =
@@ -548,11 +593,22 @@ export function RoleDashboard() {
   const activeProgramLevels = selectedProgram
     ? orderedLevelsForProgram(selectedProgram.levels, activeCourses)
     : levels;
-  const reviewCourses = selectedProgram
+  const committeeScopeSet = new Set(committeeMemberships.map((item) => normalizeProgramScope(item.department)));
+  const committeeCourses = session.role === "admin"
+    ? displayedCatalogCourses
+    : displayedCatalogCourses.filter((course) =>
+        committeeScopeSet.has(normalizeProgramScope(course.department || "")) ||
+        committeeScopeSet.has(normalizeProgramScope(course.programName || "")),
+      );
+  const committeeProgram = activeProfileProgram ?? scopedPrograms[0] ?? null;
+  const committeeDepartment = committeeProgram?.department ?? session.department;
+  const committeeProgramName = committeeProgram?.programName ?? session.department;
+  const allReviewCourses = selectedProgram
     ? activeCourses
     : session.role === "abd_asd_baskani"
       ? scopedPrograms.flatMap((program) => coursesForProgram(program))
       : displayedCatalogCourses.length ? displayedCatalogCourses : useDemoFallback ? courses : [];
+  const reviewCourses = session.role === "enstitu_sekreteri" ? [] : allReviewCourses;
   const pickerDepartments = [...new Set(scopedPrograms.map((program) => program.mainDepartment))];
   const changeModule = (module: DbpModule) => {
     setActive(module);
@@ -642,6 +698,10 @@ export function RoleDashboard() {
                   <BookOpen size={16} />
                 ) : module === "program_profile" ? (
                   <ClipboardCheck size={16} />
+                ) : module === "committee_management" ? (
+                  <UserCog size={16} />
+                ) : module === "commission_review" ? (
+                  <ClipboardList size={16} />
                 ) : module === "permission_matrix" ? (
                   <Settings size={16} />
                 ) : module === "user_roles" ? (
@@ -698,7 +758,7 @@ export function RoleDashboard() {
         {saved && (
           <div className="save-toast">
             <CheckCircle2 size={16} />
-            Değişiklikler kaydedildi.
+            {saveMessage}
           </div>
         )}
         {catalogMessage && <div className="database-message">{catalogMessage}</div>}
@@ -929,9 +989,28 @@ export function RoleDashboard() {
               session={session}
               readOnly={isCentralRole && !canEditAcademicContent}
               onSave={save}
-              onPublish={() => { localStorage.setItem("lee-dbp-review-queue", JSON.stringify({ code: selectedCourse.code, status: "ABD Onayı Bekliyor", public: false })); save(); }}
+              onPublish={() => { localStorage.setItem("lee-dbp-review-queue", JSON.stringify({ code: selectedCourse.code, status: "Komisyon Onayı Bekliyor", public: false })); save("Ders onaya gönderildi."); }}
             />
           </section>
+        )}
+        {active === "committee_management" && (
+          <CommitteeManagement
+            session={session}
+            department={committeeDepartment}
+            programName={committeeProgramName}
+            onSave={save}
+          />
+        )}
+        {active === "commission_review" && (
+          <ReviewQueue
+            courses={committeeCourses}
+            role={session.role}
+            session={session}
+            department={committeeMemberships[0]?.department ?? session.department}
+            programName={committeeMemberships[0]?.programName || committeeMemberships[0]?.department || session.department}
+            mode="committee"
+            onAction={save}
+          />
         )}
         {active === "program_profile" && isCentralRole && !selectedProgram && (
           <section>
@@ -989,6 +1068,7 @@ export function RoleDashboard() {
               session={session}
               department={(selectedProgram ?? scopedDefaultProgram)?.department ?? session.department}
               programName={(selectedProgram ?? scopedDefaultProgram)?.programName ?? session.department}
+              mode={session.role === "abd_asd_baskani" ? "chair" : "institute"}
               onAction={save}
             />
           </section>

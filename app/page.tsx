@@ -98,11 +98,13 @@ export default function Home() {
         <section className="content-section two-column" id="duyurular">
           <div>
             <div className="section-title"><div><span className="title-line accent"/><div><small>GÜNCEL BİLGİLER</small><h2>Duyurular</h2></div></div><a href="#duyurular">Tümü →</a></div>
-            <div className="notice-list">{notices.map(([title,date],index)=><article key={title} className={index===0?"important":""}><span className="notice-icon">{index===0?<Bell size={18}/>:<BookOpen size={18}/>}</span><div><h3>{title}</h3><p>Ders Bilgi Paketi Koordinatörlüğü</p></div><time>{date}</time></article>)}</div>
+            <div className="notice-list">{notices.map(([title,date],index)=><article key={title} className={index===0?"important":""} aria-disabled="true"><span className="notice-icon">{index===0?<Bell size={18}/>:<BookOpen size={18}/>}</span><div><h3>{title}</h3><p>Ders Bilgi Paketi Koordinatörlüğü</p></div><time>{date}</time></article>)}</div>
           </div>
           <aside className="quick-panel">
             <div className="section-title compact"><div><span className="title-line"/><div><small>İŞLEMLER</small><h2>Hızlı erişim</h2></div></div></div>
             <a href={dbpPath("/katalog")}><Search size={18}/><span><b>Ders bilgi paketi ara</b><small>Public katalogda arama yapın</small></span><i>→</i></a>
+            <a href={dbpPath("/kalite")}><BarChart3 size={18}/><span><b>Kalite Göstergeleri</b><small>Ders paketi kalite metriklerini inceleyin</small></span><i>→</i></a>
+            <a href={dbpPath("/tez-ska")}><PieChart size={18}/><span><b>TEZ SKA Analizi</b><small>Tezlerin SKA dağılımını görüntüleyin</small></span><i>→</i></a>
             <a href="https://osmaniye.edu.tr" target="_blank" rel="noopener noreferrer"><ExternalLink size={18}/><span><b>OKÜ ana sayfa</b><small>Üniversite web sitesine gidin</small></span><i>→</i></a>
           </aside>
         </section>

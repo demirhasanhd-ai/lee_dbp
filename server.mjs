@@ -90,6 +90,8 @@ const dbpRoles = [
 const dbpModules = [
   "my_courses",
   "program_profile",
+  "committee_management",
+  "commission_review",
   "review_queue",
   "publish_control",
   "quality_reports",
@@ -100,12 +102,12 @@ const dbpModules = [
 
 const defaultRoleAccess = {
   akademisyen: ["my_courses"],
-  abd_asd_baskani: ["my_courses", "program_profile", "review_queue"],
+  abd_asd_baskani: ["my_courses", "program_profile", "committee_management", "review_queue"],
   abd_sekreteri: ["review_queue"],
   lee_ogrenci_isleri: ["my_courses", "program_profile"],
-  enstitu_sekreteri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
+  enstitu_sekreteri: ["my_courses", "program_profile", "quality_reports"],
   enstitu_yoneticisi: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports"],
-  admin: ["my_courses", "database_admin", "program_profile", "review_queue", "publish_control", "quality_reports", "user_roles", "permission_matrix"],
+  admin: ["my_courses", "database_admin", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "user_roles", "permission_matrix"],
 };
 
 const testProgramSeed = {
@@ -2728,7 +2730,18 @@ function normalizeSeedCourses(courses = []) {
 function normalizeScope(value = "") {
   return repairText(value)
     .toLocaleLowerCase("tr-TR")
-    .replace(/\b(abd|asd|anabilim dalı|anasanat dalı)\b/gu, " ")
+    .replaceAll("ç", "c")
+    .replaceAll("ğ", "g")
+    .replaceAll("ı", "i")
+    .replaceAll("ö", "o")
+    .replaceAll("ş", "s")
+    .replaceAll("ü", "u")
+    .replaceAll("â", "a")
+    .replaceAll("î", "i")
+    .replaceAll("û", "u")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\b(abd|asd|anabilim dali|anasanat dali)\b/gu, " ")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -2737,7 +2750,18 @@ function normalizeScope(value = "") {
 function normalizePerson(value = "") {
   return repairText(value)
     .toLocaleLowerCase("tr-TR")
-    .replace(/\b(prof|doç|doc|dr|öğr|ogr|üyesi|uyesi|gör|gor)\b\.?/gu, " ")
+    .replaceAll("ç", "c")
+    .replaceAll("ğ", "g")
+    .replaceAll("ı", "i")
+    .replaceAll("ö", "o")
+    .replaceAll("ş", "s")
+    .replaceAll("ü", "u")
+    .replaceAll("â", "a")
+    .replaceAll("î", "i")
+    .replaceAll("û", "u")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\b(prof|doc|dr|ogr|uyesi|gor)\b\.?/gu, " ")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -2834,6 +2858,7 @@ function canEditCoursePackage(session, body, rows) {
 
 function canReadCoursePackage(session, body) {
   if (["admin", "lee_ogrenci_isleri", "enstitu_sekreteri", "enstitu_yoneticisi"].includes(session.role)) return true;
+  if (isCommitteeMemberForCourse(session, body)) return true;
   if (session.role === "abd_sekreteri") {
     return normalizeScope(session.department || "") === normalizeScope(body.department || "");
   }
@@ -2844,6 +2869,249 @@ function canApproveCoursePackage(session, body) {
   if (["admin", "enstitu_yoneticisi"].includes(session.role)) return true;
   return session.role === "abd_asd_baskani" &&
     normalizeScope(session.department || "") === normalizeScope(body.department || "");
+}
+
+function memberIdentityKeys(value = {}) {
+  return [
+    value.username,
+    value.member_username,
+    value.tcKimlik,
+    value.tc_kimlik,
+    value.member_tc_kimlik,
+    value.email,
+    value.member_email,
+    value.name,
+    value.member_name,
+  ]
+    .map((item) => normalizeScope(String(item || "")))
+    .filter(Boolean);
+}
+
+function primaryMemberKey(value = {}) {
+  return normalizePerson(value.name || value.member_name || "") ||
+    normalizeScope(value.email || value.member_email || "") ||
+    normalizeScope(value.tcKimlik || value.tc_kimlik || value.member_tc_kimlik || "") ||
+    normalizeScope(value.username || value.member_username || "") ||
+    normalizeScope(`member-${Date.now()}`);
+}
+
+function committeeMembersForDepartment(department) {
+  const scope = normalizeScope(department || "");
+  if (!scope) return [];
+  return db.prepare(`
+    SELECT id, department, program_name, member_key, member_username, member_tc_kimlik, member_name, member_email, created_by, created_at
+    FROM committee_members
+    WHERE department_scope = ?
+    ORDER BY member_name COLLATE NOCASE
+  `).all(scope).map((row) => ({
+    id: row.id,
+    department: repairText(row.department || ""),
+    programName: repairText(row.program_name || ""),
+    memberKey: row.member_key,
+    username: row.member_username || "",
+    tcKimlik: row.member_tc_kimlik || "",
+    name: repairText(row.member_name || ""),
+    email: row.member_email || "",
+    createdBy: row.created_by || "",
+    createdAt: row.created_at,
+  }));
+}
+
+function committeeMembershipsForSession(session) {
+  const keys = memberIdentityKeys(session);
+  if (!keys.length) return [];
+  const rows = db.prepare(`
+    SELECT DISTINCT department_scope, department, program_name
+    FROM committee_members
+    WHERE member_key IN (${keys.map(() => "?").join(",")})
+       OR lower(member_username) IN (${keys.map(() => "?").join(",")})
+       OR lower(member_email) IN (${keys.map(() => "?").join(",")})
+  `).all(...keys, ...keys, ...keys);
+  const normalizedName = normalizePerson(session.name || "");
+  const byName = normalizedName
+    ? db.prepare(`
+      SELECT DISTINCT department_scope, department, program_name, member_name
+      FROM committee_members
+      WHERE member_key = ? OR member_name IS NOT NULL
+      `).all(normalizedName).filter((row) => normalizePerson(row.member_name || "") === normalizedName)
+    : [];
+  const seen = new Set();
+  return [...rows, ...byName]
+    .filter((row) => {
+      const key = row.department_scope;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((row) => ({
+      departmentScope: row.department_scope,
+      department: repairText(row.department || ""),
+      programName: repairText(row.program_name || ""),
+    }));
+}
+
+function canManageCommittee(session, department) {
+  if (session.role === "admin") return true;
+  return session.role === "abd_asd_baskani" &&
+    normalizeScope(session.department || "") === normalizeScope(department || "");
+}
+
+function replaceCommitteeMembers({ department, programName, members }, actor) {
+  const departmentName = repairText(String(department || "")).trim();
+  const departmentScope = normalizeScope(departmentName);
+  if (!departmentScope) throw new Error("ABD / ASD bilgisi zorunludur.");
+  const now = new Date().toISOString();
+  const normalizedMembers = [];
+  const seen = new Set();
+  for (const item of Array.isArray(members) ? members : []) {
+    const member = {
+      username: String(item.username || item.id || "").trim(),
+      tcKimlik: String(item.tcKimlik || item.tc_kimlik || "").trim(),
+      name: repairText(String(item.name || "")).trim(),
+      email: String(item.email || "").trim(),
+    };
+    const key = primaryMemberKey(member);
+    if (!member.name || !key || seen.has(key)) continue;
+    seen.add(key);
+    normalizedMembers.push({ ...member, key });
+  }
+  db.exec("BEGIN");
+  try {
+    db.prepare("DELETE FROM committee_members WHERE department_scope = ?").run(departmentScope);
+    const insert = db.prepare(`
+      INSERT INTO committee_members(department_scope, department, program_name, member_key, member_username, member_tc_kimlik, member_name, member_email, created_by, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const member of normalizedMembers) {
+      insert.run(
+        departmentScope,
+        departmentName,
+        repairText(String(programName || "")).trim(),
+        member.key,
+        member.username,
+        member.tcKimlik,
+        member.name,
+        member.email,
+        actor || "dbp-user",
+        now,
+      );
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  return committeeMembersForDepartment(departmentName);
+}
+
+function isCommitteeMemberForCourse(session, body) {
+  if (session.role === "admin") return true;
+  const departmentScope = normalizeScope(body.department || "");
+  if (!departmentScope) return false;
+  return committeeMembershipsForSession(session).some((item) => item.departmentScope === departmentScope);
+}
+
+function workflowTarget(body = {}) {
+  return [
+    repairText(String(body.department || "")).trim(),
+    repairText(String(body.programName || body.program_name || "")).trim(),
+    displayLevel(body.level || ""),
+    repairText(String(body.code || "")).trim(),
+  ].filter(Boolean).join(" | ");
+}
+
+function recordWorkflowRequest({ kind, body, route, note, status, actor }) {
+  db.prepare(`
+    INSERT INTO workflow_requests(kind, target, route, note, status, created_by, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    kind,
+    workflowTarget(body),
+    route || "",
+    note || "",
+    status,
+    actor || "dbp-user",
+    new Date().toISOString(),
+  );
+}
+
+function expectedStatusesForTransition(status, body = {}) {
+  const normalized = normalizeScope(status || "");
+  const providedExpected = body.expectedStatus ? normalizeScope(body.expectedStatus) : "";
+  let allowed = [];
+  if (normalized === normalizeScope("ABD Son Onayı Bekliyor")) {
+    allowed = [normalizeScope("Komisyon Onayı Bekliyor")];
+    return providedExpected && allowed.includes(providedExpected) ? [providedExpected] : allowed;
+  }
+  if (normalized === normalizeScope("Enstitü Onayı Bekliyor")) {
+    allowed = [normalizeScope("ABD Son Onayı Bekliyor"), normalizeScope("ABD Onayı Bekliyor")];
+    return providedExpected && allowed.includes(providedExpected) ? [providedExpected] : allowed;
+  }
+  if (normalized === normalizeScope("Yayımlandı") || normalized === "public") {
+    allowed = [normalizeScope("Enstitü Onayı Bekliyor")];
+    return providedExpected && allowed.includes(providedExpected) ? [providedExpected] : allowed;
+  }
+  if (normalized === normalizeScope("Düzeltme İstendi")) {
+    allowed = [
+      normalizeScope("Komisyon Onayı Bekliyor"),
+      normalizeScope("ABD Son Onayı Bekliyor"),
+      normalizeScope("ABD Onayı Bekliyor"),
+      normalizeScope("Enstitü Onayı Bekliyor"),
+    ];
+    return providedExpected && allowed.includes(providedExpected) ? [providedExpected] : allowed;
+  }
+  if (providedExpected) return [providedExpected];
+  return [];
+}
+
+function transitionCoursePackageStatus(body, status, actor) {
+  const rows = courseRowsForIdentity(body).filter((row) => row.package_json && row.package_json !== "{}");
+  if (!rows.length) return { ok: false, missing: true };
+  const expected = expectedStatusesForTransition(status, body);
+  const mismatches = expected.length
+    ? rows.filter((row) => !expected.includes(normalizeScope(row.status || "")))
+    : [];
+  if (mismatches.length) {
+    return {
+      ok: false,
+      conflict: true,
+      currentStatus: repairText(mismatches[0].status || ""),
+      expectedStatus: expected.join(", "),
+    };
+  }
+  const now = new Date().toISOString();
+  const statement = db.prepare("UPDATE courses SET status = ?, updated_at = ? WHERE id = ?");
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const lockedRows = rows.map((row) => db.prepare("SELECT id, status FROM courses WHERE id = ?").get(row.id)).filter(Boolean);
+    const lockedMismatch = expected.length
+      ? lockedRows.find((row) => !expected.includes(normalizeScope(row.status || "")))
+      : null;
+    if (lockedMismatch) {
+      db.exec("ROLLBACK");
+      return {
+        ok: false,
+        conflict: true,
+        currentStatus: repairText(lockedMismatch.status || ""),
+        expectedStatus: expected.join(", "),
+      };
+    }
+    for (const row of lockedRows) statement.run(status, now, row.id);
+    recordWorkflowRequest({
+      kind: "course-package",
+      body,
+      route: body.route || "",
+      note: body.note || "",
+      status,
+      actor,
+    });
+    audit("course.package.status", actor, { code: body.code, status, rows: lockedRows.length });
+    db.exec("COMMIT");
+    return { ok: true, rows: lockedRows.length, status };
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 async function ensureDb() {
@@ -2889,6 +3157,22 @@ async function ensureDb() {
       updated_by TEXT,
       PRIMARY KEY (role, module)
     );
+    CREATE TABLE IF NOT EXISTS committee_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      department_scope TEXT NOT NULL,
+      department TEXT NOT NULL,
+      program_name TEXT,
+      member_key TEXT NOT NULL,
+      member_username TEXT,
+      member_tc_kimlik TEXT,
+      member_name TEXT NOT NULL,
+      member_email TEXT,
+      created_by TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE(department_scope, member_key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_committee_members_member ON committee_members(member_key);
+    CREATE INDEX IF NOT EXISTS idx_committee_members_scope ON committee_members(department_scope);
     CREATE TABLE IF NOT EXISTS programs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       main_department TEXT NOT NULL,
@@ -3460,7 +3744,7 @@ function seedInitialData(force = false) {
   db.exec("BEGIN");
   try {
     if (force) {
-      for (const table of ["programs", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
+      for (const table of ["committee_members", "programs", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
         db.exec(`DELETE FROM ${table}`);
       }
     }
@@ -5226,6 +5510,7 @@ function exportData() {
       users: tableRows("users"),
       user_roles: tableRows("user_roles"),
       role_module_access: tableRows("role_module_access"),
+      committee_members: tableRows("committee_members"),
       programs: tableRows("programs"),
       program_profiles: tableRows("program_profiles"),
       courses: tableRows("courses"),
@@ -5244,7 +5529,7 @@ function replaceFromExport(payload, actor = "admin") {
   const now = new Date().toISOString();
   db.exec("BEGIN");
   try {
-    for (const table of ["metadata", "user_roles", "users", "role_module_access", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
+    for (const table of ["metadata", "user_roles", "users", "role_module_access", "committee_members", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
       db.exec(`DELETE FROM ${table}`);
     }
     const insertMetadata = db.prepare("INSERT INTO metadata(key, value) VALUES (?, ?)");
@@ -5263,6 +5548,28 @@ function replaceFromExport(payload, actor = "admin") {
     const insertRoleAccess = db.prepare("INSERT INTO role_module_access(role, module, enabled, updated_at, updated_by) VALUES (?, ?, ?, ?, ?)");
     for (const row of payload.tables.role_module_access || []) {
       if (isKnownRole(row.role) && isKnownModule(row.module)) insertRoleAccess.run(row.role, row.module, row.enabled ? 1 : 0, row.updated_at || now, row.updated_by || "import");
+    }
+    const insertCommitteeMember = db.prepare(`
+      INSERT INTO committee_members(department_scope, department, program_name, member_key, member_username, member_tc_kimlik, member_name, member_email, created_by, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const row of payload.tables.committee_members || []) {
+      const department = repairText(row.department || "");
+      const memberName = repairText(row.member_name || row.name || "");
+      if (department && memberName) {
+        insertCommitteeMember.run(
+          row.department_scope || normalizeScope(department),
+          department,
+          row.program_name || "",
+          row.member_key || primaryMemberKey({ name: memberName, email: row.member_email, username: row.member_username }),
+          row.member_username || "",
+          row.member_tc_kimlik || "",
+          memberName,
+          row.member_email || "",
+          row.created_by || "import",
+          row.created_at || now,
+        );
+      }
     }
     const insertProgram = db.prepare(`
       INSERT INTO programs(id, main_department, department, program_name, flags, levels_json, profile_json, created_at, updated_at)
@@ -5306,7 +5613,7 @@ function replaceFromExport(payload, actor = "admin") {
 function resetDatabase(actor) {
   db.exec("BEGIN");
   try {
-    for (const table of ["programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
+    for (const table of ["committee_members", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
       db.exec(`DELETE FROM ${table}`);
     }
     db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("seeded_from_current_data", "reset_empty");
@@ -5357,6 +5664,7 @@ async function adminSummary() {
       users: countRows("users"),
       userRoles: countRows("user_roles"),
       roleModuleAccess: countRows("role_module_access"),
+      committeeMembers: countRows("committee_members"),
       programs: countRows("programs"),
       programProfiles: countRows("program_profiles"),
       courses: countRows("courses"),
@@ -5679,6 +5987,43 @@ async function handleDbpApi(request) {
       });
     }
 
+    if (pathname === "/api/dbp/committee/memberships" && request.method === "GET") {
+      const auth = requireDbpSession(request);
+      if (auth.error) return auth.error;
+      upsertSessionUser(auth.session);
+      return jsonResponse({ memberships: committeeMembershipsForSession(auth.session) });
+    }
+
+    if (pathname === "/api/dbp/committee" && request.method === "GET") {
+      const auth = requireDbpSession(request);
+      if (auth.error) return auth.error;
+      upsertSessionUser(auth.session);
+      const department = repairText(url.searchParams.get("department") || auth.session.department || "");
+      const canRead = canManageCommittee(auth.session, department) ||
+        committeeMembershipsForSession(auth.session).some((item) => item.departmentScope === normalizeScope(department));
+      if (!canRead) return jsonResponse({ message: "Bu DBP komisyonunu görüntüleme yetkiniz yok." }, { status: 403 });
+      return jsonResponse({ department, members: committeeMembersForDepartment(department) });
+    }
+
+    if (pathname === "/api/dbp/committee" && request.method === "PUT") {
+      const auth = requireDbpSession(request, { write: true });
+      if (auth.error) return auth.error;
+      upsertSessionUser(auth.session);
+      const body = await readJsonBody(request);
+      const department = repairText(String(body.department || auth.session.department || "")).trim();
+      if (!canManageCommittee(auth.session, department)) {
+        return jsonResponse({ message: "DBP komisyonunu yalnızca ilgili ABD/ASD başkanı düzenleyebilir." }, { status: 403 });
+      }
+      const actor = auth.session.username || auth.session.name || "dbp-user";
+      const members = replaceCommitteeMembers({
+        department,
+        programName: body.programName || "",
+        members: body.members || [],
+      }, actor);
+      audit("committee.members.replace", actor, { department, count: members.length });
+      return jsonResponse({ ok: true, department, members });
+    }
+
     if (pathname === "/api/dbp/home-stats" && request.method === "GET") {
       return jsonResponse(await cachedHomeStats());
     }
@@ -5873,6 +6218,16 @@ async function handleDbpApi(request) {
         );
       }
       audit("course.package.save", actor, { code: body.code, department: body.department || "", level });
+      if (normalizeScope(body.status || "") === normalizeScope("Komisyon Onayı Bekliyor")) {
+        recordWorkflowRequest({
+          kind: "course-package-submit",
+          body,
+          route: "Akademisyen -> DBP Komisyonu",
+          note: body.note || "",
+          status: body.status,
+          actor,
+        });
+      }
       invalidateHomeStatsCache();
       queueQualitySnapshotRefresh("course.package.save");
       return jsonResponse({ ok: true, summary: { courses: countRows("courses") } });
@@ -5882,16 +6237,22 @@ async function handleDbpApi(request) {
       const auth = requireDbpSession(request, { write: true });
       if (auth.error) return auth.error;
       const body = await readJsonBody(request);
-      if (!canApproveCoursePackage(auth.session, body)) {
+      const requestedStatus = repairText(String(body.status || "Yayımlandı")).trim();
+      const committeeApproval = normalizeScope(requestedStatus) === normalizeScope("ABD Son Onayı Bekliyor");
+      const correctionRequest = normalizeScope(requestedStatus) === normalizeScope("Düzeltme İstendi");
+      const committeeAction = committeeApproval || (correctionRequest && isCommitteeMemberForCourse(auth.session, body));
+      if (committeeAction ? !isCommitteeMemberForCourse(auth.session, body) : !canApproveCoursePackage(auth.session, body)) {
         return jsonResponse({ message: "Bu ders paketini onaylama yetkiniz yok." }, { status: 403 });
       }
-      const rows = courseRowsForIdentity(body).filter((row) => row.package_json && row.package_json !== "{}");
-      if (!rows.length) return jsonResponse({ message: "Onaylanacak kayıtlı ders paketi bulunamadı." }, { status: 404 });
-      const now = new Date().toISOString();
-      const status = body.status || "Yayımlandı";
-      const statement = db.prepare("UPDATE courses SET status = ?, updated_at = ? WHERE id = ?");
-      for (const row of rows) statement.run(status, now, row.id);
-      audit("course.package.status", auth.session.username || auth.session.name || "dbp-user", { code: body.code, status });
+      const status = requestedStatus || "Yayımlandı";
+      const transition = transitionCoursePackageStatus(body, status, auth.session.username || auth.session.name || "dbp-user");
+      if (transition.missing) return jsonResponse({ message: "Onaylanacak kayıtlı ders paketi bulunamadı." }, { status: 404 });
+      if (transition.conflict) {
+        return jsonResponse({
+          message: `Bu ders paketi artık beklenen aşamada değil. Güncel durum: ${transition.currentStatus || "Bilinmiyor"}.`,
+          currentStatus: transition.currentStatus || "",
+        }, { status: 409 });
+      }
       invalidateHomeStatsCache();
       queueQualitySnapshotRefresh("course.package.status");
       return jsonResponse({ ok: true, status });

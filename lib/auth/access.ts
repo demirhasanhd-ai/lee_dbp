@@ -3,6 +3,8 @@ import type { DbpRole } from "./roles";
 export const DBP_MODULES = {
   my_courses: "Ders Bilgi Paketlerim",
   program_profile: "Program Bilgileri",
+  committee_management: "DBP Komisyonu",
+  commission_review: "Komisyon İncelemesi",
   review_queue: "Kontrol ve Düzeltme",
   publish_control: "Yayın Kontrolü",
   quality_reports: "Kalite Kontrol Raporları",
@@ -15,10 +17,10 @@ export type DbpModule = keyof typeof DBP_MODULES;
 
 export const DEFAULT_ROLE_ACCESS: Record<DbpRole, DbpModule[]> = {
   akademisyen: ["my_courses"],
-  abd_asd_baskani: ["my_courses", "program_profile", "review_queue"],
+  abd_asd_baskani: ["my_courses", "program_profile", "committee_management", "review_queue"],
   abd_sekreteri: ["review_queue"],
   lee_ogrenci_isleri: ["my_courses", "program_profile"],
-  enstitu_sekreteri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
+  enstitu_sekreteri: ["my_courses", "program_profile", "quality_reports"],
   enstitu_yoneticisi: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports"],
-  admin: ["my_courses", "database_admin", "program_profile", "review_queue", "publish_control", "quality_reports", "user_roles", "permission_matrix"],
+  admin: ["my_courses", "database_admin", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "user_roles", "permission_matrix"],
 };

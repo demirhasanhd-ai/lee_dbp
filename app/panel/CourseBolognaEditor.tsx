@@ -14,7 +14,7 @@ type Assessment = {
   weight: number;
   fixed?: boolean;
 };
-type Workload = { count: number; hours: number };
+type Workload = { count: number; hours: number; custom?: boolean };
 type CourseIdentity = {
   code: string;
   name: string;
@@ -95,6 +95,51 @@ const longFields = [
   ["assistants", "Dersin Yardımcıları", "Yok"],
   ["resources", "Ders Kaynakları", "Temel ve yardımcı kaynakları girin."],
 ] as const;
+
+const approvalWorkflowSteps = [
+  "Hazırlık",
+  "Komisyon İncelemesi",
+  "ABD/ASD Son Onayı",
+  "Enstitü Onayı",
+  "Yayımlandı",
+];
+
+const foldTurkishText = (value: string) =>
+  value
+    .replaceAll("ç", "c")
+    .replaceAll("ğ", "g")
+    .replaceAll("ı", "i")
+    .replaceAll("ö", "o")
+    .replaceAll("ş", "s")
+    .replaceAll("ü", "u")
+    .replaceAll("â", "a")
+    .replaceAll("î", "i")
+    .replaceAll("û", "u")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+const normalizeWorkflowStatus = (value: string) => foldTurkishText(value.toLocaleLowerCase("tr-TR")).trim();
+const workflowStage = (status: string) => {
+  const value = normalizeWorkflowStatus(status);
+  if (value.includes("komisyon")) return 1;
+  if (value.includes("abd son") || value === normalizeWorkflowStatus("ABD Onayı Bekliyor")) return 2;
+  if (value.includes("enstitu")) return 3;
+  if (["public", normalizeWorkflowStatus("Yayımlandı"), normalizeWorkflowStatus("Yayınlandı")].includes(value)) return 4;
+  return 0;
+};
+
+function ApprovalWorkflow({ status }: { status: string }) {
+  const activeStage = workflowStage(status);
+  return (
+    <div className="course-approval-workflow" aria-label="Ders bilgi paketi onay aşaması">
+      {approvalWorkflowSteps.map((step, index) => (
+        <span key={step} className={index < activeStage ? "done" : index === activeStage ? "current" : "waiting"}>
+          <i>{index < activeStage ? "✓" : index + 1}</i>
+          <b>{step}</b>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 function sessionHeader(session: SessionIdentity) {
   return dbpSessionHeader(session);
@@ -248,6 +293,7 @@ export function CourseBolognaEditor({
   const [assessments, setAssessments] = useState<Assessment[]>(defaultAssessments);
   const [nextAssessment, setNextAssessment] = useState(3);
   const [workloads, setWorkloads] = useState<Record<string, Workload>>(defaultWorkloads);
+  const [nextWorkload, setNextWorkload] = useState(1);
   const [weeklyTopics, setWeeklyTopics] = useState<Record<number, string>>(emptyWeeklyTopics);
   const [structureValues, setStructureValues] = useState<Record<string, number>>(emptyStructures);
   const [contributionMatrix, setContributionMatrix] = useState<Record<string, number>[]>([]);
@@ -313,6 +359,7 @@ export function CourseBolognaEditor({
       setOutcomes(emptyOutcomes());
       setAssessments(defaultAssessments);
       setWorkloads(defaultWorkloads);
+      setNextWorkload(1);
       setWeeklyTopics(emptyWeeklyTopics());
       setStructureValues(emptyStructures());
       setContributionMatrix([]);
@@ -414,11 +461,34 @@ export function CourseBolognaEditor({
     totalWorkload,
     weeklyTopics,
   ]);
-  const updateWorkload = (name: string, key: keyof Workload, value: number) =>
+  const updateWorkload = (name: string, key: "count" | "hours", value: number) =>
     setWorkloads((current) => ({
       ...current,
       [name]: { ...(current[name] ?? { count: 0, hours: 0 }), [key]: value },
     }));
+  const renameWorkload = (oldName: string, newName: string) => {
+    const cleanedName = newName.trimStart();
+    setWorkloads((current) => {
+      const row = current[oldName];
+      if (!row || !row.custom) return current;
+      const finalName = cleanedName || oldName;
+      if (finalName !== oldName && current[finalName]) return current;
+      return Object.fromEntries(Object.entries(current).map(([name, value]) => [name === oldName ? finalName : name, value]));
+    });
+  };
+  const addWorkload = () => {
+    const name = `Yeni İş Yükü ${nextWorkload}`;
+    setWorkloads((current) => ({ ...current, [name]: { count: 1, hours: 1, custom: true } }));
+    setNextWorkload((value) => value + 1);
+  };
+  const removeWorkload = (name: string) => {
+    setWorkloads((current) => {
+      if (!current[name]?.custom) return current;
+      const copy = { ...current };
+      delete copy[name];
+      return copy;
+    });
+  };
   const addAssessment = () => {
     const name = `Yeni Değerlendirme ${nextAssessment - 2}`;
     setAssessments((current) => [
@@ -556,9 +626,10 @@ export function CourseBolognaEditor({
         event.preventDefault();
         if (readOnly) return;
         if (publishIssues.length > 0) return;
-        await persistPackage(event.currentTarget, "ABD Onayı Bekliyor");
-        setWorkflowStatus("ABD Onayı Bekliyor");
-        localStorage.setItem("lee-dbp-course-status", "abd_onayi_bekliyor");
+        if (!window.confirm("Ders bilgi paketini onaya göndermek istediğinize emin misiniz?")) return;
+        await persistPackage(event.currentTarget, "Komisyon Onayı Bekliyor");
+        setWorkflowStatus("Komisyon Onayı Bekliyor");
+        localStorage.setItem("lee-dbp-course-status", "komisyon_onayi_bekliyor");
         onPublish();
       }}
     >
@@ -575,6 +646,7 @@ export function CourseBolognaEditor({
             <span>{workflowStatus}</span>
           </div>
         </header>
+        <ApprovalWorkflow status={workflowStatus} />
         <h3>Ders Genel Bilgileri</h3>
         <div className="course-general-grid">
           <label className="name">
@@ -733,22 +805,44 @@ export function CourseBolognaEditor({
         </div>
       </section>
       <section className="course-form-card">
-        <h3>AKTS / İş Yükü Tablosu</h3>
+        <div className="section-title">
+          <h3>AKTS / İş Yükü Tablosu</h3>
+          <button type="button" onClick={addWorkload}>
+            <Plus size={14} /> İş Yükü Ekle
+          </button>
+        </div>
         <div className="data-table workload-table">
           <div className="table-head">
             <span>Etkinlik</span>
             <span>Sayısı</span>
             <span>Süresi (Saat)</span>
             <span>Toplam İş Yükü</span>
+            <span />
           </div>
           {workloadNames.map((name) => {
             const row = workloads[name] ?? { count: 0, hours: 0 };
             return (
               <div key={name}>
-                <b>{name}</b>
+                {row.custom ? (
+                  <input
+                    name={`İş yükü etkinliği ${name}`}
+                    value={name}
+                    onChange={(event) => renameWorkload(name, event.target.value)}
+                    aria-label="İş yükü etkinliği"
+                  />
+                ) : (
+                  <b>{name}</b>
+                )}
                 <input type="number" min="0" value={row.count} onChange={(event) => updateWorkload(name, "count", Number(event.target.value))} />
                 <input type="number" min="0" value={row.hours} onChange={(event) => updateWorkload(name, "hours", Number(event.target.value))} />
                 <input value={row.count * row.hours} readOnly />
+                {row.custom ? (
+                  <button type="button" onClick={() => removeWorkload(name)} aria-label={`${name} iş yükünü sil`}>
+                    <Trash2 size={14} />
+                  </button>
+                ) : (
+                  <span />
+                )}
               </div>
             );
           })}
@@ -757,6 +851,7 @@ export function CourseBolognaEditor({
             <span />
             <span />
             <strong>{totalWorkload} saat / {ects} AKTS</strong>
+            <span />
           </div>
         </div>
       </section>
@@ -841,7 +936,7 @@ export function CourseBolognaEditor({
       </section>
       {!readOnly && <div className="course-save-bar">
         <div className="course-publish-status">
-          <span>{workflowStatus === "Taslak" ? "Çalışmanızı taslak olarak kaydedebilir veya ABD/ASD onayına gönderebilirsiniz." : "Paket ABD/ASD başkanının onayını bekliyor; onaylanmadan public görünmez."}</span>
+          <span>{workflowStatus === "Taslak" ? "Çalışmanızı taslak olarak kaydedebilir veya komisyon incelemesine gönderebilirsiniz." : "Paket onay sürecinde; komisyon, ABD/ASD ve enstitü aşamaları tamamlanmadan public görünmez."}</span>
           {publishIssues.length > 0 && (
             <details className="publish-validation">
               <summary>Yayın için {publishIssues.length} eksik veya hatalı bölüm var</summary>
@@ -851,7 +946,7 @@ export function CourseBolognaEditor({
         </div>
         <div className="course-submit-actions">
           <button type="button" className="draft" onClick={async (event) => { const form = event.currentTarget.form; if (!form) return; await persistPackage(form, "Taslak"); setWorkflowStatus("Taslak"); localStorage.setItem("lee-dbp-course-status", "taslak"); onSave(); }}><Save size={15} />Taslağı Kaydet</button>
-          <button type="submit" className="publish" disabled={publishIssues.length > 0} title={publishIssues[0] ?? "ABD/ASD onayına gönder"}><Send size={15} />Yayınla</button>
+          <button type="submit" className="publish" disabled={publishIssues.length > 0} title={publishIssues[0] ?? "Komisyon incelemesine gönder"}><Send size={15} />Onaya gönder</button>
         </div>
       </div>}
       {obsOpen && (
