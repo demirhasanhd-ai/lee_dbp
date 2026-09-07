@@ -128,6 +128,7 @@ test("Bibliyometrik Göstergeler menüde TEZ_SKA ile Duyurular arasında yer al�
   assert.match(menu, /dbpPath\("\/article"\)/u);
   assert.match(menu, /dbpPath\("\/yayin"\)/u);
   assert.match(menu, /dbpPath\("\/article\/doktora"\)/u);
+  assert.match(home, /<BibliometricsMenu variant="quick" \/>/u);
   const response = await render({}, "/dbp/article");
   const html = await response.text();
   assert.equal(response.status, 200);
