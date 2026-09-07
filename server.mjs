@@ -25,6 +25,15 @@ import {
   refreshScopusSnapshot,
   scopusConfigured,
 } from "./lib/scopusBibliometrics.mjs";
+import {
+  latestTrDizinCitationRefreshDate,
+  latestTrDizinRefreshDate,
+  nextTrDizinCitationRefreshDate,
+  nextTrDizinRefreshDate,
+  queryTrDizinRecords,
+  readTrDizinSnapshot,
+  refreshTrDizinSnapshot,
+} from "./lib/trDizinBibliometrics.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -77,6 +86,10 @@ let scopusSnapshotCache;
 let scopusSyncPromise;
 let scopusRefreshTimer;
 let scopusCitationRefreshTimer;
+let trDizinSnapshotCache;
+let trDizinSyncPromise;
+let trDizinRefreshTimer;
+let trDizinCitationRefreshTimer;
 
 function openBrowser(url) {
   const child =
@@ -5238,6 +5251,58 @@ function scheduleScopusCitationRefresh() {
   scopusCitationRefreshTimer.unref?.();
 }
 
+function currentTrDizinSnapshot() {
+  const storedSnapshot = readTrDizinSnapshot(db);
+  if (storedSnapshot) trDizinSnapshotCache = storedSnapshot;
+  return trDizinSnapshotCache;
+}
+
+function queueTrDizinSync(actor = "system", mode = "FULL") {
+  if (!trDizinSyncPromise) {
+    trDizinSyncPromise = refreshTrDizinSnapshot(db, { actor, mode, instructors: scopusInstructorCatalog })
+      .then((snapshot) => {
+        trDizinSnapshotCache = snapshot;
+        return snapshot;
+      })
+      .catch((error) => {
+        console.error(`[dbp] TR Dizin bibliyometri senkronizasyonu başarısız: ${error instanceof Error ? error.message : error}`);
+        return currentTrDizinSnapshot();
+      })
+      .finally(() => {
+        trDizinSyncPromise = undefined;
+      });
+  }
+  return trDizinSyncPromise;
+}
+
+function scheduleTrDizinRefresh() {
+  if (trDizinRefreshTimer) clearTimeout(trDizinRefreshTimer);
+  const next = nextTrDizinRefreshDate();
+  const delay = Math.min(Math.max((next?.getTime() || Date.now()) - Date.now(), 1_000), 2_000_000_000);
+  trDizinRefreshTimer = setTimeout(async () => {
+    try {
+      if (next && Date.now() >= next.getTime()) await queueTrDizinSync("scheduled", "FULL");
+    } finally {
+      scheduleTrDizinRefresh();
+    }
+  }, delay);
+  trDizinRefreshTimer.unref?.();
+}
+
+function scheduleTrDizinCitationRefresh() {
+  if (trDizinCitationRefreshTimer) clearTimeout(trDizinCitationRefreshTimer);
+  const next = nextTrDizinCitationRefreshDate();
+  const delay = Math.min(Math.max(next.getTime() - Date.now(), 1_000), 2_000_000_000);
+  trDizinCitationRefreshTimer = setTimeout(async () => {
+    try {
+      if (Date.now() >= next.getTime()) await queueTrDizinSync("weekly-citations", "CITATIONS");
+    } finally {
+      scheduleTrDizinCitationRefresh();
+    }
+  }, delay);
+  trDizinCitationRefreshTimer.unref?.();
+}
+
 function migrateYbsTezsizPackagesFromSeed() {
   const revision="2026-08-31-ybs-tezsiz-v1";if(db.prepare("SELECT value FROM metadata WHERE key = ?").get("ybs_tezsiz_packages_revision")?.value===revision)return;
   const packages=readCoursePackageSeeds().filter((x)=>normalizeScope(x.department||"")===normalizeScope("Yönetim Bilişim Sistemleri ABD")&&normalizeScope(x.programName||"")===normalizeScope("Yönetim Bilişim Sistemleri")&&levelKey(x.level||"")==="tezsiz yl");const now=new Date().toISOString();const update=db.prepare(`UPDATE courses SET name = ?, credit = ?, ects = ?, theory = ?, practice = ?, term = ?, instructor = ?, status = 'Public', package_json = ?, updated_at = ? WHERE id = ?`);let changed=0;db.exec("BEGIN");try{for(const p of packages){const rows=courseRowsForIdentity({department:p.department,programName:p.programName,level:p.level,code:p.code});for(const c of rows){update.run(p.name||c.name,Number(p.credit||0),Number(p.ects||0),Number(p.theory||0),Number(p.practice||0),p.code==="YBS7XX"||p.code==="YBS703"?"Güz ve Bahar":c.term,p.instructor||c.instructor||"",JSON.stringify(storedPackageFromSeed(p,{...c,programName:c.program_name})),now,c.id);changed+=1}}db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("ybs_tezsiz_packages_revision",revision);audit("course.package.migrate","system",{scope:"Yönetim Bilişim Sistemleri Tezsiz YL",revision,changed});db.exec("COMMIT")}catch(error){db.exec("ROLLBACK");throw error}
@@ -6189,6 +6254,32 @@ async function handleDbpApi(request) {
       });
     }
 
+    if (pathname === "/api/dbp/tr-dizin-bibliometrics" && request.method === "GET") {
+      const snapshot = currentTrDizinSnapshot();
+      if (!snapshot) {
+        queueTrDizinSync("public-bootstrap", "FULL");
+        return jsonResponse({
+          status: "syncing",
+          message: "İlk TR Dizin bibliyometri görüntüsü hazırlanıyor.",
+          nextRefreshAt: nextTrDizinRefreshDate()?.toISOString() || "",
+          nextCitationRefreshAt: nextTrDizinCitationRefreshDate()?.toISOString() || "",
+        }, { status: 202 });
+      }
+      return jsonResponse({
+        ...snapshot,
+        nextRefreshAt: nextTrDizinRefreshDate()?.toISOString() || "",
+        nextCitationRefreshAt: nextTrDizinCitationRefreshDate()?.toISOString() || "",
+      });
+    }
+
+    if (pathname === "/api/dbp/tr-dizin-records" && request.method === "GET") {
+      if (!currentTrDizinSnapshot()) {
+        queueTrDizinSync("public-records-bootstrap", "FULL");
+        return jsonResponse({ status: "syncing", message: "TR Dizin kayıtları hazırlanıyor." }, { status: 202 });
+      }
+      return jsonResponse(queryTrDizinRecords(db, Object.fromEntries(url.searchParams.entries())));
+    }
+
     if (pathname === "/api/dbp/course-management" && request.method === "POST") {
       const auth = requireDbpSession(request, { write: true });
       if (auth.error) return auth.error;
@@ -6717,6 +6808,16 @@ const latestCitationRefresh = latestScopusCitationRefreshDate();
 const citationGeneratedAt = scopusSnapshotCache?.lastCitationRefreshAt ? new Date(scopusSnapshotCache.lastCitationRefreshAt) : null;
 if (scopusConfigured() && scopusSnapshotCache && (!citationGeneratedAt || citationGeneratedAt < latestCitationRefresh)) queueScopusCitationSync("weekly-startup");
 scheduleScopusCitationRefresh();
+trDizinSnapshotCache = readTrDizinSnapshot(db);
+const latestTrDizinRefresh = latestTrDizinRefreshDate();
+const trDizinGeneratedAt = trDizinSnapshotCache?.generatedAt ? new Date(trDizinSnapshotCache.generatedAt) : null;
+if (!trDizinSnapshotCache) queueTrDizinSync("startup", "FULL");
+else if (latestTrDizinRefresh && (!trDizinGeneratedAt || trDizinGeneratedAt < latestTrDizinRefresh)) queueTrDizinSync("scheduled-startup", "FULL");
+scheduleTrDizinRefresh();
+const latestTrDizinCitationRefresh = latestTrDizinCitationRefreshDate();
+const trDizinCitationGeneratedAt = trDizinSnapshotCache?.lastCitationRefreshAt ? new Date(trDizinSnapshotCache.lastCitationRefreshAt) : null;
+if (trDizinSnapshotCache && (!trDizinCitationGeneratedAt || trDizinCitationGeneratedAt < latestTrDizinCitationRefresh)) queueTrDizinSync("weekly-startup", "CITATIONS");
+scheduleTrDizinCitationRefresh();
 
 createServer(async (req, res) => {
   try {

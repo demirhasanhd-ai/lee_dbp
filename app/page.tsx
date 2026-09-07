@@ -13,6 +13,7 @@ import {
   Search,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { BibliometricsMenu } from "./BibliometricsMenu";
 import { ProgramDirectory } from "./ProgramDirectory";
 import { HomeLiveStats } from "./HomeLiveStats";
 import { dbpPath } from "../lib/dbpPath";
@@ -53,7 +54,7 @@ export default function Home() {
               <a href="#programlar"><LibraryBig size={18}/>Ders Kataloğu</a>
               <a href={dbpPath("/kalite")}><BarChart3 size={18}/>Kalite Göstergeleri</a>
               <a href={dbpPath("/tez-ska")}><PieChart size={18}/>TEZ_SKA Analiz</a>
-              <a href={dbpPath("/article")}><ScatterChart size={18}/>Bibliyometrik Göstergeler</a>
+              <BibliometricsMenu />
               <a href="#duyurular"><Bell size={18}/>Duyurular</a>
               <a href="#yardim"><CircleHelp size={18}/>Yardım</a>
             </nav>

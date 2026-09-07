@@ -24,6 +24,7 @@ COPY package.json ./package.json
 COPY server.mjs ./server.mjs
 COPY lib/thesisSdg.mjs ./lib/thesisSdg.mjs
 COPY lib/scopusBibliometrics.mjs ./lib/scopusBibliometrics.mjs
+COPY lib/trDizinBibliometrics.mjs ./lib/trDizinBibliometrics.mjs
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/local-preview/program-data-local.js ./seed/program-data-local.js
 COPY --from=build /app/seed/course-packages.json ./seed/course-packages.json

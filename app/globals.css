@@ -1,6 +1,8 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 @import "./period-menu.css";
+@import "./bibliometrics-menu.css";
+@import "./yayin.css";
 @import "./theme.css";
 @import "./login.css";
 @import "./login-modes.css";
@@ -88,6 +90,7 @@
   --chart-3: #2f9e6f;
   --chart-4: #5b6ee1;
   --chart-5: #a855b7;
+  --chart-6: #8c4a2f;
   --font-sans: "Noto Sans Local", system-ui, sans-serif;
 }
 @theme inline {
@@ -107,6 +110,7 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
   --font-sans: var(--font-sans);
 }
 * {

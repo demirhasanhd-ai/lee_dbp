@@ -11,11 +11,11 @@ import type { CSSProperties, ReactNode } from "react";
 import { PublicSiteHeader } from "../PublicSiteHeader";
 import { dbpPath } from "../../lib/dbpPath";
 
-type CountItem = { name: string; count: number };
-type SdgItem = { id: number; title: string; count: number; share: number };
-type StrategyItem = { id: string; title: string; sdgs: number[]; count: number };
-type YearPoint = { year: string; count: number };
-type Dashboard = {
+export type CountItem = { name: string; count: number };
+export type SdgItem = { id: number; title: string; count: number; share: number };
+export type StrategyItem = { id: string; title: string; sdgs: number[]; count: number };
+export type YearPoint = { year: string; count: number };
+export type Dashboard = {
   generatedAt: string;
   lastSuccessfulHarvestAt: string;
   lastFullHarvestAt?: string;
@@ -43,7 +43,7 @@ type Dashboard = {
   quality: { unitCoverage: number; unitEstimatedCount?: number; authorCoverage: number; sdgMethod: string; unitMethod?: string };
 };
 
-const strategicMatrix = [
+export const strategicMatrix = [
   { sdg: 4, goal: "A2 – Eğitim-Öğretim", targets: "H2.1, H2.2, H2.3, H3.5", note: "Eğitim araştırmaları eğitim-öğretim niteliği ve program geliştirme hedeflerini destekler." },
   { sdg: 6, goal: "A3 – Araştırma ve Bilim", targets: "H3.1, H3.2", note: "Su ve çevre yayınları sürdürülebilir araştırma kapasitesiyle ilişkilidir." },
   { sdg: 9, goal: "A1, A3, A5", targets: "H1.3, H3.1, H3.2, H5.5", note: "Mühendislik ve teknoloji yayınları araştırma altyapısı ile sanayi iş birliği hedeflerini destekler." },
@@ -56,19 +56,19 @@ const strategicMatrix = [
   { sdg: 13, goal: "A5 – Yenilenebilir Enerji", targets: "H5.3, H5.4", note: "İklim ve çevre yayınları sıfır atık ve sürdürülebilirlik hedefleriyle örtüşür." },
 ];
 
-const tones = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--primary)", "var(--success)", "var(--destructive)"];
+export const tones = ["var(--primary)", "var(--chart-4)", "var(--chart-3)", "var(--chart-2)", "var(--chart-5)", "var(--chart-6)"];
 const formatNumber = (value: number) => value.toLocaleString("tr-TR", { maximumFractionDigits: 2 });
 const formatDate = (value?: string) => value ? new Date(value).toLocaleString("tr-TR") : "—";
 
-function Empty({ children = "Scopus yanıtında bu kırılım için güvenilir veri bulunamadı." }: { children?: ReactNode }) {
+export function Empty({ children = "Scopus yanıtında bu kırılım için güvenilir veri bulunamadı." }: { children?: ReactNode }) {
   return <div className="article-empty"><Database size={22} /><span>{children}</span></div>;
 }
 
-function Panel({ eyebrow, title, icon, children, className = "" }: { eyebrow: string; title: string; icon?: ReactNode; children: ReactNode; className?: string }) {
+export function Panel({ eyebrow, title, icon, children, className = "" }: { eyebrow: string; title: string; icon?: ReactNode; children: ReactNode; className?: string }) {
   return <article className={`quality-panel article-panel ${className}`}><header><div><small>{eyebrow}</small><h2>{title}</h2></div>{icon}</header>{children}</article>;
 }
 
-function LineChart({ data, color = "var(--chart-1)", label, unit }: { data: YearPoint[]; color?: string; label: string; unit: string }) {
+export function LineChart({ data, color = "var(--primary)", label, unit }: { data: YearPoint[]; color?: string; label: string; unit: string }) {
   const points = data.slice(-15);
   if (!points.length) return <Empty />;
   const max = Math.max(1, ...points.map((item) => item.count));
@@ -80,7 +80,7 @@ function LineChart({ data, color = "var(--chart-1)", label, unit }: { data: Year
   return <div className="article-line-chart" role="img" aria-label={label}><svg viewBox="0 0 640 300"><title>{label}</title><text className="axis-title" x={left} y="16">{unit}</text>{ticks.map((tick, index) => { const y = top + index * ((bottom - top) / 4); return <g key={tick}><line className="grid-line" x1={left} x2={right} y1={y} y2={y} /><text className="axis-label" x={left - 10} y={y + 4} textAnchor="end">{formatNumber(tick)}</text></g>; })}<line className="axis-line" x1={left} x2={left} y1={top} y2={bottom} /><line className="axis-line" x1={left} x2={right} y1={bottom} y2={bottom} /><path className="area" style={{ color }} d={`${path} L${coords.at(-1)?.x},${bottom} L${coords[0].x},${bottom} Z`} /><path className="line" style={{ color }} d={path} />{coords.map((point) => <g key={point.year}><circle style={{ color }} cx={point.x} cy={point.y} r="4"><title>{point.year}: {formatNumber(point.count)}</title></circle><text className="axis-label" x={point.x} y={bottom + 23} textAnchor="middle">{point.year.slice(-2)}</text></g>)}</svg></div>;
 }
 
-function Donut({ data, center, suffix = "" }: { data: CountItem[]; center: string; suffix?: string }) {
+export function Donut({ data, center, suffix = "" }: { data: CountItem[]; center: string; suffix?: string }) {
   const usable = data.filter((item) => item.count > 0).slice(0, 8);
   const total = usable.reduce((sum, item) => sum + item.count, 0);
   if (!total) return <Empty />;
@@ -91,15 +91,15 @@ function Donut({ data, center, suffix = "" }: { data: CountItem[]; center: strin
   return <div className="article-donut-layout"><div className="article-donut" style={{ "--segments": segments } as CSSProperties}><div><strong>{center}</strong><span>{suffix}</span></div></div><ul>{usable.map((item, index) => <li key={item.name}><i style={{ background: tones[index % tones.length] }} /><span title={item.name}>{item.name}</span><b>{formatNumber(item.count)}</b><small>%{formatNumber(item.count / total * 100)}</small></li>)}</ul></div>;
 }
 
-function Bars({ data, limit, showShare = false }: { data: CountItem[]; limit?: number; showShare?: boolean }) {
+export function Bars({ data, limit, showShare = false }: { data: CountItem[]; limit?: number; showShare?: boolean }) {
   const rows = typeof limit === "number" ? data.slice(0, limit) : data;
   if (!rows.length) return <Empty />;
   const max = Math.max(1, ...rows.map((item) => item.count));
   const total = rows.reduce((sum, item) => sum + item.count, 0) || 1;
-  return <div className="article-bars">{rows.map((item, index) => <div key={`${item.name}-${index}`}><span title={item.name}>{item.name}</span><i><em style={{ width: `${Math.max(2, item.count / max * 100)}%`, background: tones[index % tones.length] }} /></i><b>{formatNumber(item.count)}</b>{showShare && <small>%{formatNumber(item.count / total * 100)}</small>}</div>)}</div>;
+  return <div className="article-bars">{rows.map((item, index) => <div key={`${item.name}-${index}`}><span title={item.name}>{item.name}</span><i><em className={`series-${index % tones.length}`} style={{ width: `${Math.max(2, item.count / max * 100)}%` }} /></i><b>{formatNumber(item.count)}</b>{showShare && <small>%{formatNumber(item.count / total * 100)}</small>}</div>)}</div>;
 }
 
-function SubjectBubbleMatrix({ data, totals }: { data: Dashboard["subjectYearly"]; totals: CountItem[] }) {
+export function SubjectBubbleMatrix({ data, totals }: { data: Dashboard["subjectYearly"]; totals: CountItem[] }) {
   const years = data.slice(-9);
   const subjects = totals.slice(0, 12).map((item) => item.name);
   if (!years.length || !subjects.length) return <Empty>Alanların yıllık Scopus kırılımı sonraki üst veri güncellemesinde hazırlanacak.</Empty>;
@@ -117,7 +117,7 @@ const countryAliases: Record<string, string> = {
 };
 const mapName = (value: string) => value.toLocaleLowerCase("en-US").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\./g, "").trim();
 
-function WorldHeatMap({ data }: { data: CountItem[] }) {
+export function WorldHeatMap({ data }: { data: CountItem[] }) {
   const topology = worldData as unknown as Topology<{ countries: GeometryCollection<{ name: string }> }>;
   const countries = feature(topology, topology.objects.countries) as unknown as FeatureCollection<Geometry, { name: string }>;
   const projection = geoNaturalEarth1().fitExtent([[12, 12], [948, 458]], countries);
@@ -160,7 +160,7 @@ export default function BibliometricsPage() {
   const sdgCounts = data?.sdgs.map((item) => ({ name: `SKA ${item.id} · ${item.title}`, count: item.count })) || [];
 
   return <main className="dbp-page quality-page article-page">
-    <PublicSiteHeader active="bibliometrics" />
+    <PublicSiteHeader active="bibliometrics" bibliometricsSource="scopus" />
     <section className="quality-hero article-hero"><div><small>SCOPUS · KURUMSAL ARAŞTIRMA PERFORMANSI</small><h1>Bibliyometrik Göstergeler</h1><p>OKÜ adresli bilimsel yayınların üretim, etki, iş birliği, alan ve sürdürülebilirlik görünümü.</p></div><span><Database size={18} />Scopus kurumsal veri görüntüsü</span></section>
 
     {error && <section className="quality-error"><AlertTriangle size={18} /><span>{error}</span><button type="button" onClick={() => setRetry((value) => value + 1)}><RefreshCw size={15} />{syncing ? "Durumu kontrol et" : "Yeniden dene"}</button></section>}
@@ -193,7 +193,7 @@ export default function BibliometricsPage() {
 
       <section className="article-section"><div className="article-section-title"><span>06</span><div><small>SÜRDÜRÜLEBİLİR KALKINMA</small><h2>SKA analizi</h2></div></div><div className="article-grid two embedded"><Panel eyebrow="TOPLAM YAYIN" title="SKA bazlı yayın dağılımı"><Bars data={sdgCounts} showShare /></Panel><Panel eyebrow="ORANSAL GÖRÜNÜM" title="SKA paylarının dağılımı"><Donut data={sdgCounts} center={formatNumber(data.sdgs.reduce((sum, item) => sum + item.count, 0))} suffix="yayın–SKA ilişkisi" /></Panel></div><Panel eyebrow="İYİLEŞTİRME ALANI" title="Geliştirilebilecek SKA hedefleri" icon={<Sparkles size={20} />} className="embedded-panel article-development"><p>En düşük yayın eşleşmesine sahip hedefler, yeni araştırma çağrıları ve disiplinler arası iş birlikleri için izleme alanı olarak listelenir.</p><div>{data.developingSdgs.map((item) => <article key={item.id}><img src={dbpPath(`/sdg/sdg_${item.id}.png`)} alt="" /><span><b>SKA {item.id}</b><small>{item.title}</small></span><strong>{formatNumber(item.count)}</strong></article>)}</div><p className="quality-note">Yöntem: {data.quality.sdgMethod}. Bu gösterge bibliyometrik içerik eşleşmesidir; editoryal SKA sınıflandırması değildir.</p></Panel></section>
 
-      <section className="article-section article-strategy"><div className="article-section-title"><span>07</span><div><small>2025–2029 STRATEJİK PLANI</small><h2>OKÜ stratejik hedefleri bazlı yayın dağılımı</h2></div></div><div>{data.strategicGoals.map((goal, index) => <article key={goal.id}><header><span style={{ background: tones[index % tones.length] }}>{goal.id}</span><div><h3>{goal.title}</h3><small>{goal.sdgs.map((id) => `SKA ${id}`).join(" · ")}</small></div><strong>{formatNumber(goal.count)}</strong></header><i><em style={{ width: `${Math.max(2, goal.count / Math.max(1, ...data.strategicGoals.map((item) => item.count)) * 100)}%`, background: tones[index % tones.length] }} /></i></article>)}</div><Panel eyebrow="STRATEJİK PLAN EŞLEŞMESİ" title="Yayın–SKA Stratejik Plan Uyum Matrisi" icon={<Target size={20} />} className="article-strategy-matrix"><p className="quality-note">Yayın sayıları güncel Scopus görüntüsündeki içerik–SKA eşleşmelerinden hesaplanır; amaç ve hedef bağlantıları 2025–2029 Stratejik Plan referans eşlemesidir.</p><div className="quality-table-scroll"><table className="quality-table"><thead><tr><th>SKA</th><th>Yayın sayısı</th><th>Bağlantılı SP amacı</th><th>Bağlantılı SP hedefleri</th><th>Yorum</th></tr></thead><tbody>{strategicMatrix.map((row) => { const sdg = data.sdgs.find((item) => item.id === row.sdg); return <tr key={row.sdg}><td><span className="article-sdg-label">SKA {row.sdg} – {sdg?.title}</span></td><td><strong>{formatNumber(sdg?.count || 0)}</strong></td><td>{row.goal}</td><td>{row.targets}</td><td>{row.note}</td></tr>; })}</tbody></table></div></Panel></section>
+      <section className="article-section article-strategy"><div className="article-section-title"><span>07</span><div><small>2025–2029 STRATEJİK PLANI</small><h2>OKÜ stratejik hedefleri bazlı yayın dağılımı</h2></div></div><div>{data.strategicGoals.map((goal, index) => <article key={goal.id}><header><span style={{ background: tones[index % tones.length] }}>{goal.id}</span><div><h3>{goal.title}</h3><small>{goal.sdgs.map((id) => `SKA ${id}`).join(" · ")}</small></div><strong>{formatNumber(goal.count)}</strong></header><i><em className={`series-${index % tones.length}`} style={{ width: `${Math.max(2, goal.count / Math.max(1, ...data.strategicGoals.map((item) => item.count)) * 100)}%` }} /></i></article>)}</div><Panel eyebrow="STRATEJİK PLAN EŞLEŞMESİ" title="Yayınların SKA ve Stratejik Plan Uyum Matrisi" icon={<Target size={20} />} className="article-strategy-matrix"><p className="quality-note">Yayın sayıları güncel Scopus görüntüsündeki içerik–SKA eşleşmelerinden hesaplanır; amaç ve hedef bağlantıları 2025–2029 Stratejik Plan referans eşlemesidir.</p><div className="quality-table-scroll"><table className="quality-table"><thead><tr><th>SKA</th><th>Yayın sayısı</th><th>Bağlantılı SP amacı</th><th>Bağlantılı SP hedefleri</th><th>Yorum</th></tr></thead><tbody>{strategicMatrix.map((row) => { const sdg = data.sdgs.find((item) => item.id === row.sdg); return <tr key={row.sdg}><td><span className="article-sdg-label">SKA {row.sdg} – {sdg?.title}</span></td><td><strong>{formatNumber(sdg?.count || 0)}</strong></td><td>{row.goal}</td><td>{row.targets}</td><td>{row.note}</td></tr>; })}</tbody></table></div></Panel></section>
 
       <section className="article-sync"><div><CalendarClock /><span><b>Sonraki yayın üst verisi güncellemesi</b>{formatDate(data.nextRefreshAt)}</span></div><div><RefreshCw /><span><b>Sonraki atıf güncellemesi</b>{formatDate(data.nextCitationRefreshAt)}</span></div><small>Yayın üst verileri Şubat ve Eylül dönemlerinde; atıf göstergeleri haftalık yenilenir. Başarısız işlemde son başarılı görüntü korunur.</small></section>
     </>}

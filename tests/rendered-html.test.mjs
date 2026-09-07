@@ -110,18 +110,24 @@ test("TEZ_SKA canlı OAI-PMH anlık görüntüsünü kullanır ve Şubat-Eylül 
 });
 
 test("Bibliyometrik Göstergeler menüde TEZ_SKA ile Duyurular arasında yer alır", async () => {
-  const [home, header] = await Promise.all([
+  const [home, header, menu] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/PublicSiteHeader.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/BibliometricsMenu.tsx", import.meta.url), "utf8"),
   ]);
   for (const source of [home, header]) {
     const thesis = source.indexOf("TEZ_SKA Analiz");
-    const bibliometrics = source.indexOf("Bibliyometrik Göstergeler");
+    const bibliometrics = source.indexOf("<BibliometricsMenu");
     const announcements = source.indexOf("Duyurular");
     assert.ok(thesis >= 0 && thesis < bibliometrics, "Bibliyometri TEZ_SKA'dan sonra gelmeli");
     assert.ok(bibliometrics < announcements, "Bibliyometri Duyurulardan önce gelmeli");
-    assert.match(source, /dbpPath\("\/article"\)/u);
   }
+  assert.match(menu, /SCOPUS Tabanlı/u);
+  assert.match(menu, /TR DİZİN Tabanlı/u);
+  assert.match(menu, /Doktora Tabanlı/u);
+  assert.match(menu, /dbpPath\("\/article"\)/u);
+  assert.match(menu, /dbpPath\("\/yayin"\)/u);
+  assert.match(menu, /dbpPath\("\/article\/doktora"\)/u);
   const response = await render({}, "/dbp/article");
   const html = await response.text();
   assert.equal(response.status, 200);
@@ -144,7 +150,7 @@ test("Scopus bibliyometrisi yayınları yılda iki, atıfları haftalık güncel
   assert.doesNotMatch(page, /Yıllık birim yayın trendi/u);
   assert.doesNotMatch(page, /Bars data=\{data\.countries\}/u);
   assert.match(page, /SubjectBubbleMatrix/u);
-  assert.match(page, /Yayın–SKA Stratejik Plan Uyum Matrisi/u);
+  assert.match(page, /Yayınların SKA ve Stratejik Plan Uyum Matrisi/u);
   assert.match(page, /Geliştirilebilecek SKA hedefleri/u);
   assert.match(server, /pathname === "\/api\/dbp\/bibliometrics"/u);
   assert.match(server, /scheduleScopusRefresh\(\)/u);
@@ -159,6 +165,31 @@ test("Scopus bibliyometrisi yayınları yılda iki, atıfları haftalık güncel
   assert.match(launcher, /\.env\.local/u);
   const { scopusRefreshDates } = await import(new URL("../lib/scopusBibliometrics.mjs", import.meta.url));
   assert.deepEqual(scopusRefreshDates(2026).map((date) => date.toISOString()), ["2026-02-08T22:00:00.000Z", "2026-09-27T22:00:00.000Z"]);
+});
+
+test("TR Dizin bibliyometri panosu gerçek PAPER ve PROJECT akışlarını ayırır", async () => {
+  const [page, server, source, dockerfile] = await Promise.all([
+    readFile(new URL("../app/yayin/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../server.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../lib/trDizinBibliometrics.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /\/api\/dbp\/tr-dizin-bibliometrics/u);
+  assert.match(page, /\/api\/dbp\/tr-dizin-records/u);
+  assert.match(page, /Yayınların SKA ve Stratejik Plan Uyum Matrisi/u);
+  assert.match(page, /TR Dizin proje kayıtları/u);
+  assert.doesNotMatch(page, />Yayınlar</u);
+  assert.match(page, /documentType: "PROJECT"/u);
+  assert.match(server, /pathname === "\/api\/dbp\/tr-dizin-bibliometrics"/u);
+  assert.match(server, /pathname === "\/api\/dbp\/tr-dizin-records"/u);
+  assert.match(source, /facet-documentType/u);
+  assert.match(source, /facet-facetAuthorInstitution/u);
+  assert.match(source, /OSMANİYE KORKUT ATA ÜNİVERSİTESİ/u);
+  assert.match(source, /Math\.min\(100/u);
+  assert.ok(source.includes("split(/\\s*>\\s*/u)"));
+  assert.match(dockerfile, /COPY lib\/trDizinBibliometrics\.mjs \.\/lib\/trDizinBibliometrics\.mjs/u);
+  const { trDizinRefreshDates } = await import(new URL("../lib/trDizinBibliometrics.mjs", import.meta.url));
+  assert.deepEqual(trDizinRefreshDates(2026).map((date) => date.toISOString()), ["2026-02-08T22:00:00.000Z", "2026-09-27T22:00:00.000Z"]);
 });
 
 test("course package sidebar resolves the YBS doctorate context", async () => {
