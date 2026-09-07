@@ -1,0 +1,12 @@
+.oku-header .navigation-inner nav {
+  gap: 2px;
+  flex-wrap: nowrap;
+}
+
+.oku-header .navigation-inner nav > a,
+.oku-header .navigation-inner nav > .bibliometrics-menu > summary {
+  min-height: 46px;
+  padding-inline: 9px;
+  white-space: nowrap;
+  font-size: 11px;
+}

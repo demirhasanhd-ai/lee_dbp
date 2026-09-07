@@ -68,14 +68,13 @@ test("TEZ_SKA Analiz menüde kalite göstergeleri ile duyurular arasında yer al
     readFile(new URL("../app/PublicSiteHeader.tsx", import.meta.url), "utf8"),
   ]);
 
-  for (const source of [homeSource, headerSource]) {
-    const qualityIndex = source.indexOf("Kalite Göstergeleri");
-    const thesisIndex = source.indexOf("TEZ_SKA Analiz");
-    const announcementsIndex = source.indexOf("Duyurular");
-    assert.ok(qualityIndex >= 0 && qualityIndex < thesisIndex, "TEZ_SKA kalite bağlantısından sonra gelmeli");
-    assert.ok(thesisIndex < announcementsIndex, "TEZ_SKA duyurulardan önce gelmeli");
-    assert.match(source, /dbpPath\("\/tez-ska"\)/u);
-  }
+  assert.match(homeSource, /<PublicSiteHeader active="home" \/>/u);
+  const qualityIndex = headerSource.indexOf("Kalite Göstergeleri");
+  const thesisIndex = headerSource.indexOf("TEZ_SKA Analiz");
+  const announcementsIndex = headerSource.indexOf("Duyurular");
+  assert.ok(qualityIndex >= 0 && qualityIndex < thesisIndex, "TEZ_SKA kalite bağlantısından sonra gelmeli");
+  assert.ok(thesisIndex < announcementsIndex, "TEZ_SKA duyurulardan önce gelmeli");
+  assert.match(headerSource, /dbpPath\("\/tez-ska"\)/u);
 
   const response = await render({}, "/dbp/tez-ska");
   const html = await response.text();
@@ -115,13 +114,12 @@ test("Bibliyometrik Göstergeler menüde TEZ_SKA ile Duyurular arasında yer al�
     readFile(new URL("../app/PublicSiteHeader.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/BibliometricsMenu.tsx", import.meta.url), "utf8"),
   ]);
-  for (const source of [home, header]) {
-    const thesis = source.indexOf("TEZ_SKA Analiz");
-    const bibliometrics = source.indexOf("<BibliometricsMenu");
-    const announcements = source.indexOf("Duyurular");
-    assert.ok(thesis >= 0 && thesis < bibliometrics, "Bibliyometri TEZ_SKA'dan sonra gelmeli");
-    assert.ok(bibliometrics < announcements, "Bibliyometri Duyurulardan önce gelmeli");
-  }
+  assert.match(home, /<PublicSiteHeader active="home" \/>/u);
+  const thesis = header.indexOf("TEZ_SKA Analiz");
+  const bibliometrics = header.indexOf("<BibliometricsMenu");
+  const announcements = header.indexOf("Duyurular");
+  assert.ok(thesis >= 0 && thesis < bibliometrics, "Bibliyometri TEZ_SKA'dan sonra gelmeli");
+  assert.ok(bibliometrics < announcements, "Bibliyometri Duyurulardan önce gelmeli");
   assert.match(menu, /SCOPUS Tabanlı/u);
   assert.match(menu, /TR DİZİN Tabanlı/u);
   assert.match(menu, /Doktora Tabanlı/u);

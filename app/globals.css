@@ -52,6 +52,7 @@
 @import "./sidebar-consistency.css";
 @import "./responsive-type-scale.css";
 @import "./course-columns-v4.css";
+@import "./header-consistency.css";
 
 :where(a,button,summary,select,[role="button"],[role="link"]){cursor:pointer}
 @font-face {

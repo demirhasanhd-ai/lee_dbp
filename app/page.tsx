@@ -1,22 +1,18 @@
 import type { Metadata } from "next";
 import {
-  Bell,
   BarChart3,
+  Bell,
   BookOpen,
   ChevronDown,
   ExternalLink,
-  CircleHelp,
-  House,
-  LibraryBig,
   PieChart,
   Search,
 } from "lucide-react";
-import { ThemeToggle } from "./ThemeToggle";
 import { BibliometricsMenu } from "./BibliometricsMenu";
+import { PublicSiteHeader } from "./PublicSiteHeader";
 import { ProgramDirectory } from "./ProgramDirectory";
 import { HomeLiveStats } from "./HomeLiveStats";
 import { dbpPath } from "../lib/dbpPath";
-import { eEnstituUrl } from "../lib/eEnstituUrl";
 import { APP_VERSION } from "../lib/appVersion";
 
 export const metadata: Metadata = {
@@ -33,33 +29,7 @@ const notices = [
 export default function Home() {
   return (
     <main className="dbp-page">
-      <header className="oku-header">
-        <div className="institution-bar">
-          <div className="header-container institution-inner">
-            <span />
-            <strong>OSMANİYE KORKUT ATA ÜNİVERSİTESİ</strong>
-            <div className="header-tools"><button type="button">TR / EN</button><ThemeToggle /></div>
-          </div>
-        </div>
-        <div className="navigation-bar">
-          <div className="header-container navigation-inner">
-            <a className="oku-brand" href={dbpPath("/")}>
-              <span className="logo-box"><img src={dbpPath("/oku-logo.png")} alt="Osmaniye Korkut Ata Üniversitesi logosu" /></span>
-              <span><b>LEE <em>Ders Bilgi Paketi</em></b><small>BOLOGNA BİLGİ SİSTEMİ</small></span>
-            </a>
-            <nav aria-label="Ana menü">
-              <a className="return-link" href={eEnstituUrl()}>e-Enstitü</a>
-              <a className="active" href={dbpPath("/")}><House size={18}/>Ana Sayfa</a>
-              <a href="#programlar"><LibraryBig size={18}/>Ders Kataloğu</a>
-              <a href={dbpPath("/kalite")}><BarChart3 size={18}/>Kalite Göstergeleri</a>
-              <a href={dbpPath("/tez-ska")}><PieChart size={18}/>TEZ_SKA Analiz</a>
-              <BibliometricsMenu />
-              <a href="#duyurular"><Bell size={18}/>Duyurular</a>
-              <a href="#yardim"><CircleHelp size={18}/>Yardım</a>
-            </nav>
-          </div>
-        </div>
-      </header>
+      <PublicSiteHeader active="home" />
 
       <section className="top-banner">
         <div className="banner-orbit orbit-one"/><div className="banner-orbit orbit-two"/>
