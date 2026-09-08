@@ -3,7 +3,7 @@ import "./globals.css";
 import { dbpPath } from "../lib/dbpPath";
 
 export const metadata: Metadata = {
-  title: { default: "LEE Ders Bilgi Paketi", template: "%s | LEE DBP" },
+  title: { default: "LEE Bilgi Sistemi", template: "%s | LEE Bilgi Sistemi" },
   description: "Lisansüstü Eğitim Enstitüsü Ders Bilgi Paketi ve Bologna kataloğu.",
   icons: {
     icon: [

@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { dbpPath } from "../../lib/dbpPath";
 import { fetchDbpCourses, type DbpCourse } from "../../lib/data/dbpCourses";
+import { publicCourseHref } from "../../lib/data/publicRoutes";
 
 function courseHref(course: DbpCourse) {
+  const canonical = publicCourseHref(course);
+  if (canonical) return dbpPath(canonical);
   const params = new URLSearchParams({
     ders: course.code,
     ad: course.name,

@@ -1,5 +1,6 @@
 import { OFFICIAL_COURSES } from "./courseCatalog";
 import { LEE_PROGRAMS, programSlug, type LeeProgram } from "./programs";
+import { publicProgramHref } from "./publicRoutes";
 
 export type ProgramViewTab = "profile" | "courses";
 
@@ -52,6 +53,13 @@ export function programViewHref(
   level: string,
   tab: ProgramViewTab,
 ) {
+  const resolvedProgram = typeof program === "string"
+    ? LEE_PROGRAMS.find((candidate) => programSlug(candidate) === program)
+    : program;
+  if (resolvedProgram) {
+    const canonical = publicProgramHref(resolvedProgram, level, tab);
+    if (canonical) return canonical;
+  }
   const key = typeof program === "string" ? program : programSlug(program);
   const query = new URLSearchParams({ programKey: key, duzey: level, sekme: tab });
   return `/programlar/${key}?${query.toString()}#program-dersleri`;

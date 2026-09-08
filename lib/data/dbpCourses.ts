@@ -37,6 +37,13 @@ export type DbpCoursesResponse = {
   source: "database";
 };
 
+export type PublicDbpCourseResponse = {
+  course: DbpCourse;
+  package: Record<string, unknown>;
+  status: string;
+  updatedAt?: string;
+};
+
 export function courseQuery(filters: DbpCourseFilters = {}) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
@@ -52,4 +59,20 @@ export async function fetchDbpCourses(filters: DbpCourseFilters = {}, init?: Req
   const response = await fetch(dbpPath(`/api/dbp/courses${params.size ? `?${params}` : ""}`), init);
   if (!response.ok) throw new Error("Ders katalog verisi veritabanından alınamadı.");
   return response.json() as Promise<DbpCoursesResponse>;
+}
+
+export async function fetchPublicDbpCourse(
+  identity: Pick<DbpCourse, "department" | "programName" | "level" | "code">,
+  init?: RequestInit,
+) {
+  const params = new URLSearchParams({
+    code: identity.code,
+    department: identity.department,
+    programName: identity.programName,
+    level: identity.level,
+  });
+  const response = await fetch(dbpPath(`/api/dbp/public-course?${params}`), init);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("Yayımlanmış ders bilgi paketi alınamadı.");
+  return response.json() as Promise<PublicDbpCourseResponse>;
 }

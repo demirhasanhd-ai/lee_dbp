@@ -50,6 +50,12 @@ const localPreviewSeedFile = path.join(__dirname, "local-preview", "program-data
 const seedFile = process.env.DBP_SEED_FILE || (existsSync(bundledSeedFile) ? bundledSeedFile : localPreviewSeedFile);
 const programProfilesSeedFile = process.env.DBP_PROGRAM_PROFILES_SEED_FILE || path.join(__dirname, "seed", "program-profiles.json");
 const coursePackagesSeedFile = process.env.DBP_COURSE_PACKAGES_SEED_FILE || path.join(__dirname, "seed", "course-packages.json");
+const publicRouteAliases = JSON.parse(readFileSync(path.join(__dirname, "lib", "data", "public-route-aliases.json"), "utf8"));
+const publicRouteLevels = {
+  tezsiz: "Tezsiz Yüksek Lisans",
+  tezli: "Tezli Yüksek Lisans",
+  dr: "Doktora",
+};
 const pdfCacheDir = process.env.DBP_PDF_CACHE_DIR || path.join(dataDir, "generated-pdfs");
 const pdfScript = process.env.DBP_PDF_SCRIPT || path.join(__dirname, "scripts", "generate_public_course_pdfs.py");
 
@@ -76,6 +82,7 @@ let eEnstituPgPool;
 let homeInstructorCountCache;
 let homeInstructorCountRefresh;
 let homeStatsCache;
+let publicCourseRouteIndexCache;
 let qualitySnapshotCache;
 let qualitySnapshotRefreshPromise;
 let qualityRefreshTimer;
@@ -984,6 +991,7 @@ function currentHomeInstructorCount() {
 
 function invalidateHomeStatsCache({ instructors = false } = {}) {
   homeStatsCache = undefined;
+  publicCourseRouteIndexCache = undefined;
   if (instructors) {
     homeInstructorCountCache = undefined;
     homeInstructorCountRefresh = undefined;
@@ -5179,6 +5187,71 @@ function scheduleThesisRefresh() {
   thesisRefreshTimer.unref?.();
 }
 
+function normalizePublicRouteSegment(value = "") {
+  return repairText(String(value || ""))
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replaceAll("ç", "c")
+    .replaceAll("ğ", "g")
+    .replaceAll("ı", "i")
+    .replaceAll("ö", "o")
+    .replaceAll("ş", "s")
+    .replaceAll("ü", "u")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function isPublicCourseStatus(value = "") {
+  return ["Yayımlandı", "Yayınlandı", "Public"].includes(repairText(value));
+}
+
+function publicCourseRouteIndex() {
+  if (publicCourseRouteIndexCache) return publicCourseRouteIndexCache;
+  const rows = db.prepare(`
+    SELECT * FROM courses
+    WHERE package_json IS NOT NULL AND package_json <> '{}'
+    ORDER BY updated_at DESC, id DESC
+  `).all();
+  const index = new Map();
+  for (const row of rows) {
+    if (!isPublicCourseStatus(row.status)) continue;
+    const rawCode = repairText(row.code || "").trim().toLocaleUpperCase("tr-TR");
+    const routeCodes = new Set([rawCode, canonicalCourseCode(rawCode)]);
+    for (const routeCode of routeCodes) {
+      const key = [
+        normalizeScope(row.department),
+        normalizeScope(row.program_name),
+        levelKey(row.level),
+        normalizePublicRouteSegment(routeCode),
+      ].join("|");
+      const matches = index.get(key) || [];
+      matches.push(row);
+      index.set(key, matches);
+    }
+  }
+  publicCourseRouteIndexCache = index;
+  return index;
+}
+
+function publicCourseForRoute({ routeCode = "", department = "", programName = "", level = "" }) {
+  const normalizedRouteCode = normalizePublicRouteSegment(routeCode);
+  if (!normalizedRouteCode || !department || !programName || !level) return null;
+  const key = [
+    normalizeScope(department),
+    normalizeScope(programName),
+    levelKey(level),
+    normalizedRouteCode,
+  ].join("|");
+  const rows = publicCourseRouteIndex().get(key) || [];
+  for (const row of rows) {
+    const course = normalizeDbCourseForList(courseFromRow(row));
+    if (!course || normalizePublicRouteSegment(course.code) !== normalizedRouteCode) continue;
+    return { course, row };
+  }
+  return null;
+}
+
 function currentScopusSnapshot() {
   const storedSnapshot = readScopusSnapshot(db);
   if (storedSnapshot) scopusSnapshotCache = storedSnapshot;
@@ -6323,6 +6396,30 @@ async function handleDbpApi(request) {
       return jsonResponse({ ok: true });
     }
 
+    if (pathname === "/api/dbp/public-course" && request.method === "GET") {
+      const query = {
+        routeCode: url.searchParams.get("code") || "",
+        department: url.searchParams.get("department") || "",
+        programName: url.searchParams.get("programName") || "",
+        level: url.searchParams.get("level") || "",
+      };
+      if (!query.routeCode || !query.department || !query.programName || !query.level) {
+        return jsonResponse({ message: "Ders kodu, ABD/ASD, program ve düzey zorunludur." }, { status: 400 });
+      }
+      const found = publicCourseForRoute(query);
+      if (!found) {
+        return jsonResponse({ message: "Yayımlanmış ders bilgi paketi bulunamadı." }, { status: 404 });
+      }
+      return jsonResponse({
+        course: found.course,
+        package: packageWithCourseInstructor(JSON.parse(found.row.package_json || "{}"), {
+          instructor: found.row.instructor || "",
+        }),
+        status: repairText(found.row.status || ""),
+        updatedAt: found.row.updated_at,
+      });
+    }
+
     if (pathname === "/api/dbp/course-package" && request.method === "GET") {
       const query = {
         code: url.searchParams.get("code") || "",
@@ -6634,6 +6731,30 @@ function stripBasePath(pathname) {
   return pathname;
 }
 
+function publicCourseRouteContext(pathname) {
+  const parts = stripBasePath(pathname).split("/").filter(Boolean).map((part) => decodeURIComponent(part));
+  if (parts.length !== 3) return null;
+  const alias = normalizePublicRouteSegment(parts[0]);
+  const levelCode = normalizePublicRouteSegment(parts[1]);
+  const entry = publicRouteAliases[alias];
+  if (!entry) return null;
+  const programName = entry.programs?.[levelCode];
+  const level = publicRouteLevels[levelCode];
+  if (!programName || !level) return { matched: true, found: null, canonicalPath: "" };
+  const routeCode = normalizePublicRouteSegment(parts[2]);
+  const found = publicCourseForRoute({
+    routeCode,
+    department: entry.department,
+    programName,
+    level,
+  });
+  return {
+    matched: true,
+    found,
+    canonicalPath: `${basePath}/${alias}/${levelCode}/${routeCode}`,
+  };
+}
+
 function shouldRedirectToBasePath(pathname) {
   if (pathname === "/" || pathname === basePath || pathname.startsWith(`${basePath}/`)) return false;
   if (pathname.startsWith("/api/")) return false;
@@ -6833,6 +6954,20 @@ createServer(async (req, res) => {
       res.writeHead(308, { Location: `${basePath}${url.pathname}${url.search}` });
       res.end();
       return;
+    }
+
+    if (req.method === "GET" || req.method === "HEAD") {
+      const publicCourseRoute = publicCourseRouteContext(url.pathname);
+      if (publicCourseRoute?.matched && !publicCourseRoute.found) {
+        res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+        res.end("Yayımlanmış ders bilgi paketi bulunamadı.");
+        return;
+      }
+      if (publicCourseRoute?.found && publicCourseRoute.canonicalPath !== url.pathname) {
+        res.writeHead(308, { Location: `${publicCourseRoute.canonicalPath}${url.search}` });
+        res.end();
+        return;
+      }
     }
 
     const apiResponse = await handleDbpApi(nodeRequestToWeb(req));

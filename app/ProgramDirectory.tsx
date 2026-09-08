@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Building2, ChevronDown, Search } from "lucide-react";
 import { LEE_PROGRAMS, MAIN_DEPARTMENTS, programSlug } from "../lib/data/programs";
 import { dbpPath } from "../lib/dbpPath";
+import { publicProgramHref } from "../lib/data/publicRoutes";
 import {
   fetchProgramVisibility,
   publicLevelsForProgram,
@@ -91,7 +92,7 @@ export function ProgramDirectory() {
               </summary>
               <div className="department-programs">
                 {children.map((item) => (
-                  <a href={dbpPath(`/programlar/${programSlug(item)}`)} key={`${item.department}-${item.programName}`}>
+                  <a href={dbpPath(publicProgramHref(item) ?? `/programlar/${programSlug(item)}`)} key={`${item.department}-${item.programName}`}>
                     <div><b>{item.department}</b>{item.department !== item.programName && <small>{item.programName}</small>}</div>
                     <p>{publicLevelsForProgram(item, visibility).map((level) => <span className={level.startsWith("Tezsiz") ? "non-thesis" : level.startsWith("Tezli") ? "thesis" : "doctorate"} key={level}>{level}</span>)}</p>
                   </a>

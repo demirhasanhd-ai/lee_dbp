@@ -24,8 +24,7 @@ export function PublicSiteHeader({ active = "home", bibliometricsSource }: { act
               <img src={dbpPath("/oku-logo.png")} alt="OKÜ logosu" />
             </span>
             <span>
-              <b>LEE <em>Ders Bilgi Paketi</em></b>
-              <small>BOLOGNA BİLGİ SİSTEMİ</small>
+              <b>LEE <em>Bilgi Sistemi</em></b>
             </span>
           </a>
           <nav aria-label="Ana menü">

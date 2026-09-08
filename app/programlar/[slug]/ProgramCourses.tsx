@@ -15,6 +15,8 @@ import { DEFAULT_COURSE_SDG_IDS } from "../../../lib/sdgGoals";
 import { fetchDbpCourses, type DbpCourse } from "../../../lib/data/dbpCourses";
 import { fetchProgramProfile, getProgramProfile } from "../../../lib/data/programProfiles";
 import type { ProgramTyycRow } from "../../../lib/data/programProfiles";
+import { publicCourseHref } from "../../../lib/data/publicRoutes";
+import { programViewHref } from "../../../lib/data/programNavigation";
 
 export type PublicCourse = {
   code: string;
@@ -343,6 +345,13 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
     })),
   );
   const packageUrl = (course: PublicCourse) => {
+    const canonical = publicCourseHref({
+      department,
+      programName: activeProgram.programName,
+      level: course.level,
+      code: course.code,
+    });
+    if (canonical) return dbpPath(canonical);
     const query = new URLSearchParams({
       ders: course.code,
       ad: repairText(course.name),
@@ -373,12 +382,11 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
     }) ?? "#";
   const changeView = (next: ViewState) => {
     setActiveView(next);
-    const url = new URL(window.location.href);
-    url.searchParams.set("programKey", next.programKey);
-    url.searchParams.set("duzey", next.level);
-    url.searchParams.set("sekme", next.tab);
-    url.hash = "program-dersleri";
-    window.history.replaceState(null, "", url);
+    const nextProgram = allProgramItems.find((item) => item.visibilityKey === next.programKey);
+    const href = nextProgram
+      ? programViewHref({ department, programName: nextProgram.programName }, next.level, next.tab)
+      : programViewHref(next.programKey, next.level, next.tab);
+    window.history.replaceState(null, "", dbpPath(href));
   };
 
   if (!sidebarItems.length) {
