@@ -20,6 +20,15 @@ export type DbpCourse = {
   source?: string;
   hasPackage?: boolean;
   updatedAt?: string;
+  workflow?: {
+    committeeSkipped?: boolean;
+    latestSubmit?: {
+      route?: string;
+      status?: string;
+      actor?: string;
+      createdAt?: string;
+    } | null;
+  };
 };
 
 export type DbpCourseFilters = {
@@ -39,9 +48,10 @@ export type DbpCoursesResponse = {
 
 export type PublicDbpCourseResponse = {
   course: DbpCourse;
-  package: Record<string, unknown>;
+  package: Record<string, unknown> | null;
   status: string;
   updatedAt?: string;
+  packagePending?: boolean;
 };
 
 export function courseQuery(filters: DbpCourseFilters = {}) {

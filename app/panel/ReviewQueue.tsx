@@ -7,7 +7,15 @@ import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { findSdgGoal, formatSdgGoal } from "../../lib/sdgGoals";
 import { PrintCourseButton } from "../katalog/PrintCourseButton";
 
-type ReviewCourse = { code: string; name: string; status: string; level?: string; department?: string; programName?: string };
+type ReviewCourse = {
+  code: string;
+  name: string;
+  status: string;
+  level?: string;
+  department?: string;
+  programName?: string;
+  workflow?: { committeeSkipped?: boolean };
+};
 type ReviewSession = { username: string; name: string; role: string; department: string };
 type ReviewMode = "committee" | "chair" | "institute";
 type StatusFilter = "pending" | "approved" | "all";
@@ -32,7 +40,6 @@ const workflowSteps = [
   "Akademisyen Gönderdi",
   "Komisyon İncelemesi",
   "ABD/ASD Son Onayı",
-  "Enstitü Onayı",
   "Yayımlandı",
 ];
 
@@ -55,30 +62,29 @@ const statusStage = (status: string) => {
   const value = normalizeStatus(status);
   if (value.includes("duzeltme")) return 1;
   if (value.includes("komisyon")) return 1;
-  if (value.includes("abd son") || value === normalizeStatus("ABD Onayı Bekliyor")) return 2;
-  if (value.includes("enstitu")) return 3;
-  if (isPublishedStatus(status) || value.includes("onaylandi")) return 4;
+  if (value.includes("abd son") || value === normalizeStatus("ABD Onayı Bekliyor") || value.includes("enstitu")) return 2;
+  if (isPublishedStatus(status) || value.includes("onaylandi")) return 3;
   return 0;
 };
 const pendingForMode = (course: ReviewCourse, mode: ReviewMode) => {
   const status = normalizeStatus(course.status || "");
   if (mode === "committee") return status === normalizeStatus("Komisyon Onayı Bekliyor");
-  if (mode === "chair") return status === normalizeStatus("ABD Son Onayı Bekliyor") || status === normalizeStatus("ABD Onayı Bekliyor");
-  return status === normalizeStatus("Enstitü Onayı Bekliyor");
+  if (mode === "chair") return status === normalizeStatus("ABD Son Onayı Bekliyor") || status === normalizeStatus("ABD Onayı Bekliyor") || status === normalizeStatus("Enstitü Onayı Bekliyor");
+  return !isPublishedStatus(course.status || "");
 };
 const approvedForMode = (course: ReviewCourse, mode: ReviewMode) => {
   const stage = statusStage(course.status || "");
   if (mode === "committee") return stage >= 2;
   if (mode === "chair") return stage >= 3;
-  return stage >= 4;
+  return stage >= 3;
 };
-const nextStatusForMode = (role: DbpRole, mode: ReviewMode) => {
+const nextStatusForMode = (mode: ReviewMode) => {
   if (mode === "committee") return "ABD Son Onayı Bekliyor";
-  if (mode === "chair") return "Enstitü Onayı Bekliyor";
-  return role === "abd_asd_baskani" ? "Enstitü Onayı Bekliyor" : "Yayımlandı";
+  if (mode === "chair") return "Yayımlandı";
+  return "";
 };
 const approvalLabelForMode = (mode: ReviewMode) =>
-  mode === "committee" ? "Komisyon Onayı" : mode === "chair" ? "ABD Son Onayı" : "Onayla ve Yayınla";
+  mode === "committee" ? "Komisyon Onayı" : mode === "chair" ? "ABD Onayı ve Yayınla" : "Sadece İzle";
 const detailLabels: Array<[string, string]> = [
   ["purpose", "Dersin Amacı"],
   ["content", "Dersin İçeriği"],
@@ -110,19 +116,23 @@ function sdgLabel(value: string) {
   return goal ? formatSdgGoal(goal) : value;
 }
 
-function WorkflowStepper({ status }: { status: string }) {
+function WorkflowStepper({ status, committeeSkipped = false }: { status: string; committeeSkipped?: boolean }) {
   const activeStage = statusStage(status);
   return (
     <div className="dbp-workflow-stepper" aria-label="Ders bilgi paketi onay süreci">
-      {workflowSteps.map((step, index) => (
-        <span
-          key={step}
-          className={index < activeStage ? "done" : index === activeStage ? "current" : "waiting"}
-        >
-          <i>{index < activeStage ? <CheckCircle2 size={13} /> : index + 1}</i>
-          <b>{step}</b>
-        </span>
-      ))}
+      {workflowSteps.map((step, index) => {
+        const skipped = committeeSkipped && index === 1;
+        return (
+          <span
+            key={step}
+            className={skipped ? "skipped" : index < activeStage ? "done" : index === activeStage ? "current" : "waiting"}
+          >
+            <i>{skipped ? "!" : index < activeStage ? <CheckCircle2 size={13} /> : index + 1}</i>
+            <b>{step}</b>
+            {skipped && <em>Atlandı</em>}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -152,7 +162,7 @@ function StoredPackagePreview({
   if (!packageData) return <div className="review-empty-state">Bu ders için kayıtlı ders bilgi paketi bulunamadı.</div>;
   return (
     <div className="preview-summary preview-summary-full">
-      <article className="wide"><span>Onay süreci</span><WorkflowStepper status={course.status || ""} /></article>
+      <article className="wide"><span>Onay süreci</span><WorkflowStepper status={course.status || ""} committeeSkipped={course.workflow?.committeeSkipped} /></article>
       <article className="wide">
         <span>Genel bilgiler</span>
         <div className="preview-field-grid">
@@ -250,9 +260,9 @@ export function ReviewQueue({
   const [query, setQuery] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const reviewMode: ReviewMode = mode ?? (role === "abd_asd_baskani" ? "chair" : "institute");
-  const canRequestCorrection = role !== "abd_sekreteri";
+  const canRequestCorrection = reviewMode !== "institute" && role !== "abd_sekreteri";
   const canApproveCourse = (course: ReviewCourse) => pendingForMode(course, reviewMode) &&
-    (reviewMode === "committee" || ["abd_asd_baskani", "enstitu_yoneticisi", "admin"].includes(role));
+    (reviewMode === "committee" || (reviewMode === "chair" && ["abd_asd_baskani", "admin"].includes(role)));
   const canRequestCorrectionCourse = (course: ReviewCourse) => canRequestCorrection && pendingForMode(course, reviewMode);
   const approvalLabel = approvalLabelForMode(reviewMode);
   const courseSearchParams = (course: ReviewCourse) => new URLSearchParams({
@@ -294,7 +304,8 @@ export function ReviewQueue({
     }
   };
   const approveCourse = async (course: ReviewCourse) => {
-    const nextStatus = nextStatusForMode(role, reviewMode);
+    const nextStatus = nextStatusForMode(reviewMode);
+    if (!nextStatus) return;
     try {
       setActionMessage("");
       const response = await fetch(dbpPath("/api/dbp/course-package/status"), {
@@ -390,7 +401,7 @@ export function ReviewQueue({
               <small>{course.name}</small>
               <small>{course.programName || programName}</small>
             </span>
-            <WorkflowStepper status={course.status || ""} />
+            <WorkflowStepper status={course.status || ""} committeeSkipped={course.workflow?.committeeSkipped} />
             <span className="status-pill">{course.status || "İncelemede"}</span>
             <span className="review-actions">
               <button onClick={() => void openPreview(course)}>

@@ -25,6 +25,7 @@ COPY server.mjs ./server.mjs
 COPY lib/thesisSdg.mjs ./lib/thesisSdg.mjs
 COPY lib/scopusBibliometrics.mjs ./lib/scopusBibliometrics.mjs
 COPY lib/trDizinBibliometrics.mjs ./lib/trDizinBibliometrics.mjs
+COPY lib/data/public-route-aliases.json ./lib/data/public-route-aliases.json
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/local-preview/program-data-local.js ./seed/program-data-local.js
 COPY --from=build /app/seed/course-packages.json ./seed/course-packages.json
@@ -39,6 +40,6 @@ RUN mkdir -p /app/data /app/data/backups /app/data/generated-pdfs && chown -R no
 VOLUME ["/app/data"]
 USER node
 EXPOSE 8081
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
   CMD wget -qO- http://127.0.0.1:8081/dbp/ || exit 1
 CMD ["node", "server.mjs"]

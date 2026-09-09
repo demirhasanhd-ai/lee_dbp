@@ -48,7 +48,7 @@ export default function Home() {
                 </div>
               </details>
             </div>
-            <h1>LEE <span>Ders Bilgi Paketi</span></h1>
+            <h1>LEE <span>Bilgi Sistemi</span></h1>
             <p>Derslerin Bologna bilgilerine, öğrenme çıktılarına, haftalık içeriklerine ve AKTS iş yüklerine tek noktadan ulaşın.</p>
             <form className="banner-search" action={dbpPath("/katalog")}>
               <Search size={19}/><label className="sr-only" htmlFor="home-search">Ders ara</label>

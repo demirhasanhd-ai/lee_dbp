@@ -44,6 +44,18 @@ async function render(environment = {}, path = "/dbp/") {
   }
 }
 
+test("Docker runtime image includes public route alias data", async () => {
+  const [serverSource, dockerfile, aliases] = await Promise.all([
+    readFile(new URL("../server.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
+    readFile(new URL("../lib/data/public-route-aliases.json", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(serverSource, /public-route-aliases\.json/u);
+  assert.doesNotThrow(() => JSON.parse(aliases));
+  assert.match(dockerfile, /COPY lib\/data\/public-route-aliases\.json \.\/lib\/data\/public-route-aliases\.json/u);
+});
+
 test("ana sayfa genel istatistikleri canlı DB ve mevcut akademisyen kaynağından alır", async () => {
   const [pageSource, liveStatsSource, serverSource] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -345,6 +357,8 @@ test("DBP commission workflow exposes management, review stages and homepage sho
 
   assert.match(access, /committee_management/u);
   assert.match(access, /commission_review/u);
+  assert.match(access, /lee_ogrenci_isleri: \["my_courses", "program_profile", "review_queue", "quality_reports"\]/u);
+  assert.match(access, /enstitu_sekreteri: \["my_courses", "program_profile", "review_queue", "quality_reports"\]/u);
   assert.match(dashboard, /CommitteeManagement/u);
   assert.match(dashboard, /committee\/memberships/u);
   assert.match(review, /Onay bekleyenler/u);
@@ -353,8 +367,16 @@ test("DBP commission workflow exposes management, review stages and homepage sho
   assert.match(review, /status: "Düzeltme İstendi"/u);
   assert.match(review, /Komisyon Onayı Bekliyor/u);
   assert.match(review, /ABD Son Onayı Bekliyor/u);
+  assert.match(review, /if \(mode === "chair"\) return "Yayımlandı"/u);
+  assert.match(review, /ABD Onayı ve Yayınla/u);
+  assert.match(review, /committeeSkipped/u);
+  assert.match(review, /Atlandı/u);
+  assert.match(review, /return !isPublishedStatus\(course\.status \|\| ""\)/u);
   assert.match(editor, /ApprovalWorkflow/u);
   assert.match(editor, /Komisyon Onayı Bekliyor/u);
+  assert.match(editor, /Onay sürecine gönder/u);
+  assert.match(editor, /committeeSkipped/u);
+  assert.match(editor, /Atlandı/u);
   assert.match(committee, /api\/dbp\/instructors/u);
   assert.match(committee, /trustedInstructorSources/u);
   assert.match(committee, /Komisyonu Kaydet/u);
@@ -367,6 +389,11 @@ test("DBP commission workflow exposes management, review stages and homepage sho
   assert.match(server, /BEGIN IMMEDIATE/u);
   assert.match(server, /expectedStatusesForTransition/u);
   assert.match(server, /workflow_requests/u);
+  assert.match(server, /courseWorkflowSummary/u);
+  assert.match(server, /committeeSkipped/u);
+  assert.match(server, /Akademisyen -> ABD\/ASD Başkanı/u);
+  assert.match(server, /session\.role === "admin"/u);
+  assert.doesNotMatch(server, /\["admin", "enstitu_yoneticisi"\]\.includes\(session\.role\)/u);
   assert.match(server, /function canReadCoursePackage[\s\S]*session\.role === "abd_asd_baskani"/u);
 });
 
@@ -381,8 +408,16 @@ test("course editing and public display use the persisted package workflow", asy
   assert.match(editor, /katkısını 1-5 arasında belirtin/u);
   assert.doesNotMatch(editor, /<option>0<\/option>/u);
   assert.match(publicPackage, /public: "1"/u);
+  assert.match(publicPackage, /Ders bilgi paketi onay sürecinde/u);
+  assert.match(publicPackage, /Yayın durumu kontrol ediliyor/u);
+  assert.match(publicPackage, /hasPublicIdentity && !saved/u);
+  assert.doesNotMatch(publicPackage, /saved\?\.package \?\? staticPackage \?\? createDefaultCoursePackage[\s\S]*publicLookupComplete/u);
   assert.match(server, /canEditCoursePackage/u);
   assert.match(server, /course\.package\.status/u);
+  assert.match(server, /migratePublicCoursePackagesToApprovalDrafts/u);
+  assert.match(server, /course\.package\.bootstrap-approval-drafts/u);
+  assert.match(server, /packagePending/u);
+  assert.match(server, /SET status = 'Taslak'/u);
 });
 
 test("every merged YBS process package keeps the program sidebar", async () => {

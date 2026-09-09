@@ -57,6 +57,7 @@ type Course = {
   level: "Tezsiz Yüksek Lisans" | "Tezli Yüksek Lisans" | "Doktora";
   department?: string;
   programName?: string;
+  workflow?: DbpCourse["workflow"];
 };
 type InstructorOption = {
   id: string;
@@ -204,6 +205,7 @@ const toPanelCourse = (course: DbpCourse): Course => ({
   level: panelLevel(course.level),
   department: course.department,
   programName: course.programName,
+  workflow: course.workflow,
 });
 const roleByUsername: Record<string, DbpRole> = {
   "demo.akademisyen": "akademisyen",
@@ -608,7 +610,7 @@ export function RoleDashboard() {
     : session.role === "abd_asd_baskani"
       ? scopedPrograms.flatMap((program) => coursesForProgram(program))
       : displayedCatalogCourses.length ? displayedCatalogCourses : useDemoFallback ? courses : [];
-  const reviewCourses = session.role === "enstitu_sekreteri" ? [] : allReviewCourses;
+  const reviewCourses = allReviewCourses;
   const pickerDepartments = [...new Set(scopedPrograms.map((program) => program.mainDepartment))];
   const changeModule = (module: DbpModule) => {
     setActive(module);
@@ -924,7 +926,7 @@ export function RoleDashboard() {
                               <button onClick={() => setSelectedCourse(course)}>
                                 {canEditAcademicContent ? "Güncelle" : "Görüntüle"}
                               </button>
-                              <button type="button" onClick={save}>
+                              <button type="button" onClick={() => save()}>
                                 Düzeltme İste
                               </button>
                             </p>
@@ -959,7 +961,7 @@ export function RoleDashboard() {
                             <article key={`${section.key}-${course.code}-${course.level}`}>
                               <span className="course-code">{course.code}</span>
                               <div><b>{course.name}</b><small>{course.status}</small></div>
-                              <button onClick={() => setSelectedCourse(course)}>Güncelle</button>
+                              <button onClick={() => setSelectedCourse(course)}>Görüntüle</button>
                             </article>
                           ))}
                         </div>

@@ -37,9 +37,18 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist "%APP_DIR%\node_modules" (
-  echo LEE DBP bagimliliklari ilk kez kuruluyor...
-  call npm.cmd install
+set "NEED_NPM_INSTALL=0"
+if not exist "%APP_DIR%\node_modules" set "NEED_NPM_INSTALL=1"
+if not exist "%APP_DIR%\node_modules\.package-lock.json" set "NEED_NPM_INSTALL=1"
+if not exist "%APP_DIR%\node_modules\@cloudflare\vite-plugin\package.json" set "NEED_NPM_INSTALL=1"
+if exist "%APP_DIR%\package-lock.json" if exist "%APP_DIR%\node_modules\.package-lock.json" (
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$lock = Join-Path $env:APP_DIR 'package-lock.json'; $installed = Join-Path $env:APP_DIR 'node_modules\.package-lock.json'; if ((Get-Item -LiteralPath $lock).LastWriteTimeUtc -gt (Get-Item -LiteralPath $installed).LastWriteTimeUtc) { exit 10 }"
+  if errorlevel 10 set "NEED_NPM_INSTALL=1"
+)
+
+if "%NEED_NPM_INSTALL%"=="1" (
+  echo LEE DBP bagimliliklari kuruluyor/guncelleniyor...
+  call npm.cmd install --include=dev
   if errorlevel 1 (
     echo.
     echo [HATA] Bagimliliklar kurulamadi.

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PublicSiteHeader } from "../PublicSiteHeader";
 import { dbpPath } from "../../lib/dbpPath";
 import { SDG_LOGO_SRC, formatSdgGoal, resolveSdgGoals } from "../../lib/sdgGoals";
@@ -126,22 +126,71 @@ export function DemoCoursePackage({
   level = "",
 }: DemoCoursePackageProps) {
   const displayCode = repairText(code);
-  const staticPackage = getCoursePackage(displayCode, department, programName);
+  const staticPackage = useMemo(
+    () => getCoursePackage(displayCode, department, programName),
+    [department, displayCode, programName],
+  );
   const [saved, setSaved] = useState<PublicSavedPackage | null>(null);
+  const hasPublicIdentity = Boolean(department && programName && level);
+  const [publicLookupComplete, setPublicLookupComplete] = useState(!hasPublicIdentity);
   useEffect(() => {
+    setSaved(null);
+    if (!hasPublicIdentity) {
+      setPublicLookupComplete(true);
+      return;
+    }
+    setPublicLookupComplete(false);
     const query = new URLSearchParams({ code: displayCode, department, programName, level, public: "1" });
     const controller = new AbortController();
     fetch(`${dbpPath("/api/dbp/course-package")}?${query}`, { signal: controller.signal })
       .then(async (response) => response.ok ? response.json() : null)
       .then((data) => {
-        if (!data?.package) return;
-        setSaved(toPublicCoursePackage(data.package as Record<string, unknown>, staticPackage, name));
+        if (data?.package) setSaved(toPublicCoursePackage(data.package as Record<string, unknown>, staticPackage, name));
+        setPublicLookupComplete(true);
       })
-      .catch((error) => { if (error instanceof Error && error.name !== "AbortError") console.error(error); });
+      .catch((error) => {
+        if (error instanceof Error && error.name === "AbortError") return;
+        console.error(error);
+        setPublicLookupComplete(true);
+      });
     return () => controller.abort();
-  }, [department, displayCode, level, name, programName, staticPackage]);
+  }, [department, displayCode, hasPublicIdentity, level, name, programName, staticPackage]);
   const displayName = repairText(saved?.name ?? staticPackage?.name ?? name);
   const displayType = repairText(type);
+  if (hasPublicIdentity && !saved) {
+    const loading = !publicLookupComplete;
+    return (
+      <main className="demo-package-page">
+        <PublicSiteHeader />
+        <div className="demo-package-shell">
+          <div className="package-breadcrumb">
+            <a href={dbpPath("/")}>Ana Sayfa</a><span>/</span><a href={dbpPath("/katalog")}>Ders Kataloğu</a><span>/</span><b>{displayCode}</b>
+          </div>
+          <header className="package-title">
+            <div><small>2026–2027 DERS BİLGİ PAKETİ</small><h1>{displayCode} — {displayName}</h1></div>
+          </header>
+          <section className="package-card">
+            <h2>{loading ? "Ders bilgi paketi hazırlanıyor" : "Ders bilgi paketi onay sürecinde"}</h2>
+            <p className="package-pending-text">
+              {loading
+                ? "Yayın durumu kontrol ediliyor."
+                : "Bu dersin bilgileri danışman ve ABD/ASD başkanı onay sürecini tamamladıktan sonra public katalogda yayınlanacaktır."}
+            </p>
+            <div className="package-fields">
+              <Field label="Dersin Adı" value={displayName} wide />
+              <Field label="Ders Kodu" value={displayCode} />
+              <Field label="Ders Düzeyi" value={level} />
+              <Field label="Ders Türü" value={displayType} />
+              <Field label="Teorik" value={theory} />
+              <Field label="Uygulama" value={practice} />
+              <Field label="Kredi" value={credit} />
+              <Field label="AKTS" value={ects} />
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
   const coursePackage = saved?.package ?? staticPackage ?? createDefaultCoursePackage({ code: displayCode, name: displayName, theory, practice, credit, ects, instructor, sdgs, level });
   const displayInstructor = resolveDisplayInstructor(instructor, coursePackage?.instructor);
   const showInstructor = shouldShowInstructor(displayName, displayInstructor);

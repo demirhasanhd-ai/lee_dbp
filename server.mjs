@@ -139,8 +139,8 @@ const defaultRoleAccess = {
   akademisyen: ["my_courses"],
   abd_asd_baskani: ["my_courses", "program_profile", "committee_management", "review_queue"],
   abd_sekreteri: ["review_queue"],
-  lee_ogrenci_isleri: ["my_courses", "program_profile"],
-  enstitu_sekreteri: ["my_courses", "program_profile", "quality_reports"],
+  lee_ogrenci_isleri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
+  enstitu_sekreteri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
   enstitu_yoneticisi: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports"],
   admin: ["my_courses", "database_admin", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "user_roles", "permission_matrix"],
 };
@@ -709,13 +709,14 @@ function coursePackageFallback(url, { code, name, program }) {
   return `${pathname}?${params.toString()}`;
 }
 
-function coursePackagePdfPayload({ code, name, department, programName, level }) {
+function coursePackagePdfPayload({ code, name, department, programName, level, publicOnly = false }) {
   const rows = courseRowsForIdentity({ code, department, programName, level });
   const row = rows.find((item) =>
-    ["YayÄ±mlandÄ±", "YayÄ±nlandÄ±", "Public"].includes(repairText(item.status || "")) &&
+    isPublicCourseStatus(item.status || "") &&
     item.package_json && item.package_json !== "{}"
-  ) || rows.find((item) => item.package_json && item.package_json !== "{}");
+  ) || (!publicOnly ? rows.find((item) => item.package_json && item.package_json !== "{}") : null);
   if (!row) {
+    if (publicOnly) return null;
     const seedPackage = findSeedPackageForCode(readCoursePackageSeeds(), code);
     if (!seedPackage) return null;
     const courseRow = rows[0] || {};
@@ -809,9 +810,25 @@ async function coursePdfResponse(request, url) {
     return jsonResponse({ message: "PDF için ders kodu ve ders adi gerekir." }, { status: 400 });
   }
 
+  const identity = { code, department, programName: program, level };
+  const rows = courseRowsForIdentity(identity);
+  const hasPublicPackage = rows.some((row) => isPublicCourseStatus(row.status || "") && row.package_json && row.package_json !== "{}");
+  let publicOnly = true;
+  if (!hasPublicPackage && rows.length) {
+    const auth = requireDbpSession(request);
+    const canReadPackage = !auth.error && (
+      canReadCoursePackage(auth.session, identity) ||
+      canEditCoursePackage(auth.session, identity, rows)
+    );
+    if (!canReadPackage) {
+      return jsonResponse({ message: "Ders bilgi paketi onay sürecinde olduğu için PDF public yayında değildir." }, { status: 404 });
+    }
+    publicOnly = false;
+  }
+
   await mkdir(pdfCacheDir, { recursive: true });
   const target = pdfCacheFile({ code, program, name });
-  const packagePayload = coursePackagePdfPayload({ code, name, department, programName: program, level });
+  const packagePayload = coursePackagePdfPayload({ code, name, department, programName: program, level, publicOnly });
   const packageJsonPath = packagePayload ? `${target}.json` : "";
   let info = null;
   if (!packagePayload) {
@@ -2905,7 +2922,7 @@ function canReadCoursePackage(session, body) {
 }
 
 function canApproveCoursePackage(session, body) {
-  if (["admin", "enstitu_yoneticisi"].includes(session.role)) return true;
+  if (session.role === "admin") return true;
   return session.role === "abd_asd_baskani" &&
     normalizeScope(session.department || "") === normalizeScope(body.department || "");
 }
@@ -3093,6 +3110,54 @@ function latestWorkflowCorrection(body = {}) {
   };
 }
 
+function latestWorkflowRecord(body = {}, kinds = []) {
+  const normalizedKinds = kinds.filter(Boolean);
+  const kindClause = normalizedKinds.length
+    ? `AND kind IN (${normalizedKinds.map(() => "?").join(", ")})`
+    : "";
+  const row = db.prepare(`
+    SELECT kind, route, note, status, created_by, created_at
+    FROM workflow_requests
+    WHERE target = ?
+      ${kindClause}
+    ORDER BY datetime(created_at) DESC, id DESC
+    LIMIT 1
+  `).get(workflowTarget(body), ...normalizedKinds);
+  if (!row) return null;
+  return {
+    kind: row.kind || "",
+    route: repairText(row.route || ""),
+    note: repairText(row.note || ""),
+    status: repairText(row.status || ""),
+    actor: repairText(row.created_by || ""),
+    createdAt: row.created_at || "",
+  };
+}
+
+function workflowRecordFromRow(row = {}) {
+  return {
+    kind: row.kind || "",
+    route: repairText(row.route || ""),
+    note: repairText(row.note || ""),
+    status: repairText(row.status || ""),
+    actor: repairText(row.created_by || ""),
+    createdAt: row.created_at || "",
+  };
+}
+
+function courseWorkflowSummaryFromSubmit(latestSubmit) {
+  const committeeSkipped = Boolean(
+    latestSubmit &&
+    normalizeScope(latestSubmit.status) === normalizeScope("ABD Son Onayı Bekliyor") &&
+    normalizeScope(latestSubmit.route).includes(normalizeScope("ABD/ASD Başkanı"))
+  );
+  return { latestSubmit, committeeSkipped };
+}
+
+function courseWorkflowSummary(body = {}) {
+  return courseWorkflowSummaryFromSubmit(latestWorkflowRecord(body, ["course-package-submit"]));
+}
+
 function expectedStatusesForTransition(status, body = {}) {
   const normalized = normalizeScope(status || "");
   const providedExpected = body.expectedStatus ? normalizeScope(body.expectedStatus) : "";
@@ -3101,12 +3166,12 @@ function expectedStatusesForTransition(status, body = {}) {
     allowed = [normalizeScope("Komisyon Onayı Bekliyor")];
     return providedExpected && allowed.includes(providedExpected) ? [providedExpected] : allowed;
   }
-  if (normalized === normalizeScope("Enstitü Onayı Bekliyor")) {
-    allowed = [normalizeScope("ABD Son Onayı Bekliyor"), normalizeScope("ABD Onayı Bekliyor")];
-    return providedExpected && allowed.includes(providedExpected) ? [providedExpected] : allowed;
-  }
   if (normalized === normalizeScope("Yayımlandı") || normalized === "public") {
-    allowed = [normalizeScope("Enstitü Onayı Bekliyor")];
+    allowed = [
+      normalizeScope("ABD Son Onayı Bekliyor"),
+      normalizeScope("ABD Onayı Bekliyor"),
+      normalizeScope("Enstitü Onayı Bekliyor"),
+    ];
     return providedExpected && allowed.includes(providedExpected) ? [providedExpected] : allowed;
   }
   if (normalized === normalizeScope("Düzeltme İstendi")) {
@@ -3367,8 +3432,46 @@ async function ensureDb() {
   migrateYbsDoctorateContributionScale();
   seedProgramProfiles();
   ensureTestProgramData();
+  migratePublicCoursePackagesToApprovalDrafts();
   seedDefaultRoleAccess();
   return db;
+}
+
+function migratePublicCoursePackagesToApprovalDrafts() {
+  const metadataKey = "public_course_packages_to_approval_drafts_v1";
+  if (db.prepare("SELECT value FROM metadata WHERE key = ?").get(metadataKey)?.value) return;
+  const rows = db.prepare(`
+    SELECT id, status
+    FROM courses
+    WHERE package_json IS NOT NULL
+      AND TRIM(package_json) <> ''
+      AND package_json <> '{}'
+  `).all();
+  const candidates = rows.filter((row) => isPublicCourseStatus(row.status || ""));
+  const now = new Date().toISOString();
+  const update = db.prepare(`
+    UPDATE courses
+    SET status = 'Taslak', updated_at = ?
+    WHERE id = ?
+  `);
+  db.exec("BEGIN");
+  try {
+    for (const row of candidates) update.run(now, row.id);
+    db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(
+      metadataKey,
+      JSON.stringify({ migratedAt: now, changed: candidates.length }),
+    );
+    audit("course.package.bootstrap-approval-drafts", "system", { changed: candidates.length });
+    db.exec("COMMIT");
+    if (candidates.length) {
+      publicCourseRouteIndexCache = undefined;
+      invalidateHomeStatsCache();
+      queueQualitySnapshotRefresh("course.package.bootstrap-approval-drafts");
+    }
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 function countRows(table) {
@@ -4111,7 +4214,20 @@ function dbCourseList(filters = {}) {
     const nextScore = Number(canonicalExact) + Number(normalized.hasPackage);
     if (!current || nextScore >= currentScore) byKey.set(key, normalized);
   }
+  const latestSubmitByTarget = new Map();
+  for (const row of db.prepare(`
+    SELECT target, kind, route, note, status, created_by, created_at
+    FROM workflow_requests
+    WHERE kind = ?
+    ORDER BY datetime(created_at) DESC, id DESC
+  `).all("course-package-submit")) {
+    if (!latestSubmitByTarget.has(row.target)) latestSubmitByTarget.set(row.target, workflowRecordFromRow(row));
+  }
   return [...byKey.values()]
+    .map((course) => ({
+      ...course,
+      workflow: courseWorkflowSummaryFromSubmit(latestSubmitByTarget.get(workflowTarget(course)) || null),
+    }))
     .filter((course) => courseMatchesFilters(course, filters))
     .sort((left, right) =>
       `${left.department}|${left.programName}|${left.level}|${left.code}`.localeCompare(
@@ -5210,12 +5326,10 @@ function publicCourseRouteIndex() {
   if (publicCourseRouteIndexCache) return publicCourseRouteIndexCache;
   const rows = db.prepare(`
     SELECT * FROM courses
-    WHERE package_json IS NOT NULL AND package_json <> '{}'
     ORDER BY updated_at DESC, id DESC
   `).all();
   const index = new Map();
   for (const row of rows) {
-    if (!isPublicCourseStatus(row.status)) continue;
     const rawCode = repairText(row.code || "").trim().toLocaleUpperCase("tr-TR");
     const routeCodes = new Set([rawCode, canonicalCourseCode(rawCode)]);
     for (const routeCode of routeCodes) {
@@ -6408,15 +6522,21 @@ async function handleDbpApi(request) {
       }
       const found = publicCourseForRoute(query);
       if (!found) {
-        return jsonResponse({ message: "Yayımlanmış ders bilgi paketi bulunamadı." }, { status: 404 });
+        return jsonResponse({ message: "Ders seçilen programın müfredatında bulunamadı." }, { status: 404 });
       }
+      const hasPublicPackage = isPublicCourseStatus(found.row.status || "") &&
+        found.row.package_json &&
+        found.row.package_json !== "{}";
       return jsonResponse({
         course: found.course,
-        package: packageWithCourseInstructor(JSON.parse(found.row.package_json || "{}"), {
-          instructor: found.row.instructor || "",
-        }),
+        package: hasPublicPackage
+          ? packageWithCourseInstructor(JSON.parse(found.row.package_json || "{}"), {
+            instructor: found.row.instructor || "",
+          })
+          : null,
         status: repairText(found.row.status || ""),
         updatedAt: found.row.updated_at,
+        packagePending: !hasPublicPackage,
       });
     }
 
@@ -6441,7 +6561,14 @@ async function handleDbpApi(request) {
         if (!publicOnly) return item.package_json && item.package_json !== "{}";
         return ["Yayımlandı", "Yayınlandı", "Public"].includes(repairText(item.status || "")) && item.package_json && item.package_json !== "{}";
       });
-      if (!row) return jsonResponse({ package: null, status: "" });
+      if (!row) {
+        const latest = rows[0];
+        return jsonResponse({
+          package: null,
+          status: repairText(latest?.status || ""),
+          packagePending: Boolean(publicOnly && latest),
+        });
+      }
       const course = {
         instructor: row.instructor || "",
       };
@@ -6450,6 +6577,7 @@ async function handleDbpApi(request) {
         status: repairText(row.status || ""),
         updatedAt: row.updated_at,
         workflow: {
+          ...courseWorkflowSummary(query),
           latestCorrection: latestWorkflowCorrection(query),
         },
       });
@@ -6468,6 +6596,9 @@ async function handleDbpApi(request) {
       }
       if (!courseCodeMatchesLevel(body.code, level)) {
         return jsonResponse({ message: "Ders kodu program düzeyiyle uyumlu değil: 700 Tezsiz YL, 800 Tezli YL, 900 Doktora olmalıdır." }, { status: 422 });
+      }
+      if (normalizeScope(body.status || "") === normalizeScope("Enstitü Onayı Bekliyor")) {
+        return jsonResponse({ message: "Enstitü onayı ders bilgi paketi onay zincirinden kaldırıldı. Son onay ABD/ASD başkanı tarafından yayımlanır." }, { status: 422 });
       }
       const matchingRows = courseRowsForIdentity(body);
       if (!canEditCoursePackage(auth.session, body, matchingRows)) {
@@ -6559,7 +6690,13 @@ async function handleDbpApi(request) {
       }
       invalidateHomeStatsCache();
       queueQualitySnapshotRefresh("course.package.save");
-      return jsonResponse({ ok: true, status: actualStatus, committeeSkipped: submittedForCommittee && !committeeExists, summary: { courses: countRows("courses") } });
+      return jsonResponse({
+        ok: true,
+        status: actualStatus,
+        committeeSkipped: submittedForCommittee && !committeeExists,
+        workflow: courseWorkflowSummary(body),
+        summary: { courses: countRows("courses") },
+      });
     }
 
     if (pathname === "/api/dbp/course-package/status" && request.method === "POST") {
@@ -6567,6 +6704,9 @@ async function handleDbpApi(request) {
       if (auth.error) return auth.error;
       const body = await readJsonBody(request);
       const requestedStatus = repairText(String(body.status || "Yayımlandı")).trim();
+      if (normalizeScope(requestedStatus) === normalizeScope("Enstitü Onayı Bekliyor")) {
+        return jsonResponse({ message: "Enstitü onayı ders bilgi paketi onay zincirinden kaldırıldı. Son onay ABD/ASD başkanı tarafından yayımlanır." }, { status: 422 });
+      }
       const committeeApproval = normalizeScope(requestedStatus) === normalizeScope("ABD Son Onayı Bekliyor");
       const correctionRequest = normalizeScope(requestedStatus) === normalizeScope("Düzeltme İstendi");
       const committeeAction = committeeApproval || (correctionRequest && isCommitteeMemberForCourse(auth.session, body));

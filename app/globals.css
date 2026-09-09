@@ -1346,7 +1346,7 @@ input {
 .course-approval-workflow {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
   align-items: start;
 }
@@ -1411,8 +1411,10 @@ input {
 
 .dbp-workflow-stepper .done::before,
 .dbp-workflow-stepper .current::before,
+.dbp-workflow-stepper .skipped::before,
 .course-approval-workflow .done::before,
-.course-approval-workflow .current::before {
+.course-approval-workflow .current::before,
+.course-approval-workflow .skipped::before {
   background: var(--success);
 }
 
@@ -1423,6 +1425,23 @@ input {
   border-color: var(--success);
   background: var(--success);
   color: white;
+}
+
+.dbp-workflow-stepper .skipped i,
+.course-approval-workflow .skipped i {
+  border-color: var(--muted-foreground);
+  border-style: dashed;
+  background: var(--card);
+  color: var(--muted-foreground);
+}
+
+.dbp-workflow-stepper em,
+.course-approval-workflow em {
+  margin-top: -3px;
+  color: var(--muted-foreground);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .course-approval-workflow {

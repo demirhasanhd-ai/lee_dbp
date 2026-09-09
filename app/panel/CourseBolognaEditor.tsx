@@ -36,6 +36,16 @@ type CorrectionNote = {
   requestedBy?: string;
   requestedAt?: string;
 };
+type WorkflowSummary = {
+  committeeSkipped?: boolean;
+  latestSubmit?: {
+    route?: string;
+    status?: string;
+    actor?: string;
+    createdAt?: string;
+  } | null;
+  latestCorrection?: CorrectionNote | null;
+};
 type ObsDraft = {
   sourceUrl: string;
   obsCourseId: string;
@@ -107,7 +117,6 @@ const approvalWorkflowSteps = [
   "Hazırlık",
   "Komisyon İncelemesi",
   "ABD/ASD Son Onayı",
-  "Enstitü Onayı",
   "Yayımlandı",
 ];
 
@@ -128,22 +137,25 @@ const normalizeWorkflowStatus = (value: string) => foldTurkishText(value.toLocal
 const workflowStage = (status: string) => {
   const value = normalizeWorkflowStatus(status);
   if (value.includes("komisyon")) return 1;
-  if (value.includes("abd son") || value === normalizeWorkflowStatus("ABD Onayı Bekliyor")) return 2;
-  if (value.includes("enstitu")) return 3;
-  if (["public", normalizeWorkflowStatus("Yayımlandı"), normalizeWorkflowStatus("Yayınlandı")].includes(value)) return 4;
+  if (value.includes("abd son") || value === normalizeWorkflowStatus("ABD Onayı Bekliyor") || value.includes("enstitu")) return 2;
+  if (["public", normalizeWorkflowStatus("Yayımlandı"), normalizeWorkflowStatus("Yayınlandı")].includes(value)) return 3;
   return 0;
 };
 
-function ApprovalWorkflow({ status }: { status: string }) {
+function ApprovalWorkflow({ status, committeeSkipped = false }: { status: string; committeeSkipped?: boolean }) {
   const activeStage = workflowStage(status);
   return (
     <div className="course-approval-workflow" aria-label="Ders bilgi paketi onay aşaması">
-      {approvalWorkflowSteps.map((step, index) => (
-        <span key={step} className={index < activeStage ? "done" : index === activeStage ? "current" : "waiting"}>
-          <i>{index < activeStage ? "✓" : index + 1}</i>
-          <b>{step}</b>
-        </span>
-      ))}
+      {approvalWorkflowSteps.map((step, index) => {
+        const skipped = committeeSkipped && index === 1;
+        return (
+          <span key={step} className={skipped ? "skipped" : index < activeStage ? "done" : index === activeStage ? "current" : "waiting"}>
+            <i>{skipped ? "!" : index < activeStage ? "✓" : index + 1}</i>
+            <b>{step}</b>
+            {skipped && <em>Atlandı</em>}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -294,6 +306,7 @@ export function CourseBolognaEditor({
   onPublish: (status: string) => void;
 }) {
   const [workflowStatus, setWorkflowStatus] = useState("Taslak");
+  const [committeeSkipped, setCommitteeSkipped] = useState(false);
   const [identity, setIdentity] = useState(() => defaultIdentity(course));
   const [detailFields, setDetailFields] = useState(defaultDetailFields);
   const [outcomes, setOutcomes] = useState(emptyOutcomes);
@@ -344,8 +357,9 @@ export function CourseBolognaEditor({
       setNextAssessment(value.assessments.length + 1);
       setWorkflowStatus("Mevcut Paket");
       setLatestCorrection(null);
+      setCommitteeSkipped(false);
     };
-    const applySavedPackage = (stored: Record<string, unknown>, status: string, correction?: CorrectionNote | null) => {
+    const applySavedPackage = (stored: Record<string, unknown>, status: string, workflow?: WorkflowSummary | null) => {
       const savedIdentity = stored.identity as typeof identity | undefined;
       const savedDetails = stored.detailFields as Record<string, string> | undefined;
       if (savedIdentity) setIdentity(savedIdentity);
@@ -358,7 +372,8 @@ export function CourseBolognaEditor({
       if (Array.isArray(stored.contributionMatrix)) setContributionMatrix(normalizeContributionRows(stored.contributionMatrix as Record<string, number>[]));
       if (Array.isArray(stored.sdgs)) setSdgs(stored.sdgs as string[]);
       setWorkflowStatus(status || "Taslak");
-      setLatestCorrection(correction || null);
+      setLatestCorrection(workflow?.latestCorrection || null);
+      setCommitteeSkipped(Boolean(workflow?.committeeSkipped));
     };
 
     const staticPackage = getCoursePackage(course.code, course.department, course.programName);
@@ -377,6 +392,7 @@ export function CourseBolognaEditor({
       setNextAssessment(3);
       setWorkflowStatus("Taslak");
       setLatestCorrection(null);
+      setCommitteeSkipped(false);
     }
 
     const query = new URLSearchParams({
@@ -391,7 +407,7 @@ export function CourseBolognaEditor({
       signal: controller.signal,
     })
       .then(async (response) => response.ok ? response.json() : null)
-      .then((data) => { if (data?.package) applySavedPackage(data.package, data.status, data.workflow?.latestCorrection || null); })
+      .then((data) => { if (data?.package) applySavedPackage(data.package, data.status, data.workflow || null); })
       .catch((error) => { if (error instanceof Error && error.name !== "AbortError") console.error(error); });
     return () => controller.abort();
   }, [course.code, course.department, course.level, course.name, course.programName, session]);
@@ -488,9 +504,9 @@ export function CourseBolognaEditor({
     ? "Paket onay sürecinde olduğu için süreç tamamlanmadan veya düzeltme istenmeden tekrar kaydedilemez."
     : correctionRequested
       ? "Düzeltme talebi sonrası gerekli değişiklikleri kaydedip dersi yeniden onaya gönderebilirsiniz."
-      : workflowStage(workflowStatus) >= 4
+      : workflowStage(workflowStatus) >= 3
         ? "Yayımlanmış paket üzerinde yeni değişiklik yapıp tekrar onay sürecine gönderebilirsiniz."
-        : "Çalışmanızı taslak olarak kaydedebilir veya komisyon incelemesine gönderebilirsiniz.";
+      : "Çalışmanızı taslak olarak kaydedebilir veya onay sürecine gönderebilirsiniz.";
   const updateWorkload = (name: string, key: "count" | "hours", value: number) =>
     setWorkloads((current) => ({
       ...current,
@@ -648,7 +664,7 @@ export function CourseBolognaEditor({
     if (!response.ok) {
       throw new Error(result.message || "Ders paketi kaydedilemedi.");
     }
-    return { status: result.status || status };
+    return { status: result.status || status, committeeSkipped: Boolean(result.committeeSkipped || result.workflow?.committeeSkipped) };
   };
   return (
     <form
@@ -663,6 +679,7 @@ export function CourseBolognaEditor({
         const nextStatus = result.status || "Komisyon Onayı Bekliyor";
         setWorkflowStatus(nextStatus);
         setLatestCorrection(null);
+        setCommitteeSkipped(result.committeeSkipped);
         localStorage.setItem("lee-dbp-course-status", normalizeWorkflowStatus(nextStatus).replace(/\s+/g, "_"));
         onPublish(nextStatus);
       }}
@@ -680,7 +697,7 @@ export function CourseBolognaEditor({
             <span>{workflowStatus}</span>
           </div>
         </header>
-        <ApprovalWorkflow status={workflowStatus} />
+        <ApprovalWorkflow status={workflowStatus} committeeSkipped={committeeSkipped} />
         {correctionRequested && latestCorrection && (
           <div className="course-correction-note">
             <small>DÜZELTME TALEBİ</small>
@@ -988,7 +1005,7 @@ export function CourseBolognaEditor({
         </div>
         <div className="course-submit-actions">
           <button type="button" className="draft" disabled={approvalLocked} title={approvalLocked ? "Paket onay sürecinde." : "Taslak olarak kaydet"} onClick={async (event) => { if (approvalLocked) return; const form = event.currentTarget.form; if (!form) return; await persistPackage(form, "Taslak"); setWorkflowStatus("Taslak"); localStorage.setItem("lee-dbp-course-status", "taslak"); onSave(); }}><Save size={15} />Taslağı Kaydet</button>
-          <button type="submit" className="publish" disabled={approvalLocked || publishIssues.length > 0} title={approvalLocked ? "Paket onay sürecinde." : publishIssues[0] ?? "Komisyon incelemesine gönder"}><Send size={15} />Onaya gönder</button>
+          <button type="submit" className="publish" disabled={approvalLocked || publishIssues.length > 0} title={approvalLocked ? "Paket onay sürecinde." : publishIssues[0] ?? "Onay sürecine gönder"}><Send size={15} />Onaya gönder</button>
         </div>
       </div>}
       {obsOpen && (

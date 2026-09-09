@@ -11,7 +11,7 @@ export function LoginPanel() {
         <span className="eyebrow">TEK OTURUM</span>
         <h1>DBP girisi e-Enstitu uzerinden yapilir</h1>
         <p>
-          Ders bilgi paketi yonetim alani artik e-Enstitu oturumu, LDAP ve
+          Bilgi sistemi yonetim alani artik e-Enstitu oturumu, LDAP ve
           tanimli rollerinizle acilir. DBP tarafinda ayri kullanici adi veya
           parola tutulmaz.
         </p>
@@ -27,7 +27,7 @@ export function LoginPanel() {
             <span><ShieldCheck size={18} /></span>
             <div>
               <b>Rol tabanli DBP erisimi</b>
-              <small>Danisman, ABD baskani, enstitu rolleri ve admin yetkileri DBP'ye aktarilir.</small>
+              <small>Danisman, ABD baskani, enstitu rolleri ve admin yetkileri DBP&apos;ye aktarilir.</small>
             </div>
           </article>
         </div>
@@ -37,8 +37,8 @@ export function LoginPanel() {
         <span className="eyebrow">LEE DBP YONETIM ALANI</span>
         <h2>e-Enstitu ile devam et</h2>
         <p className="signin-note">
-          Oturumunuz yoksa once e-Enstitu'ye giris yapin. Gecis, e-Enstitu
-          icindeki Ders Bilgi Paketi modulunden guvenli olarak baslatilir.
+          Oturumunuz yoksa once e-Enstitu&apos;ye giris yapin. Gecis, e-Enstitu
+          icindeki Bilgi Sistemi modulunden guvenli olarak baslatilir.
         </p>
         <a className="sso-action" href={EENSTITU_URL}>
           <KeyRound size={16} />
