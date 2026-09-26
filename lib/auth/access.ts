@@ -8,6 +8,7 @@ export const DBP_MODULES = {
   review_queue: "Kontrol ve Düzeltme",
   publish_control: "Yayın Kontrolü",
   quality_reports: "Kalite Kontrol Raporları",
+  view_stats_admin: "Görüntülenme İstatistikleri",
   database_admin: "Veri Tabanı Yönetimi",
   user_roles: "Kullanıcı ve Rol Yönetimi",
   permission_matrix: "Yetki Dağılımı",
@@ -21,6 +22,6 @@ export const DEFAULT_ROLE_ACCESS: Record<DbpRole, DbpModule[]> = {
   abd_sekreteri: ["review_queue"],
   lee_ogrenci_isleri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
   enstitu_sekreteri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
-  enstitu_yoneticisi: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports"],
-  admin: ["my_courses", "database_admin", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "user_roles", "permission_matrix"],
+  enstitu_yoneticisi: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports", "view_stats_admin"],
+  admin: ["my_courses", "database_admin", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "view_stats_admin", "user_roles", "permission_matrix"],
 };

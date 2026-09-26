@@ -37,6 +37,7 @@ export type DbpCourseFilters = {
   programName?: string;
   level?: string;
   instructor?: string;
+  publicVisible?: boolean;
   limit?: number;
 };
 

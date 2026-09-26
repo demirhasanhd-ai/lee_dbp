@@ -21,7 +21,7 @@ export const userRoles = sqliteTable("user_roles", {
 
 export const roleModuleAccess = sqliteTable("role_module_access", {
   role: text("role", { enum: ["akademisyen", "abd_asd_baskani", "abd_sekreteri", "lee_ogrenci_isleri", "enstitu_sekreteri", "enstitu_yoneticisi", "admin"] }).notNull(),
-  module: text("module", { enum: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports", "database_admin", "user_roles", "permission_matrix"] }).notNull(),
+  module: text("module", { enum: ["my_courses", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "view_stats_admin", "database_admin", "user_roles", "permission_matrix"] }).notNull(),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedBy: text("updated_by"),
@@ -117,3 +117,26 @@ export const auditLogs = sqliteTable("audit_logs", {
   details: text("details"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const pageViewEvents = sqliteTable("page_view_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  eventUuid: text("event_uuid").notNull().unique(),
+  viewedAt: text("viewed_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  yearMonth: text("year_month").notNull(),
+  viewType: text("view_type", { enum: ["home", "anabilimdali", "ders", "kalite_gostergeleri", "tez_ska_analiz", "bib_scopus", "bib_tr_dizin", "bib_doktora"] }).notNull(),
+  itemId: text("item_id").notNull().default(""),
+  itemTitle: text("item_title").notNull().default(""),
+  path: text("path").notNull().default(""),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+});
+
+export const pageViewMonthlyStats = sqliteTable("page_view_monthly_stats", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  yearMonth: text("year_month").notNull(),
+  viewType: text("view_type", { enum: ["home", "anabilimdali", "ders", "kalite_gostergeleri", "tez_ska_analiz", "bib_scopus", "bib_tr_dizin", "bib_doktora"] }).notNull(),
+  itemId: text("item_id").notNull().default(""),
+  itemTitle: text("item_title").notNull().default(""),
+  viewCount: integer("view_count").notNull().default(0),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [uniqueIndex("page_view_monthly_unique_idx").on(table.yearMonth, table.viewType, table.itemId)]);

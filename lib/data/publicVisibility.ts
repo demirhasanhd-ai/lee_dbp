@@ -1,3 +1,4 @@
+import { normalizePublicSegment } from "./publicRoutes";
 import { programSlug, type LeeProgram, type ProgramLevel } from "./programs";
 import { dbpPath } from "../dbpPath";
 import { dbpSessionHeader } from "../dbpSessionHeader";
@@ -6,6 +7,10 @@ export const PUBLIC_VISIBILITY_STORAGE_KEY = "lee-dbp-public-program-visibility"
 export const DEFAULT_HIDDEN_PROGRAM_KEYS = new Set(["test-abd-test-programi"]);
 
 export type ProgramVisibilityMap = Record<string, boolean>;
+type CourseVisibilityIdentity = Pick<LeeProgram, "department" | "programName"> & {
+  level: ProgramLevel | string;
+  code: string;
+};
 
 export const programVisibilityKey = (program: Pick<LeeProgram, "department" | "programName">) =>
   programSlug(program);
@@ -25,6 +30,18 @@ export const programLevelVisibilityKey = (
   program: Pick<LeeProgram, "department" | "programName">,
   level: ProgramLevel | string,
 ) => programLevelVisibilityKeyFromKey(programVisibilityKey(program), level);
+
+export const courseVisibilityKeyFromKey = (
+  programKey: string,
+  level: ProgramLevel | string,
+  code: string,
+) => `${programLevelVisibilityKeyFromKey(programKey, level)}__course__${normalizePublicSegment(code)}`;
+
+export const courseVisibilityKey = (course: CourseVisibilityIdentity) =>
+  courseVisibilityKeyFromKey(programVisibilityKey(course), course.level, course.code);
+
+export const courseContentVisibilityKey = (course: CourseVisibilityIdentity) =>
+  `${courseVisibilityKey(course)}__content`;
 
 export function readProgramVisibility(): ProgramVisibilityMap {
   if (typeof window === "undefined") return {};
@@ -88,6 +105,23 @@ export function isProgramLevelPublic(
   const levelKey = programLevelVisibilityKey(program, level);
   if (levelKey in visibility) return visibility[levelKey] !== false;
   return isProgramPublic(program, visibility);
+}
+
+export function isCoursePublic(
+  course: CourseVisibilityIdentity,
+  visibility = readProgramVisibility(),
+) {
+  if (!isProgramLevelPublic(course, course.level, visibility)) return false;
+  const key = courseVisibilityKey(course);
+  if (key in visibility) return visibility[key] !== false;
+  return true;
+}
+
+export function isCourseContentPublicOverride(
+  course: CourseVisibilityIdentity,
+  visibility = readProgramVisibility(),
+) {
+  return visibility[courseContentVisibilityKey(course)] === true;
 }
 
 export function publicLevelsForProgram(

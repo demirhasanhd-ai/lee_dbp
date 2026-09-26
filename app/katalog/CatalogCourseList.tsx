@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { dbpPath } from "../../lib/dbpPath";
 import { fetchDbpCourses, type DbpCourse } from "../../lib/data/dbpCourses";
 import { publicCourseHref } from "../../lib/data/publicRoutes";
+import {
+  fetchProgramVisibility,
+  isCoursePublic,
+  readProgramVisibility,
+  type ProgramVisibilityMap,
+} from "../../lib/data/publicVisibility";
 
 function courseHref(course: DbpCourse) {
   const canonical = publicCourseHref(course);
@@ -37,10 +43,11 @@ export function CatalogCourseList({
   const [courses, setCourses] = useState(initialCourses);
   const [total, setTotal] = useState(initialTotal);
   const [dbReady, setDbReady] = useState(false);
+  const [visibility, setVisibility] = useState<ProgramVisibilityMap>({});
 
   useEffect(() => {
     let cancelled = false;
-    fetchDbpCourses({ q: query, limit: 120 })
+    fetchDbpCourses({ q: query, limit: 120, publicVisible: true })
       .then((data) => {
         if (cancelled) return;
         setCourses(data.courses);
@@ -55,17 +62,35 @@ export function CatalogCourseList({
     };
   }, [query]);
 
+  useEffect(() => {
+    const sync = () => setVisibility(readProgramVisibility());
+    sync();
+    fetchProgramVisibility().then((serverVisibility) => {
+      setVisibility({ ...serverVisibility, ...readProgramVisibility() });
+    });
+    window.addEventListener("storage", sync);
+    window.addEventListener("lee-dbp-public-visibility-change", sync);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("lee-dbp-public-visibility-change", sync);
+    };
+  }, []);
+
+  const visibleCourses = useMemo(
+    () => courses.filter((course) => isCoursePublic(course, visibility)),
+    [courses, visibility],
+  );
   const resultLabel = useMemo(() => total.toLocaleString("tr-TR"), [total]);
 
   return (
     <>
       <div className="catalog-result-heading">
         <div><b>{resultLabel} sonuç</b>{query && <span>“{query}” araması</span>}</div>
-        {total > courses.length && <small>İlk {courses.length} kayıt gösteriliyor. Aramayı daraltabilirsiniz.</small>}
+        {total > visibleCourses.length && <small>İlk {visibleCourses.length} kayıt gösteriliyor. Aramayı daraltabilirsiniz.</small>}
         {!dbReady && <small>Veritabanı yanıtı bekleniyor; ilk katalog görünümü gösteriliyor.</small>}
       </div>
       <section className="catalog-list">
-        {courses.map((course, index) => (
+        {visibleCourses.map((course, index) => (
           <a className="course-row" href={courseHref(course)} key={`${course.department}-${course.programName}-${course.level}-${course.code}-${index}`}>
             <span className="course-code">{course.code}</span>
             <div>
@@ -80,7 +105,7 @@ export function CatalogCourseList({
             </div>
           </a>
         ))}
-        {courses.length === 0 && (
+        {visibleCourses.length === 0 && (
           <div className="catalog-empty">
             <h2>Eşleşen ders bulunamadı</h2>
             <p>Farklı bir ders kodu, program adı veya öğretim elemanı yazarak yeniden deneyin.</p>

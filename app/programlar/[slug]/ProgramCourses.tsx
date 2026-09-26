@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText, Printer } from "lucide-react";
 import {
   fetchProgramVisibility,
+  isCoursePublic,
   isProgramVisibilityKeyPublic,
   programLevelVisibilityKeyFromKey,
   readProgramVisibility,
+  type ProgramVisibilityMap,
 } from "../../../lib/data/publicVisibility";
 import { PublicProgramSidebar } from "../../PublicProgramSidebar";
 import { dbpPath } from "../../../lib/dbpPath";
@@ -247,7 +249,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
   const [databaseProgramItems, setDatabaseProgramItems] = useState<PublicProgramMenuItem[] | null>(null);
   useEffect(() => {
     let cancelled = false;
-    fetchDbpCourses({ department })
+    fetchDbpCourses({ department, publicVisible: true })
       .then((data) => {
         if (cancelled) return;
         setDatabaseProgramItems(fallbackProgramItems.map((item) => ({
@@ -279,6 +281,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
   const [visibleLevelsByProgram, setVisibleLevelsByProgram] = useState<Record<string, string[]>>(
     () => visibleLevelsForItems({}),
   );
+  const [currentVisibility, setCurrentVisibility] = useState<ProgramVisibilityMap>({});
   const activeProgram = allProgramItems.find((item) => item.visibilityKey === activeView.programKey) ?? allProgramItems[0];
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -293,6 +296,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
   useEffect(() => {
     const sync = () => {
       const visibility = readProgramVisibility();
+      setCurrentVisibility(visibility);
       const nextByProgram = visibleLevelsForItems(visibility);
       setVisibleLevelsByProgram(nextByProgram);
       const currentLevels = nextByProgram[activeView.programKey] ?? [];
@@ -305,7 +309,9 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
     };
     sync();
     fetchProgramVisibility().then((serverVisibility) => {
-      const nextByProgram = visibleLevelsForItems({ ...serverVisibility, ...readProgramVisibility() });
+      const mergedVisibility = { ...serverVisibility, ...readProgramVisibility() };
+      setCurrentVisibility(mergedVisibility);
+      const nextByProgram = visibleLevelsForItems(mergedVisibility);
       setVisibleLevelsByProgram(nextByProgram);
     });
     window.addEventListener("storage", sync);
@@ -317,7 +323,13 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
   }, [activeView.level, activeView.programKey, allProgramItems]);
   const activeLevel = activeView.level;
   const activeVisibleLevels = visibleLevelsByProgram[activeProgram.visibilityKey] ?? [];
-  const visible = activeProgram.courses.filter((course) => course.level === activeLevel);
+  const visible = activeProgram.courses.filter((course) =>
+    course.level === activeLevel &&
+    isCoursePublic(
+      { department, programName: activeProgram.programName, level: course.level, code: course.code },
+      currentVisibility,
+    )
+  );
   const courseSections = [
     {
       key: "common",

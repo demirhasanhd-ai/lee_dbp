@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ClipboardCheck,
   ClipboardList,
+  Eye,
   HardDrive,
   Plus,
   Save,
@@ -29,6 +30,7 @@ import { ProgramPublishControl } from "./ProgramPublishControl";
 import { QualityReports } from "./QualityReports";
 import { ReviewQueue } from "./ReviewQueue";
 import { DatabaseAdminPanel } from "./DatabaseAdminPanel";
+import { ViewStatsAdminPanel } from "./ViewStatsAdminPanel";
 import { CommitteeManagement } from "./CommitteeManagement";
 import { ThemeToggle } from "../ThemeToggle";
 import { LEE_PROGRAMS, type LeeProgram } from "../../lib/data/programs";
@@ -710,6 +712,8 @@ export function RoleDashboard() {
                   <Users size={16} />
                 ) : module === "quality_reports" ? (
                   <ShieldCheck size={16} />
+                ) : module === "view_stats_admin" ? (
+                  <Eye size={16} />
                 ) : module === "database_admin" ? (
                   <HardDrive size={16} />
                 ) : (
@@ -1077,6 +1081,7 @@ export function RoleDashboard() {
         )}
         {active === "publish_control" && <ProgramPublishControl onSave={save} session={session} />}
         {active === "quality_reports" && <QualityReports />}
+        {active === "view_stats_admin" && <ViewStatsAdminPanel />}
         {active === "database_admin" && <DatabaseAdminPanel />}
         {(active === "permission_matrix" || active === "user_roles") && (
           <section>

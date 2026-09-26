@@ -12,6 +12,7 @@ import { BibliometricsMenu } from "./BibliometricsMenu";
 import { PublicSiteHeader } from "./PublicSiteHeader";
 import { ProgramDirectory } from "./ProgramDirectory";
 import { HomeLiveStats } from "./HomeLiveStats";
+import { FooterVisitCount } from "./FooterVisitCount";
 import { dbpPath } from "../lib/dbpPath";
 import { APP_VERSION } from "../lib/appVersion";
 
@@ -88,7 +89,19 @@ export default function Home() {
         </section>
       </div>
 
-      <footer className="oku-footer"><div><span className="footer-logo"><img src={dbpPath("/oku-logo.png")} alt="OKÜ"/></span><div><strong>LEE Bilgi Sistemi</strong><p>Osmaniye Korkut Ata Üniversitesi Lisansüstü Eğitim Enstitüsü</p></div></div><div><a href={dbpPath("/katalog")}>Ders Kataloğu</a><a href="https://e-enstitu.osmaniye.edu.tr/" target="_blank" rel="noopener noreferrer">e-Enstitü</a><a href="https://osmaniye.edu.tr" target="_blank" rel="noopener noreferrer">OKÜ Web Sitesi</a><span className="version-text">Versiyon: {APP_VERSION}</span></div></footer>
+      <footer className="oku-footer">
+        <div>
+          <span className="footer-logo"><img src={dbpPath("/oku-logo.png")} alt="OKÜ"/></span>
+          <div><strong>LEE Bilgi Sistemi</strong><p>Osmaniye Korkut Ata Üniversitesi Lisansüstü Eğitim Enstitüsü</p></div>
+        </div>
+        <div>
+          <FooterVisitCount />
+          <a href={dbpPath("/katalog")}>Ders Kataloğu</a>
+          <a href="https://e-enstitu.osmaniye.edu.tr/" target="_blank" rel="noopener noreferrer">e-Enstitü</a>
+          <a href="https://osmaniye.edu.tr" target="_blank" rel="noopener noreferrer">OKÜ Web Sitesi</a>
+          <span className="version-text">Versiyon: {APP_VERSION}</span>
+        </div>
+      </footer>
     </main>
   );
 }

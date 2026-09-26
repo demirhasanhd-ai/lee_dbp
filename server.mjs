@@ -2,6 +2,7 @@ import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
@@ -130,6 +131,7 @@ const dbpModules = [
   "review_queue",
   "publish_control",
   "quality_reports",
+  "view_stats_admin",
   "database_admin",
   "user_roles",
   "permission_matrix",
@@ -141,9 +143,22 @@ const defaultRoleAccess = {
   abd_sekreteri: ["review_queue"],
   lee_ogrenci_isleri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
   enstitu_sekreteri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
-  enstitu_yoneticisi: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports"],
-  admin: ["my_courses", "database_admin", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "user_roles", "permission_matrix"],
+  enstitu_yoneticisi: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports", "view_stats_admin"],
+  admin: ["my_courses", "database_admin", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "view_stats_admin", "user_roles", "permission_matrix"],
 };
+
+const viewStatTypes = {
+  home: "Ana Sayfa",
+  anabilimdali: "Ana Bilim / Ana Sanat Dalı",
+  ders: "Ders",
+  kalite_gostergeleri: "Kalite Göstergeleri",
+  tez_ska_analiz: "TEZ_SKA Analiz",
+  bib_scopus: "Bibliyometrik Göstergeler - Scopus",
+  bib_tr_dizin: "Bibliyometrik Göstergeler - TR Dizin",
+  bib_doktora: "Bibliyometrik Göstergeler - Doktora",
+};
+
+const statsManagerRoles = new Set(["admin", "enstitu_yoneticisi"]);
 
 const testProgramSeed = {
   mainDepartment: "Test ABD",
@@ -711,10 +726,9 @@ function coursePackageFallback(url, { code, name, program }) {
 
 function coursePackagePdfPayload({ code, name, department, programName, level, publicOnly = false }) {
   const rows = courseRowsForIdentity({ code, department, programName, level });
-  const row = rows.find((item) =>
-    isPublicCourseStatus(item.status || "") &&
-    item.package_json && item.package_json !== "{}"
-  ) || (!publicOnly ? rows.find((item) => item.package_json && item.package_json !== "{}") : null);
+  const visibility = getPublicVisibilityMap();
+  const row = rows.find((item) => hasPublicReadableCoursePackage(item, visibility)) ||
+    (!publicOnly ? rows.find((item) => item.package_json && item.package_json !== "{}") : null);
   if (!row) {
     if (publicOnly) return null;
     const seedPackage = findSeedPackageForCode(readCoursePackageSeeds(), code);
@@ -812,7 +826,8 @@ async function coursePdfResponse(request, url) {
 
   const identity = { code, department, programName: program, level };
   const rows = courseRowsForIdentity(identity);
-  const hasPublicPackage = rows.some((row) => isPublicCourseStatus(row.status || "") && row.package_json && row.package_json !== "{}");
+  const visibility = getPublicVisibilityMap();
+  const hasPublicPackage = rows.some((row) => hasPublicReadableCoursePackage(row, visibility));
   let publicOnly = true;
   if (!hasPublicPackage && rows.length) {
     const auth = requireDbpSession(request);
@@ -901,6 +916,14 @@ function requireAdmin(request) {
   const session = parseSession(request);
   if (session?.role !== "admin") {
     return { error: jsonResponse({ message: "Bu işlem için admin rolü gerekir." }, { status: 403 }) };
+  }
+  return { session };
+}
+
+function requireStatsManager(request) {
+  const session = parseSession(request);
+  if (!statsManagerRoles.has(session?.role)) {
+    return { error: jsonResponse({ message: "Bu işlem için admin veya enstitü yöneticisi rolü gerekir." }, { status: 403 }) };
   }
   return { session };
 }
@@ -3379,6 +3402,31 @@ async function ensureDb() {
       payload_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS page_view_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_uuid TEXT NOT NULL UNIQUE,
+      viewed_at TEXT NOT NULL,
+      year_month TEXT NOT NULL,
+      view_type TEXT NOT NULL,
+      item_id TEXT NOT NULL DEFAULT '',
+      item_title TEXT NOT NULL DEFAULT '',
+      path TEXT NOT NULL DEFAULT '',
+      ip TEXT,
+      user_agent TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_page_view_events_month_type ON page_view_events(year_month, view_type);
+    CREATE INDEX IF NOT EXISTS idx_page_view_events_item ON page_view_events(view_type, item_id);
+    CREATE TABLE IF NOT EXISTS page_view_monthly_stats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      year_month TEXT NOT NULL,
+      view_type TEXT NOT NULL,
+      item_id TEXT NOT NULL DEFAULT '',
+      item_title TEXT NOT NULL DEFAULT '',
+      view_count INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      UNIQUE(year_month, view_type, item_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_page_view_monthly_stats_type ON page_view_monthly_stats(view_type, year_month);
   `);
   seedInitialData();
   syncCourseCatalogFromSeed();
@@ -3481,6 +3529,189 @@ function countRows(table) {
 function audit(action, actor, payload = {}) {
   db.prepare("INSERT INTO audit_logs(action, actor, payload_json, created_at) VALUES (?, ?, ?, ?)")
     .run(action, actor || null, JSON.stringify(payload), new Date().toISOString());
+}
+
+function yearMonthFromIso(value) {
+  const text = String(value || "");
+  return /^\d{4}-\d{2}/.test(text) ? text.slice(0, 7) : new Date().toISOString().slice(0, 7);
+}
+
+function normalizeViewStatType(value) {
+  const type = String(value || "").trim();
+  return Object.hasOwn(viewStatTypes, type) ? type : "";
+}
+
+function normalizeViewEventRow(row = {}) {
+  const viewedAt = String(row.viewed_at || row.viewedAt || new Date().toISOString());
+  return {
+    eventUuid: String(row.event_uuid || row.eventUuid || randomUUID()),
+    viewedAt,
+    yearMonth: String(row.year_month || row.yearMonth || yearMonthFromIso(viewedAt)),
+    viewType: normalizeViewStatType(row.view_type || row.viewType),
+    itemId: String(row.item_id ?? row.itemId ?? ""),
+    itemTitle: repairText(String(row.item_title ?? row.itemTitle ?? "")),
+    path: String(row.path || ""),
+    ip: row.ip ? String(row.ip) : null,
+    userAgent: row.user_agent || row.userAgent ? String(row.user_agent || row.userAgent) : null,
+  };
+}
+
+function incrementPageViewSummary({ yearMonth, viewType, itemId = "", itemTitle = "" }) {
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO page_view_monthly_stats(year_month, view_type, item_id, item_title, view_count, updated_at)
+    VALUES (?, ?, ?, ?, 1, ?)
+    ON CONFLICT(year_month, view_type, item_id) DO UPDATE SET
+      item_title = CASE
+        WHEN excluded.item_title <> '' THEN excluded.item_title
+        ELSE page_view_monthly_stats.item_title
+      END,
+      view_count = page_view_monthly_stats.view_count + 1,
+      updated_at = excluded.updated_at
+  `).run(yearMonth, viewType, itemId, itemTitle, now);
+}
+
+function logPageView(input = {}) {
+  const row = normalizeViewEventRow(input);
+  if (!row.viewType) return { ok: false, inserted: false };
+  const result = db.prepare(`
+    INSERT OR IGNORE INTO page_view_events(event_uuid, viewed_at, year_month, view_type, item_id, item_title, path, ip, user_agent)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(row.eventUuid, row.viewedAt, row.yearMonth, row.viewType, row.itemId, row.itemTitle, row.path, row.ip, row.userAgent);
+  if (result.changes) incrementPageViewSummary(row);
+  return { ok: true, inserted: Boolean(result.changes) };
+}
+
+function rebuildPageViewMonthlyStats() {
+  const now = new Date().toISOString();
+  db.exec("DELETE FROM page_view_monthly_stats");
+  db.prepare(`
+    INSERT INTO page_view_monthly_stats(year_month, view_type, item_id, item_title, view_count, updated_at)
+    SELECT
+      year_month,
+      view_type,
+      COALESCE(item_id, ''),
+      COALESCE(NULLIF(MAX(item_title), ''), ''),
+      COUNT(*),
+      ?
+    FROM page_view_events
+    GROUP BY year_month, view_type, COALESCE(item_id, '')
+  `).run(now);
+}
+
+function publicViewStats() {
+  const totals = db.prepare(`
+    SELECT view_type, SUM(view_count) AS count
+    FROM page_view_monthly_stats
+    GROUP BY view_type
+  `).all().map((row) => ({
+    viewType: row.view_type,
+    label: viewStatTypes[row.view_type] || row.view_type,
+    count: Number(row.count || 0),
+  }));
+  const monthly = db.prepare(`
+    SELECT year_month, view_type, item_id, item_title, view_count
+    FROM page_view_monthly_stats
+    ORDER BY year_month DESC, view_count DESC, view_type ASC, item_title ASC
+  `).all().map((row) => ({
+    yearMonth: row.year_month,
+    viewType: row.view_type,
+    label: viewStatTypes[row.view_type] || row.view_type,
+    itemId: row.item_id || "",
+    itemTitle: repairText(row.item_title || ""),
+    count: Number(row.view_count || 0),
+  }));
+  const months = [...new Set(monthly.map((row) => row.yearMonth))].sort().reverse();
+  const topItems = db.prepare(`
+    SELECT view_type, item_id, COALESCE(NULLIF(MAX(item_title), ''), '') AS item_title, SUM(view_count) AS count
+    FROM page_view_monthly_stats
+    WHERE item_id <> ''
+    GROUP BY view_type, item_id
+    ORDER BY view_type ASC, count DESC, item_title ASC
+  `).all().map((row) => ({
+    viewType: row.view_type,
+    label: viewStatTypes[row.view_type] || row.view_type,
+    itemId: row.item_id || "",
+    itemTitle: repairText(row.item_title || ""),
+    count: Number(row.count || 0),
+  }));
+  return {
+    generatedAt: new Date().toISOString(),
+    labels: viewStatTypes,
+    totalEvents: countRows("page_view_events"),
+    totals,
+    months,
+    monthly,
+    topItems,
+  };
+}
+
+function pageViewExportData() {
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    labels: viewStatTypes,
+    events: tableRows("page_view_events"),
+    monthlyStats: tableRows("page_view_monthly_stats"),
+  };
+}
+
+function importPageViewExport(payload, actor = "stats-manager") {
+  const events = Array.isArray(payload?.events)
+    ? payload.events
+    : Array.isArray(payload?.tables?.page_view_events)
+      ? payload.tables.page_view_events
+      : [];
+  if (!events.length) throw new Error("Geçerli görüntülenme istatistiği yedeği bulunamadı.");
+  let inserted = 0;
+  let skipped = 0;
+  db.exec("BEGIN");
+  try {
+    for (const source of events) {
+      const row = normalizeViewEventRow(source);
+      if (!row.viewType) {
+        skipped += 1;
+        continue;
+      }
+      const result = db.prepare(`
+        INSERT OR IGNORE INTO page_view_events(event_uuid, viewed_at, year_month, view_type, item_id, item_title, path, ip, user_agent)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(row.eventUuid, row.viewedAt, row.yearMonth, row.viewType, row.itemId, row.itemTitle, row.path, row.ip, row.userAgent);
+      if (result.changes) inserted += 1;
+      else skipped += 1;
+    }
+    rebuildPageViewMonthlyStats();
+    audit("page_view_stats.import", actor, { inserted, skipped });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  return { inserted, skipped };
+}
+
+function csvEscape(value) {
+  const text = String(value ?? "");
+  return /[",\r\n;]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function pageViewStatsCsv() {
+  const rows = db.prepare(`
+    SELECT year_month, view_type, item_id, item_title, view_count
+    FROM page_view_monthly_stats
+    ORDER BY year_month DESC, view_type ASC, view_count DESC
+  `).all();
+  const lines = [["Ay", "Kategori", "Öğe ID", "Başlık", "Görüntülenme"].map(csvEscape).join(";")];
+  for (const row of rows) {
+    lines.push([
+      row.year_month,
+      viewStatTypes[row.view_type] || row.view_type,
+      row.item_id || "",
+      repairText(row.item_title || ""),
+      row.view_count || 0,
+    ].map(csvEscape).join(";"));
+  }
+  return lines.join("\r\n");
 }
 
 function isKnownRole(role) {
@@ -4228,6 +4459,7 @@ function dbCourseList(filters = {}) {
       ...course,
       workflow: courseWorkflowSummaryFromSubmit(latestSubmitByTarget.get(workflowTarget(course)) || null),
     }))
+    .filter((course) => !filters.publicVisible || isCoursePubliclyVisible(course))
     .filter((course) => courseMatchesFilters(course, filters))
     .sort((left, right) =>
       `${left.department}|${left.programName}|${left.level}|${left.code}`.localeCompare(
@@ -5318,8 +5550,69 @@ function normalizePublicRouteSegment(value = "") {
     .replace(/[^a-z0-9]+/g, "");
 }
 
+function visibilitySlug(value = "") {
+  return repairText(String(value || ""))
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replaceAll("ç", "c")
+    .replaceAll("ğ", "g")
+    .replaceAll("ı", "i")
+    .replaceAll("ö", "o")
+    .replaceAll("ş", "s")
+    .replaceAll("ü", "u")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function programVisibilityKeyFor(course = {}) {
+  return visibilitySlug(`${course.department || ""}-${course.programName || course.program_name || ""}`);
+}
+
+function programLevelVisibilityKeyFromKey(programKey, level = "") {
+  return `${programKey}__${String(level).toLocaleLowerCase("tr-TR").replace(/\s+/g, "-")}`;
+}
+
+function courseVisibilityKeyFor(course = {}) {
+  return `${programLevelVisibilityKeyFromKey(programVisibilityKeyFor(course), course.level || "")}__course__${normalizePublicRouteSegment(course.code || "")}`;
+}
+
+function courseContentVisibilityKeyFor(course = {}) {
+  return `${courseVisibilityKeyFor(course)}__content`;
+}
+
+function isVisibilityKeyPublic(key, visibility = getPublicVisibilityMap()) {
+  if (Object.hasOwn(visibility, key)) return visibility[key] !== false;
+  return key !== testProgramSeed.visibilityKey;
+}
+
+function isProgramLevelVisibleForCourse(course = {}, visibility = getPublicVisibilityMap()) {
+  const programKey = programVisibilityKeyFor(course);
+  const levelKeyValue = programLevelVisibilityKeyFromKey(programKey, course.level || "");
+  if (Object.hasOwn(visibility, levelKeyValue)) return visibility[levelKeyValue] !== false;
+  return isVisibilityKeyPublic(programKey, visibility);
+}
+
+function isCoursePubliclyVisible(course = {}, visibility = getPublicVisibilityMap()) {
+  if (!isProgramLevelVisibleForCourse(course, visibility)) return false;
+  const key = courseVisibilityKeyFor(course);
+  return Object.hasOwn(visibility, key) ? visibility[key] !== false : true;
+}
+
+function isCourseContentPublicOverride(course = {}, visibility = getPublicVisibilityMap()) {
+  return visibility[courseContentVisibilityKeyFor(course)] === true;
+}
+
 function isPublicCourseStatus(value = "") {
   return ["Yayımlandı", "Yayınlandı", "Public"].includes(repairText(value));
+}
+
+function hasPublicReadableCoursePackage(row, visibility = getPublicVisibilityMap()) {
+  if (!row?.package_json || row.package_json === "{}") return false;
+  if (isPublicCourseStatus(row.status || "")) return true;
+  const course = normalizeDbCourseForList(courseFromRow(row)) || row;
+  return isDepartmentPoolCourseRecord(row) && isCourseContentPublicOverride(course, visibility);
 }
 
 function publicCourseRouteIndex() {
@@ -5348,7 +5641,7 @@ function publicCourseRouteIndex() {
   return index;
 }
 
-function publicCourseForRoute({ routeCode = "", department = "", programName = "", level = "" }) {
+function publicCourseForRoute({ routeCode = "", department = "", programName = "", level = "" }, options = {}) {
   const normalizedRouteCode = normalizePublicRouteSegment(routeCode);
   if (!normalizedRouteCode || !department || !programName || !level) return null;
   const key = [
@@ -5361,6 +5654,7 @@ function publicCourseForRoute({ routeCode = "", department = "", programName = "
   for (const row of rows) {
     const course = normalizeDbCourseForList(courseFromRow(row));
     if (!course || normalizePublicRouteSegment(course.code) !== normalizedRouteCode) continue;
+    if (options.publicVisibleOnly && !isCoursePubliclyVisible(course)) continue;
     return { course, row };
   }
   return null;
@@ -5879,6 +6173,8 @@ function exportData() {
       workflow_requests: tableRows("workflow_requests"),
       attachments: tableRows("attachments"),
       audit_logs: tableRows("audit_logs"),
+      page_view_events: tableRows("page_view_events"),
+      page_view_monthly_stats: tableRows("page_view_monthly_stats"),
     },
   };
 }
@@ -5890,7 +6186,7 @@ function replaceFromExport(payload, actor = "admin") {
   const now = new Date().toISOString();
   db.exec("BEGIN");
   try {
-    for (const table of ["metadata", "user_roles", "users", "role_module_access", "committee_members", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
+    for (const table of ["metadata", "user_roles", "users", "role_module_access", "committee_members", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs", "page_view_events", "page_view_monthly_stats"]) {
       db.exec(`DELETE FROM ${table}`);
     }
     const insertMetadata = db.prepare("INSERT INTO metadata(key, value) VALUES (?, ?)");
@@ -5961,6 +6257,15 @@ function replaceFromExport(payload, actor = "admin") {
     for (const row of payload.tables.attachments || []) insertAttachment.run(row.id || null, row.entity_type, row.entity_id || null, row.file_name, row.path, row.mime_type || "", row.size || 0, row.created_at || now);
     const insertAudit = db.prepare("INSERT INTO audit_logs(id, action, actor, payload_json, created_at) VALUES (?, ?, ?, ?, ?)");
     for (const row of payload.tables.audit_logs || []) insertAudit.run(row.id || null, row.action, row.actor || "", row.payload_json || "{}", row.created_at || now);
+    const insertViewEvent = db.prepare(`
+      INSERT OR IGNORE INTO page_view_events(id, event_uuid, viewed_at, year_month, view_type, item_id, item_title, path, ip, user_agent)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const source of payload.tables.page_view_events || []) {
+      const row = normalizeViewEventRow(source);
+      if (row.viewType) insertViewEvent.run(source.id || null, row.eventUuid, row.viewedAt, row.yearMonth, row.viewType, row.itemId, row.itemTitle, row.path, row.ip, row.userAgent);
+    }
+    rebuildPageViewMonthlyStats();
     audit("import.replace", actor, { programs: payload.tables.programs.length, courses: payload.tables.courses.length });
     db.exec("COMMIT");
   } catch (error) {
@@ -5974,7 +6279,7 @@ function replaceFromExport(payload, actor = "admin") {
 function resetDatabase(actor) {
   db.exec("BEGIN");
   try {
-    for (const table of ["committee_members", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
+    for (const table of ["committee_members", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs", "page_view_events", "page_view_monthly_stats"]) {
       db.exec(`DELETE FROM ${table}`);
     }
     db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("seeded_from_current_data", "reset_empty");
@@ -6033,6 +6338,8 @@ async function adminSummary() {
       workflowRequests: countRows("workflow_requests"),
       attachments: countRows("attachments"),
       auditLogs: countRows("audit_logs"),
+      pageViewEvents: countRows("page_view_events"),
+      pageViewMonthlyStats: countRows("page_view_monthly_stats"),
       backups: (await listBackups()).length,
     },
     statusRows,
@@ -6322,6 +6629,7 @@ async function handleDbpApi(request) {
         programName: url.searchParams.get("programName") || "",
         level: url.searchParams.get("level") || "",
         instructor: url.searchParams.get("instructor") || "",
+        publicVisible: ["1", "true"].includes((url.searchParams.get("publicVisible") || "").toLocaleLowerCase("tr-TR")),
       };
       const limit = Math.max(0, Number(url.searchParams.get("limit") || 0));
       const courses = dbCourseList(filters);
@@ -6387,6 +6695,41 @@ async function handleDbpApi(request) {
 
     if (pathname === "/api/dbp/home-stats" && request.method === "GET") {
       return jsonResponse(await cachedHomeStats());
+    }
+
+    if (pathname === "/api/dbp/view-stats" && request.method === "GET") {
+      return jsonResponse(publicViewStats());
+    }
+
+    if (pathname === "/api/dbp/view-stats/export.json" && request.method === "GET") {
+      const auth = requireStatsManager(request);
+      if (auth.error) return auth.error;
+      const payload = JSON.stringify(pageViewExportData(), null, 2);
+      return new Response(payload, {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Disposition": `attachment; filename="dbp-view-stats-${new Date().toISOString().slice(0, 10)}.json"`,
+        },
+      });
+    }
+
+    if (pathname === "/api/dbp/view-stats/export.csv" && request.method === "GET") {
+      const auth = requireStatsManager(request);
+      if (auth.error) return auth.error;
+      return new Response(pageViewStatsCsv(), {
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="dbp-view-stats-${new Date().toISOString().slice(0, 10)}.csv"`,
+        },
+      });
+    }
+
+    if (pathname === "/api/dbp/view-stats/import" && request.method === "POST") {
+      const auth = requireStatsManager(request);
+      if (auth.error) return auth.error;
+      const actor = auth.session?.username || auth.session?.name || "stats-manager";
+      const payload = await readJsonBody(request);
+      return jsonResponse({ ok: true, result: importPageViewExport(payload, actor), stats: publicViewStats() });
     }
 
     if (pathname === "/api/dbp/quality-stats" && request.method === "GET") {
@@ -6520,13 +6863,11 @@ async function handleDbpApi(request) {
       if (!query.routeCode || !query.department || !query.programName || !query.level) {
         return jsonResponse({ message: "Ders kodu, ABD/ASD, program ve düzey zorunludur." }, { status: 400 });
       }
-      const found = publicCourseForRoute(query);
+      const found = publicCourseForRoute(query, { publicVisibleOnly: true });
       if (!found) {
         return jsonResponse({ message: "Ders seçilen programın müfredatında bulunamadı." }, { status: 404 });
       }
-      const hasPublicPackage = isPublicCourseStatus(found.row.status || "") &&
-        found.row.package_json &&
-        found.row.package_json !== "{}";
+      const hasPublicPackage = hasPublicReadableCoursePackage(found.row);
       return jsonResponse({
         course: found.course,
         package: hasPublicPackage
@@ -6550,6 +6891,12 @@ async function handleDbpApi(request) {
       if (!query.code || !query.level) return jsonResponse({ message: "Ders kodu ve düzeyi zorunludur." }, { status: 400 });
       const rows = courseRowsForIdentity(query);
       const publicOnly = url.searchParams.get("public") === "1";
+      if (publicOnly) {
+        const visibleCandidate = rows.map((row) => normalizeDbCourseForList(courseFromRow(row))).find(Boolean);
+        if (visibleCandidate && !isCoursePubliclyVisible(visibleCandidate)) {
+          return jsonResponse({ message: "Yayımlanmış ders bilgi paketi bulunamadı." }, { status: 404 });
+        }
+      }
       if (!publicOnly) {
         const auth = requireDbpSession(request);
         if (auth.error) return auth.error;
@@ -6559,7 +6906,7 @@ async function handleDbpApi(request) {
       }
       const row = rows.find((item) => {
         if (!publicOnly) return item.package_json && item.package_json !== "{}";
-        return ["Yayımlandı", "Yayınlandı", "Public"].includes(repairText(item.status || "")) && item.package_json && item.package_json !== "{}";
+        return hasPublicReadableCoursePackage(item);
       });
       if (!row) {
         const latest = rows[0];
@@ -6887,7 +7234,7 @@ function publicCourseRouteContext(pathname) {
     department: entry.department,
     programName,
     level,
-  });
+  }, { publicVisibleOnly: true });
   return {
     matched: true,
     found,
@@ -6895,15 +7242,93 @@ function publicCourseRouteContext(pathname) {
   };
 }
 
+function publicProgramRouteContext(pathname) {
+  const parts = stripBasePath(pathname).split("/").filter(Boolean).map((part) => decodeURIComponent(part));
+  if (![1, 2].includes(parts.length)) return null;
+  const alias = normalizePublicRouteSegment(parts[0]);
+  const entry = publicRouteAliases[alias];
+  if (!entry) return null;
+  if (parts.length === 1) {
+    return {
+      itemId: alias,
+      itemTitle: repairText(entry.department || entry.title || alias),
+    };
+  }
+  const levelCode = normalizePublicRouteSegment(parts[1]);
+  const programName = entry.programs?.[levelCode];
+  const level = publicRouteLevels[levelCode];
+  if (!programName || !level) return null;
+  return {
+    itemId: `${alias}/${levelCode}`,
+    itemTitle: repairText(`${entry.department} / ${programName} / ${level}`),
+  };
+}
+
+function pageViewContextForPath(pathname) {
+  const stripped = stripBasePath(pathname).replace(/\/+$/g, "") || "/";
+  if (stripped.startsWith("/api/") || stripped.startsWith("/assets/")) return null;
+  if (stripped === "/") return { viewType: "home", itemId: "home", itemTitle: "Ana Sayfa" };
+  if (stripped === "/kalite") return { viewType: "kalite_gostergeleri", itemId: "kalite", itemTitle: "Kalite Göstergeleri" };
+  if (stripped === "/tez-ska") return { viewType: "tez_ska_analiz", itemId: "tez-ska", itemTitle: "TEZ_SKA Analiz" };
+  if (stripped === "/article") return { viewType: "bib_scopus", itemId: "article", itemTitle: "Scopus Tabanlı Bibliyometrik Göstergeler" };
+  if (stripped === "/yayin") return { viewType: "bib_tr_dizin", itemId: "yayin", itemTitle: "TR Dizin Tabanlı Bibliyometrik Göstergeler" };
+  if (stripped === "/article/doktora") return { viewType: "bib_doktora", itemId: "article/doktora", itemTitle: "Doktora Tabanlı Bibliyometrik Göstergeler" };
+  const courseRoute = publicCourseRouteContext(pathname);
+  if (courseRoute?.found?.course) {
+    const course = courseRoute.found.course;
+    return {
+      viewType: "ders",
+      itemId: courseRoute.canonicalPath.replace(`${basePath}/`, ""),
+      itemTitle: repairText(`${course.code} - ${course.name} / ${course.programName} / ${course.level}`),
+    };
+  }
+  const programRoute = publicProgramRouteContext(pathname);
+  if (programRoute) return { viewType: "anabilimdali", ...programRoute };
+  return null;
+}
+
+function pageViewContextForCatalogUrl(url) {
+  const stripped = stripBasePath(url.pathname).replace(/\/+$/g, "") || "/";
+  if (stripped !== "/katalog" || !url.searchParams.get("ders")) return null;
+  const code = repairText(url.searchParams.get("ders") || "").trim();
+  const name = repairText(url.searchParams.get("ad") || "");
+  const programName = repairText(url.searchParams.get("program") || "");
+  const level = repairText(url.searchParams.get("duzey") || "");
+  return {
+    viewType: "ders",
+    itemId: `katalog/${normalizePublicRouteSegment(`${programName}-${level}-${code}`) || normalizePublicRouteSegment(code)}`,
+    itemTitle: [code, name, programName, level].filter(Boolean).join(" / "),
+  };
+}
+
+function requestClientIp(request) {
+  const forwarded = request.headers.get("x-forwarded-for") || "";
+  return forwarded.split(",")[0]?.trim() || request.headers.get("cf-connecting-ip") || request.headers.get("x-real-ip") || "";
+}
+
+function trackPageViewRequest(request) {
+  if (request.method !== "GET") return;
+  const url = new URL(request.url);
+  const context = pageViewContextForPath(url.pathname) || pageViewContextForCatalogUrl(url);
+  if (!context) return;
+  logPageView({
+    ...context,
+    path: `${stripBasePath(url.pathname)}${url.search}`,
+    ip: requestClientIp(request),
+    userAgent: request.headers.get("user-agent") || "",
+  });
+}
+
 function shouldRedirectToBasePath(pathname) {
   if (pathname === "/" || pathname === basePath || pathname.startsWith(`${basePath}/`)) return false;
   if (pathname.startsWith("/api/")) return false;
-  const publicRootPaths = new Set(["/sso", "/panel", "/yonetim", "/katalog"]);
+  const publicRootPaths = new Set(["/sso", "/panel", "/yonetim", "/katalog", "/kalite", "/tez-ska", "/article", "/yayin", "/goruntulenme-istatistigi"]);
   if (publicRootPaths.has(pathname)) return true;
   return pathname.startsWith("/sso/") ||
     pathname.startsWith("/panel/") ||
     pathname.startsWith("/yonetim/") ||
     pathname.startsWith("/katalog/") ||
+    pathname.startsWith("/article/") ||
     pathname.startsWith("/programlar/");
 }
 
@@ -7108,6 +7533,10 @@ createServer(async (req, res) => {
         res.end();
         return;
       }
+    }
+
+    if (req.method === "GET") {
+      trackPageViewRequest(nodeRequestToWeb(req));
     }
 
     const apiResponse = await handleDbpApi(nodeRequestToWeb(req));
