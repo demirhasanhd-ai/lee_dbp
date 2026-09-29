@@ -6,9 +6,11 @@ import { LEE_PROGRAMS, MAIN_DEPARTMENTS, programSlug } from "../lib/data/program
 import { dbpPath } from "../lib/dbpPath";
 import { publicProgramHref } from "../lib/data/publicRoutes";
 import {
+  DEFAULT_HIDDEN_PROGRAM_KEYS,
   fetchProgramVisibility,
   publicLevelsForProgram,
   readProgramVisibility,
+  programVisibilityKey,
   type ProgramVisibilityMap,
 } from "../lib/data/publicVisibility";
 
@@ -46,7 +48,10 @@ export function ProgramDirectory() {
   }, []);
 
   const publicPrograms = useMemo(
-    () => LEE_PROGRAMS.filter((item) => publicLevelsForProgram(item, visibility).length > 0),
+    () => LEE_PROGRAMS.filter((item) =>
+      !DEFAULT_HIDDEN_PROGRAM_KEYS.has(programVisibilityKey(item)) &&
+      publicLevelsForProgram(item, visibility).length > 0,
+    ),
     [visibility],
   );
 
