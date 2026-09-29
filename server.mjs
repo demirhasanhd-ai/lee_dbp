@@ -720,7 +720,7 @@ function officialStudentStatisticsSnapshot(snapshot) {
 
   return {
     ...snapshot,
-    snapshotVersion: 4,
+    snapshotVersion: 5,
     catalogSource: "lee_dbp_programs",
     catalogProgramCount: catalog.length,
     ignoredSourceProgramCount: Math.max(0, sourcePrograms.length - consumed.size),
