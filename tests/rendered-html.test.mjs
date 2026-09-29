@@ -81,9 +81,9 @@ test("TEZ_SKA Analiz menüde kalite göstergeleri ile duyurular arasında yer al
   ]);
 
   assert.match(homeSource, /<PublicSiteHeader active="home" \/>/u);
-  const qualityIndex = headerSource.indexOf("Kalite Göstergeleri");
-  const thesisIndex = headerSource.indexOf("TEZ_SKA Analiz");
-  const announcementsIndex = headerSource.indexOf("Duyurular");
+  const qualityIndex = headerSource.indexOf('dbpPath("/kalite")');
+  const thesisIndex = headerSource.indexOf('dbpPath("/tez-ska")');
+  const announcementsIndex = headerSource.indexOf('dbpPath("/#duyurular")');
   assert.ok(qualityIndex >= 0 && qualityIndex < thesisIndex, "TEZ_SKA kalite bağlantısından sonra gelmeli");
   assert.ok(thesisIndex < announcementsIndex, "TEZ_SKA duyurulardan önce gelmeli");
   assert.match(headerSource, /dbpPath\("\/tez-ska"\)/u);
