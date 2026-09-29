@@ -95,7 +95,7 @@ test("TEZ_SKA Analiz menüde kalite göstergeleri ile duyurular arasında yer al
   assert.match(html, /DSpace açık arşivindeki tezleri/u);
 });
 
-test("TEZ_SKA canlı OAI-PMH anlık görüntüsünü kullanır ve Şubat-Eylül takvimini korur", async () => {
+test("TEZ_SKA canlı OAI-PMH anlık görüntüsünü kullanır ve çeyreklik takvimi korur", async () => {
   const [page, server, moduleSource, dockerfile] = await Promise.all([
     readFile(new URL("../app/tez-ska/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../server.mjs", import.meta.url), "utf8"),
@@ -108,8 +108,8 @@ test("TEZ_SKA canlı OAI-PMH anlık görüntüsünü kullanır ve Şubat-Eylül 
   assert.match(server, /scheduleThesisRefresh\(\)/u);
   assert.match(moduleSource, /metadataPrefix", "dim"/u);
   assert.match(moduleSource, /resumptionToken/u);
-  assert.match(moduleSource, /Şubat ortasındaki Pazartesi 01:00/u);
-  assert.match(moduleSource, /Eylül ayının son Pazartesi günü 01:00/u);
+  assert.match(moduleSource, /31 Mart 01:00/u);
+  assert.match(moduleSource, /31 Aralık 01:00/u);
   assert.match(dockerfile, /COPY lib\/thesisSdg\.mjs \.\/lib\/thesisSdg\.mjs/u);
   assert.match(dockerfile, /VOLUME \["\/app\/data"\]/u);
   assert.match(page, /SKA–Stratejik Plan Uyum Matrisi/u);
@@ -117,7 +117,7 @@ test("TEZ_SKA canlı OAI-PMH anlık görüntüsünü kullanır ve Şubat-Eylül 
   const { displayDepartment, thesisRefreshDates } = await import(new URL("../lib/thesisSdg.mjs", import.meta.url));
   assert.equal(displayDepartment("Enstitüler, Lisansüstü Eğitim Enstitüsü, Makine Mühendisliği Ana Bilim Dalı"), "Makine Mühendisliği ABD");
   assert.equal(displayDepartment("Lisansüstü Eğitim Enstitüsü, Resim Ana Sanat Dalı"), "Resim ASD");
-  assert.deepEqual(thesisRefreshDates(2026).map((date) => date.toISOString()), ["2026-02-08T22:00:00.000Z", "2026-09-27T22:00:00.000Z"]);
+  assert.deepEqual(thesisRefreshDates(2026).map((date) => date.toISOString()), ["2026-03-30T22:00:00.000Z", "2026-06-29T22:00:00.000Z", "2026-09-29T22:00:00.000Z", "2026-12-30T22:00:00.000Z"]);
 });
 
 test("Bibliyometrik Göstergeler menüde TEZ_SKA ile Duyurular arasında yer alır", async () => {
@@ -146,7 +146,7 @@ test("Bibliyometrik Göstergeler menüde TEZ_SKA ile Duyurular arasında yer al�
   assert.match(html, /OKÜ adresli bilimsel yayınların/u);
 });
 
-test("Scopus bibliyometrisi yayınları yılda iki, atıfları haftalık günceller", async () => {
+test("Scopus bibliyometrisi yayınları çeyreklik, atıfları haftalık günceller", async () => {
   const [page, server, source, dockerfile, envExample, launcher] = await Promise.all([
     readFile(new URL("../app/article/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../server.mjs", import.meta.url), "utf8"),
@@ -175,7 +175,7 @@ test("Scopus bibliyometrisi yayınları yılda iki, atıfları haftalık güncel
   assert.match(envExample, /SCOPUS_API_KEY=/u);
   assert.match(launcher, /\.env\.local/u);
   const { scopusRefreshDates } = await import(new URL("../lib/scopusBibliometrics.mjs", import.meta.url));
-  assert.deepEqual(scopusRefreshDates(2026).map((date) => date.toISOString()), ["2026-02-08T22:00:00.000Z", "2026-09-27T22:00:00.000Z"]);
+  assert.deepEqual(scopusRefreshDates(2026).map((date) => date.toISOString()), ["2026-03-30T22:00:00.000Z", "2026-06-29T22:00:00.000Z", "2026-09-29T22:00:00.000Z", "2026-12-30T22:00:00.000Z"]);
 });
 
 test("TR Dizin bibliyometri panosu gerçek PAPER ve PROJECT akışlarını ayırır", async () => {
@@ -200,7 +200,7 @@ test("TR Dizin bibliyometri panosu gerçek PAPER ve PROJECT akışlarını ayır
   assert.ok(source.includes("split(/\\s*>\\s*/u)"));
   assert.match(dockerfile, /COPY lib\/trDizinBibliometrics\.mjs \.\/lib\/trDizinBibliometrics\.mjs/u);
   const { trDizinRefreshDates } = await import(new URL("../lib/trDizinBibliometrics.mjs", import.meta.url));
-  assert.deepEqual(trDizinRefreshDates(2026).map((date) => date.toISOString()), ["2026-02-08T22:00:00.000Z", "2026-09-27T22:00:00.000Z"]);
+  assert.deepEqual(trDizinRefreshDates(2026).map((date) => date.toISOString()), ["2026-03-30T22:00:00.000Z", "2026-06-29T22:00:00.000Z", "2026-09-29T22:00:00.000Z", "2026-12-30T22:00:00.000Z"]);
 });
 
 test("course package sidebar resolves the YBS doctorate context", async () => {
@@ -2035,9 +2035,9 @@ test("kalite göstergeleri enstitü ve program kapsamını canlı DB anlık gör
   assert.match(page, /Yeniden dene/u, "hata ekranı yeniden deneme olanağı sunmalı");
   assert.doesNotMatch(page, /item\.instructor/u, "public kalite ekranında kişi adı gösterilmemeli");
   assert.match(server, /quality_indicators_snapshot_v3/u);
-  assert.match(server, /qualityRefreshDates/u);
-  assert.match(server, /februaryMonday/u);
-  assert.match(server, /septemberMonday/u);
+  assert.match(server, /latestMainDataRefreshDate/u);
+  assert.match(server, /nextMainDataRefreshDate/u);
+  assert.match(server, /refreshRetryDate/u);
   assert.match(server, /api\/dbp\/admin\/quality-refresh/u);
   assert.match(server, /titleLoadStats/u);
   assert.match(server, /packageData\.sdgs/u);
@@ -2050,4 +2050,31 @@ test("kalite göstergeleri enstitü ve program kapsamını canlı DB anlık gör
   assert.match(server, /Ders kodu program düzeyiyle uyumlu değil/u, "yanlış düzey koduyla yeni kayıt engellenmeli");
   assert.doesNotMatch(server, /setInterval\([^)]*quality/iu);
   assert.match(admin, /Kalite ve SKA Göstergelerini Yenile/u);
+});
+
+test("öğrenci göstergeleri yalnız toplulaştırılmış e-Enstitü verisini ve yönetilen güncelleme planını kullanır", async () => {
+  const [page, header, home, server, schedule, dockerfile] = await Promise.all([
+    readFile(new URL("../app/ogrenci-gostergeleri/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/PublicSiteHeader.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../server.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../lib/publicDataRefreshPlan.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /\/api\/dbp\/student-statistics/u);
+  assert.match(page, /privacyThreshold/u);
+  assert.match(page, /Tüm ABD \/ ASD/u);
+  assert.match(page, /Tüm program türleri/u);
+  assert.doesNotMatch(page, /studentNumber|studentTcKimlik/u);
+  assert.match(header, /\/ogrenci-gostergeleri/u);
+  assert.match(home, /Öğrenci Göstergeleri/u);
+  assert.match(server, /student_statistics_snapshot_v1/u);
+  assert.match(server, /api\/public\/dbp\/student-statistics/u);
+  assert.match(server, /refreshRetryDate/u);
+  assert.match(schedule, /quarterlyMonths: \[3, 6, 9, 12\]/u);
+  assert.match(schedule, /latestWeeklyRefreshDate/u);
+  assert.match(dockerfile, /COPY lib\/publicDataRefreshPlan\.mjs/u);
+  const response = await render({}, "/dbp/ogrenci-gostergeleri");
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /Lisansüstü Öğrenci Göstergeleri/u);
 });

@@ -14,7 +14,6 @@ export default function PageViewStatsPage() {
           <h1>Görüntülenme İstatistiği</h1>
           <p>Ana sayfa, ABD / ASD, ders, kalite, TEZ_SKA ve bibliyometrik gösterge sayfalarının aylık erişim sayıları.</p>
         </div>
-        <span>Her sayfa açılışı sayılır</span>
       </section>
       <ViewStatsDashboard />
     </main>

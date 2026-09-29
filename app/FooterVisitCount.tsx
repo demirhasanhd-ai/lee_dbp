@@ -15,8 +15,10 @@ export function FooterVisitCount() {
     })
       .then(async (response) => {
         if (!response.ok) return null;
-        const data = await response.json() as { totalEvents?: number };
-        return typeof data.totalEvents === "number" ? data.totalEvents : null;
+        const data = await response.json() as { totals?: Array<{ viewType: string; count: number }> };
+        if (!Array.isArray(data.totals)) return null;
+        const home = data.totals?.find((row) => row.viewType === "home");
+        return typeof home?.count === "number" ? home.count : 0;
       })
       .then((value) => {
         if (value !== null) setTotal(value);
@@ -30,7 +32,7 @@ export function FooterVisitCount() {
   return (
     <span className="footer-visit-count">
       <Eye size={13} />
-      Toplam ziyaret: <b>{total.toLocaleString("tr-TR")}</b>
+      Ana sayfa ziyareti: <b>{total.toLocaleString("tr-TR")}</b>
     </span>
   );
 }

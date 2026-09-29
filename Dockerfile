@@ -25,6 +25,7 @@ COPY server.mjs ./server.mjs
 COPY lib/thesisSdg.mjs ./lib/thesisSdg.mjs
 COPY lib/scopusBibliometrics.mjs ./lib/scopusBibliometrics.mjs
 COPY lib/trDizinBibliometrics.mjs ./lib/trDizinBibliometrics.mjs
+COPY lib/publicDataRefreshPlan.mjs ./lib/publicDataRefreshPlan.mjs
 COPY lib/data/public-route-aliases.json ./lib/data/public-route-aliases.json
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/local-preview/program-data-local.js ./seed/program-data-local.js

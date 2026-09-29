@@ -10,16 +10,10 @@ import { DatabaseSync } from "node:sqlite";
 import * as cheerio from "cheerio";
 import {
   harvestTheses,
-  latestThesisRefreshDate,
-  nextThesisRefreshDate,
   readThesisSnapshot,
   thesisDashboard,
 } from "./lib/thesisSdg.mjs";
 import {
-  latestScopusCitationRefreshDate,
-  latestScopusRefreshDate,
-  nextScopusCitationRefreshDate,
-  nextScopusRefreshDate,
   readScopusSnapshot,
   rebuildScopusUnitMappings,
   refreshScopusCitations,
@@ -27,14 +21,19 @@ import {
   scopusConfigured,
 } from "./lib/scopusBibliometrics.mjs";
 import {
-  latestTrDizinCitationRefreshDate,
-  latestTrDizinRefreshDate,
-  nextTrDizinCitationRefreshDate,
-  nextTrDizinRefreshDate,
   queryTrDizinRecords,
   readTrDizinSnapshot,
   refreshTrDizinSnapshot,
 } from "./lib/trDizinBibliometrics.mjs";
+import {
+  DEFAULT_PUBLIC_DATA_REFRESH_PLAN,
+  latestQuarterlyRefreshDate,
+  latestWeeklyRefreshDate,
+  nextQuarterlyRefreshDate,
+  nextWeeklyRefreshDate,
+  normalizePublicDataRefreshPlan,
+  publicDataScheduleLabels,
+} from "./lib/publicDataRefreshPlan.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -98,6 +97,11 @@ let trDizinSnapshotCache;
 let trDizinSyncPromise;
 let trDizinRefreshTimer;
 let trDizinCitationRefreshTimer;
+let publicDataRefreshPlan = { ...DEFAULT_PUBLIC_DATA_REFRESH_PLAN };
+let publicDataRefreshPlanTimer;
+let studentStatisticsSnapshotCache;
+let studentStatisticsRefreshPromise;
+let studentStatisticsRefreshTimer;
 
 function openBrowser(url) {
   const child =
@@ -152,6 +156,7 @@ const viewStatTypes = {
   anabilimdali: "Ana Bilim / Ana Sanat Dalı",
   ders: "Ders",
   kalite_gostergeleri: "Kalite Göstergeleri",
+  ogrenci_gostergeleri: "Öğrenci Göstergeleri",
   tez_ska_analiz: "TEZ_SKA Analiz",
   bib_scopus: "Bibliyometrik Göstergeler - Scopus",
   bib_tr_dizin: "Bibliyometrik Göstergeler - TR Dizin",
@@ -296,17 +301,79 @@ function eEnstituDatabaseUrl() {
 }
 
 function eEnstituApiBaseUrls() {
+  const developmentCandidates = process.env.NODE_ENV === "production"
+    ? ["http://e-enstitu:8080", "http://web:8080", "http://localhost:3001"]
+    : ["http://localhost:3001", "http://e-enstitu:8080", "http://web:8080"];
   const candidates = [
     process.env.EENSTITU_API_BASE_URL,
     process.env.NEXT_PUBLIC_EENSTITU_API_BASE_URL,
     process.env.EENSTITU_INTERNAL_API_BASE_URL,
-    "http://e-enstitu:8080",
-    "http://web:8080",
-    "http://localhost:3001",
+    ...developmentCandidates,
   ];
   return [...new Set(candidates
     .map((value) => (value || "").trim().replace(/\/+$/, ""))
     .filter(Boolean))];
+}
+
+function nextMainDataRefreshDate(now = new Date()) {
+  return nextQuarterlyRefreshDate(now, publicDataRefreshPlan);
+}
+
+function latestMainDataRefreshDate(now = new Date()) {
+  return latestQuarterlyRefreshDate(now, publicDataRefreshPlan);
+}
+
+function nextCitationDataRefreshDate(now = new Date()) {
+  return nextWeeklyRefreshDate(now, publicDataRefreshPlan);
+}
+
+function latestCitationDataRefreshDate(now = new Date()) {
+  return latestWeeklyRefreshDate(now, publicDataRefreshPlan);
+}
+
+function managedSchedule() {
+  const labels = publicDataScheduleLabels(publicDataRefreshPlan);
+  return [labels.quarterly, `${labels.timezone} · ${labels.retry}`];
+}
+
+function refreshRetryDate(lastSuccessfulAt, cadence = "quarterly") {
+  const due = cadence === "weekly" ? latestCitationDataRefreshDate() : latestMainDataRefreshDate();
+  const lastSuccessful = lastSuccessfulAt ? new Date(lastSuccessfulAt) : null;
+  if (!publicDataRefreshPlan.retryNextDay || !due || (lastSuccessful && !Number.isNaN(lastSuccessful.getTime()) && lastSuccessful >= due)) return null;
+  return new Date(Date.now() + 24 * 60 * 60 * 1000);
+}
+
+async function refreshPublicDataRefreshPlan() {
+  const timeout = eEnstituDbTimeoutMs();
+  for (const apiBaseUrl of eEnstituApiBaseUrls()) {
+    try {
+      const response = await withTimeout(
+        fetch(`${apiBaseUrl}/api/public/dbp/update-plan`, { cache: "no-store" }),
+        timeout,
+        "e-Enstitu veri güncelleme planı zaman aşımı",
+      );
+      if (!response.ok) continue;
+      const payload = await response.json();
+      publicDataRefreshPlan = normalizePublicDataRefreshPlan(payload?.settings || payload);
+      return publicDataRefreshPlan;
+    } catch {
+      // Bir sonraki yapılandırılmış e-Enstitü adresi denenir; mevcut başarılı plan korunur.
+    }
+  }
+  return publicDataRefreshPlan;
+}
+
+function startPublicDataRefreshPlanPolling() {
+  if (publicDataRefreshPlanTimer) clearInterval(publicDataRefreshPlanTimer);
+  publicDataRefreshPlanTimer = setInterval(async () => {
+    const before = JSON.stringify(publicDataRefreshPlan);
+    await refreshPublicDataRefreshPlan();
+    if (JSON.stringify(publicDataRefreshPlan) !== before) {
+      scheduleQualityRefresh(); scheduleThesisRefresh(); scheduleScopusRefresh(); scheduleScopusCitationRefresh();
+      scheduleTrDizinRefresh(); scheduleTrDizinCitationRefresh(); scheduleStudentStatisticsRefresh();
+    }
+  }, 15 * 60 * 1000);
+  publicDataRefreshPlanTimer.unref?.();
 }
 
 function eEnstituSearchPath() {
@@ -448,6 +515,179 @@ async function loadEEnstituInstructorOptionsFromApi(filters = {}) {
     console.warn(`[dbp] e-Enstitu akademisyen API okunamadi: ${lastError}`);
   }
   return null;
+}
+
+const studentStatisticsSnapshotKey = "student_statistics_snapshot_v1";
+
+function publicStudentLevel(level = "") {
+  const normalized = normalizeScope(level);
+  if (normalized.includes("doktora")) return "Doktora";
+  if (normalized.includes("tezsiz")) return "Tezsiz Yüksek Lisans";
+  if (normalized.includes("tezli")) return "Tezli Yüksek Lisans";
+  return repairText(level).trim() || "Belirtilmemiş";
+}
+
+function studentProgramBaseName(value = "") {
+  return normalizeScope(value)
+    .replace(/\b\(?i\s*o\)?\b/gu, " ")
+    .replace(/\b(tezsiz|tezli)?\s*yuksek\s*lisans\b/gu, " ")
+    .replace(/\bdoktora\b/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function officialStudentProgramCatalog() {
+  const rows = db.prepare(`
+    SELECT department, program_name, levels_json
+    FROM programs
+    ORDER BY department, program_name
+  `).all();
+  return rows
+    .filter((row) => normalizeScope(row.department) !== "test" && normalizeScope(row.program_name) !== "test programi")
+    .flatMap((row) => parseJsonField(row.levels_json, []).map((level) => ({
+      departmentId: `catalog-${normalizeScope(row.department).replace(/\s+/g, "-")}`,
+      department: repairText(row.department).trim(),
+      programName: repairText(row.program_name).trim(),
+      level: publicStudentLevel(level),
+    })));
+}
+
+function officialStudentStatisticsSnapshot(snapshot) {
+  if (!snapshot?.institute) return snapshot;
+  const catalog = officialStudentProgramCatalog();
+  const sourcePrograms = Array.isArray(snapshot.programs) ? snapshot.programs : [];
+  const consumed = new Set();
+
+  const programs = catalog.map((official) => {
+    const departmentKey = normalizeScope(official.department);
+    const programKey = normalizeScope(official.programName);
+    const sourceIndex = sourcePrograms.findIndex((candidate, index) => {
+      if (consumed.has(index) || publicStudentLevel(candidate.level) !== official.level) return false;
+      const candidateDepartment = normalizeScope(candidate.department);
+      const sameDepartment = candidateDepartment === departmentKey;
+      const sameProgram = studentProgramBaseName(candidate.programName) === programKey;
+      return sameDepartment || sameProgram;
+    });
+    const source = sourceIndex >= 0 ? sourcePrograms[sourceIndex] : null;
+    if (sourceIndex >= 0) consumed.add(sourceIndex);
+    return {
+      departmentId: official.departmentId,
+      department: official.department,
+      programName: official.programName,
+      level: official.level,
+      count: source ? source.count : 0,
+      suppressed: source ? Boolean(source.suppressed) : false,
+      years: source && Array.isArray(source.years) ? source.years : [],
+      statuses: source && Array.isArray(source.statuses) ? source.statuses : [],
+    };
+  });
+
+  const departmentMap = new Map();
+  for (const program of programs) {
+    const entry = departmentMap.get(program.departmentId) || {
+      departmentId: program.departmentId,
+      department: program.department,
+      programs: [],
+    };
+    entry.programs.push(program);
+    departmentMap.set(program.departmentId, entry);
+  }
+  const departments = [...departmentMap.values()].map((entry) => {
+    const hasSuppressed = entry.programs.some((program) => program.suppressed || program.count == null);
+    const visibleTotal = entry.programs.reduce((sum, program) => sum + (Number(program.count) || 0), 0);
+    const levelMap = new Map();
+    for (const program of entry.programs) {
+      const levelEntry = levelMap.get(program.level) || { total: 0, suppressed: false };
+      levelEntry.total += Number(program.count) || 0;
+      levelEntry.suppressed ||= program.suppressed || program.count == null;
+      levelMap.set(program.level, levelEntry);
+    }
+    return {
+      departmentId: entry.departmentId,
+      department: entry.department,
+      count: hasSuppressed ? null : visibleTotal,
+      suppressed: hasSuppressed,
+      levels: [...levelMap.entries()].map(([label, item]) => ({
+        label,
+        count: item.suppressed ? null : item.total,
+        suppressed: item.suppressed,
+      })),
+    };
+  });
+
+  return {
+    ...snapshot,
+    snapshotVersion: 3,
+    catalogSource: "lee_dbp_programs",
+    catalogProgramCount: catalog.length,
+    ignoredSourceProgramCount: Math.max(0, sourcePrograms.length - consumed.size),
+    departments,
+    programs,
+  };
+}
+
+function readStudentStatisticsSnapshot() {
+  if (studentStatisticsSnapshotCache) return studentStatisticsSnapshotCache;
+  const row = db.prepare("SELECT value FROM metadata WHERE key = ?").get(studentStatisticsSnapshotKey);
+  studentStatisticsSnapshotCache = officialStudentStatisticsSnapshot(parseJsonField(row?.value, null));
+  return studentStatisticsSnapshotCache;
+}
+
+async function refreshStudentStatisticsSnapshot(actor = "system") {
+  const timeout = Math.max(eEnstituDbTimeoutMs(), 5_000);
+  let lastError = "e-Enstitü öğrenci istatistiği kaynağına ulaşılamadı.";
+  for (const apiBaseUrl of eEnstituApiBaseUrls()) {
+    try {
+      const response = await withTimeout(
+        fetch(`${apiBaseUrl}/api/public/dbp/student-statistics`, { cache: "no-store" }),
+        timeout,
+        "e-Enstitü öğrenci istatistiği zaman aşımı",
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) { lastError = payload?.message || `HTTP ${response.status}`; continue; }
+      if (!payload?.institute || !Array.isArray(payload?.programs)) { lastError = "Öğrenci istatistiği yanıtı geçersiz."; continue; }
+      const generatedAt = new Date().toISOString();
+      studentStatisticsSnapshotCache = officialStudentStatisticsSnapshot({
+        ...payload,
+        snapshotVersion: 3,
+        sourceGeneratedAt: payload.generatedAt || "",
+        generatedAt,
+        schedule: managedSchedule(),
+        nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
+      });
+      db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(studentStatisticsSnapshotKey, JSON.stringify(studentStatisticsSnapshotCache));
+      audit("student.statistics.refresh", actor, { generatedAt, programs: payload.programs.length, totalStudents: payload.institute.totalStudents || 0 });
+      return studentStatisticsSnapshotCache;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+  }
+  throw new Error(lastError);
+}
+
+function queueStudentStatisticsRefresh(actor = "system") {
+  if (!studentStatisticsRefreshPromise) {
+    studentStatisticsRefreshPromise = refreshStudentStatisticsSnapshot(actor)
+      .catch((error) => {
+        console.error(`[dbp] Öğrenci istatistiği yenileme hatası: ${error instanceof Error ? error.message : error}`);
+        return readStudentStatisticsSnapshot();
+      })
+      .finally(() => { studentStatisticsRefreshPromise = undefined; });
+  }
+  return studentStatisticsRefreshPromise;
+}
+
+function scheduleStudentStatisticsRefresh() {
+  if (studentStatisticsRefreshTimer) clearTimeout(studentStatisticsRefreshTimer);
+  const snapshot = readStudentStatisticsSnapshot();
+  const next = refreshRetryDate(snapshot?.generatedAt) || nextMainDataRefreshDate();
+  if (!next) return;
+  const delay = Math.min(Math.max(next.getTime() - Date.now(), 1_000), 2_000_000_000);
+  studentStatisticsRefreshTimer = setTimeout(async () => {
+    try { if (Date.now() >= next.getTime()) await queueStudentStatisticsRefresh("scheduled"); }
+    finally { scheduleStudentStatisticsRefresh(); }
+  }, delay);
+  studentStatisticsRefreshTimer.unref?.();
 }
 
 async function loadEEnstituInstructorOptions(filters = {}) {
@@ -3690,6 +3930,21 @@ function importPageViewExport(payload, actor = "stats-manager") {
   return { inserted, skipped };
 }
 
+function resetPageViewStats(actor = "stats-manager") {
+  db.exec("BEGIN");
+  try {
+    const deleted = countRows("page_view_events");
+    db.exec("DELETE FROM page_view_events");
+    db.exec("DELETE FROM page_view_monthly_stats");
+    audit("page_view_stats.reset", actor, { deleted });
+    db.exec("COMMIT");
+    return { deleted };
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 function csvEscape(value) {
   const text = String(value ?? "");
   return /[",\r\n;]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
@@ -5385,25 +5640,6 @@ function qualityStats(filters = {}, options = {}) {
 }
 
 const qualitySnapshotMetadataKey = "quality_indicators_snapshot_v3";
-const qualitySchedule = ["Şubat ortasındaki Pazartesi 01:00", "Eylül ayının son Pazartesi günü 01:00"];
-
-function qualityRefreshDates(year) {
-  const mondayOffset = (day) => (day + 6) % 7;
-  const february15 = new Date(Date.UTC(year, 1, 15));
-  const februaryMonday = 15 - mondayOffset(february15.getUTCDay());
-  const september30 = new Date(Date.UTC(year, 8, 30));
-  const septemberMonday = 30 - mondayOffset(september30.getUTCDay());
-  return [new Date(Date.UTC(year, 1, februaryMonday - 1, 22)), new Date(Date.UTC(year, 8, septemberMonday - 1, 22))];
-}
-
-function nextQualityRefreshDate(now = new Date()) {
-  return [now.getUTCFullYear(), now.getUTCFullYear() + 1].flatMap(qualityRefreshDates).find((date) => date > now);
-}
-
-function latestQualityRefreshDate(now = new Date()) {
-  return [now.getUTCFullYear() - 1, now.getUTCFullYear()].flatMap(qualityRefreshDates)
-    .filter((date) => date <= now).sort((a, b) => b - a)[0];
-}
 
 function readQualitySnapshot() {
   if (qualitySnapshotCache) return qualitySnapshotCache;
@@ -5442,7 +5678,7 @@ async function refreshQualitySnapshot(actor = "system") {
       }),
     };
   });
-  qualitySnapshotCache = { generatedAt, source: "database_snapshot", instructorSource: instructorCatalog.source, schedule: qualitySchedule, institute, programs };
+  qualitySnapshotCache = { generatedAt, source: "database_snapshot", instructorSource: instructorCatalog.source, schedule: managedSchedule(), institute, programs };
   db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(qualitySnapshotMetadataKey, JSON.stringify(qualitySnapshotCache));
   audit("quality.snapshot.refresh", actor, { generatedAt, programs: programs.length, courses: institute.totalCourses });
   return qualitySnapshotCache;
@@ -5473,7 +5709,7 @@ function queueQualitySnapshotRefresh(actor = "course-change") {
 async function currentQualitySnapshot() {
   if (qualitySnapshotRefreshPromise) return qualitySnapshotRefreshPromise;
   const snapshot = readQualitySnapshot();
-  const latestScheduled = latestQualityRefreshDate();
+  const latestScheduled = latestMainDataRefreshDate();
   const latestCourseUpdate = latestCourseUpdateDate();
   const generatedAt = snapshot?.generatedAt ? new Date(snapshot.generatedAt) : null;
   if (!generatedAt || Number.isNaN(generatedAt.getTime())) return refreshQualitySnapshot("missing-snapshot");
@@ -5484,7 +5720,9 @@ async function currentQualitySnapshot() {
 
 function scheduleQualityRefresh() {
   if (qualityRefreshTimer) clearTimeout(qualityRefreshTimer);
-  const next = nextQualityRefreshDate();
+  const snapshot = readQualitySnapshot();
+  const next = refreshRetryDate(snapshot?.generatedAt) || nextMainDataRefreshDate();
+  if (!next) return;
   const delay = Math.min(Math.max((next?.getTime() || Date.now()) - Date.now(), 1_000), 2_000_000_000);
   qualityRefreshTimer = setTimeout(async () => {
     try {
@@ -5523,7 +5761,8 @@ function queueThesisSync(actor = "system", full = false) {
 
 function scheduleThesisRefresh() {
   if (thesisRefreshTimer) clearTimeout(thesisRefreshTimer);
-  const next = nextThesisRefreshDate();
+  const next = refreshRetryDate(currentThesisSnapshot()?.generatedAt) || nextMainDataRefreshDate();
+  if (!next) return;
   const delay = Math.min(Math.max((next?.getTime() || Date.now()) - Date.now(), 1_000), 2_000_000_000);
   thesisRefreshTimer = setTimeout(async () => {
     try {
@@ -5706,7 +5945,8 @@ function queueScopusCitationSync(actor = "system") {
 
 function scheduleScopusRefresh() {
   if (scopusRefreshTimer) clearTimeout(scopusRefreshTimer);
-  const next = nextScopusRefreshDate();
+  const next = refreshRetryDate(currentScopusSnapshot()?.generatedAt) || nextMainDataRefreshDate();
+  if (!next) return;
   const delay = Math.min(Math.max((next?.getTime() || Date.now()) - Date.now(), 1_000), 2_000_000_000);
   scopusRefreshTimer = setTimeout(async () => {
     try {
@@ -5720,7 +5960,8 @@ function scheduleScopusRefresh() {
 
 function scheduleScopusCitationRefresh() {
   if (scopusCitationRefreshTimer) clearTimeout(scopusCitationRefreshTimer);
-  const next = nextScopusCitationRefreshDate();
+  const next = refreshRetryDate(currentScopusSnapshot()?.lastCitationRefreshAt, "weekly") || nextCitationDataRefreshDate();
+  if (!next) return;
   const delay = Math.min(Math.max(next.getTime() - Date.now(), 1_000), 2_000_000_000);
   scopusCitationRefreshTimer = setTimeout(async () => {
     try {
@@ -5758,7 +5999,8 @@ function queueTrDizinSync(actor = "system", mode = "FULL") {
 
 function scheduleTrDizinRefresh() {
   if (trDizinRefreshTimer) clearTimeout(trDizinRefreshTimer);
-  const next = nextTrDizinRefreshDate();
+  const next = refreshRetryDate(currentTrDizinSnapshot()?.generatedAt) || nextMainDataRefreshDate();
+  if (!next) return;
   const delay = Math.min(Math.max((next?.getTime() || Date.now()) - Date.now(), 1_000), 2_000_000_000);
   trDizinRefreshTimer = setTimeout(async () => {
     try {
@@ -5772,7 +6014,8 @@ function scheduleTrDizinRefresh() {
 
 function scheduleTrDizinCitationRefresh() {
   if (trDizinCitationRefreshTimer) clearTimeout(trDizinCitationRefreshTimer);
-  const next = nextTrDizinCitationRefreshDate();
+  const next = refreshRetryDate(currentTrDizinSnapshot()?.lastCitationRefreshAt, "weekly") || nextCitationDataRefreshDate();
+  if (!next) return;
   const delay = Math.min(Math.max(next.getTime() - Date.now(), 1_000), 2_000_000_000);
   trDizinCitationRefreshTimer = setTimeout(async () => {
     try {
@@ -6348,8 +6591,8 @@ async function adminSummary() {
     backups: await listBackups(),
     qualitySnapshot: {
       generatedAt: qualitySnapshot?.generatedAt || "",
-      nextRefreshAt: nextQualityRefreshDate()?.toISOString() || "",
-      schedule: qualitySchedule,
+      nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
+      schedule: managedSchedule(),
     },
   };
 }
@@ -6732,11 +6975,37 @@ async function handleDbpApi(request) {
       return jsonResponse({ ok: true, result: importPageViewExport(payload, actor), stats: publicViewStats() });
     }
 
+    if (pathname === "/api/dbp/view-stats/reset" && request.method === "POST") {
+      const auth = requireStatsManager(request);
+      if (auth.error) return auth.error;
+      const body = await readJsonBody(request);
+      if (body.confirm !== "SIFIRLA") {
+        return jsonResponse({ message: "Sayaçları sıfırlamak için SIFIRLA onayı gerekir." }, { status: 400 });
+      }
+      const actor = auth.session?.username || auth.session?.name || "stats-manager";
+      return jsonResponse({ ok: true, result: resetPageViewStats(actor), stats: publicViewStats() });
+    }
+
+    if (pathname === "/api/dbp/update-plan" && request.method === "GET") {
+      const labels = publicDataScheduleLabels(publicDataRefreshPlan);
+      return jsonResponse({ settings: publicDataRefreshPlan, labels, nextMainRefreshAt: nextMainDataRefreshDate()?.toISOString() || "", nextCitationRefreshAt: nextCitationDataRefreshDate()?.toISOString() || "" });
+    }
+
+    if (pathname === "/api/dbp/student-statistics" && request.method === "GET") {
+      const snapshot = readStudentStatisticsSnapshot();
+      if (!snapshot) {
+        queueStudentStatisticsRefresh("public-bootstrap");
+        return jsonResponse({ status: "syncing", message: "İlk öğrenci istatistiği görüntüsü hazırlanıyor.", nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "" }, { status: 202 });
+      }
+      return jsonResponse({ ...snapshot, schedule: managedSchedule(), nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "" });
+    }
+
     if (pathname === "/api/dbp/quality-stats" && request.method === "GET") {
       const snapshot = await currentQualitySnapshot();
       return jsonResponse({
         ...snapshot,
-        nextRefreshAt: nextQualityRefreshDate()?.toISOString() || "",
+        schedule: managedSchedule(),
+        nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
       });
     }
 
@@ -6747,15 +7016,15 @@ async function handleDbpApi(request) {
         return jsonResponse({
           status: "syncing",
           message: "DSpace tez verileri ilk kez senkronize ediliyor.",
-          nextRefreshAt: nextThesisRefreshDate()?.toISOString() || "",
+          nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
         }, { status: 202 });
       }
-      return jsonResponse(thesisDashboard(snapshot, {
+      return jsonResponse({ ...thesisDashboard(snapshot, {
         year: url.searchParams.get("year") || "",
         degree: url.searchParams.get("degree") || "",
         department: url.searchParams.get("department") || "",
         sdg: url.searchParams.get("sdg") || "",
-      }));
+      }), schedule: managedSchedule(), nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "" });
     }
 
     if (pathname === "/api/dbp/bibliometrics" && request.method === "GET") {
@@ -6765,22 +7034,22 @@ async function handleDbpApi(request) {
           return jsonResponse({
             status: "not_configured",
             message: "Scopus veri kaynağı sunucuda henüz yapılandırılmadı.",
-            nextRefreshAt: nextScopusRefreshDate()?.toISOString() || "",
-            nextCitationRefreshAt: nextScopusCitationRefreshDate()?.toISOString() || "",
+            nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
+            nextCitationRefreshAt: nextCitationDataRefreshDate()?.toISOString() || "",
           }, { status: 503 });
         }
         queueScopusSync("public-bootstrap");
         return jsonResponse({
           status: "syncing",
           message: "İlk Scopus bibliyometri görüntüsü hazırlanıyor.",
-          nextRefreshAt: nextScopusRefreshDate()?.toISOString() || "",
-          nextCitationRefreshAt: nextScopusCitationRefreshDate()?.toISOString() || "",
+          nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
+          nextCitationRefreshAt: nextCitationDataRefreshDate()?.toISOString() || "",
         }, { status: 202 });
       }
       return jsonResponse({
         ...snapshot,
-        nextRefreshAt: nextScopusRefreshDate()?.toISOString() || "",
-        nextCitationRefreshAt: nextScopusCitationRefreshDate()?.toISOString() || "",
+        nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
+        nextCitationRefreshAt: nextCitationDataRefreshDate()?.toISOString() || "",
       });
     }
 
@@ -6791,14 +7060,14 @@ async function handleDbpApi(request) {
         return jsonResponse({
           status: "syncing",
           message: "İlk TR Dizin bibliyometri görüntüsü hazırlanıyor.",
-          nextRefreshAt: nextTrDizinRefreshDate()?.toISOString() || "",
-          nextCitationRefreshAt: nextTrDizinCitationRefreshDate()?.toISOString() || "",
+          nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
+          nextCitationRefreshAt: nextCitationDataRefreshDate()?.toISOString() || "",
         }, { status: 202 });
       }
       return jsonResponse({
         ...snapshot,
-        nextRefreshAt: nextTrDizinRefreshDate()?.toISOString() || "",
-        nextCitationRefreshAt: nextTrDizinCitationRefreshDate()?.toISOString() || "",
+        nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
+        nextCitationRefreshAt: nextCitationDataRefreshDate()?.toISOString() || "",
       });
     }
 
@@ -7128,7 +7397,7 @@ async function handleDbpApi(request) {
       return jsonResponse({
         ok: true,
         generatedAt: snapshot.generatedAt,
-        nextRefreshAt: nextQualityRefreshDate()?.toISOString() || "",
+        nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
       });
     }
 
@@ -7269,6 +7538,7 @@ function pageViewContextForPath(pathname) {
   if (stripped.startsWith("/api/") || stripped.startsWith("/assets/")) return null;
   if (stripped === "/") return { viewType: "home", itemId: "home", itemTitle: "Ana Sayfa" };
   if (stripped === "/kalite") return { viewType: "kalite_gostergeleri", itemId: "kalite", itemTitle: "Kalite Göstergeleri" };
+  if (stripped === "/ogrenci-gostergeleri") return { viewType: "ogrenci_gostergeleri", itemId: "ogrenci-gostergeleri", itemTitle: "Öğrenci Göstergeleri" };
   if (stripped === "/tez-ska") return { viewType: "tez_ska_analiz", itemId: "tez-ska", itemTitle: "TEZ_SKA Analiz" };
   if (stripped === "/article") return { viewType: "bib_scopus", itemId: "article", itemTitle: "Scopus Tabanlı Bibliyometrik Göstergeler" };
   if (stripped === "/yayin") return { viewType: "bib_tr_dizin", itemId: "yayin", itemTitle: "TR Dizin Tabanlı Bibliyometrik Göstergeler" };
@@ -7465,6 +7735,8 @@ const ctx = {
 };
 
 await ensureDb();
+await refreshPublicDataRefreshPlan();
+startPublicDataRefreshPlanPolling();
 const initialInstructorCatalog = await loadEEnstituInstructorOptions();
 const courseCatalogForScopus = loadCourseCatalogInstructorOptions();
 const scopusInstructorCatalog = [...initialInstructorCatalog.instructors, ...courseCatalogForScopus.instructors];
@@ -7475,8 +7747,14 @@ homeInstructorCountCache = {
 homeStatsCache = await homeStats();
 await currentQualitySnapshot();
 scheduleQualityRefresh();
+studentStatisticsSnapshotCache = readStudentStatisticsSnapshot();
+const latestStudentStatisticsRefresh = latestMainDataRefreshDate();
+const studentStatisticsGeneratedAt = studentStatisticsSnapshotCache?.generatedAt ? new Date(studentStatisticsSnapshotCache.generatedAt) : null;
+if (!studentStatisticsSnapshotCache || studentStatisticsSnapshotCache.snapshotVersion !== 3) queueStudentStatisticsRefresh("startup");
+else if (latestStudentStatisticsRefresh && (!studentStatisticsGeneratedAt || studentStatisticsGeneratedAt < latestStudentStatisticsRefresh)) queueStudentStatisticsRefresh("scheduled-startup");
+scheduleStudentStatisticsRefresh();
 thesisSnapshotCache = readThesisSnapshot(db);
-const latestThesisRefresh = latestThesisRefreshDate();
+const latestThesisRefresh = latestMainDataRefreshDate();
 const thesisGeneratedAt = thesisSnapshotCache?.generatedAt ? new Date(thesisSnapshotCache.generatedAt) : null;
 if (!thesisSnapshotCache) queueThesisSync("startup", true);
 else if (latestThesisRefresh && (!thesisGeneratedAt || thesisGeneratedAt < latestThesisRefresh)) queueThesisSync("scheduled-startup", false);
@@ -7485,24 +7763,24 @@ scopusSnapshotCache = rebuildScopusUnitMappings(db, {
   instructors: scopusInstructorCatalog,
   actor: "startup-unit-directory",
 }) || readScopusSnapshot(db);
-const latestScopusRefresh = latestScopusRefreshDate();
+const latestScopusRefresh = latestMainDataRefreshDate();
 const scopusGeneratedAt = scopusSnapshotCache?.generatedAt ? new Date(scopusSnapshotCache.generatedAt) : null;
 if (!scopusSnapshotCache && scopusConfigured()) queueScopusSync("startup");
 else if (scopusConfigured() && latestScopusRefresh && (!scopusGeneratedAt || scopusGeneratedAt < latestScopusRefresh)) queueScopusSync("scheduled-startup");
 scheduleScopusRefresh();
-const latestCitationRefresh = latestScopusCitationRefreshDate();
+const latestCitationRefresh = latestCitationDataRefreshDate();
 const citationGeneratedAt = scopusSnapshotCache?.lastCitationRefreshAt ? new Date(scopusSnapshotCache.lastCitationRefreshAt) : null;
-if (scopusConfigured() && scopusSnapshotCache && (!citationGeneratedAt || citationGeneratedAt < latestCitationRefresh)) queueScopusCitationSync("weekly-startup");
+if (latestCitationRefresh && scopusConfigured() && scopusSnapshotCache && (!citationGeneratedAt || citationGeneratedAt < latestCitationRefresh)) queueScopusCitationSync("weekly-startup");
 scheduleScopusCitationRefresh();
 trDizinSnapshotCache = readTrDizinSnapshot(db);
-const latestTrDizinRefresh = latestTrDizinRefreshDate();
+const latestTrDizinRefresh = latestMainDataRefreshDate();
 const trDizinGeneratedAt = trDizinSnapshotCache?.generatedAt ? new Date(trDizinSnapshotCache.generatedAt) : null;
 if (!trDizinSnapshotCache) queueTrDizinSync("startup", "FULL");
 else if (latestTrDizinRefresh && (!trDizinGeneratedAt || trDizinGeneratedAt < latestTrDizinRefresh)) queueTrDizinSync("scheduled-startup", "FULL");
 scheduleTrDizinRefresh();
-const latestTrDizinCitationRefresh = latestTrDizinCitationRefreshDate();
+const latestTrDizinCitationRefresh = latestCitationDataRefreshDate();
 const trDizinCitationGeneratedAt = trDizinSnapshotCache?.lastCitationRefreshAt ? new Date(trDizinSnapshotCache.lastCitationRefreshAt) : null;
-if (trDizinSnapshotCache && (!trDizinCitationGeneratedAt || trDizinCitationGeneratedAt < latestTrDizinCitationRefresh)) queueTrDizinSync("weekly-startup", "CITATIONS");
+if (latestTrDizinCitationRefresh && trDizinSnapshotCache && (!trDizinCitationGeneratedAt || trDizinCitationGeneratedAt < latestTrDizinCitationRefresh)) queueTrDizinSync("weekly-startup", "CITATIONS");
 scheduleTrDizinCitationRefresh();
 
 createServer(async (req, res) => {

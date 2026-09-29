@@ -53,6 +53,7 @@
 @import "./responsive-type-scale.css";
 @import "./course-columns-v4.css";
 @import "./header-consistency.css";
+@import "./student-indicators.css";
 
 :where(a,button,summary,select,[role="button"],[role="link"]){cursor:pointer}
 @font-face {
@@ -1284,6 +1285,55 @@ input {
   }
   * {
     transition: none !important;
+  }
+}
+
+@media (max-width: 1000px) {
+  .oku-header .navigation-inner {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding-bottom: 10px;
+  }
+
+  .oku-header .navigation-inner nav {
+    order: 3;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .oku-header .navigation-inner nav > a:not(.mobile-priority) {
+    display: none;
+  }
+
+  .oku-header .navigation-inner nav > a.mobile-priority,
+  .oku-header .navigation-inner nav > .bibliometrics-menu {
+    flex: 1 1 calc(50% - 3px);
+    min-width: 0;
+  }
+
+  .oku-header .navigation-inner nav > a.mobile-priority,
+  .oku-header .navigation-inner nav > .bibliometrics-menu > summary {
+    min-height: 42px;
+    padding: 9px 10px;
+    white-space: normal;
+    line-height: 1.15;
+    font-size: 11px;
+  }
+
+  .oku-header .navigation-inner nav > .bibliometrics-menu > summary {
+    justify-content: flex-start;
+  }
+
+  .oku-header .navigation-inner nav > .bibliometrics-menu > summary span {
+    display: inline;
+  }
+
+  .oku-header .navigation-inner nav > .bibliometrics-menu .bibliometrics-options {
+    left: 0;
+    right: auto;
+    width: min(286px, calc(100vw - 40px));
   }
 }
 

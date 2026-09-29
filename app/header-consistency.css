@@ -1,4 +1,7 @@
 .oku-header .navigation-inner nav {
+  min-width: 0;
+  flex: 1 1 auto;
+  justify-content: flex-end;
   gap: 2px;
   flex-wrap: nowrap;
 }
@@ -9,4 +12,40 @@
   padding-inline: 9px;
   white-space: nowrap;
   font-size: 11px;
+}
+
+.oku-header .navigation-inner nav > a {
+  flex: 0 1 auto;
+}
+
+.oku-header .navigation-inner nav > a.nav-two-line {
+  white-space: normal;
+}
+
+.oku-header .nav-two-line .nav-label {
+  display: block;
+  line-height: 1.08;
+  text-align: left;
+}
+
+.oku-header .navigation-inner nav > a > svg,
+.oku-header .navigation-inner nav > .bibliometrics-menu > summary > svg {
+  flex: 0 0 auto;
+}
+
+@media (min-width: 1001px) and (max-width: 1320px) {
+  .oku-header .navigation-inner {
+    gap: 12px;
+    padding-inline: 12px;
+  }
+
+  .oku-header .oku-brand {
+    gap: 8px;
+  }
+
+  .oku-header .navigation-inner nav > a,
+  .oku-header .navigation-inner nav > .bibliometrics-menu > summary {
+    gap: 5px;
+    padding-inline: 6px;
+  }
 }

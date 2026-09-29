@@ -123,7 +123,7 @@ export const pageViewEvents = sqliteTable("page_view_events", {
   eventUuid: text("event_uuid").notNull().unique(),
   viewedAt: text("viewed_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   yearMonth: text("year_month").notNull(),
-  viewType: text("view_type", { enum: ["home", "anabilimdali", "ders", "kalite_gostergeleri", "tez_ska_analiz", "bib_scopus", "bib_tr_dizin", "bib_doktora"] }).notNull(),
+  viewType: text("view_type", { enum: ["home", "anabilimdali", "ders", "kalite_gostergeleri", "ogrenci_gostergeleri", "tez_ska_analiz", "bib_scopus", "bib_tr_dizin", "bib_doktora"] }).notNull(),
   itemId: text("item_id").notNull().default(""),
   itemTitle: text("item_title").notNull().default(""),
   path: text("path").notNull().default(""),
@@ -134,7 +134,7 @@ export const pageViewEvents = sqliteTable("page_view_events", {
 export const pageViewMonthlyStats = sqliteTable("page_view_monthly_stats", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   yearMonth: text("year_month").notNull(),
-  viewType: text("view_type", { enum: ["home", "anabilimdali", "ders", "kalite_gostergeleri", "tez_ska_analiz", "bib_scopus", "bib_tr_dizin", "bib_doktora"] }).notNull(),
+  viewType: text("view_type", { enum: ["home", "anabilimdali", "ders", "kalite_gostergeleri", "ogrenci_gostergeleri", "tez_ska_analiz", "bib_scopus", "bib_tr_dizin", "bib_doktora"] }).notNull(),
   itemId: text("item_id").notNull().default(""),
   itemTitle: text("item_title").notNull().default(""),
   viewCount: integer("view_count").notNull().default(0),

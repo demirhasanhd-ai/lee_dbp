@@ -5,6 +5,7 @@ import {
   BookOpen,
   ChevronDown,
   ExternalLink,
+  GraduationCap,
   PieChart,
   Search,
 } from "lucide-react";
@@ -77,6 +78,7 @@ export default function Home() {
             <div className="section-title compact"><div><span className="title-line"/><div><small>İŞLEMLER</small><h2>Hızlı erişim</h2></div></div></div>
             <a href={dbpPath("/katalog")}><Search size={18}/><span><b>Ders bilgi paketi ara</b><small>Public katalogda arama yapın</small></span><i>→</i></a>
             <a href={dbpPath("/kalite")}><BarChart3 size={18}/><span><b>Kalite Göstergeleri</b><small>Ders paketi kalite metriklerini inceleyin</small></span><i>→</i></a>
+            <a href={dbpPath("/ogrenci-gostergeleri")}><GraduationCap size={18}/><span><b>Öğrenci Göstergeleri</b><small>ABD/ASD ve program dağılımlarını inceleyin</small></span><i>→</i></a>
             <a href={dbpPath("/tez-ska")}><PieChart size={18}/><span><b>TEZ SKA Analizi</b><small>Tezlerin SKA dağılımını görüntüleyin</small></span><i>→</i></a>
             <BibliometricsMenu variant="quick" />
             <a href="https://osmaniye.edu.tr" target="_blank" rel="noopener noreferrer"><ExternalLink size={18}/><span><b>OKÜ ana sayfa</b><small>Üniversite web sitesine gidin</small></span><i>→</i></a>
