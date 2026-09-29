@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Eye, RefreshCw, Upload } from "lucide-react";
+import { Download, Eye, RefreshCw, Trash2, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import { dbpPath } from "../../lib/dbpPath";
 import { storedDbpSessionHeader } from "../../lib/dbpSessionHeader";
@@ -36,6 +36,7 @@ export function ViewStatsAdminPanel() {
   const [summary, setSummary] = useState<ViewStatsPayload | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState("");
 
   const loadSummary = async () => {
     const response = await fetch(dbpPath("/api/dbp/view-stats"), { cache: "no-store" });
@@ -78,6 +79,21 @@ export function ViewStatsAdminPanel() {
       const inserted = body.result?.inserted ?? 0;
       const skipped = body.result?.skipped ?? 0;
       setMessage(`${inserted} yeni kayıt eklendi, ${skipped} kayıt atlandı.`);
+    });
+
+  const resetStats = () =>
+    run("Görüntülenme sayaçları sıfırlandı.", async () => {
+      const response = await fetch(dbpPath("/api/dbp/view-stats/reset"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-DBP-Session": sessionHeader(),
+        },
+        body: JSON.stringify({ confirm: resetConfirm }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.message || "Sayaçlar sıfırlanamadı.");
+      setResetConfirm("");
     });
 
   return (
@@ -142,6 +158,20 @@ export function ViewStatsAdminPanel() {
               JSON Yedek Yükle
               <input type="file" accept="application/json,.json" onChange={(event) => importJson(event.target.files?.[0])} />
             </label>
+          </div>
+        </section>
+
+        <section className="database-panel">
+          <header>
+            <h3>Sayaçları Sıfırla</h3>
+            <small>Ham kayıtlar ve aylık özetler birlikte temizlenir.</small>
+          </header>
+          <div className="database-reset">
+            <input value={resetConfirm} onChange={(event) => setResetConfirm(event.target.value)} placeholder="SIFIRLA yazın" />
+            <button onClick={resetStats} disabled={busy || resetConfirm !== "SIFIRLA"}>
+              <Trash2 size={15} />
+              Sıfırla
+            </button>
           </div>
         </section>
       </div>

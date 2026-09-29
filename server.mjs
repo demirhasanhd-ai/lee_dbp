@@ -3690,6 +3690,21 @@ function importPageViewExport(payload, actor = "stats-manager") {
   return { inserted, skipped };
 }
 
+function resetPageViewStats(actor = "stats-manager") {
+  db.exec("BEGIN");
+  try {
+    const deleted = countRows("page_view_events");
+    db.exec("DELETE FROM page_view_events");
+    db.exec("DELETE FROM page_view_monthly_stats");
+    audit("page_view_stats.reset", actor, { deleted });
+    db.exec("COMMIT");
+    return { deleted };
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 function csvEscape(value) {
   const text = String(value ?? "");
   return /[",\r\n;]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
@@ -6730,6 +6745,17 @@ async function handleDbpApi(request) {
       const actor = auth.session?.username || auth.session?.name || "stats-manager";
       const payload = await readJsonBody(request);
       return jsonResponse({ ok: true, result: importPageViewExport(payload, actor), stats: publicViewStats() });
+    }
+
+    if (pathname === "/api/dbp/view-stats/reset" && request.method === "POST") {
+      const auth = requireStatsManager(request);
+      if (auth.error) return auth.error;
+      const body = await readJsonBody(request);
+      if (body.confirm !== "SIFIRLA") {
+        return jsonResponse({ message: "Sayaçları sıfırlamak için SIFIRLA onayı gerekir." }, { status: 400 });
+      }
+      const actor = auth.session?.username || auth.session?.name || "stats-manager";
+      return jsonResponse({ ok: true, result: resetPageViewStats(actor), stats: publicViewStats() });
     }
 
     if (pathname === "/api/dbp/quality-stats" && request.method === "GET") {
