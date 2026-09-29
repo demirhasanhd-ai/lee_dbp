@@ -417,7 +417,7 @@ export function CourseBolognaEditor({
     const row = workloads[name] ?? { count: 0, hours: 0 };
     return total + row.count * row.hours;
   }, 0);
-  const ects = (totalWorkload / 30).toFixed(1);
+  const ects = Math.round(totalWorkload / 30);
   const publishIssues = useMemo(() => {
     const issues: string[] = [];
     if (!identity.code.trim() || !identity.name.trim()) {
@@ -475,6 +475,9 @@ export function CourseBolognaEditor({
     if (totalWorkload <= 0 || Number(ects) <= 0) {
       issues.push("AKTS iş yükü tablosunda geçerli etkinlik süreleri bulunmalıdır.");
     }
+    if (!sdgs.some((value) => Boolean(findSdgGoal(value)))) {
+      issues.push("En az bir Sürdürülebilir Kalkınma Amacı (SKA) seçilmelidir.");
+    }
     return issues;
   }, [
     assessments,
@@ -484,6 +487,7 @@ export function CourseBolognaEditor({
     identity.code,
     identity.name,
     outcomes,
+    sdgs,
     structureValues,
     totalWorkload,
     weeklyTopics,

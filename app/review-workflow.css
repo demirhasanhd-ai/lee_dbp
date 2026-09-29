@@ -1,6 +1,19 @@
 .review-head-v2,
 .review-row-v2 {
-  grid-template-columns: 1.35fr 0.8fr 0.65fr 1.6fr;
+  grid-template-columns: 1.25fr 0.8fr 0.55fr 0.55fr 1.45fr;
+}
+.review-date b,
+.review-date small {
+  display: block;
+}
+.review-date b {
+  font-size: 9px;
+  color: var(--muted-foreground);
+}
+.review-date small {
+  margin-top: 3px;
+  color: var(--foreground);
+  font-weight: 750;
 }
 .review-actions {
   display: flex;

@@ -97,11 +97,12 @@ function calculateWorkload() {
     row.querySelector(".wl-total").value = count * hours;
     total += count * hours;
   });
+  const ectsValue = Math.round(total / 30);
   const totalEl = document.querySelector("#cf-total");
   if (totalEl)
-    totalEl.textContent = `${total} saat / ${(total / 30).toFixed(1)} AKTS`;
+    totalEl.textContent = `${total} saat / ${ectsValue} AKTS`;
   const ects = document.querySelector("#cf-ects");
-  if (ects) ects.value = (total / 30).toFixed(1);
+  if (ects) ects.value = ectsValue;
 }
 function courseForm() {
   const weeks = Array.from(

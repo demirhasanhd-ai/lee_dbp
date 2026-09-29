@@ -72,6 +72,13 @@ export async function fetchDbpCourses(filters: DbpCourseFilters = {}, init?: Req
   return response.json() as Promise<DbpCoursesResponse>;
 }
 
+export async function fetchMyDbpCourses(filters: DbpCourseFilters = {}, init?: RequestInit) {
+  const params = courseQuery(filters);
+  const response = await fetch(dbpPath(`/api/dbp/my-courses${params.size ? `?${params}` : ""}`), init);
+  if (!response.ok) throw new Error("Ders katalog verisi veritabanından alınamadı.");
+  return response.json() as Promise<DbpCoursesResponse>;
+}
+
 export async function fetchPublicDbpCourse(
   identity: Pick<DbpCourse, "department" | "programName" | "level" | "code">,
   init?: RequestInit,

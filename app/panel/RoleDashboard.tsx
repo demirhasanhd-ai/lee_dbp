@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Eye,
+  FileDown,
   HardDrive,
   Plus,
   Save,
@@ -35,7 +36,7 @@ import { CommitteeManagement } from "./CommitteeManagement";
 import { ThemeToggle } from "../ThemeToggle";
 import { LEE_PROGRAMS, type LeeProgram } from "../../lib/data/programs";
 import { isDepartmentPoolCourse } from "../../lib/data/courseCatalog";
-import { fetchDbpCourses, type DbpCourse } from "../../lib/data/dbpCourses";
+import { fetchDbpCourses, fetchMyDbpCourses, type DbpCourse } from "../../lib/data/dbpCourses";
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { getEEnstituUrl } from "../../lib/eEnstituUrl";
@@ -59,6 +60,7 @@ type Course = {
   level: "Tezsiz Yüksek Lisans" | "Tezli Yüksek Lisans" | "Doktora";
   department?: string;
   programName?: string;
+  updatedAt?: string;
   workflow?: DbpCourse["workflow"];
 };
 type InstructorOption = {
@@ -74,6 +76,7 @@ type CommitteeMembership = {
 };
 type RoleAccess = Record<DbpRole, DbpModule[]>;
 const moduleKeys = Object.keys(DBP_MODULES) as DbpModule[];
+const courseEntryGuideHref = dbpPath("/ders-bilgi-girisi-kullanim-kilavuzu.pdf");
 const cloneDefaultRoleAccess = (): RoleAccess =>
   Object.fromEntries(
     DBP_ROLE_KEYS.map((role) => [role, [...DEFAULT_ROLE_ACCESS[role]]]),
@@ -207,6 +210,7 @@ const toPanelCourse = (course: DbpCourse): Course => ({
   level: panelLevel(course.level),
   department: course.department,
   programName: course.programName,
+  updatedAt: course.updatedAt,
   workflow: course.workflow,
 });
 const roleByUsername: Record<string, DbpRole> = {
@@ -271,6 +275,11 @@ const createLocalDevelopmentSession = (): Session => ({
 });
 const catalogKeyForSession = (value: Session) =>
   `${value.username}|${value.role}|${value.department}`;
+const shouldUseScopedCourseList = (session: Session) => !centralRoles.includes(session.role);
+const fetchCatalogCoursesForSession = (session: Session, init?: RequestInit) =>
+  shouldUseScopedCourseList(session)
+    ? fetchMyDbpCourses({ limit: 5000 }, init)
+    : fetchDbpCourses({ limit: 5000 }, init);
 
 export function RoleDashboard() {
   const [session, setSession] = useState<Session | null>(null);
@@ -387,7 +396,7 @@ export function RoleDashboard() {
     setCatalogLoading(true);
     setCatalogMessage("");
     try {
-      const data = await fetchDbpCourses({ limit: 5000 }, {
+      const data = await fetchCatalogCoursesForSession(session, {
         headers: { "X-DBP-Session": dbpSessionHeader(session) },
       });
       setCatalogCourses(data.courses.map(toPanelCourse));
@@ -407,7 +416,7 @@ export function RoleDashboard() {
     const requestKey = catalogKeyForSession(session);
     const loadCatalogCourses = async () => {
       try {
-        const data = await fetchDbpCourses({ limit: 5000 }, {
+        const data = await fetchCatalogCoursesForSession(session, {
           headers: { "X-DBP-Session": dbpSessionHeader(session) },
         });
         if (cancelled) return;
@@ -427,7 +436,7 @@ export function RoleDashboard() {
     };
   }, [session?.username, session?.role, session?.department]);
   useEffect(() => {
-    if (!session) return;
+    if (!session || !assignCourse || instructorOptions.length > 0) return;
     const controller = new AbortController();
     fetch(dbpPath("/api/dbp/instructors"), {
       headers: { "X-DBP-Session": dbpSessionHeader(session) },
@@ -442,7 +451,7 @@ export function RoleDashboard() {
         if (!controller.signal.aborted) setInstructorOptions([]);
       });
     return () => controller.abort();
-  }, [session?.username, session?.role, session?.department]);
+  }, [assignCourse, instructorOptions.length, session]);
   useEffect(() => {
     if (!session) return;
     const controller = new AbortController();
@@ -841,7 +850,7 @@ export function RoleDashboard() {
                     <span>Yeni öğretim elemanı</span>
                     <select required defaultValue="">
                       <option value="" disabled>
-                        Akademisyeni seçin
+                        {instructorOptions.length ? "Akademisyeni seçin" : "Akademisyenler yükleniyor"}
                       </option>
                       {instructorOptions.map((item) => (
                         <option key={item.id} value={item.name}>
@@ -944,7 +953,16 @@ export function RoleDashboard() {
           </section>
         )}
         {active === "my_courses" && !isCentralRole && !selectedCourse && (
-          <div className="role-course-sections">
+          <>
+            <a
+              className="course-entry-guide-download"
+              href={courseEntryGuideHref}
+              download
+            >
+              <FileDown size={16} />
+              Ders Bilgi Girişi Kullanım Kılavuzunu İndir
+            </a>
+            <div className="role-course-sections">
             {roleCourseSections.map((section) => (
               <section key={section.key}>
                 <div className="panel-intro">
@@ -975,7 +993,8 @@ export function RoleDashboard() {
                 )}
               </section>
             ))}
-          </div>
+            </div>
+          </>
         )}
         {active === "my_courses" && selectedCourse && (
           <section className="course-editor-page">

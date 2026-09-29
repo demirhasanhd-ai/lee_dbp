@@ -4565,7 +4565,9 @@ function courseFromRow(row) {
     status: row.status || "",
     instructor: row.instructor || "",
     source: row.source || "",
-    hasPackage: Boolean(row.package_json && row.package_json !== "{}"),
+    hasPackage: row.has_package === undefined
+      ? Boolean(row.package_json && row.package_json !== "{}")
+      : Boolean(row.has_package),
     updatedAt: row.updated_at || "",
   });
 }
@@ -4798,12 +4800,39 @@ function courseMatchesFilters(course, filters = {}) {
   return true;
 }
 
-function dbCourseList(filters = {}) {
-  const rows = db.prepare(`
-    SELECT id, academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, source, package_json, updated_at
+const courseListSelect = `
+    SELECT
+      id,
+      academic_year,
+      program_code,
+      department,
+      program_name,
+      level,
+      code,
+      name,
+      type,
+      credit,
+      ects,
+      theory,
+      practice,
+      term,
+      status,
+      instructor,
+      source,
+      CASE WHEN package_json IS NOT NULL AND TRIM(package_json) <> '' AND package_json <> '{}' THEN 1 ELSE 0 END AS has_package,
+      updated_at
     FROM courses
+`;
+
+function dbCourseRows(where = "", params = []) {
+  return db.prepare(`
+    ${courseListSelect}
+    ${where}
     ORDER BY department, program_name, level, code, id
-  `).all();
+  `).all(...params);
+}
+
+function dbCourseListFromRows(rows, filters = {}) {
   const byKey = new Map();
   for (const row of rows) {
     const normalized = normalizeDbCourseForList(courseFromRow(row));
@@ -4837,6 +4866,76 @@ function dbCourseList(filters = {}) {
         "tr-TR",
       )
     );
+}
+
+function dbCourseList(filters = {}) {
+  return dbCourseListFromRows(dbCourseRows(), filters);
+}
+
+function instructorCandidateRows(session) {
+  const rawName = repairText(session.name || "").trim();
+  const titleWords = new Set(["PROF", "DR", "DOC", "DOÇ", "ÖĞR", "OGR", "ÜYESİ", "UYESI", "GÖR", "GOR"]);
+  const tokens = rawName
+    .split(/\s+/u)
+    .map((token) => token.replace(/[^\p{L}\p{N}]/gu, "").trim())
+    .filter((token) => token.length > 2 && !titleWords.has(token.toLocaleUpperCase("tr-TR")));
+  const searchTokens = [...new Set(tokens.slice(-2))];
+  if (!searchTokens.length) return [];
+
+  const clauses = [];
+  const params = [];
+  for (const token of searchTokens) {
+    clauses.push("(instructor LIKE ? OR instructor LIKE ?)");
+    params.push(`%${token}%`, `%${token.toLocaleUpperCase("tr-TR")}%`);
+  }
+  return dbCourseRows(`WHERE TRIM(COALESCE(instructor, '')) <> '' AND ${clauses.join(" AND ")}`, params);
+}
+
+function scopeCandidateRows(session) {
+  const scope = repairText(session.department || "").trim();
+  if (!scope) return [];
+  return dbCourseRows("WHERE department LIKE ? OR program_name LIKE ?", [`%${scope}%`, `%${scope}%`]);
+}
+
+function sessionScopedCourses(session) {
+  const sessionPerson = normalizePerson(session.name || "");
+  const sessionDepartment = normalizeScope(session.department || "");
+
+  if (session.role === "akademisyen") {
+    const rows = instructorCandidateRows(session);
+    const courses = dbCourseListFromRows(rows.length ? rows : dbCourseRows());
+    return courses.filter((course) => {
+      const instructor = normalizePerson(course.instructor || "");
+      return Boolean(sessionPerson && instructor && (
+        sessionPerson === instructor ||
+        sessionPerson.includes(instructor) ||
+        instructor.includes(sessionPerson)
+      ));
+    });
+  }
+
+  if (session.role === "abd_asd_baskani" || session.role === "abd_sekreteri") {
+    const rowsById = new Map();
+    for (const row of [...instructorCandidateRows(session), ...scopeCandidateRows(session)]) {
+      rowsById.set(row.id, row);
+    }
+    const rows = [...rowsById.values()];
+    const courses = dbCourseListFromRows(rows.length ? rows : dbCourseRows());
+    return courses.filter((course) => {
+      const instructor = normalizePerson(course.instructor || "");
+      const assignedToUser = Boolean(sessionPerson && instructor && (
+        sessionPerson === instructor ||
+        sessionPerson.includes(instructor) ||
+        instructor.includes(sessionPerson)
+      ));
+      const scopeMatches = Boolean(sessionDepartment && [course.department, course.programName]
+        .filter(Boolean)
+        .some((value) => normalizeScope(value) === sessionDepartment));
+      return assignedToUser || scopeMatches;
+    });
+  }
+
+  return dbCourseList({});
 }
 
 function findExactCourseRow(course) {
@@ -7001,6 +7100,25 @@ async function handleDbpApi(request) {
       };
       const limit = Math.max(0, Number(url.searchParams.get("limit") || 0));
       const courses = dbCourseList(filters);
+      return jsonResponse({
+        courses: limit ? courses.slice(0, limit) : courses,
+        total: courses.length,
+        source: "database",
+      });
+    }
+
+    if (pathname === "/api/dbp/my-courses" && request.method === "GET") {
+      const auth = requireDbpSession(request);
+      if (auth.error) return auth.error;
+      const filters = {
+        q: url.searchParams.get("q") || "",
+        department: url.searchParams.get("department") || "",
+        programName: url.searchParams.get("programName") || "",
+        level: url.searchParams.get("level") || "",
+        publicVisible: ["1", "true"].includes((url.searchParams.get("publicVisible") || "").toLocaleLowerCase("tr-TR")),
+      };
+      const limit = Math.max(0, Number(url.searchParams.get("limit") || 0));
+      const courses = sessionScopedCourses(auth.session).filter((course) => courseMatchesFilters(course, filters));
       return jsonResponse({
         courses: limit ? courses.slice(0, limit) : courses,
         total: courses.length,

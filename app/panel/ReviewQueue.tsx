@@ -14,7 +14,13 @@ type ReviewCourse = {
   level?: string;
   department?: string;
   programName?: string;
-  workflow?: { committeeSkipped?: boolean };
+  updatedAt?: string;
+  workflow?: {
+    committeeSkipped?: boolean;
+    latestSubmit?: {
+      createdAt?: string;
+    } | null;
+  };
 };
 type ReviewSession = { username: string; name: string; role: string; department: string };
 type ReviewMode = "committee" | "chair" | "institute";
@@ -35,6 +41,7 @@ type StoredCoursePackage = {
   savedAt?: string;
   obsSourceUrl?: string;
 };
+type CourseStatusOverride = { status: string; updatedAt: string };
 
 const workflowSteps = [
   "Akademisyen Gönderdi",
@@ -115,6 +122,23 @@ function sdgLabel(value: string) {
   const goal = findSdgGoal(value);
   return goal ? formatSdgGoal(goal) : value;
 }
+
+const reviewDateValue = (course: ReviewCourse) => {
+  const timestamp = Date.parse(course.updatedAt || course.workflow?.latestSubmit?.createdAt || "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const formatReviewDate = (course: ReviewCourse) => {
+  const timestamp = reviewDateValue(course);
+  if (!timestamp) return "-";
+  return new Intl.DateTimeFormat("tr-TR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(timestamp);
+};
+
+const reviewCourseKey = (course: ReviewCourse, fallbackDepartment: string, fallbackProgramName: string) =>
+  `${course.department || fallbackDepartment}||${course.programName || fallbackProgramName}||${course.level || ""}||${course.code}`;
 
 function WorkflowStepper({ status, committeeSkipped = false }: { status: string; committeeSkipped?: boolean }) {
   const activeStage = statusStage(status);
@@ -259,6 +283,7 @@ export function ReviewQueue({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
   const [query, setQuery] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+  const [courseStatusOverrides, setCourseStatusOverrides] = useState<Record<string, CourseStatusOverride>>({});
   const reviewMode: ReviewMode = mode ?? (role === "abd_asd_baskani" ? "chair" : "institute");
   const canRequestCorrection = reviewMode !== "institute" && role !== "abd_sekreteri";
   const canApproveCourse = (course: ReviewCourse) => pendingForMode(course, reviewMode) &&
@@ -274,16 +299,33 @@ export function ReviewQueue({
     level: course.level || "Doktora",
   });
   const coursePdfHref = (course: ReviewCourse) => `${dbpPath("/api/dbp/course-pdf")}?${courseSearchParams(course)}`;
+  const reviewCoursesWithLocalState = useMemo(
+    () => courses.map((course) => {
+      const override = courseStatusOverrides[reviewCourseKey(course, department, programName)];
+      return override ? { ...course, status: override.status, updatedAt: override.updatedAt } : course;
+    }),
+    [courseStatusOverrides, courses, department, programName],
+  );
   const filteredCourses = useMemo(() => {
     const queryText = normalizeStatus(query);
-    return courses.filter((course) => {
-      if (statusFilter === "pending" && !pendingForMode(course, reviewMode)) return false;
-      if (statusFilter === "approved" && !approvedForMode(course, reviewMode)) return false;
-      if (!queryText) return true;
-      const haystack = normalizeStatus(`${course.code} ${course.name} ${course.department || ""} ${course.programName || ""}`);
-      return haystack.includes(queryText);
-    });
-  }, [courses, query, reviewMode, statusFilter]);
+    return reviewCoursesWithLocalState
+      .filter((course) => {
+        if (statusFilter === "pending" && !pendingForMode(course, reviewMode)) return false;
+        if (statusFilter === "approved" && !approvedForMode(course, reviewMode)) return false;
+        if (!queryText) return true;
+        const haystack = normalizeStatus(`${course.code} ${course.name} ${course.department || ""} ${course.programName || ""}`);
+        return haystack.includes(queryText);
+      })
+      .sort((first, second) => reviewDateValue(second) - reviewDateValue(first));
+  }, [query, reviewCoursesWithLocalState, reviewMode, statusFilter]);
+  const applyCourseStatusOverride = (course: ReviewCourse, status: string) => {
+    const updatedAt = new Date().toISOString();
+    setCourseStatusOverrides((current) => ({
+      ...current,
+      [reviewCourseKey(course, department, programName)]: { status, updatedAt },
+    }));
+    return updatedAt;
+  };
   const openPreview = async (course: ReviewCourse) => {
     setPreview(course);
     setPreviewPackage(null);
@@ -316,8 +358,9 @@ export function ReviewQueue({
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || "Ders paketi onaylanamadı.");
       const finalPublication = isPublishedStatus(nextStatus);
+      const updatedAt = applyCourseStatusOverride(course, nextStatus);
       localStorage.setItem("lee-dbp-course-status", finalPublication ? "public" : normalizeStatus(nextStatus).replace(/\s+/g, "_"));
-      localStorage.setItem("lee-dbp-review-queue", JSON.stringify({ code: course.code, status: nextStatus, public: finalPublication }));
+      localStorage.setItem("lee-dbp-review-queue", JSON.stringify({ code: course.code, status: nextStatus, public: finalPublication, updatedAt }));
       onAction();
     } catch (error) {
       setActionMessage(error instanceof Error ? error.message : "Ders paketi onaylanamadı.");
@@ -357,6 +400,7 @@ export function ReviewQueue({
         status: "Düzeltme istendi",
       });
       localStorage.setItem("lee-dbp-notifications", JSON.stringify(notifications));
+      applyCourseStatusOverride(course, "Düzeltme İstendi");
       onAction();
       setCorrection(null);
     } catch (error) {
@@ -389,6 +433,7 @@ export function ReviewQueue({
         <div className="review-head review-head-v2">
           <span>Kayıt</span>
           <span>Süreç</span>
+          <span>Tarih</span>
           <span>Durum</span>
           <span>İşlem</span>
         </div>
@@ -402,6 +447,10 @@ export function ReviewQueue({
               <small>{course.programName || programName}</small>
             </span>
             <WorkflowStepper status={course.status || ""} committeeSkipped={course.workflow?.committeeSkipped} />
+            <span className="review-date">
+              <b>Son işlem</b>
+              <small>{formatReviewDate(course)}</small>
+            </span>
             <span className="status-pill">{course.status || "İncelemede"}</span>
             <span className="review-actions">
               <button onClick={() => void openPreview(course)}>
