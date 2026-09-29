@@ -744,6 +744,10 @@ function shouldRefreshMissingGraduateStatistics(snapshot) {
   return Date.now() - generatedAt > 5 * 60 * 1000;
 }
 
+function shouldRefreshStudentStatisticsSource(snapshot) {
+  return !snapshot?.source || snapshot.source === "e_enstitu_student_profiles";
+}
+
 async function refreshStudentStatisticsSnapshot(actor = "system") {
   const timeout = Math.max(eEnstituDbTimeoutMs(), 5_000);
   let lastError = "e-Enstitü öğrenci istatistiği kaynağına ulaşılamadı.";
@@ -7119,9 +7123,9 @@ async function handleDbpApi(request) {
         return jsonResponse({ status: "syncing", message: "İlk öğrenci istatistiği görüntüsü hazırlanıyor.", nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "" }, { status: 202 });
       }
       const forceRefresh = ["1", "true", "yes"].includes((url.searchParams.get("refresh") || "").toLocaleLowerCase("tr-TR"));
-      if (forceRefresh || shouldRefreshMissingGraduateStatistics(snapshot)) {
+      if (forceRefresh || shouldRefreshStudentStatisticsSource(snapshot) || shouldRefreshMissingGraduateStatistics(snapshot)) {
         try {
-          snapshot = await queueStudentStatisticsRefresh(forceRefresh ? "public-force-refresh" : "public-graduate-refresh");
+          snapshot = await queueStudentStatisticsRefresh(forceRefresh ? "public-force-refresh" : "public-statistics-refresh");
         } catch (error) {
           console.error(`[dbp] Öğrenci istatistiği anlık yenileme hatası: ${error instanceof Error ? error.message : error}`);
         }
