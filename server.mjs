@@ -737,6 +737,13 @@ function readStudentStatisticsSnapshot() {
   return studentStatisticsSnapshotCache;
 }
 
+function shouldRefreshMissingGraduateStatistics(snapshot) {
+  if (!snapshot || snapshot.graduateDataAvailable || Number(snapshot.graduates?.totalRecords || 0) > 0) return false;
+  const generatedAt = snapshot.generatedAt ? new Date(snapshot.generatedAt).getTime() : 0;
+  if (!Number.isFinite(generatedAt) || generatedAt <= 0) return true;
+  return Date.now() - generatedAt > 5 * 60 * 1000;
+}
+
 async function refreshStudentStatisticsSnapshot(actor = "system") {
   const timeout = Math.max(eEnstituDbTimeoutMs(), 5_000);
   let lastError = "e-Enstitü öğrenci istatistiği kaynağına ulaşılamadı.";
@@ -7106,10 +7113,18 @@ async function handleDbpApi(request) {
     }
 
     if (pathname === "/api/dbp/student-statistics" && request.method === "GET") {
-      const snapshot = readStudentStatisticsSnapshot();
+      let snapshot = readStudentStatisticsSnapshot();
       if (!snapshot) {
         queueStudentStatisticsRefresh("public-bootstrap");
         return jsonResponse({ status: "syncing", message: "İlk öğrenci istatistiği görüntüsü hazırlanıyor.", nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "" }, { status: 202 });
+      }
+      const forceRefresh = ["1", "true", "yes"].includes((url.searchParams.get("refresh") || "").toLocaleLowerCase("tr-TR"));
+      if (forceRefresh || shouldRefreshMissingGraduateStatistics(snapshot)) {
+        try {
+          snapshot = await queueStudentStatisticsRefresh(forceRefresh ? "public-force-refresh" : "public-graduate-refresh");
+        } catch (error) {
+          console.error(`[dbp] Öğrenci istatistiği anlık yenileme hatası: ${error instanceof Error ? error.message : error}`);
+        }
       }
       return jsonResponse({ ...snapshot, schedule: managedSchedule(), nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "" });
     }
