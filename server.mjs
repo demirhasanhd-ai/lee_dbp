@@ -6999,7 +6999,6 @@ async function handleDbpApi(request) {
       }
       return jsonResponse({ ...snapshot, schedule: managedSchedule(), nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "" });
     }
-
     if (pathname === "/api/dbp/quality-stats" && request.method === "GET") {
       const snapshot = await currentQualitySnapshot();
       return jsonResponse({
