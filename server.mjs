@@ -1,5 +1,5 @@
 import { createReadStream, existsSync, readFileSync } from "node:fs";
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
@@ -552,6 +552,109 @@ function officialStudentProgramCatalog() {
     })));
 }
 
+function aggregatePublicCountItems(items = []) {
+  const suppressed = items.some((item) => item?.suppressed || item?.count == null);
+  return {
+    count: suppressed ? null : items.reduce((sum, item) => sum + (Number(item?.count) || 0), 0),
+    suppressed,
+  };
+}
+
+function groupedPublicCountItems(items = []) {
+  const groups = new Map();
+  for (const item of items) {
+    const label = repairText(item?.label || "Belirtilmemiş").trim() || "Belirtilmemiş";
+    groups.set(label, [...(groups.get(label) || []), item]);
+  }
+  return [...groups.entries()]
+    .map(([label, values]) => ({ label, ...aggregatePublicCountItems(values) }))
+    .sort((left, right) => left.label.localeCompare(right.label, "tr-TR"));
+}
+
+function aggregateNullableField(items = [], field) {
+  const suppressed = items.some((item) => item?.suppressed || item?.[field] == null);
+  return suppressed ? null : items.reduce((sum, item) => sum + (Number(item?.[field]) || 0), 0);
+}
+
+function officialGraduateStatisticsSnapshot(graduates, catalog) {
+  if (!graduates || typeof graduates !== "object") {
+    return {
+      totalRecords: 0,
+      totalGraduates: 0,
+      totalOtherSeparations: 0,
+      levels: [],
+      graduationYears: [],
+      separationReasons: [],
+      departments: [],
+      programs: [],
+      quality: { lastImportedAt: "", unmatchedProgramCount: 0, missingDateCount: 0, facultyCodes: [] },
+    };
+  }
+
+  const sourcePrograms = Array.isArray(graduates.programs) ? graduates.programs : [];
+  const consumed = new Set();
+  const programs = catalog.map((official) => {
+    const departmentKey = normalizeScope(official.department);
+    const programKey = normalizeScope(official.programName);
+    const sourceIndex = sourcePrograms.findIndex((candidate, index) => {
+      if (consumed.has(index) || publicStudentLevel(candidate.level) !== official.level) return false;
+      const candidateDepartment = normalizeScope(candidate.department);
+      const sameDepartment = candidateDepartment === departmentKey;
+      const sameProgram = studentProgramBaseName(candidate.programName) === programKey;
+      return sameDepartment || sameProgram;
+    });
+    const source = sourceIndex >= 0 ? sourcePrograms[sourceIndex] : null;
+    if (sourceIndex >= 0) consumed.add(sourceIndex);
+    return {
+      departmentId: official.departmentId,
+      department: official.department,
+      programName: official.programName,
+      level: official.level,
+      total: source ? source.total : 0,
+      graduates: source ? source.graduates : 0,
+      otherSeparations: source ? source.otherSeparations : 0,
+      suppressed: source ? Boolean(source.suppressed) : false,
+      graduationYears: source && Array.isArray(source.graduationYears) ? source.graduationYears : [],
+      separationReasons: source && Array.isArray(source.separationReasons) ? source.separationReasons : [],
+    };
+  });
+
+  const departmentMap = new Map();
+  for (const program of programs) {
+    const entry = departmentMap.get(program.departmentId) || {
+      departmentId: program.departmentId,
+      department: program.department,
+      programs: [],
+    };
+    entry.programs.push(program);
+    departmentMap.set(program.departmentId, entry);
+  }
+
+  return {
+    ...graduates,
+    ignoredSourceProgramCount: Math.max(0, sourcePrograms.length - consumed.size),
+    departments: [...departmentMap.values()].map((entry) => {
+      const total = aggregateNullableField(entry.programs, "total");
+      return {
+        departmentId: entry.departmentId,
+        department: entry.department,
+        total,
+        graduates: aggregateNullableField(entry.programs, "graduates"),
+        otherSeparations: aggregateNullableField(entry.programs, "otherSeparations"),
+        suppressed: total == null,
+        levels: groupedPublicCountItems(entry.programs.map((program) => ({
+          label: program.level,
+          count: program.graduates,
+          suppressed: program.suppressed || program.graduates == null,
+        }))),
+        graduationYears: groupedPublicCountItems(entry.programs.flatMap((program) => program.graduationYears || [])),
+        separationReasons: groupedPublicCountItems(entry.programs.flatMap((program) => program.separationReasons || [])),
+      };
+    }),
+    programs,
+  };
+}
+
 function officialStudentStatisticsSnapshot(snapshot) {
   if (!snapshot?.institute) return snapshot;
   const catalog = officialStudentProgramCatalog();
@@ -617,12 +720,13 @@ function officialStudentStatisticsSnapshot(snapshot) {
 
   return {
     ...snapshot,
-    snapshotVersion: 3,
+    snapshotVersion: 4,
     catalogSource: "lee_dbp_programs",
     catalogProgramCount: catalog.length,
     ignoredSourceProgramCount: Math.max(0, sourcePrograms.length - consumed.size),
     departments,
     programs,
+    graduates: officialGraduateStatisticsSnapshot(snapshot.graduates, catalog),
   };
 }
 
@@ -649,7 +753,7 @@ async function refreshStudentStatisticsSnapshot(actor = "system") {
       const generatedAt = new Date().toISOString();
       studentStatisticsSnapshotCache = officialStudentStatisticsSnapshot({
         ...payload,
-        snapshotVersion: 3,
+        snapshotVersion: 4,
         sourceGeneratedAt: payload.generatedAt || "",
         generatedAt,
         schedule: managedSchedule(),
@@ -6395,6 +6499,13 @@ async function listBackups() {
   return backups.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+function backupFilePath(fileName) {
+  if (!fileName || path.basename(fileName) !== fileName || !fileName.endsWith(".json")) {
+    throw new Error("Geçersiz yedek dosyası adı.");
+  }
+  return path.join(backupDir, fileName);
+}
+
 function tableRows(table) {
   return db.prepare(`SELECT * FROM ${table}`).all();
 }
@@ -6609,13 +6720,16 @@ async function writeBackup(actor) {
 }
 
 async function restoreBackup(fileName, actor) {
-  if (!fileName || path.basename(fileName) !== fileName || !fileName.endsWith(".json")) {
-    throw new Error("Geçersiz yedek dosyası adı.");
-  }
-  const file = path.join(backupDir, fileName);
+  const file = backupFilePath(fileName);
   const payload = JSON.parse(await readFile(file, "utf8"));
   replaceFromExport(payload, actor);
   audit("backup.restore", actor, { fileName });
+}
+
+async function deleteBackup(fileName, actor) {
+  const file = backupFilePath(fileName);
+  await unlink(file);
+  audit("backup.delete", actor, { fileName });
 }
 
 const obsCourseHost = "obs.osmaniye.edu.tr";
@@ -7429,6 +7543,12 @@ async function handleDbpApi(request) {
       return jsonResponse({ backup: await writeBackup(actor), backups: await listBackups() });
     }
 
+    if (pathname === "/api/dbp/admin/backup" && request.method === "DELETE") {
+      const body = await readJsonBody(request);
+      await deleteBackup(body.fileName, actor);
+      return jsonResponse({ ok: true, backups: await listBackups() });
+    }
+
     if (pathname === "/api/dbp/admin/restore" && request.method === "POST") {
       const body = await readJsonBody(request);
       await restoreBackup(body.fileName, actor);
@@ -7749,7 +7869,7 @@ scheduleQualityRefresh();
 studentStatisticsSnapshotCache = readStudentStatisticsSnapshot();
 const latestStudentStatisticsRefresh = latestMainDataRefreshDate();
 const studentStatisticsGeneratedAt = studentStatisticsSnapshotCache?.generatedAt ? new Date(studentStatisticsSnapshotCache.generatedAt) : null;
-if (!studentStatisticsSnapshotCache || studentStatisticsSnapshotCache.snapshotVersion !== 3) queueStudentStatisticsRefresh("startup");
+if (!studentStatisticsSnapshotCache || studentStatisticsSnapshotCache.snapshotVersion !== 4) queueStudentStatisticsRefresh("startup");
 else if (latestStudentStatisticsRefresh && (!studentStatisticsGeneratedAt || studentStatisticsGeneratedAt < latestStudentStatisticsRefresh)) queueStudentStatisticsRefresh("scheduled-startup");
 scheduleStudentStatisticsRefresh();
 thesisSnapshotCache = readThesisSnapshot(db);

@@ -61,6 +61,10 @@ function formatBytes(value = 0) {
   return `${(value / 1024 / 1024).toFixed(2)} MB`;
 }
 
+function formatBackupDate(value: string) {
+  return new Date(value).toLocaleString("tr-TR");
+}
+
 function sessionHeader() {
   return storedDbpSessionHeader();
 }
@@ -88,7 +92,7 @@ export function DatabaseAdminPanel() {
     if (!response.ok) throw new Error("Veri tabani ozeti alinamadi.");
     const data = (await response.json()) as DbSummary;
     setSummary(data);
-    setSelectedBackup((current) => current || data.backups[0]?.fileName || "");
+    setSelectedBackup((current) => data.backups.some((backup) => backup.fileName === current) ? current : data.backups[0]?.fileName || "");
     setLoading(false);
   };
 
@@ -147,6 +151,24 @@ export function DatabaseAdminPanel() {
       if (!response.ok) throw new Error("Yedekten geri donulemedi.");
     });
 
+  const deleteSelectedBackup = () => {
+    if (!selectedBackup) {
+      setMessage("Once bir yedek secin.");
+      return;
+    }
+    const approved = window.confirm(`${selectedBackup} yedek dosyası silinsin mi? Bu işlem veri tabanını etkilemez.`);
+    if (!approved) return;
+    runAction("Secili yedek dosyasi silindi.", async () => {
+      const response = await fetch(dbpPath("/api/dbp/admin/backup"), {
+        method: "DELETE",
+        headers: jsonHeaders(),
+        body: JSON.stringify({ fileName: selectedBackup }),
+      });
+      if (!response.ok) throw new Error("Yedek dosyasi silinemedi.");
+      setSelectedBackup("");
+    });
+  };
+
   const importFile = (file?: File) =>
     runAction("Dosyadan veri yuklendi.", async () => {
       if (!file) throw new Error("JSON yedek dosyasi secin.");
@@ -161,7 +183,7 @@ export function DatabaseAdminPanel() {
     });
 
   const resetEmpty = () =>
-    runAction("Veri tabani bos olarak resetlendi.", async () => {
+    runAction("Veri tabani bos baslangic durumuna alindi.", async () => {
       const response = await fetch(dbpPath("/api/dbp/admin/reset"), {
         method: "POST",
         headers: jsonHeaders(),
@@ -262,11 +284,12 @@ export function DatabaseAdminPanel() {
                   <option value="">Yedek seçiniz</option>
                   {summary.backups.map((backup) => (
                     <option key={backup.fileName} value={backup.fileName}>
-                      {backup.fileName} ({formatBytes(backup.size)})
+                      {backup.fileName} - {formatBackupDate(backup.createdAt)} ({formatBytes(backup.size)})
                     </option>
                   ))}
                 </select>
                 <button onClick={restoreSelected} disabled={busy || !selectedBackup}><RotateCcw size={15} /> Geri Yükle</button>
+                <button className="danger-action" onClick={deleteSelectedBackup} disabled={busy || !selectedBackup}><Trash2 size={15} /> Yedeği Sil</button>
               </div>
             </section>
 
@@ -286,7 +309,7 @@ export function DatabaseAdminPanel() {
               </div>
               <div className="database-reset">
                 <input value={resetConfirm} onChange={(event) => setResetConfirm(event.target.value)} placeholder="DBP_RESET yazın" />
-                <button onClick={resetEmpty} disabled={busy || resetConfirm !== "DBP_RESET"}><Trash2 size={15} /> Boş Reset</button>
+                <button onClick={resetEmpty} disabled={busy || resetConfirm !== "DBP_RESET"}><Trash2 size={15} /> Boş Başlangıç Yap</button>
               </div>
             </section>
 
