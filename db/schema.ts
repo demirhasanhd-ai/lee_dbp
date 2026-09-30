@@ -98,6 +98,25 @@ export const approvalRequests = sqliteTable("approval_requests", {
   reviewedAt: text("reviewed_at"),
 });
 
+export const courseReviewAssignees = sqliteTable("course_review_assignees", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  target: text("target").notNull(),
+  stage: text("stage").notNull(),
+  departmentScope: text("department_scope").notNull(),
+  department: text("department").notNull(),
+  programName: text("program_name"),
+  level: text("level"),
+  code: text("code"),
+  memberKey: text("member_key").notNull(),
+  memberUsername: text("member_username"),
+  memberTcKimlik: text("member_tc_kimlik"),
+  memberName: text("member_name").notNull(),
+  memberEmail: text("member_email"),
+  assignedBy: text("assigned_by"),
+  assignedAt: text("assigned_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+}, (table) => [uniqueIndex("course_review_assignees_target_member_idx").on(table.target, table.stage, table.memberKey)]);
+
 export const files = sqliteTable("files", {
   id: text("id").primaryKey(),
   courseVersionId: text("course_version_id").references(() => courseVersions.id),

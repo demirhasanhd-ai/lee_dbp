@@ -1,5 +1,5 @@
 "use client";
-import { CheckCircle2, Eye, Filter, MessageSquareWarning, Search, X } from "lucide-react";
+import { CheckCircle2, Eye, Filter, MessageSquareWarning, Search, Settings, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { DbpRole } from "../../lib/auth/roles";
 import { dbpPath } from "../../lib/dbpPath";
@@ -42,12 +42,44 @@ type StoredCoursePackage = {
   obsSourceUrl?: string;
 };
 type CourseStatusOverride = { status: string; updatedAt: string };
+type AdminStatusOption = {
+  status: string;
+  label: string;
+  description: string;
+};
 
 const workflowSteps = [
   "Akademisyen Gönderdi",
   "Komisyon İncelemesi",
   "ABD/ASD Son Onayı",
   "Yayımlandı",
+];
+const adminStatusOptions: AdminStatusOption[] = [
+  {
+    status: "Komisyon Onayı Bekliyor",
+    label: "Komisyon incelemesine al",
+    description: "Paket mevcut komisyon üyelerinin onay bekleyen listesine düşer.",
+  },
+  {
+    status: "ABD Son Onayı Bekliyor",
+    label: "Komisyon onayladı say",
+    description: "Paket ABD/ASD başkanının son onay kuyruğuna taşınır.",
+  },
+  {
+    status: "Yayımlandı",
+    label: "ABD onayladı ve yayımla",
+    description: "Paket yayımlanmış kabul edilir.",
+  },
+  {
+    status: "Düzeltme İstendi",
+    label: "Akademisyene düzeltmeye iade et",
+    description: "Paket akademisyenin tekrar düzenleyip onaya gönderebileceği duruma alınır.",
+  },
+  {
+    status: "Taslak",
+    label: "Süreci sıfırla",
+    description: "Onay süreci kapatılır ve paket taslak düzenleme aşamasına döner.",
+  },
 ];
 
 const foldTurkishText = (value: string) =>
@@ -283,9 +315,13 @@ export function ReviewQueue({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
   const [query, setQuery] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+  const [adminOverride, setAdminOverride] = useState<ReviewCourse | null>(null);
+  const [adminStatus, setAdminStatus] = useState(adminStatusOptions[1].status);
+  const [adminNote, setAdminNote] = useState("");
   const [courseStatusOverrides, setCourseStatusOverrides] = useState<Record<string, CourseStatusOverride>>({});
   const reviewMode: ReviewMode = mode ?? (role === "abd_asd_baskani" ? "chair" : "institute");
   const canRequestCorrection = reviewMode !== "institute" && role !== "abd_sekreteri";
+  const canForceStatus = role === "admin";
   const canApproveCourse = (course: ReviewCourse) => pendingForMode(course, reviewMode) &&
     (reviewMode === "committee" || (reviewMode === "chair" && ["abd_asd_baskani", "admin"].includes(role)));
   const canRequestCorrectionCourse = (course: ReviewCourse) => canRequestCorrection && pendingForMode(course, reviewMode);
@@ -407,6 +443,42 @@ export function ReviewQueue({
       setActionMessage(error instanceof Error ? error.message : "Düzeltme talebi kaydedilemedi.");
     }
   };
+  const openAdminOverride = (course: ReviewCourse) => {
+    setAdminOverride(course);
+    setAdminStatus(adminStatusOptions[1].status);
+    setAdminNote("");
+  };
+  const applyAdminOverride = async (course: ReviewCourse) => {
+    const selected = adminStatusOptions.find((option) => option.status === adminStatus);
+    const label = selected?.label || adminStatus;
+    if (!window.confirm(`${course.code} ders bilgi paketinde "${label}" işlemi uygulanacak. Devam edilsin mi?`)) return;
+    try {
+      setActionMessage("");
+      const response = await fetch(dbpPath("/api/dbp/course-package/status"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-DBP-Session": dbpSessionHeader(session) },
+        body: JSON.stringify({
+          code: course.code,
+          department: course.department || department,
+          programName: course.programName || programName,
+          level: course.level || "Doktora",
+          status: adminStatus,
+          force: true,
+          note: adminNote,
+          route: `Admin süreç düzeltmesi: ${label}`,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || "Süreç durumu güncellenemedi.");
+      const updatedAt = applyCourseStatusOverride(course, adminStatus);
+      localStorage.setItem("lee-dbp-review-queue", JSON.stringify({ code: course.code, status: adminStatus, public: isPublishedStatus(adminStatus), updatedAt }));
+      setAdminOverride(null);
+      setActionMessage(`${course.code} için süreç durumu "${adminStatus}" olarak güncellendi.`);
+      onAction();
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "Süreç durumu güncellenemedi.");
+    }
+  };
   return (
     <section>
       <div className="panel-intro">
@@ -473,6 +545,12 @@ export function ReviewQueue({
                   {approvalLabel}
                 </button>
               )}
+              {canForceStatus && (
+                <button type="button" onClick={() => openAdminOverride(course)}>
+                  <Settings size={14} />
+                  Süreç Düzelt
+                </button>
+              )}
             </span>
           </div>
         ))}
@@ -513,7 +591,70 @@ export function ReviewQueue({
                   {approvalLabel}
                 </button>
               )}
+              {canForceStatus && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreview(null);
+                    openAdminOverride(preview);
+                  }}
+                >
+                  <Settings size={14} />
+                  Süreç Düzelt
+                </button>
+              )}
             </footer>
+          </section>
+        </div>
+      )}
+      {adminOverride && (
+        <div className="review-modal-backdrop">
+          <section className="correction-modal">
+            <header>
+              <div>
+                <small>ADMIN SÜREÇ DÜZELTMESİ</small>
+                <h2>{adminOverride.code} - {adminOverride.name}</h2>
+              </div>
+              <button onClick={() => setAdminOverride(null)} aria-label="Kapat">
+                <X size={17} />
+              </button>
+            </header>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void applyAdminOverride(adminOverride);
+              }}
+            >
+              <label>
+                <span>Yeni süreç durumu</span>
+                <select value={adminStatus} onChange={(event) => setAdminStatus(event.currentTarget.value)}>
+                  {adminStatusOptions.map((option) => (
+                    <option key={option.status} value={option.status}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="correction-package-preview">
+                <b>{adminStatus}</b>
+                <span>{adminStatusOptions.find((option) => option.status === adminStatus)?.description}</span>
+              </div>
+              <label>
+                <span>İşlem notu</span>
+                <textarea
+                  value={adminNote}
+                  onChange={(event) => setAdminNote(event.currentTarget.value)}
+                  placeholder="Örn. Komisyon onayı tamamlandığı halde ABD başkanı kuyruğuna düşmediği için süreç elle düzeltildi."
+                />
+              </label>
+              <footer>
+                <button type="button" onClick={() => setAdminOverride(null)}>
+                  Vazgeç
+                </button>
+                <button className="approve" type="submit">
+                  <Settings size={14} />
+                  Durumu Güncelle
+                </button>
+              </footer>
+            </form>
           </section>
         </div>
       )}

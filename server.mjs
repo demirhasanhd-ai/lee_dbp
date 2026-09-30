@@ -3351,6 +3351,78 @@ function committeeMembersForDepartment(department) {
   }));
 }
 
+function courseReviewAssigneesForTarget(body = {}, stage = "committee") {
+  const target = workflowTarget(body);
+  if (!target) return [];
+  return db.prepare(`
+    SELECT id, target, stage, department_scope, department, program_name, level, code, member_key, member_username, member_tc_kimlik, member_name, member_email, assigned_by, assigned_at, active
+    FROM course_review_assignees
+    WHERE target = ? AND stage = ? AND active = 1
+    ORDER BY member_name COLLATE NOCASE
+  `).all(target, stage).map((row) => ({
+    id: row.id,
+    target: row.target || "",
+    stage: row.stage || "",
+    departmentScope: row.department_scope || "",
+    department: repairText(row.department || ""),
+    programName: repairText(row.program_name || ""),
+    level: repairText(row.level || ""),
+    code: repairText(row.code || ""),
+    memberKey: row.member_key || "",
+    username: row.member_username || "",
+    tcKimlik: row.member_tc_kimlik || "",
+    name: repairText(row.member_name || ""),
+    email: row.member_email || "",
+    assignedBy: row.assigned_by || "",
+    assignedAt: row.assigned_at || "",
+    active: Boolean(row.active),
+  }));
+}
+
+function sessionMatchesReviewAssignee(session, assignee) {
+  const keys = new Set(memberIdentityKeys(session));
+  const assigneeKeys = memberIdentityKeys({
+    username: assignee.username,
+    tcKimlik: assignee.tcKimlik,
+    email: assignee.email,
+    name: assignee.name,
+  });
+  if (assignee.memberKey) assigneeKeys.push(assignee.memberKey);
+  if (assignee.member_key) assigneeKeys.push(assignee.member_key);
+  if (assigneeKeys.some((key) => keys.has(key))) return true;
+  const sessionName = normalizePerson(session.name || "");
+  return Boolean(sessionName && normalizePerson(assignee.name || assignee.member_name || "") === sessionName);
+}
+
+function courseReviewAssignmentMembershipsForSession(session) {
+  const keys = memberIdentityKeys(session);
+  const rows = keys.length
+    ? db.prepare(`
+      SELECT DISTINCT department_scope, department, program_name, member_name
+      FROM course_review_assignees
+      WHERE active = 1
+        AND (
+          member_key IN (${keys.map(() => "?").join(",")})
+          OR lower(member_username) IN (${keys.map(() => "?").join(",")})
+          OR lower(member_email) IN (${keys.map(() => "?").join(",")})
+        )
+    `).all(...keys, ...keys, ...keys)
+    : [];
+  const normalizedName = normalizePerson(session.name || "");
+  const byName = normalizedName
+    ? db.prepare(`
+      SELECT DISTINCT department_scope, department, program_name, member_name
+      FROM course_review_assignees
+      WHERE active = 1 AND member_name IS NOT NULL
+    `).all().filter((row) => normalizePerson(row.member_name || "") === normalizedName)
+    : [];
+  return [...rows, ...byName].map((row) => ({
+    departmentScope: row.department_scope,
+    department: repairText(row.department || ""),
+    programName: repairText(row.program_name || ""),
+  }));
+}
+
 function committeeMembershipsForSession(session) {
   const keys = memberIdentityKeys(session);
   if (!keys.length) return [];
@@ -3370,7 +3442,7 @@ function committeeMembershipsForSession(session) {
       `).all(normalizedName).filter((row) => normalizePerson(row.member_name || "") === normalizedName)
     : [];
   const seen = new Set();
-  return [...rows, ...byName]
+  return [...rows, ...byName, ...courseReviewAssignmentMembershipsForSession(session)]
     .filter((row) => {
       const key = row.department_scope;
       if (!key || seen.has(key)) return false;
@@ -3438,10 +3510,69 @@ function replaceCommitteeMembers({ department, programName, members }, actor) {
   return committeeMembersForDepartment(departmentName);
 }
 
+function replaceCourseReviewAssignees({ body, members = [], stage = "committee", actor }) {
+  const target = workflowTarget(body);
+  if (!target) return [];
+  const departmentName = repairText(String(body.department || "")).trim();
+  const programName = repairText(String(body.programName || body.program_name || "")).trim();
+  const level = displayLevel(body.level || "");
+  const code = repairText(String(body.code || "")).trim();
+  const departmentScope = normalizeScope(departmentName);
+  const now = new Date().toISOString();
+  const normalizedMembers = [];
+  const seen = new Set();
+  for (const item of Array.isArray(members) ? members : []) {
+    const member = {
+      username: String(item.username || item.member_username || "").trim(),
+      tcKimlik: String(item.tcKimlik || item.tc_kimlik || item.member_tc_kimlik || "").trim(),
+      name: repairText(String(item.name || item.member_name || "")).trim(),
+      email: String(item.email || item.member_email || "").trim(),
+    };
+    const key = item.memberKey || item.member_key || primaryMemberKey(member);
+    if (!member.name || !key || seen.has(key)) continue;
+    seen.add(key);
+    normalizedMembers.push({ ...member, key });
+  }
+  db.prepare("UPDATE course_review_assignees SET active = 0 WHERE target = ? AND stage = ?").run(target, stage);
+  const insert = db.prepare(`
+    INSERT OR REPLACE INTO course_review_assignees(target, stage, department_scope, department, program_name, level, code, member_key, member_username, member_tc_kimlik, member_name, member_email, assigned_by, assigned_at, active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+  `);
+  for (const member of normalizedMembers) {
+    insert.run(
+      target,
+      stage,
+      departmentScope,
+      departmentName,
+      programName,
+      level,
+      code,
+      member.key,
+      member.username,
+      member.tcKimlik,
+      member.name,
+      member.email,
+      actor || "dbp-user",
+      now,
+    );
+  }
+  return courseReviewAssigneesForTarget(body, stage);
+}
+
+function deactivateCourseReviewAssignees(body = {}, stage = "committee") {
+  const target = workflowTarget(body);
+  if (!target) return;
+  db.prepare("UPDATE course_review_assignees SET active = 0 WHERE target = ? AND stage = ?").run(target, stage);
+}
+
 function isCommitteeMemberForCourse(session, body) {
   if (session.role === "admin") return true;
   const departmentScope = normalizeScope(body.department || "");
   if (!departmentScope) return false;
+  const frozenAssignees = courseReviewAssigneesForTarget(body, "committee");
+  if (frozenAssignees.length) {
+    return frozenAssignees.some((assignee) => sessionMatchesReviewAssignee(session, assignee));
+  }
   return committeeMembershipsForSession(session).some((item) => item.departmentScope === departmentScope);
 }
 
@@ -3540,6 +3671,9 @@ function expectedStatusesForTransition(status, body = {}) {
   const normalized = normalizeScope(status || "");
   const providedExpected = body.expectedStatus ? normalizeScope(body.expectedStatus) : "";
   let allowed = [];
+  if (normalized === normalizeScope("Komisyon Onayı Bekliyor") || normalized === normalizeScope("Taslak")) {
+    return providedExpected ? [providedExpected] : [];
+  }
   if (normalized === normalizeScope("ABD Son Onayı Bekliyor")) {
     allowed = [normalizeScope("Komisyon Onayı Bekliyor")];
     return providedExpected && allowed.includes(providedExpected) ? [providedExpected] : allowed;
@@ -3565,10 +3699,10 @@ function expectedStatusesForTransition(status, body = {}) {
   return [];
 }
 
-function transitionCoursePackageStatus(body, status, actor) {
+function transitionCoursePackageStatus(body, status, actor, options = {}) {
   const rows = courseRowsForIdentity(body).filter((row) => row.package_json && row.package_json !== "{}");
   if (!rows.length) return { ok: false, missing: true };
-  const expected = expectedStatusesForTransition(status, body);
+  const expected = options.force ? [] : expectedStatusesForTransition(status, body);
   const mismatches = expected.length
     ? rows.filter((row) => !expected.includes(normalizeScope(row.status || "")))
     : [];
@@ -3598,6 +3732,9 @@ function transitionCoursePackageStatus(body, status, actor) {
       };
     }
     for (const row of lockedRows) statement.run(status, now, row.id);
+    if (normalizeScope(status) !== normalizeScope("Komisyon Onayı Bekliyor")) {
+      deactivateCourseReviewAssignees(body, "committee");
+    }
     recordWorkflowRequest({
       kind: "course-package",
       body,
@@ -3674,6 +3811,28 @@ async function ensureDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_committee_members_member ON committee_members(member_key);
     CREATE INDEX IF NOT EXISTS idx_committee_members_scope ON committee_members(department_scope);
+    CREATE TABLE IF NOT EXISTS course_review_assignees (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      target TEXT NOT NULL,
+      stage TEXT NOT NULL,
+      department_scope TEXT NOT NULL,
+      department TEXT NOT NULL,
+      program_name TEXT,
+      level TEXT,
+      code TEXT,
+      member_key TEXT NOT NULL,
+      member_username TEXT,
+      member_tc_kimlik TEXT,
+      member_name TEXT NOT NULL,
+      member_email TEXT,
+      assigned_by TEXT,
+      assigned_at TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      UNIQUE(target, stage, member_key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_course_review_assignees_target ON course_review_assignees(target, stage, active);
+    CREATE INDEX IF NOT EXISTS idx_course_review_assignees_member ON course_review_assignees(member_key, active);
+    CREATE INDEX IF NOT EXISTS idx_course_review_assignees_scope ON course_review_assignees(department_scope, active);
     CREATE TABLE IF NOT EXISTS programs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       main_department TEXT NOT NULL,
@@ -4506,7 +4665,7 @@ function seedInitialData(force = false) {
   db.exec("BEGIN");
   try {
     if (force) {
-      for (const table of ["committee_members", "programs", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
+      for (const table of ["committee_members", "course_review_assignees", "programs", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs"]) {
         db.exec(`DELETE FROM ${table}`);
       }
     }
@@ -4897,26 +5056,47 @@ function scopeCandidateRows(session) {
   return dbCourseRows("WHERE department LIKE ? OR program_name LIKE ?", [`%${scope}%`, `%${scope}%`]);
 }
 
+function committeeScopeCandidateRows(session) {
+  const rowsById = new Map();
+  for (const membership of committeeMembershipsForSession(session)) {
+    for (const scope of [membership.department, membership.programName].filter(Boolean)) {
+      for (const row of dbCourseRows("WHERE department LIKE ? OR program_name LIKE ?", [`%${scope}%`, `%${scope}%`])) {
+        rowsById.set(row.id, row);
+      }
+    }
+  }
+  return [...rowsById.values()];
+}
+
 function sessionScopedCourses(session) {
   const sessionPerson = normalizePerson(session.name || "");
   const sessionDepartment = normalizeScope(session.department || "");
+  const committeeDepartmentScopes = new Set(committeeMembershipsForSession(session).map((item) => item.departmentScope));
 
   if (session.role === "akademisyen") {
-    const rows = instructorCandidateRows(session);
+    const rowsById = new Map();
+    for (const row of [...instructorCandidateRows(session), ...committeeScopeCandidateRows(session)]) {
+      rowsById.set(row.id, row);
+    }
+    const rows = [...rowsById.values()];
     const courses = dbCourseListFromRows(rows.length ? rows : dbCourseRows());
     return courses.filter((course) => {
       const instructor = normalizePerson(course.instructor || "");
-      return Boolean(sessionPerson && instructor && (
+      const assignedToUser = Boolean(sessionPerson && instructor && (
         sessionPerson === instructor ||
         sessionPerson.includes(instructor) ||
         instructor.includes(sessionPerson)
       ));
+      const assignedForCommittee = [course.department, course.programName]
+        .filter(Boolean)
+        .some((value) => committeeDepartmentScopes.has(normalizeScope(value)));
+      return assignedToUser || assignedForCommittee;
     });
   }
 
   if (session.role === "abd_asd_baskani" || session.role === "abd_sekreteri") {
     const rowsById = new Map();
-    for (const row of [...instructorCandidateRows(session), ...scopeCandidateRows(session)]) {
+    for (const row of [...instructorCandidateRows(session), ...scopeCandidateRows(session), ...committeeScopeCandidateRows(session)]) {
       rowsById.set(row.id, row);
     }
     const rows = [...rowsById.values()];
@@ -4931,7 +5111,10 @@ function sessionScopedCourses(session) {
       const scopeMatches = Boolean(sessionDepartment && [course.department, course.programName]
         .filter(Boolean)
         .some((value) => normalizeScope(value) === sessionDepartment));
-      return assignedToUser || scopeMatches;
+      const assignedForCommittee = [course.department, course.programName]
+        .filter(Boolean)
+        .some((value) => committeeDepartmentScopes.has(normalizeScope(value)));
+      return assignedToUser || scopeMatches || assignedForCommittee;
     });
   }
 
@@ -6624,6 +6807,7 @@ function exportData() {
       user_roles: tableRows("user_roles"),
       role_module_access: tableRows("role_module_access"),
       committee_members: tableRows("committee_members"),
+      course_review_assignees: tableRows("course_review_assignees"),
       programs: tableRows("programs"),
       program_profiles: tableRows("program_profiles"),
       courses: tableRows("courses"),
@@ -6644,7 +6828,7 @@ function replaceFromExport(payload, actor = "admin") {
   const now = new Date().toISOString();
   db.exec("BEGIN");
   try {
-    for (const table of ["metadata", "user_roles", "users", "role_module_access", "committee_members", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs", "page_view_events", "page_view_monthly_stats"]) {
+    for (const table of ["metadata", "user_roles", "users", "role_module_access", "committee_members", "course_review_assignees", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs", "page_view_events", "page_view_monthly_stats"]) {
       db.exec(`DELETE FROM ${table}`);
     }
     const insertMetadata = db.prepare("INSERT INTO metadata(key, value) VALUES (?, ?)");
@@ -6683,6 +6867,40 @@ function replaceFromExport(payload, actor = "admin") {
           row.member_email || "",
           row.created_by || "import",
           row.created_at || now,
+        );
+      }
+    }
+    const insertReviewAssignee = db.prepare(`
+      INSERT OR REPLACE INTO course_review_assignees(id, target, stage, department_scope, department, program_name, level, code, member_key, member_username, member_tc_kimlik, member_name, member_email, assigned_by, assigned_at, active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const row of payload.tables.course_review_assignees || []) {
+      const department = repairText(row.department || "");
+      const memberName = repairText(row.member_name || row.name || "");
+      const target = row.target || workflowTarget({
+        department,
+        programName: row.program_name || "",
+        level: row.level || "",
+        code: row.code || "",
+      });
+      if (target && department && memberName) {
+        insertReviewAssignee.run(
+          row.id || null,
+          target,
+          row.stage || "committee",
+          row.department_scope || normalizeScope(department),
+          department,
+          row.program_name || "",
+          row.level || "",
+          row.code || "",
+          row.member_key || primaryMemberKey({ name: memberName, email: row.member_email, username: row.member_username }),
+          row.member_username || "",
+          row.member_tc_kimlik || "",
+          memberName,
+          row.member_email || "",
+          row.assigned_by || "import",
+          row.assigned_at || now,
+          row.active === 0 ? 0 : 1,
         );
       }
     }
@@ -6737,7 +6955,7 @@ function replaceFromExport(payload, actor = "admin") {
 function resetDatabase(actor) {
   db.exec("BEGIN");
   try {
-    for (const table of ["committee_members", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs", "page_view_events", "page_view_monthly_stats"]) {
+    for (const table of ["committee_members", "course_review_assignees", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs", "page_view_events", "page_view_monthly_stats"]) {
       db.exec(`DELETE FROM ${table}`);
     }
     db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("seeded_from_current_data", "reset_empty");
@@ -6789,6 +7007,7 @@ async function adminSummary() {
       userRoles: countRows("user_roles"),
       roleModuleAccess: countRows("role_module_access"),
       committeeMembers: countRows("committee_members"),
+      courseReviewAssignees: countRows("course_review_assignees"),
       programs: countRows("programs"),
       programProfiles: countRows("program_profiles"),
       courses: countRows("courses"),
@@ -7465,7 +7684,8 @@ async function handleDbpApi(request) {
         return jsonResponse({ message: "Bu ders paketi üzerinde kayıt yetkiniz yok." }, { status: 403 });
       }
       const submittedForCommittee = normalizeScope(body.status || "") === normalizeScope("Komisyon Onayı Bekliyor");
-      const committeeExists = submittedForCommittee && committeeMembersForDepartment(body.department || "").length > 0;
+      const committeeMembersAtSubmit = submittedForCommittee ? committeeMembersForDepartment(body.department || "") : [];
+      const committeeExists = submittedForCommittee && committeeMembersAtSubmit.length > 0;
       const actualStatus = submittedForCommittee && !committeeExists ? "ABD Son Onayı Bekliyor" : body.status || "Taslak";
 
       let update = { changes: 0 };
@@ -7547,6 +7767,12 @@ async function handleDbpApi(request) {
           status: actualStatus,
           actor,
         });
+        replaceCourseReviewAssignees({
+          body: { ...body, level },
+          members: committeeMembersAtSubmit,
+          stage: "committee",
+          actor,
+        });
       }
       invalidateHomeStatsCache();
       queueQualitySnapshotRefresh("course.package.save");
@@ -7567,20 +7793,32 @@ async function handleDbpApi(request) {
       if (normalizeScope(requestedStatus) === normalizeScope("Enstitü Onayı Bekliyor")) {
         return jsonResponse({ message: "Enstitü onayı ders bilgi paketi onay zincirinden kaldırıldı. Son onay ABD/ASD başkanı tarafından yayımlanır." }, { status: 422 });
       }
+      const forceStatus = Boolean(body.force);
+      if (forceStatus && auth.session.role !== "admin") {
+        return jsonResponse({ message: "Süreç durumunu resen değiştirme yetkisi yalnızca admin rolündedir." }, { status: 403 });
+      }
       const committeeApproval = normalizeScope(requestedStatus) === normalizeScope("ABD Son Onayı Bekliyor");
       const correctionRequest = normalizeScope(requestedStatus) === normalizeScope("Düzeltme İstendi");
       const committeeAction = committeeApproval || (correctionRequest && isCommitteeMemberForCourse(auth.session, body));
-      if (committeeAction ? !isCommitteeMemberForCourse(auth.session, body) : !canApproveCoursePackage(auth.session, body)) {
+      if (!forceStatus && (committeeAction ? !isCommitteeMemberForCourse(auth.session, body) : !canApproveCoursePackage(auth.session, body))) {
         return jsonResponse({ message: "Bu ders paketini onaylama yetkiniz yok." }, { status: 403 });
       }
       const status = requestedStatus || "Yayımlandı";
-      const transition = transitionCoursePackageStatus(body, status, auth.session.name || auth.session.username || "dbp-user");
+      const transition = transitionCoursePackageStatus(body, status, auth.session.name || auth.session.username || "dbp-user", { force: forceStatus });
       if (transition.missing) return jsonResponse({ message: "Onaylanacak kayıtlı ders paketi bulunamadı." }, { status: 404 });
       if (transition.conflict) {
         return jsonResponse({
           message: `Bu ders paketi artık beklenen aşamada değil. Güncel durum: ${transition.currentStatus || "Bilinmiyor"}.`,
           currentStatus: transition.currentStatus || "",
         }, { status: 409 });
+      }
+      if (forceStatus && normalizeScope(status) === normalizeScope("Komisyon Onayı Bekliyor")) {
+        replaceCourseReviewAssignees({
+          body,
+          members: committeeMembersForDepartment(body.department || ""),
+          stage: "committee",
+          actor: auth.session.name || auth.session.username || "dbp-admin",
+        });
       }
       invalidateHomeStatsCache();
       queueQualitySnapshotRefresh("course.package.status");
