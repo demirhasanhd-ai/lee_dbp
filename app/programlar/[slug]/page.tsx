@@ -28,6 +28,7 @@ function programCourses(program:LeeProgram):PublicCourse[]{
   credit:course.credit,
   instructor:course.instructor,
   programCode:course.programCode,
+  status:course.status,
  }));
  return demoProgramCourses(program);
 }

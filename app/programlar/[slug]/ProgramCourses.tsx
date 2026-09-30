@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Printer } from "lucide-react";
+import { Check, Download, FileText, Printer, X } from "lucide-react";
 import {
   fetchProgramVisibility,
   isCoursePublic,
@@ -33,6 +33,7 @@ export type PublicCourse = {
   instructor?: string;
   programCode?: string;
   updatedAt?: string;
+  status?: string;
 };
 
 type Props = {
@@ -66,10 +67,11 @@ function toPublicCourse(course: DbpCourse): PublicCourse {
     instructor: course.instructor,
     programCode: course.programCode,
     updatedAt: course.updatedAt,
+    status: course.status,
   };
 }
 
-const columns = ["9%", "22%", "10%", "10%", "17%", "4%", "4%", "5%", "10%", "9%"];
+const columns = ["9%", "21%", "9%", "10%", "16%", "4%", "4%", "5%", "6%", "9%", "7%"];
 const mergedProcessCourseCodes = new Set([
   "YBS9XX", "YBS91X", "DAN902", "YBS910", "YBS917", "SKY9XX", "SKY909", "SKY917", "SKY91X",
   "DAN8XX", "ADE7XX", "ADE8XX", "ADE806", "ADE81X", "TDE9XX", "TDE910", "TDE917", "TDE91X",
@@ -147,6 +149,25 @@ const repairText = (value: string) =>
     .replaceAll("Ã§", "ç")
     .replaceAll("Ã‡", "Ç")
     .replaceAll("Ã", "Ç");
+
+const approvedStatuses = new Set(["Yayımlandı", "Yayınlandı", "Public", "Onaylandı"]);
+
+const isApprovedCourse = (course: PublicCourse) =>
+  approvedStatuses.has(repairText(course.status || "").trim());
+
+const excelEscape = (value: string | number | undefined) =>
+  String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+
+const filenamePart = (value: string) =>
+  repairText(value)
+    .toLocaleLowerCase("tr-TR")
+    .replace(/[^a-z0-9ığüşöçİĞÜŞÖÇ]+/giu, "-")
+    .replace(/^-+|-+$/g, "")
+    || "ders-listesi";
 
 const renderInlineProfileText = (text: string) =>
   text.split("**").map((part, index) =>
@@ -392,6 +413,46 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       level: course.level,
       version: course.updatedAt,
     }) ?? "#";
+  const downloadCourseList = () => {
+    const headers = [
+      "Dersin Kodu",
+      "Dersin Adı",
+      "Dönem",
+      "Zorunlu / Seçmeli",
+      "Öğretim Elemanı",
+      "T",
+      "U",
+      "AKTS",
+      "Onay",
+    ];
+    const rows = courseSections.flatMap((section) =>
+      section.courses.map((course) => [
+        course.code,
+        repairText(course.name),
+        mergedProcessCourseCodes.has(course.code) ? "Güz ve Bahar" : repairText(course.term),
+        repairText(course.type),
+        course.instructor?.trim() ? repairText(course.instructor) : "Atama bekliyor",
+        course.theory,
+        course.practice,
+        course.ects,
+        isApprovedCourse(course) ? "Onaylandı" : "Onay tamamlanmadı",
+      ]),
+    );
+    const worksheet = `<!doctype html><html><head><meta charset="utf-8"></head><body><table><thead><tr>${headers
+      .map((header) => `<th>${excelEscape(header)}</th>`)
+      .join("")}</tr></thead><tbody>${rows
+      .map((row) => `<tr>${row.map((cell) => `<td>${excelEscape(cell)}</td>`).join("")}</tr>`)
+      .join("")}</tbody></table></body></html>`;
+    const blob = new Blob([worksheet], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${filenamePart(activeProgram.programName)}-${filenamePart(activeLevel)}-ders-listesi.xls`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
   const changeView = (next: ViewState) => {
     setActiveView(next);
     const nextProgram = allProgramItems.find((item) => item.visibilityKey === next.programKey);
@@ -435,6 +496,9 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
           <>
             <div className="public-course-title">
               <div><small>2026-2027 AKADEMİK YILI</small><h2>{activeLevel} Dersleri</h2></div>
+              <button className="table-action public-course-download" type="button" onClick={downloadCourseList} disabled={!courseSections.length}>
+                <Download size={15}/><span>Ders listesini indir</span>
+              </button>
             </div>
             {courseSections.map((section) => (
               <section className="public-course-group" key={section.key}>
@@ -442,7 +506,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
                 <div className="course-table-wrap">
                   <table className="public-course-table">
                     <colgroup>{columns.map((width, index) => <col style={{ width }} key={index} />)}</colgroup>
-                    <thead><tr><th>Dersin Kodu</th><th>Dersin Adı</th><th>Dönem</th><th>Zorunlu / Seçmeli</th><th>Öğretim Elemanı</th><th>T</th><th>U</th><th>AKTS</th><th>Bilgi Paketi</th><th>Yazdır</th></tr></thead>
+                    <thead><tr><th>Dersin Kodu</th><th>Dersin Adı</th><th>Dönem</th><th>Zorunlu / Seçmeli</th><th>Öğretim Elemanı</th><th>T</th><th>U</th><th>AKTS</th><th>Onay</th><th>Bilgi Paketi</th><th>Yazdır</th></tr></thead>
                     <tbody>
                       {section.courses.map((course) => (
                         <tr key={course.code}>
@@ -451,6 +515,11 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
                           <td><span className={`course-type ${repairText(course.type) === "Zorunlu" ? "required" : "elective"}`}>{repairText(course.type)}</span></td>
                           <td>{course.instructor?.trim() ? repairText(course.instructor) : "Atama bekliyor"}</td>
                           <td>{course.theory}</td><td>{course.practice}</td><td><b>{course.ects}</b></td>
+                          <td>
+                            <span className={`approval-badge ${isApprovedCourse(course) ? "approved" : "pending"}`} title={isApprovedCourse(course) ? "Onaylandı" : "Onay süreci tamamlanmadı"} aria-label={isApprovedCourse(course) ? "Onaylandı" : "Onay süreci tamamlanmadı"}>
+                              {isApprovedCourse(course) ? <Check size={13}/> : <X size={13}/>}
+                            </span>
+                          </td>
                           <td><a className="table-action primary" href={packageUrl(course)}><FileText size={15}/><span>Görüntüle</span></a></td>
                           <td><a className="table-action" href={pdfUrl(course)} target="_blank" rel="noreferrer" aria-label={`${course.code} ders bilgi paketini PDF olarak aç`}><Printer size={15}/><span>Yazdır</span></a></td>
                         </tr>

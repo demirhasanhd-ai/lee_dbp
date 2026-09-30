@@ -6,8 +6,6 @@ import { PublicSiteHeader } from "../PublicSiteHeader";
 import { dbpPath } from "../../lib/dbpPath";
 import { coursePdfHref } from "../../lib/coursePdf";
 import { OFFICIAL_COURSES } from "../../lib/data/courseCatalog";
-import type { OfficialCourse } from "../../lib/data/officialCourses";
-import type { DbpCourse } from "../../lib/data/dbpCourses";
 
 export const metadata: Metadata = { title: "Ders Kataloğu" };
 
@@ -28,27 +26,6 @@ type CatalogSearchParams = {
   duzey?: string;
   guncelleme?: string;
 };
-
-function toDbpCourse(course: OfficialCourse): DbpCourse {
-  return {
-    academicYear: course.academicYear,
-    programCode: course.programCode,
-    department: course.department,
-    programName: course.programName,
-    level: course.level,
-    code: course.code,
-    name: course.name,
-    type: course.type,
-    credit: course.credit,
-    ects: course.ects,
-    theory: course.theory,
-    practice: course.practice,
-    term: course.term,
-    status: course.status,
-    instructor: course.instructor,
-    source: course.source,
-  };
-}
 
 export default async function Catalog({ searchParams }: { searchParams: Promise<CatalogSearchParams> }) {
   const params = await searchParams;
@@ -92,30 +69,17 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
   }
 
   const query = params.q?.trim() ?? "";
-  const normalizedQuery = query.toLocaleLowerCase("tr-TR");
-  const matchingCourses = OFFICIAL_COURSES.filter((course) => {
-    if (!normalizedQuery) return true;
-    return [
-      course.code,
-      course.name,
-      course.department,
-      course.programName,
-      course.level,
-      course.instructor,
-    ].some((value) => value?.toLocaleLowerCase("tr-TR").includes(normalizedQuery));
-  });
-  const initialCourses = matchingCourses.slice(0, 120).map(toDbpCourse);
 
   return (
     <main className="dbp-page catalog-page">
       <PublicSiteHeader active="catalog" />
       <section className="catalog-hero">
         <div>
-          <span className="eyebrow">RESMİ MÜFREDAT</span>
+          <span className="eyebrow">CANLI VERİTABANI</span>
           <h1>Ders Kataloğu</h1>
-          <p>2026-2027 akademik yılına ait lisansüstü dersleri; ders kodu, program, ana bilim dalı veya öğretim elemanına göre arayın.</p>
+          <p>2026-2027 akademik yılına ait lisansüstü dersleri veritabanından yüklenir; ders kodu, program, ana bilim dalı veya öğretim elemanına göre arayın.</p>
         </div>
-        <div className="catalog-total"><strong>{OFFICIAL_COURSES.length.toLocaleString("tr-TR")}</strong><span>ders kaydı</span></div>
+        <div className="catalog-total"><strong>Canlı</strong><span>veritabanı</span></div>
       </section>
       <section className="catalog-content">
         <form className="catalog-search" action={dbpPath("/katalog")}>
@@ -125,7 +89,7 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
             <button type="submit">Ara</button>
           </div>
         </form>
-        <CatalogCourseList query={query} initialCourses={initialCourses} initialTotal={matchingCourses.length} />
+        <CatalogCourseList key={query} query={query} />
       </section>
     </main>
   );

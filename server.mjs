@@ -6269,72 +6269,66 @@ function migrateYonetimOrganizasyonTezsizPackagesFromSeed() {
 }
 
 async function homeStats() {
-  const totals = db.prepare(`
-    SELECT
-      COUNT(*) AS total_courses,
-      COUNT(DISTINCT department) AS main_departments,
-      COALESCE(SUM(ects), 0) AS total_ects,
-      SUM(CASE WHEN type = 'Zorunlu' THEN 1 ELSE 0 END) AS compulsory_courses,
-      SUM(CASE WHEN type = 'Seçmeli' THEN 1 ELSE 0 END) AS elective_courses,
-      SUM(CASE WHEN term LIKE '%Güz%' THEN 1 ELSE 0 END) AS fall_courses,
-      SUM(CASE WHEN term LIKE '%Bahar%' THEN 1 ELSE 0 END) AS spring_courses,
-      SUM(CASE
-        WHEN instructor IS NOT NULL
-         AND TRIM(instructor) <> ''
-         AND TRIM(instructor) NOT IN ('Atama Bekliyor', 'Öğrencinin Danışmanı', 'Öğrencinin Proje Danışmanı', 'Yok', '-')
-        THEN 1 ELSE 0 END) AS assigned_courses
-    FROM courses
-  `).get();
-  const programs = db.prepare(`
-    SELECT department, program_name, level
-    FROM courses
-    GROUP BY department, program_name, level
-  `).all();
-  const academicYearRow = db.prepare(`
-    SELECT academic_year
-    FROM courses
-    WHERE academic_year IS NOT NULL AND TRIM(academic_year) <> ''
-    GROUP BY academic_year
-    ORDER BY COUNT(*) DESC, academic_year DESC
-    LIMIT 1
-  `).get();
+  const courses = dbCourseList({ publicVisible: true });
   const programKeys = new Map();
-  for (const program of programs) {
-    const level = levelKey(program.level || "");
-    const key = [program.department, program.program_name, level].map(normalizeScope).join("|");
+  const academicYears = new Map();
+  const departments = new Set();
+  const instructors = new Set();
+  let totalEcts = 0;
+  let compulsoryCourses = 0;
+  let electiveCourses = 0;
+  let fallCourses = 0;
+  let springCourses = 0;
+  let assignedCourses = 0;
+
+  for (const course of courses) {
+    const level = levelKey(course.level || "");
+    const key = [course.department, course.programName, level].map(normalizeScope).join("|");
     if (!programKeys.has(key)) programKeys.set(key, level);
+    const department = normalizeScope(course.department || "");
+    if (department) departments.add(department);
+    const academicYear = repairText(course.academicYear || "").trim();
+    if (academicYear) academicYears.set(academicYear, (academicYears.get(academicYear) || 0) + 1);
+    if (course.type === "Zorunlu") compulsoryCourses += 1;
+    if (course.type === "Seçmeli") electiveCourses += 1;
+    if (repairText(course.term || "").includes("Güz")) fallCourses += 1;
+    if (repairText(course.term || "").includes("Bahar")) springCourses += 1;
+    totalEcts += Number(course.ects || 0);
+    if (isMeaningfulInstructorName(course.instructor || "")) {
+      assignedCourses += 1;
+      instructors.add(normalizeInstructorScope(course.instructor || ""));
+    }
   }
   const programLevels = [...programKeys.values()];
 
-  const instructorCatalog = currentHomeInstructorCount();
-  const instructors = instructorCatalog.count;
-  const academicYear = repairText(academicYearRow?.academic_year || "2026-2027")
+  const academicYearSource = [...academicYears.entries()]
+    .sort((left, right) => right[1] - left[1] || right[0].localeCompare(left[0], "tr-TR"))[0]?.[0] || "2026-2027";
+  const academicYear = repairText(academicYearSource)
     .replace(/(\d{4})-(\d{4})/u, "$1–$2");
   const percent = (part, total) => total > 0 ? Math.round((part / total) * 100) : 0;
-  const totalCourses = Number(totals.total_courses || 0);
-  const assignedCourses = Number(totals.assigned_courses || 0);
+  const totalCourses = courses.length;
 
   return {
     academicYear,
     totalCourses,
     totalPrograms: programKeys.size,
-    mainDepartments: Number(totals.main_departments || 0),
-    instructors,
+    mainDepartments: departments.size,
+    instructors: instructors.size,
     assignedCourses,
     unassignedCourses: totalCourses - assignedCourses,
     assignmentRate: percent(assignedCourses, totalCourses),
-    compulsoryCourses: Number(totals.compulsory_courses || 0),
-    electiveCourses: Number(totals.elective_courses || 0),
-    fallCourses: Number(totals.fall_courses || 0),
-    springCourses: Number(totals.spring_courses || 0),
-    totalEcts: Number(totals.total_ects || 0),
+    compulsoryCourses,
+    electiveCourses,
+    fallCourses,
+    springCourses,
+    totalEcts,
     levels: {
       tezsiz: programLevels.filter((level) => level === "tezsiz yl").length,
       tezli: programLevels.filter((level) => level === "tezli yl").length,
       doktora: programLevels.filter((level) => level === "doktora").length,
     },
     source: "database",
-    instructorSource: instructorCatalog.source,
+    instructorSource: "public_course_catalog",
     generatedAt: new Date().toISOString(),
   };
 }

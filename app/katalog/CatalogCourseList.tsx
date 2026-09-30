@@ -33,32 +33,48 @@ function courseHref(course: DbpCourse) {
 
 export function CatalogCourseList({
   query,
-  initialCourses,
-  initialTotal,
 }: {
   query: string;
-  initialCourses: DbpCourse[];
-  initialTotal: number;
 }) {
-  const [courses, setCourses] = useState(initialCourses);
-  const [total, setTotal] = useState(initialTotal);
-  const [dbReady, setDbReady] = useState(false);
+  const [courses, setCourses] = useState<DbpCourse[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loadStatus, setLoadStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [progress, setProgress] = useState(0);
   const [visibility, setVisibility] = useState<ProgramVisibilityMap>({});
 
   useEffect(() => {
     let cancelled = false;
+    let finishTimer: number | undefined;
+    const progressTimer = window.setInterval(() => {
+      setProgress((current) => {
+        if (current >= 92) return current;
+        return Math.min(92, current + 4 + Math.random() * 7);
+      });
+    }, 260);
+
     fetchDbpCourses({ q: query, limit: 120, publicVisible: true })
       .then((data) => {
         if (cancelled) return;
-        setCourses(data.courses);
-        setTotal(data.total);
-        setDbReady(true);
+        window.clearInterval(progressTimer);
+        setProgress(100);
+        finishTimer = window.setTimeout(() => {
+          if (cancelled) return;
+          setCourses(data.courses);
+          setTotal(data.total);
+          setLoadStatus("ready");
+        }, 240);
       })
       .catch(() => {
-        if (!cancelled) setDbReady(false);
+        if (cancelled) return;
+        window.clearInterval(progressTimer);
+        setCourses([]);
+        setTotal(0);
+        setLoadStatus("error");
       });
     return () => {
       cancelled = true;
+      window.clearInterval(progressTimer);
+      if (finishTimer) window.clearTimeout(finishTimer);
     };
   }, [query]);
 
@@ -85,12 +101,28 @@ export function CatalogCourseList({
   return (
     <>
       <div className="catalog-result-heading">
-        <div><b>{resultLabel} sonuç</b>{query && <span>“{query}” araması</span>}</div>
-        {total > visibleCourses.length && <small>İlk {visibleCourses.length} kayıt gösteriliyor. Aramayı daraltabilirsiniz.</small>}
-        {!dbReady && <small>Veritabanı yanıtı bekleniyor; ilk katalog görünümü gösteriliyor.</small>}
+        <div>
+          <b>{loadStatus === "ready" ? `${resultLabel} sonuç` : "Ders listesi yükleniyor"}</b>
+          {query && <span>“{query}” araması</span>}
+        </div>
+        {loadStatus === "loading" && <small>Ders listesi veritabanından yükleniyor.</small>}
+        {loadStatus === "error" && <small>Ders listesi veritabanından alınamadı. Lütfen bağlantınızı kontrol edip tekrar deneyin.</small>}
+        {loadStatus === "ready" && total > visibleCourses.length && <small>İlk {visibleCourses.length} kayıt gösteriliyor. Aramayı daraltabilirsiniz.</small>}
       </div>
       <section className="catalog-list">
-        {visibleCourses.map((course, index) => (
+        {loadStatus === "loading" && (
+          <div className="catalog-empty catalog-loading-panel">
+            <h2>Ders listesi veritabanından yükleniyor</h2>
+            <p>Kayıtlar hazır olduğunda ilk 120 ders burada listelenecek.</p>
+            <div className="catalog-progress" role="progressbar" aria-label="Ders listesi yükleme ilerlemesi" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}>
+              <div className="catalog-progress-fill" style={{ width: `${progress}%` }}>
+                <span>{Math.floor(progress)}%</span>
+              </div>
+            </div>
+            <small>Veritabanı yanıtı bekleniyor</small>
+          </div>
+        )}
+        {loadStatus === "ready" && visibleCourses.map((course, index) => (
           <a className="course-row" href={courseHref(course)} key={`${course.department}-${course.programName}-${course.level}-${course.code}-${index}`}>
             <span className="course-code">{course.code}</span>
             <div>
@@ -105,11 +137,17 @@ export function CatalogCourseList({
             </div>
           </a>
         ))}
-        {visibleCourses.length === 0 && (
+        {loadStatus === "ready" && visibleCourses.length === 0 && (
           <div className="catalog-empty">
             <h2>Eşleşen ders bulunamadı</h2>
             <p>Farklı bir ders kodu, program adı veya öğretim elemanı yazarak yeniden deneyin.</p>
             <a href={dbpPath("/katalog")}>Tüm dersleri göster</a>
+          </div>
+        )}
+        {loadStatus === "error" && (
+          <div className="catalog-empty">
+            <h2>Ders listesi yüklenemedi</h2>
+            <p>Veritabanı yanıtı alınamadı. Sayfayı yenileyerek tekrar deneyebilirsiniz.</p>
           </div>
         )}
       </section>

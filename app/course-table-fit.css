@@ -58,8 +58,8 @@
   }
   .public-course-table td:nth-child(1)::before,
   .public-course-table td:nth-child(2)::before,
-  .public-course-table td:nth-child(9)::before,
-  .public-course-table td:nth-child(10)::before{
+  .public-course-table td:nth-child(10)::before,
+  .public-course-table td:nth-child(11)::before{
     display:none;
   }
   .public-course-table td:nth-child(1) b{
@@ -83,11 +83,12 @@
   .public-course-table td:nth-child(6)::before{content:"T"}
   .public-course-table td:nth-child(7)::before{content:"U"}
   .public-course-table td:nth-child(8)::before{content:"AKTS"}
+  .public-course-table td:nth-child(9)::before{content:"Onay"}
   .public-course-table td:nth-child(5){
     align-items:start;
   }
-  .public-course-table td:nth-child(9),
-  .public-course-table td:nth-child(10){
+  .public-course-table td:nth-child(10),
+  .public-course-table td:nth-child(11){
     grid-column:auto;
     display:block;
     padding-top:10px;

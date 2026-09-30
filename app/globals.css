@@ -1069,6 +1069,39 @@ input {
   margin: 10px 0 20px;
   color: var(--muted-foreground);
 }
+.catalog-loading-panel {
+  display: grid;
+  justify-items: center;
+}
+.catalog-progress {
+  width: min(520px, 100%);
+  height: 18px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--muted) 88%, white), color-mix(in srgb, var(--muted) 70%, white));
+}
+.catalog-progress-fill {
+  display: flex;
+  height: 100%;
+  min-width: 38px;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--primary) 72%, #22c55e));
+  color: var(--primary-foreground);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  transition: width 260ms ease;
+}
+.catalog-loading-panel small {
+  margin-top: 10px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
 .catalog-empty a {
   color: var(--primary);
   font-weight: 700;
