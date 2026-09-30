@@ -668,6 +668,9 @@ function officialGraduateStatisticsSnapshot(graduates, catalog) {
 
 function officialStudentStatisticsSnapshot(snapshot) {
   if (!snapshot?.institute) return snapshot;
+  const hasStatusBreakdowns = Array.isArray(snapshot?.graduates?.statusCounts)
+    && Array.isArray(snapshot?.graduates?.statusYears)
+    && Array.isArray(snapshot?.graduates?.levelStatusCounts);
   const catalog = officialStudentProgramCatalog();
   const sourcePrograms = Array.isArray(snapshot.programs) ? snapshot.programs : [];
   const sourceDepartments = Array.isArray(snapshot.departments) ? snapshot.departments : [];
@@ -733,7 +736,10 @@ function officialStudentStatisticsSnapshot(snapshot) {
 
   return {
     ...snapshot,
-    snapshotVersion: 6,
+    // Do not promote an older e-Enstitü payload while the two services are
+    // being deployed independently. Version 5 keeps the automatic refresh
+    // active until the new status breakdown contract is available.
+    snapshotVersion: hasStatusBreakdowns ? 6 : 5,
     catalogSource: "lee_dbp_programs",
     catalogProgramCount: catalog.length,
     ignoredSourceProgramCount: Math.max(0, sourcePrograms.length - consumed.size),
