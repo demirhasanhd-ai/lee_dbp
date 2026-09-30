@@ -585,6 +585,9 @@ function officialGraduateStatisticsSnapshot(graduates, catalog) {
       levels: [],
       graduationYears: [],
       separationReasons: [],
+      statusCounts: [],
+      statusYears: [],
+      levelStatusCounts: [],
       departments: [],
       programs: [],
       quality: { lastImportedAt: "", unmatchedProgramCount: 0, missingDateCount: 0, facultyCodes: [] },
@@ -592,6 +595,7 @@ function officialGraduateStatisticsSnapshot(graduates, catalog) {
   }
 
   const sourcePrograms = Array.isArray(graduates.programs) ? graduates.programs : [];
+  const sourceDepartments = Array.isArray(graduates.departments) ? graduates.departments : [];
   const consumed = new Set();
   const programs = catalog.map((official) => {
     const departmentKey = normalizeScope(official.department);
@@ -616,6 +620,9 @@ function officialGraduateStatisticsSnapshot(graduates, catalog) {
       suppressed: source ? Boolean(source.suppressed) : false,
       graduationYears: source && Array.isArray(source.graduationYears) ? source.graduationYears : [],
       separationReasons: source && Array.isArray(source.separationReasons) ? source.separationReasons : [],
+      statusCounts: source && Array.isArray(source.statusCounts) ? source.statusCounts : [],
+      statusYears: source && Array.isArray(source.statusYears) ? source.statusYears : [],
+      levelStatusCounts: source && Array.isArray(source.levelStatusCounts) ? source.levelStatusCounts : [],
     };
   });
 
@@ -634,21 +641,25 @@ function officialGraduateStatisticsSnapshot(graduates, catalog) {
     ...graduates,
     ignoredSourceProgramCount: Math.max(0, sourcePrograms.length - consumed.size),
     departments: [...departmentMap.values()].map((entry) => {
-      const total = aggregateNullableField(entry.programs, "total");
+      const source = sourceDepartments.find((candidate) => normalizeScope(candidate.department) === normalizeScope(entry.department));
+      const total = source ? source.total : aggregateNullableField(entry.programs, "total");
       return {
         departmentId: entry.departmentId,
         department: entry.department,
         total,
-        graduates: aggregateNullableField(entry.programs, "graduates"),
-        otherSeparations: aggregateNullableField(entry.programs, "otherSeparations"),
+        graduates: source ? source.graduates : aggregateNullableField(entry.programs, "graduates"),
+        otherSeparations: source ? source.otherSeparations : aggregateNullableField(entry.programs, "otherSeparations"),
         suppressed: total == null,
         levels: groupedPublicCountItems(entry.programs.map((program) => ({
           label: program.level,
           count: program.graduates,
           suppressed: program.suppressed || program.graduates == null,
         }))),
-        graduationYears: groupedPublicCountItems(entry.programs.flatMap((program) => program.graduationYears || [])),
-        separationReasons: groupedPublicCountItems(entry.programs.flatMap((program) => program.separationReasons || [])),
+        graduationYears: source && Array.isArray(source.graduationYears) ? source.graduationYears : groupedPublicCountItems(entry.programs.flatMap((program) => program.graduationYears || [])),
+        separationReasons: source && Array.isArray(source.separationReasons) ? source.separationReasons : groupedPublicCountItems(entry.programs.flatMap((program) => program.separationReasons || [])),
+        statusCounts: source && Array.isArray(source.statusCounts) ? source.statusCounts : [],
+        statusYears: source && Array.isArray(source.statusYears) ? source.statusYears : [],
+        levelStatusCounts: source && Array.isArray(source.levelStatusCounts) ? source.levelStatusCounts : [],
       };
     }),
     programs,
@@ -659,6 +670,7 @@ function officialStudentStatisticsSnapshot(snapshot) {
   if (!snapshot?.institute) return snapshot;
   const catalog = officialStudentProgramCatalog();
   const sourcePrograms = Array.isArray(snapshot.programs) ? snapshot.programs : [];
+  const sourceDepartments = Array.isArray(snapshot.departments) ? snapshot.departments : [];
   const consumed = new Set();
 
   const programs = catalog.map((official) => {
@@ -696,6 +708,7 @@ function officialStudentStatisticsSnapshot(snapshot) {
     departmentMap.set(program.departmentId, entry);
   }
   const departments = [...departmentMap.values()].map((entry) => {
+    const source = sourceDepartments.find((candidate) => normalizeScope(candidate.department) === normalizeScope(entry.department));
     const hasSuppressed = entry.programs.some((program) => program.suppressed || program.count == null);
     const visibleTotal = entry.programs.reduce((sum, program) => sum + (Number(program.count) || 0), 0);
     const levelMap = new Map();
@@ -708,9 +721,9 @@ function officialStudentStatisticsSnapshot(snapshot) {
     return {
       departmentId: entry.departmentId,
       department: entry.department,
-      count: hasSuppressed ? null : visibleTotal,
-      suppressed: hasSuppressed,
-      levels: [...levelMap.entries()].map(([label, item]) => ({
+      count: source ? source.count : hasSuppressed ? null : visibleTotal,
+      suppressed: source ? Boolean(source.suppressed) : hasSuppressed,
+      levels: source && Array.isArray(source.levels) ? source.levels : [...levelMap.entries()].map(([label, item]) => ({
         label,
         count: item.suppressed ? null : item.total,
         suppressed: item.suppressed,
@@ -720,7 +733,7 @@ function officialStudentStatisticsSnapshot(snapshot) {
 
   return {
     ...snapshot,
-    snapshotVersion: 5,
+    snapshotVersion: 6,
     catalogSource: "lee_dbp_programs",
     catalogProgramCount: catalog.length,
     ignoredSourceProgramCount: Math.max(0, sourcePrograms.length - consumed.size),
@@ -745,7 +758,7 @@ function shouldRefreshMissingGraduateStatistics(snapshot) {
 }
 
 function shouldRefreshStudentStatisticsSource(snapshot) {
-  return !snapshot?.source || snapshot.source === "e_enstitu_student_profiles";
+  return !snapshot?.source || snapshot.source === "e_enstitu_student_profiles" || Number(snapshot.snapshotVersion || 0) < 6;
 }
 
 async function refreshStudentStatisticsSnapshot(actor = "system") {
@@ -764,7 +777,7 @@ async function refreshStudentStatisticsSnapshot(actor = "system") {
       const generatedAt = new Date().toISOString();
       studentStatisticsSnapshotCache = officialStudentStatisticsSnapshot({
         ...payload,
-        snapshotVersion: 4,
+        snapshotVersion: 6,
         sourceGeneratedAt: payload.generatedAt || "",
         generatedAt,
         schedule: managedSchedule(),
