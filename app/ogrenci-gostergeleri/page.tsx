@@ -50,6 +50,7 @@ const statusLabels: Record<StudentStatusKey, string> = {
 };
 
 const isVisibleCount = (item: CountItem) => !item.suppressed && item.count != null && item.count > 0;
+const isKnownCount = (item: CountItem) => !item.suppressed && item.count != null;
 const showCount = (count: number | null, suppressed = false) => suppressed || count == null ? "" : count.toLocaleString("tr-TR");
 const percent = (count: number | null, total: number) => count == null || !total ? 0 : Math.round(count / total * 1000) / 10;
 
@@ -125,6 +126,19 @@ function exactScopedStatus(snapshot: StudentSnapshot, departmentId: string, leve
       : level === "all" ? snapshot.departments.find((item) => item.departmentId === departmentId) : snapshot.departments.find((item) => item.departmentId === departmentId)?.levels.find((item) => item.label === level);
     return source ? { label: statusLabels.active, count: source.count, suppressed: source.suppressed } : fallback;
   }
+  if (key === "graduate" && snapshot.graduateDataAvailable && snapshot.graduates) {
+    const department = departmentId === "all" ? null : snapshot.graduates.departments.find((item) => item.departmentId === departmentId);
+    const source = departmentId === "all"
+      ? level === "all"
+        ? { count: snapshot.graduates.totalGraduates, suppressed: false }
+        : snapshot.graduates.levels.find((item) => item.label === level)
+      : level === "all"
+        ? department ? { count: department.graduates, suppressed: department.suppressed && department.graduates == null } : null
+        : department?.levels.find((item) => item.label === level);
+    return source
+      ? { label: statusLabels.graduate, count: source.count, suppressed: source.suppressed }
+      : emptyCount(statusLabels.graduate);
+  }
   const graduateSource = departmentId === "all" ? snapshot.graduates : snapshot.graduates?.departments.find((item) => item.departmentId === departmentId);
   const items = level === "all" ? graduateSource?.statusCounts : graduateSource?.levelStatusCounts?.find((item) => item.level === level)?.statuses;
   return itemForStatus(items, key) || fallback;
@@ -186,7 +200,7 @@ export default function StudentIndicatorsPage() {
         ? snapshot?.graduates?.departments.find((item) => item.departmentId === departmentId)?.separationReasons
         : null;
     return (exact || groupCounts(programs.flatMap((program) => program.separationReasons)))
-      .filter((item) => normalizedLabel(item.label) !== "mezun" && isVisibleCount(item))
+      .filter((item) => !["mezun", "diger ayrilan"].includes(normalizedLabel(item.label)) && isVisibleCount(item))
       .sort((a, b) => (b.count || 0) - (a.count || 0))
       .slice(0, 10);
   }, [departmentId, level, programs, snapshot]);
@@ -206,8 +220,8 @@ export default function StudentIndicatorsPage() {
       </section>
 
       <section className="student-kpis">
-        <article className="kpi-active"><UserCheck/><span>Aktif öğrenci</span><strong className={isVisibleCount(scopeStatuses.active) ? undefined : "pending-value"}>{isVisibleCount(scopeStatuses.active) ? showCount(scopeStatuses.active.count) : "Veri bekleniyor"}</strong><small>{isVisibleCount(scopeStatuses.active) ? "e-Enstitüde aktif öğrenci profili bulunan kayıtlar" : "Canlı e-Enstitü öğrenci verisi henüz yenilenmedi."}</small></article>
-        <article className="kpi-graduate"><GraduationCap/><span>Mezun</span><strong className={isVisibleCount(scopeStatuses.graduate) ? undefined : "pending-value"}>{isVisibleCount(scopeStatuses.graduate) ? showCount(scopeStatuses.graduate.count) : "Veri bekleniyor"}</strong><small>{isVisibleCount(scopeStatuses.graduate) ? "OBS durumunda “Mezun Oldu” olarak sınıflananlar" : "OBS mezun verisi henüz yenilenmedi."}</small></article>
+        <article className="kpi-active"><UserCheck/><span>Aktif öğrenci</span><strong className={isKnownCount(scopeStatuses.active) ? undefined : "pending-value"}>{isKnownCount(scopeStatuses.active) ? showCount(scopeStatuses.active.count) : "Veri bekleniyor"}</strong><small>{isKnownCount(scopeStatuses.active) ? scopeStatuses.active.count === 0 ? "Bu kapsamda aktif öğrenci bulunmuyor." : "e-Enstitüde aktif öğrenci profili bulunan kayıtlar" : "Canlı e-Enstitü öğrenci verisi henüz yenilenmedi."}</small></article>
+        <article className="kpi-graduate"><GraduationCap/><span>Mezun</span><strong className={isKnownCount(scopeStatuses.graduate) ? undefined : "pending-value"}>{isKnownCount(scopeStatuses.graduate) ? showCount(scopeStatuses.graduate.count) : "Veri bekleniyor"}</strong><small>{isKnownCount(scopeStatuses.graduate) ? scopeStatuses.graduate.count === 0 ? "Bu kapsamda mezun bulunmuyor." : "OBS durumunda “Mezun Oldu” olarak sınıflananlar" : "OBS mezun verisi henüz yenilenmedi."}</small></article>
         <article className="kpi-department"><Layers3/><span>ABD / ASD</span><strong>{scopeDepartmentCount}</strong><small>Seçili kapsamdaki resmî akademik birim</small></article>
       </section>
 
@@ -263,5 +277,13 @@ function ProgramStatusBar({ program }: { program: UnifiedProgram }) {
 }
 
 function normalizedLabel(value: string) {
-  return value.toLocaleLowerCase("tr-TR").replaceAll("ı", "i").trim();
+  return value.toLocaleLowerCase("tr-TR")
+    .replaceAll("ç", "c")
+    .replaceAll("ğ", "g")
+    .replaceAll("ı", "i")
+    .replaceAll("ö", "o")
+    .replaceAll("ş", "s")
+    .replaceAll("ü", "u")
+    .replace(/[^a-z0-9]+/gu, " ")
+    .trim();
 }
