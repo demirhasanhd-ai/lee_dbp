@@ -528,8 +528,8 @@ function publicStudentLevel(level = "") {
 }
 
 function studentProgramBaseName(value = "") {
-  return normalizeScope(value)
-    .replace(/\b\(?i\s*o\)?\b/gu, " ")
+  return normalizeScope(String(value).replace(/\([^)]*\)/gu, " "))
+    .replace(/\bve\b/gu, " ")
     .replace(/\b(tezsiz|tezli)?\s*yuksek\s*lisans\b/gu, " ")
     .replace(/\bdoktora\b/gu, " ")
     .replace(/\s+/g, " ")
@@ -576,6 +576,40 @@ function aggregateNullableField(items = [], field) {
   return suppressed ? null : items.reduce((sum, item) => sum + (Number(item?.[field]) || 0), 0);
 }
 
+function matchingOfficialProgramEntries(sourcePrograms, consumed, official) {
+  const officialProgram = studentProgramBaseName(official.programName);
+  return sourcePrograms
+    .map((candidate, index) => ({ candidate, index }))
+    .filter(({ candidate, index }) => !consumed.has(index)
+      && publicStudentLevel(candidate.level) === official.level
+      && studentProgramBaseName(candidate.programName) === officialProgram);
+}
+
+function groupedStatusCountItems(items = []) {
+  const groups = new Map();
+  for (const item of items) {
+    if (!item?.key) continue;
+    groups.set(item.key, [...(groups.get(item.key) || []), item]);
+  }
+  return [...groups.entries()].map(([key, values]) => ({
+    key,
+    label: repairText(values[0]?.label || key).trim() || key,
+    ...aggregatePublicCountItems(values),
+  }));
+}
+
+function groupedStatusYearItems(items = []) {
+  const groups = new Map();
+  for (const item of items) groups.set(item?.year || "Belirtilmemiş", [...(groups.get(item?.year || "Belirtilmemiş") || []), ...(item?.statuses || [])]);
+  return [...groups.entries()].map(([year, statuses]) => ({ year, statuses: groupedStatusCountItems(statuses) }));
+}
+
+function groupedLevelStatusItems(items = []) {
+  const groups = new Map();
+  for (const item of items) groups.set(item?.level || "Belirtilmemiş", [...(groups.get(item?.level || "Belirtilmemiş") || []), ...(item?.statuses || [])]);
+  return [...groups.entries()].map(([level, statuses]) => ({ level, statuses: groupedStatusCountItems(statuses) }));
+}
+
 function officialGraduateStatisticsSnapshot(graduates, catalog) {
   if (!graduates || typeof graduates !== "object") {
     return {
@@ -598,33 +632,31 @@ function officialGraduateStatisticsSnapshot(graduates, catalog) {
   const sourceDepartments = Array.isArray(graduates.departments) ? graduates.departments : [];
   const consumed = new Set();
   const programs = catalog.map((official) => {
-    const departmentKey = normalizeScope(official.department);
-    const programKey = normalizeScope(official.programName);
-    const sourceIndex = sourcePrograms.findIndex((candidate, index) => {
-      if (consumed.has(index) || publicStudentLevel(candidate.level) !== official.level) return false;
-      const candidateDepartment = normalizeScope(candidate.department);
-      const sameDepartment = candidateDepartment === departmentKey;
-      const sameProgram = studentProgramBaseName(candidate.programName) === programKey;
-      return sameDepartment || sameProgram;
-    });
-    const source = sourceIndex >= 0 ? sourcePrograms[sourceIndex] : null;
-    if (sourceIndex >= 0) consumed.add(sourceIndex);
+    const matches = matchingOfficialProgramEntries(sourcePrograms, consumed, official);
+    matches.forEach(({ index }) => consumed.add(index));
+    const sources = matches.map(({ candidate }) => candidate);
+    const total = aggregateNullableField(sources, "total");
     return {
       departmentId: official.departmentId,
       department: official.department,
       programName: official.programName,
       level: official.level,
-      total: source ? source.total : 0,
-      graduates: source ? source.graduates : 0,
-      otherSeparations: source ? source.otherSeparations : 0,
-      suppressed: source ? Boolean(source.suppressed) : false,
-      graduationYears: source && Array.isArray(source.graduationYears) ? source.graduationYears : [],
-      separationReasons: source && Array.isArray(source.separationReasons) ? source.separationReasons : [],
-      statusCounts: source && Array.isArray(source.statusCounts) ? source.statusCounts : [],
-      statusYears: source && Array.isArray(source.statusYears) ? source.statusYears : [],
-      levelStatusCounts: source && Array.isArray(source.levelStatusCounts) ? source.levelStatusCounts : [],
+      historical: false,
+      total: sources.length ? total : 0,
+      graduates: sources.length ? aggregateNullableField(sources, "graduates") : 0,
+      otherSeparations: sources.length ? aggregateNullableField(sources, "otherSeparations") : 0,
+      suppressed: sources.length ? total == null : false,
+      graduationYears: groupedPublicCountItems(sources.flatMap((source) => source.graduationYears || [])),
+      separationReasons: groupedPublicCountItems(sources.flatMap((source) => source.separationReasons || [])),
+      statusCounts: groupedStatusCountItems(sources.flatMap((source) => source.statusCounts || [])),
+      statusYears: groupedStatusYearItems(sources.flatMap((source) => source.statusYears || [])),
+      levelStatusCounts: groupedLevelStatusItems(sources.flatMap((source) => source.levelStatusCounts || [])),
     };
   });
+  const historicalPrograms = sourcePrograms
+    .filter((_, index) => !consumed.has(index))
+    .map((source) => ({ ...source, historical: true }));
+  programs.push(...historicalPrograms);
 
   const departmentMap = new Map();
   for (const program of programs) {
@@ -639,7 +671,8 @@ function officialGraduateStatisticsSnapshot(graduates, catalog) {
 
   return {
     ...graduates,
-    ignoredSourceProgramCount: Math.max(0, sourcePrograms.length - consumed.size),
+    ignoredSourceProgramCount: 0,
+    historicalProgramCount: historicalPrograms.length,
     departments: [...departmentMap.values()].map((entry) => {
       const source = sourceDepartments.find((candidate) => normalizeScope(candidate.department) === normalizeScope(entry.department));
       const total = source ? source.total : aggregateNullableField(entry.programs, "total");
@@ -677,26 +710,19 @@ function officialStudentStatisticsSnapshot(snapshot) {
   const consumed = new Set();
 
   const programs = catalog.map((official) => {
-    const departmentKey = normalizeScope(official.department);
-    const programKey = normalizeScope(official.programName);
-    const sourceIndex = sourcePrograms.findIndex((candidate, index) => {
-      if (consumed.has(index) || publicStudentLevel(candidate.level) !== official.level) return false;
-      const candidateDepartment = normalizeScope(candidate.department);
-      const sameDepartment = candidateDepartment === departmentKey;
-      const sameProgram = studentProgramBaseName(candidate.programName) === programKey;
-      return sameDepartment || sameProgram;
-    });
-    const source = sourceIndex >= 0 ? sourcePrograms[sourceIndex] : null;
-    if (sourceIndex >= 0) consumed.add(sourceIndex);
+    const matches = matchingOfficialProgramEntries(sourcePrograms, consumed, official);
+    matches.forEach(({ index }) => consumed.add(index));
+    const sources = matches.map(({ candidate }) => candidate);
+    const aggregate = aggregatePublicCountItems(sources);
     return {
       departmentId: official.departmentId,
       department: official.department,
       programName: official.programName,
       level: official.level,
-      count: source ? source.count : 0,
-      suppressed: source ? Boolean(source.suppressed) : false,
-      years: source && Array.isArray(source.years) ? source.years : [],
-      statuses: source && Array.isArray(source.statuses) ? source.statuses : [],
+      count: sources.length ? aggregate.count : 0,
+      suppressed: sources.length ? aggregate.suppressed : false,
+      years: groupedPublicCountItems(sources.flatMap((source) => source.years || [])),
+      statuses: groupedPublicCountItems(sources.flatMap((source) => source.statuses || [])),
     };
   });
 
@@ -739,7 +765,7 @@ function officialStudentStatisticsSnapshot(snapshot) {
     // Do not promote an older e-Enstitü payload while the two services are
     // being deployed independently. Version 5 keeps the automatic refresh
     // active until the new status breakdown contract is available.
-    snapshotVersion: hasStatusBreakdowns ? 6 : 5,
+    snapshotVersion: hasStatusBreakdowns ? 7 : 5,
     catalogSource: "lee_dbp_programs",
     catalogProgramCount: catalog.length,
     ignoredSourceProgramCount: Math.max(0, sourcePrograms.length - consumed.size),
@@ -764,7 +790,7 @@ function shouldRefreshMissingGraduateStatistics(snapshot) {
 }
 
 function shouldRefreshStudentStatisticsSource(snapshot) {
-  return !snapshot?.source || snapshot.source === "e_enstitu_student_profiles" || Number(snapshot.snapshotVersion || 0) < 6;
+  return !snapshot?.source || snapshot.source === "e_enstitu_student_profiles" || Number(snapshot.snapshotVersion || 0) < 7;
 }
 
 async function refreshStudentStatisticsSnapshot(actor = "system") {
@@ -783,7 +809,7 @@ async function refreshStudentStatisticsSnapshot(actor = "system") {
       const generatedAt = new Date().toISOString();
       studentStatisticsSnapshotCache = officialStudentStatisticsSnapshot({
         ...payload,
-        snapshotVersion: 6,
+        snapshotVersion: 7,
         sourceGeneratedAt: payload.generatedAt || "",
         generatedAt,
         schedule: managedSchedule(),
@@ -8257,7 +8283,7 @@ scheduleQualityRefresh();
 studentStatisticsSnapshotCache = readStudentStatisticsSnapshot();
 const latestStudentStatisticsRefresh = latestMainDataRefreshDate();
 const studentStatisticsGeneratedAt = studentStatisticsSnapshotCache?.generatedAt ? new Date(studentStatisticsSnapshotCache.generatedAt) : null;
-if (!studentStatisticsSnapshotCache || studentStatisticsSnapshotCache.snapshotVersion !== 4) queueStudentStatisticsRefresh("startup");
+if (!studentStatisticsSnapshotCache || studentStatisticsSnapshotCache.snapshotVersion !== 7) queueStudentStatisticsRefresh("startup");
 else if (latestStudentStatisticsRefresh && (!studentStatisticsGeneratedAt || studentStatisticsGeneratedAt < latestStudentStatisticsRefresh)) queueStudentStatisticsRefresh("scheduled-startup");
 scheduleStudentStatisticsRefresh();
 thesisSnapshotCache = readThesisSnapshot(db);

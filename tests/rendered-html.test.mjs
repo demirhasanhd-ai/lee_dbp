@@ -2065,11 +2065,15 @@ test("öğrenci göstergeleri yalnız toplulaştırılmış e-Enstitü verisini 
   assert.match(page, /privacyThreshold/u);
   assert.match(page, /Tüm ABD \/ ASD/u);
   assert.match(page, /Tüm program türleri/u);
+  assert.doesNotMatch(page, /Toplam izlenen kayıt|Gizlilik eşiği|"<5"/u);
+  assert.match(page, /chartStatusOrder: StudentStatusKey\[\] = \["active", "graduate"\]/u);
+  assert.match(page, /\.slice\(0, 10\)/u);
   assert.doesNotMatch(page, /studentNumber|studentTcKimlik/u);
   assert.match(header, /\/ogrenci-gostergeleri/u);
   assert.match(home, /Öğrenci Göstergeleri/u);
   assert.match(server, /student_statistics_snapshot_v1/u);
   assert.match(server, /api\/public\/dbp\/student-statistics/u);
+  assert.match(server, /matchingOfficialProgramEntries/u);
   assert.match(server, /refreshRetryDate/u);
   assert.match(schedule, /quarterlyMonths: \[3, 6, 9, 12\]/u);
   assert.match(schedule, /latestWeeklyRefreshDate/u);
