@@ -2,3 +2,4 @@
 .sdg-list{grid-template-columns:repeat(auto-fit,minmax(76px,92px));justify-content:start}.sdg-card img{width:92px;max-width:100%;margin:0 auto}.sdg-card span{font-size:7px;padding:6px 7px}
 .package-table-scroll{overflow-x:auto}.contribution-table{min-width:720px}.contribution-table th,.contribution-table td{text-align:center}.contribution-table th:first-child{text-align:left}.package-card>small{display:block;margin-top:9px;color:var(--muted-foreground);font-size:8px}
 .package-pending-text{max-width:720px;margin:0 0 16px;color:var(--muted-foreground);font-size:10px;line-height:1.7}
+.package-title p{margin:7px 0 0;color:var(--muted-foreground);font-size:10px;font-weight:750}

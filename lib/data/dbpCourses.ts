@@ -52,6 +52,7 @@ export type PublicDbpCourseResponse = {
   package: Record<string, unknown> | null;
   status: string;
   updatedAt?: string;
+  approvedAt?: string;
   packagePending?: boolean;
 };
 

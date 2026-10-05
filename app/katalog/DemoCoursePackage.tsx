@@ -22,7 +22,7 @@ type DemoCoursePackageProps = {
   level?: string;
 };
 
-type PublicSavedPackage = { package: CoursePackage; name: string };
+type PublicSavedPackage = { package: CoursePackage; name: string; approvedAt?: string };
 
 const outcomes = [
   "Bilimsel araştırma sürecinin temel aşamalarını açıklar.",
@@ -110,6 +110,19 @@ const resolveDisplayInstructor = (currentInstructor?: string, packageInstructor?
   return "";
 };
 
+const formatApprovalDate = (value?: string) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+};
+
 export function DemoCoursePackage({
   code,
   name,
@@ -145,7 +158,12 @@ export function DemoCoursePackage({
     fetch(`${dbpPath("/api/dbp/course-package")}?${query}`, { signal: controller.signal })
       .then(async (response) => response.ok ? response.json() : null)
       .then((data) => {
-        if (data?.package) setSaved(toPublicCoursePackage(data.package as Record<string, unknown>, staticPackage, name));
+        if (data?.package) {
+          setSaved({
+            ...toPublicCoursePackage(data.package as Record<string, unknown>, staticPackage, name),
+            approvedAt: typeof data.approvedAt === "string" ? data.approvedAt : "",
+          });
+        }
         setPublicLookupComplete(true);
       })
       .catch((error) => {
@@ -192,6 +210,7 @@ export function DemoCoursePackage({
     );
   }
   const coursePackage = saved?.package ?? staticPackage ?? createDefaultCoursePackage({ code: displayCode, name: displayName, theory, practice, credit, ects, instructor, sdgs, level });
+  const approvalDateLabel = formatApprovalDate(saved?.approvedAt);
   const displayInstructor = resolveDisplayInstructor(instructor, coursePackage?.instructor);
   const showInstructor = shouldShowInstructor(displayName, displayInstructor);
   const packageOutcomes = coursePackage?.outcomes ?? outcomes;
@@ -210,7 +229,11 @@ export function DemoCoursePackage({
           <a href={dbpPath("/")}>Ana Sayfa</a><span>/</span><a href={dbpPath("/katalog")}>Ders Kataloğu</a><span>/</span><b>{displayCode}</b>
         </div>
         <header className="package-title">
-          <div><small>2026–2027 DERS BİLGİ PAKETİ</small><h1>{displayCode} — {displayName}</h1></div>
+          <div>
+            <small>2026–2027 DERS BİLGİ PAKETİ</small>
+            <h1>{displayCode} — {displayName}</h1>
+            {approvalDateLabel && <p>Onay tarihi: {approvalDateLabel}</p>}
+          </div>
           {pdfHref && (
             <div className="package-title-actions">
               <PrintCourseButton href={pdfHref} label={`${displayCode} ders bilgi paketi PDF dosyasını aç`} />
@@ -232,10 +255,10 @@ export function DemoCoursePackage({
             {coursePackage && <Field label="Ders Düzeyi" value={coursePackage.level} />}
             {coursePackage && <Field label="Öğretim Şekli" value={coursePackage.teachingMode} />}
             <Field label="Ders Türü" value={displayType} />
-            <Field label="Teorik" value={coursePackage?.theory ?? theory} />
-            <Field label="Uygulama" value={coursePackage?.practice ?? practice} />
-            <Field label="Kredi" value={coursePackage?.credit ?? credit} />
-            <Field label="AKTS" value={coursePackage?.ects ?? ects} />
+            <Field label="Teorik" value={String(coursePackage?.theory ?? theory)} />
+            <Field label="Uygulama" value={String(coursePackage?.practice ?? practice)} />
+            <Field label="Kredi" value={String(coursePackage?.credit ?? credit)} />
+            <Field label="AKTS" value={String(coursePackage?.ects ?? ects)} />
           </div>
         </section>
         <section className="package-card two">

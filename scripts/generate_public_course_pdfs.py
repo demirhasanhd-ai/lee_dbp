@@ -7,6 +7,7 @@ import unicodedata
 import argparse
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from reportlab.lib import colors
@@ -74,6 +75,7 @@ class Course:
     practice: int
     ects: int
     instructor: str = ""
+    approved_at: str = ""
 
 
 def field(block: str, key: str) -> str:
@@ -241,10 +243,10 @@ def sdg_card(goal_id: str) -> Table:
     title = f"{goal_id} \u00b7 {SDG_GOALS.get(goal_id, f'SKA {goal_id}')}"
     card = Table(
         [
-            [pdf_image(SDG_ASSET_DIR / f"sdg_{goal_id}.png", 25 * mm)],
+            [pdf_image(SDG_ASSET_DIR / f"sdg_{goal_id}.png", 19 * mm)],
             [Paragraph(html.escape(repair_text(title)), styles["SdgCardTitle"])],
         ],
-        colWidths=[32 * mm],
+        colWidths=[31 * mm],
         hAlign="LEFT",
     )
     card.setStyle(TableStyle([
@@ -263,13 +265,13 @@ def sdg_card(goal_id: str) -> Table:
 
 
 def sdg_grid(goal_ids: list[str]) -> Table:
-    columns = 3
+    columns = 5
     rows: list[list[object]] = []
     for index in range(0, len(goal_ids), columns):
         cards: list[object] = [sdg_card(goal_id) for goal_id in goal_ids[index:index + columns]]
         cards.extend([""] * (columns - len(cards)))
         rows.append(cards)
-    grid = Table(rows, colWidths=[36 * mm, 36 * mm, 36 * mm], hAlign="LEFT")
+    grid = Table(rows, colWidths=[35 * mm] * columns, hAlign="LEFT")
     grid.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
@@ -535,7 +537,20 @@ def course_from_payload(course: Course, payload: dict | None) -> Course:
         practice=int(number(identity.get("practice"), number(row.get("practice"), course.practice))),
         ects=int(number(package_data.get("ects"), number(row.get("ects"), course.ects))),
         instructor=repair_text(details.get("instructors") or row.get("instructor") or course.instructor),
+        approved_at=repair_text(row.get("approvedAt") or payload.get("approvedAt") or course.approved_at),
     )
+
+
+def format_approval_date(value: str) -> str:
+    if not value:
+        return ""
+    text = repair_text(value).strip()
+    try:
+        normalized = text.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+        return parsed.strftime("%d.%m.%Y %H:%M")
+    except ValueError:
+        return text
 
 
 def story(course: Course, package_data: dict | None = None):
@@ -580,7 +595,11 @@ def story(course: Course, package_data: dict | None = None):
     resources = repair_text(details.get("resources") or "")
     teaching_mode = repair_text(identity.get("teachingMode") or "Yüz Yüze")
 
-    body = [para("ONAYLANMIŞ DERS BİLGİ PAKETİ", "SmallTR"), Spacer(1, 2 * mm)]
+    approval_label = format_approval_date(course.approved_at)
+    title = "ONAYLANMIŞ DERS BİLGİ PAKETİ"
+    if approval_label:
+        title = f"{title} · Onay Tarihi: {approval_label}"
+    body = [para(title, "SmallTR"), Spacer(1, 2 * mm)]
     body += section("Ders Genel Bilgileri")
     body.append(
         key_value_table(

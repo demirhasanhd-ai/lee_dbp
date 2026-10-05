@@ -279,6 +279,123 @@ function packageWithCourseInstructor(packageData = {}, course = {}) {
   };
 }
 
+const coursePackagePublicationModel = "published-draft-v1";
+
+function parseCoursePackageJson(packageJson = "{}") {
+  try {
+    const parsed = JSON.parse(packageJson || "{}");
+    return parsed && typeof parsed === "object" ? repairObject(parsed) : {};
+  } catch {
+    return {};
+  }
+}
+
+function isVersionedCoursePackage(value = {}) {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    (value.publicationModel === coursePackagePublicationModel || value.published || value.draft)
+  );
+}
+
+function compactCoursePackageEnvelope({ published = null, draft = null } = {}) {
+  const envelope = { publicationModel: coursePackagePublicationModel };
+  if (published?.package && Object.keys(published.package).length) {
+    envelope.published = {
+      package: published.package,
+      approvedAt: published.approvedAt || "",
+      status: published.status || "Yayımlandı",
+      approvedBy: published.approvedBy || "",
+    };
+  }
+  if (draft?.package && Object.keys(draft.package).length) {
+    envelope.draft = {
+      package: draft.package,
+      status: draft.status || "Taslak",
+      updatedAt: draft.updatedAt || new Date().toISOString(),
+      submittedAt: draft.submittedAt || "",
+      submittedBy: draft.submittedBy || "",
+    };
+  }
+  return envelope;
+}
+
+function coursePackageRecords(row = {}) {
+  const data = parseCoursePackageJson(row.package_json || "{}");
+  if (!Object.keys(data).length) return { data, published: null, draft: null, legacy: null };
+  if (isVersionedCoursePackage(data)) {
+    return {
+      data,
+      published: data.published?.package ? data.published : null,
+      draft: data.draft?.package ? data.draft : null,
+      legacy: null,
+    };
+  }
+  return { data, published: null, draft: null, legacy: data };
+}
+
+function publicPackageRecordForRow(row = {}, visibility = getPublicVisibilityMap()) {
+  const records = coursePackageRecords(row);
+  if (records.published?.package) return records.published;
+  if (records.legacy && (isPublicCourseStatus(row.status || "") || (
+    isDepartmentPoolCourseRecord(row) &&
+    isCourseContentPublicOverride(normalizeDbCourseForList(courseFromRow(row)) || row, visibility)
+  ))) {
+    return {
+      package: records.legacy,
+      approvedAt: row.updated_at || "",
+      status: row.status || "Yayımlandı",
+    };
+  }
+  return null;
+}
+
+function editablePackageRecordForRow(row = {}, visibility = getPublicVisibilityMap()) {
+  const records = coursePackageRecords(row);
+  if (records.draft?.package) return records.draft;
+  if (records.published?.package) return records.published;
+  if (records.legacy) return publicPackageRecordForRow(row, visibility) || { package: records.legacy, status: row.status || "" };
+  return null;
+}
+
+function hasAnyCoursePackage(row = {}) {
+  const records = coursePackageRecords(row);
+  return Boolean(records.draft?.package || records.published?.package || records.legacy);
+}
+
+function packageJsonForDraft(existingJson, packageData = {}, status = "Taslak", actor = "", now = new Date().toISOString(), previousStatus = "", previousApprovedAt = "") {
+  const records = coursePackageRecords({ package_json: existingJson || "{}" });
+  const published = records.published || (records.legacy && isPublicCourseStatus(previousStatus || status) ? {
+    package: records.legacy,
+    approvedAt: previousApprovedAt || now,
+    status: previousStatus || "Yayımlandı",
+    approvedBy: actor,
+  } : null);
+  return JSON.stringify(compactCoursePackageEnvelope({
+    published,
+    draft: {
+      package: repairObject(packageData || {}),
+      status,
+      updatedAt: now,
+      submittedAt: normalizeScope(status) === normalizeScope("Taslak") ? "" : now,
+      submittedBy: actor,
+    },
+  }));
+}
+
+function packageJsonForPublication(existingJson, actor = "", now = new Date().toISOString()) {
+  const records = coursePackageRecords({ package_json: existingJson || "{}" });
+  const packageData = records.draft?.package || records.published?.package || records.legacy || {};
+  return JSON.stringify(compactCoursePackageEnvelope({
+    published: {
+      package: repairObject(packageData),
+      approvedAt: now,
+      status: "Yayımlandı",
+      approvedBy: actor,
+    },
+  }));
+}
+
 function readEnvValue(file, key) {
   try {
     if (!existsSync(file)) return "";
@@ -789,6 +906,19 @@ function shouldRefreshMissingGraduateStatistics(snapshot) {
   return Date.now() - generatedAt > 5 * 60 * 1000;
 }
 
+function shouldRefreshIncompleteSeparationReasons(snapshot) {
+  if (!snapshot || Number(snapshot.graduates?.totalOtherSeparations || 0) <= 0) return false;
+  const reasons = Array.isArray(snapshot.graduates?.separationReasons) ? snapshot.graduates.separationReasons : [];
+  const hasSpecificReason = reasons.some((item) => {
+    if (!item || item.suppressed || item.count == null || Number(item.count) <= 0) return false;
+    return !["mezun", "diger ayrilan"].includes(normalizeScope(item.label || ""));
+  });
+  if (hasSpecificReason) return false;
+  const generatedAt = snapshot.generatedAt ? new Date(snapshot.generatedAt).getTime() : 0;
+  if (!Number.isFinite(generatedAt) || generatedAt <= 0) return true;
+  return Date.now() - generatedAt > 5 * 60 * 1000;
+}
+
 function shouldRefreshStudentStatisticsSource(snapshot) {
   return !snapshot?.source || snapshot.source === "e_enstitu_student_profiles" || Number(snapshot.snapshotVersion || 0) < 7;
 }
@@ -1060,7 +1190,7 @@ function cacheSlug(value, fallback = "ders") {
   return text || fallback;
 }
 
-const pdfCacheVersion = "v2";
+const pdfCacheVersion = "v3";
 
 function pdfCacheFile({ code, program, name }) {
   const parts = [pdfCacheVersion, cacheSlug(code, "kod")];
@@ -1128,7 +1258,7 @@ function coursePackagePdfPayload({ code, name, department, programName, level, p
   const rows = courseRowsForIdentity({ code, department, programName, level });
   const visibility = getPublicVisibilityMap();
   const row = rows.find((item) => hasPublicReadableCoursePackage(item, visibility)) ||
-    (!publicOnly ? rows.find((item) => item.package_json && item.package_json !== "{}") : null);
+    (!publicOnly ? rows.find((item) => hasAnyCoursePackage(item)) : null);
   if (!row) {
     if (publicOnly) return null;
     const seedPackage = findSeedPackageForCode(readCoursePackageSeeds(), code);
@@ -1150,6 +1280,7 @@ function coursePackagePdfPayload({ code, name, department, programName, level, p
       status: courseRow.status || "Public",
       instructor: courseRow.instructor || seedPackage.instructor || "",
       updatedAt: courseRow.updated_at || "",
+      approvedAt: courseRow.updated_at || "",
     };
     return repairObject({ course, package: packageWithCourseInstructor(storedPackageFromSeed(seedPackage, course), course) });
   }
@@ -1170,9 +1301,12 @@ function coursePackagePdfPayload({ code, name, department, programName, level, p
     instructor: row.instructor || "",
     updatedAt: row.updated_at || "",
   };
+  const packageRecord = publicOnly ? publicPackageRecordForRow(row, visibility) : editablePackageRecordForRow(row, visibility);
+  course.approvedAt = packageRecord?.approvedAt || "";
   return repairObject({
     course,
-    package: packageWithCourseInstructor(JSON.parse(row.package_json || "{}"), course),
+    package: packageWithCourseInstructor(packageRecord?.package || {}, course),
+    approvedAt: packageRecord?.approvedAt || "",
   });
 }
 
@@ -3745,7 +3879,7 @@ function expectedStatusesForTransition(status, body = {}) {
 }
 
 function transitionCoursePackageStatus(body, status, actor, options = {}) {
-  const rows = courseRowsForIdentity(body).filter((row) => row.package_json && row.package_json !== "{}");
+  const rows = courseRowsForIdentity(body).filter((row) => hasAnyCoursePackage(row));
   if (!rows.length) return { ok: false, missing: true };
   const expected = options.force ? [] : expectedStatusesForTransition(status, body);
   const mismatches = expected.length
@@ -3761,9 +3895,11 @@ function transitionCoursePackageStatus(body, status, actor, options = {}) {
   }
   const now = new Date().toISOString();
   const statement = db.prepare("UPDATE courses SET status = ?, updated_at = ? WHERE id = ?");
+  const publishStatement = db.prepare("UPDATE courses SET status = ?, package_json = ?, updated_at = ? WHERE id = ?");
+  const publishing = normalizeScope(status) === normalizeScope("Yayımlandı") || normalizeScope(status) === "public";
   db.exec("BEGIN IMMEDIATE");
   try {
-    const lockedRows = rows.map((row) => db.prepare("SELECT id, status FROM courses WHERE id = ?").get(row.id)).filter(Boolean);
+    const lockedRows = rows.map((row) => db.prepare("SELECT id, status, package_json FROM courses WHERE id = ?").get(row.id)).filter(Boolean);
     const lockedMismatch = expected.length
       ? lockedRows.find((row) => !expected.includes(normalizeScope(row.status || "")))
       : null;
@@ -3776,7 +3912,13 @@ function transitionCoursePackageStatus(body, status, actor, options = {}) {
         expectedStatus: expected.join(", "),
       };
     }
-    for (const row of lockedRows) statement.run(status, now, row.id);
+    for (const row of lockedRows) {
+      if (publishing) {
+        publishStatement.run(status, packageJsonForPublication(row.package_json, actor, now), now, row.id);
+      } else {
+        statement.run(status, now, row.id);
+      }
+    }
     if (normalizeScope(status) !== normalizeScope("Komisyon Onayı Bekliyor")) {
       deactivateCourseReviewAssignees(body, "committee");
     }
@@ -4048,7 +4190,7 @@ function migratePublicCoursePackagesToApprovalDrafts() {
   const metadataKey = "public_course_packages_to_approval_drafts_v1";
   if (db.prepare("SELECT value FROM metadata WHERE key = ?").get(metadataKey)?.value) return;
   const rows = db.prepare(`
-    SELECT id, status
+    SELECT id, status, package_json, updated_at
     FROM courses
     WHERE package_json IS NOT NULL
       AND TRIM(package_json) <> ''
@@ -4056,14 +4198,12 @@ function migratePublicCoursePackagesToApprovalDrafts() {
   `).all();
   const candidates = rows.filter((row) => isPublicCourseStatus(row.status || ""));
   const now = new Date().toISOString();
-  const update = db.prepare(`
-    UPDATE courses
-    SET status = 'Taslak', updated_at = ?
-    WHERE id = ?
-  `);
+  const update = db.prepare("UPDATE courses SET package_json = ?, updated_at = ? WHERE id = ?");
   db.exec("BEGIN");
   try {
-    for (const row of candidates) update.run(now, row.id);
+    for (const row of candidates) {
+      update.run(packageJsonForPublication(row.package_json, "system", row.updated_at || now), now, row.id);
+    }
     db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(
       metadataKey,
       JSON.stringify({ migratedAt: now, changed: candidates.length }),
@@ -6290,10 +6430,7 @@ function isPublicCourseStatus(value = "") {
 }
 
 function hasPublicReadableCoursePackage(row, visibility = getPublicVisibilityMap()) {
-  if (!row?.package_json || row.package_json === "{}") return false;
-  if (isPublicCourseStatus(row.status || "")) return true;
-  const course = normalizeDbCourseForList(courseFromRow(row)) || row;
-  return isDepartmentPoolCourseRecord(row) && isCourseContentPublicOverride(course, visibility);
+  return Boolean(publicPackageRecordForRow(row, visibility)?.package);
 }
 
 function publicCourseRouteIndex() {
@@ -7499,7 +7636,7 @@ async function handleDbpApi(request) {
         return jsonResponse({ status: "syncing", message: "İlk öğrenci istatistiği görüntüsü hazırlanıyor.", nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "" }, { status: 202 });
       }
       const forceRefresh = ["1", "true", "yes"].includes((url.searchParams.get("refresh") || "").toLocaleLowerCase("tr-TR"));
-      if (forceRefresh || shouldRefreshStudentStatisticsSource(snapshot) || shouldRefreshMissingGraduateStatistics(snapshot)) {
+      if (forceRefresh || shouldRefreshStudentStatisticsSource(snapshot) || shouldRefreshMissingGraduateStatistics(snapshot) || shouldRefreshIncompleteSeparationReasons(snapshot)) {
         try {
           snapshot = await queueStudentStatisticsRefresh(forceRefresh ? "public-force-refresh" : "public-statistics-refresh");
         } catch (error) {
@@ -7645,15 +7782,17 @@ async function handleDbpApi(request) {
         return jsonResponse({ message: "Ders seçilen programın müfredatında bulunamadı." }, { status: 404 });
       }
       const hasPublicPackage = hasPublicReadableCoursePackage(found.row);
+      const publicRecord = publicPackageRecordForRow(found.row);
       return jsonResponse({
         course: found.course,
-        package: hasPublicPackage
-          ? packageWithCourseInstructor(JSON.parse(found.row.package_json || "{}"), {
+        package: publicRecord?.package
+          ? packageWithCourseInstructor(publicRecord.package, {
             instructor: found.row.instructor || "",
           })
           : null,
         status: repairText(found.row.status || ""),
         updatedAt: found.row.updated_at,
+        approvedAt: publicRecord?.approvedAt || "",
         packagePending: !hasPublicPackage,
       });
     }
@@ -7681,10 +7820,7 @@ async function handleDbpApi(request) {
           return jsonResponse({ message: "Bu ders paketini görüntüleme veya güncelleme yetkiniz yok." }, { status: 403 });
         }
       }
-      const row = rows.find((item) => {
-        if (!publicOnly) return item.package_json && item.package_json !== "{}";
-        return hasPublicReadableCoursePackage(item);
-      });
+      const row = rows.find((item) => publicOnly ? hasPublicReadableCoursePackage(item) : hasAnyCoursePackage(item));
       if (!row) {
         const latest = rows[0];
         return jsonResponse({
@@ -7693,13 +7829,15 @@ async function handleDbpApi(request) {
           packagePending: Boolean(publicOnly && latest),
         });
       }
+      const packageRecord = publicOnly ? publicPackageRecordForRow(row) : editablePackageRecordForRow(row);
       const course = {
         instructor: row.instructor || "",
       };
       return jsonResponse({
-        package: packageWithCourseInstructor(JSON.parse(row.package_json || "{}"), course),
+        package: packageRecord?.package ? packageWithCourseInstructor(packageRecord.package, course) : null,
         status: repairText(row.status || ""),
         updatedAt: row.updated_at,
+        approvedAt: packageRecord?.approvedAt || "",
         workflow: {
           ...courseWorkflowSummary(query),
           latestCorrection: latestWorkflowCorrection(query),
@@ -7742,7 +7880,12 @@ async function handleDbpApi(request) {
         `);
         let changes = 0;
         for (const row of matchingRows) {
-          changes += updateById.run(actualStatus, JSON.stringify(body.package || {}), now, row.id).changes;
+          changes += updateById.run(
+            actualStatus,
+            packageJsonForDraft(row.package_json, body.package || {}, actualStatus, actor, now, row.status || "", row.updated_at || ""),
+            now,
+            row.id,
+          ).changes;
         }
         update = { changes };
       }
@@ -7757,7 +7900,7 @@ async function handleDbpApi(request) {
       `).run(
         body.name,
         actualStatus,
-        JSON.stringify(body.package || {}),
+        packageJsonForDraft("{}", body.package || {}, actualStatus, actor, now),
         now,
         body.code,
         body.department || "",
@@ -7768,7 +7911,7 @@ async function handleDbpApi(request) {
       );
 
       if (!update.changes) {
-        const codeLevelMatches = db.prepare("SELECT id FROM courses WHERE code = ? AND level = ?").all(body.code, level);
+        const codeLevelMatches = db.prepare("SELECT id, status, package_json, updated_at FROM courses WHERE code = ? AND level = ?").all(body.code, level);
         if (codeLevelMatches.length === 1) {
           update = db.prepare(`
             UPDATE courses
@@ -7777,7 +7920,7 @@ async function handleDbpApi(request) {
           `).run(
             body.name,
             actualStatus,
-            JSON.stringify(body.package || {}),
+            packageJsonForDraft(codeLevelMatches[0].package_json, body.package || {}, actualStatus, actor, now, codeLevelMatches[0].status || "", codeLevelMatches[0].updated_at || ""),
             now,
             codeLevelMatches[0].id,
           );
@@ -7797,7 +7940,7 @@ async function handleDbpApi(request) {
           body.name,
           actualStatus,
           actor,
-          JSON.stringify(body.package || {}),
+          packageJsonForDraft("{}", body.package || {}, actualStatus, actor, now),
           now,
           now,
         );
