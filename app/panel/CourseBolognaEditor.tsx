@@ -6,15 +6,16 @@ import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { SDG_GOALS, findSdgGoal, formatSdgGoal } from "../../lib/sdgGoals";
 import { getCoursePackage, type CoursePackage } from "../../lib/data/coursePackages";
-
-type Assessment = {
-  id: number;
-  name: string;
-  count: number;
-  weight: number;
-  fixed?: boolean;
-};
-type Workload = { count: number; hours: number; custom?: boolean };
+import {
+  assessmentWorkloadName,
+  linkedWorkloadNames,
+  normalizeActivityName,
+  rebalanceAssessmentWeights,
+  redistributeRemovedWorkload,
+  workloadTotalHours,
+  type Assessment,
+  type Workload,
+} from "./courseAssessmentWorkload";
 type CourseIdentity = {
   code: string;
   name: string;
@@ -89,8 +90,8 @@ const defaultAssessments: Assessment[] = [
 const defaultWorkloads: Record<string, Workload> = {
   "Ders Süresi": { count: 15, hours: 3 },
   "Sınıf Dışı Çalışma": { count: 15, hours: 2 },
-  "Ara Sınav": { count: 1, hours: 2 },
-  "Yarıyıl Sonu Sınavı": { count: 1, hours: 2 },
+  "Ara Sınav Hazırlığı": { count: 1, hours: 2 },
+  "Yarıyıl Sonu Sınavı Hazırlığı": { count: 1, hours: 2 },
 };
 const structures = [
   "Matematik ve Temel Bilimler",
@@ -413,10 +414,7 @@ export function CourseBolognaEditor({
   }, [course.code, course.department, course.level, course.name, course.programName, session]);
 
   const workloadNames = useMemo(() => Object.keys(workloads), [workloads]);
-  const totalWorkload = workloadNames.reduce((total, name) => {
-    const row = workloads[name] ?? { count: 0, hours: 0 };
-    return total + row.count * row.hours;
-  }, 0);
+  const totalWorkload = workloadTotalHours(workloads);
   const ects = Math.round(totalWorkload / 30);
   const publishIssues = useMemo(() => {
     const issues: string[] = [];
@@ -545,17 +543,39 @@ export function CourseBolognaEditor({
       ...current,
       { id: nextAssessment, name, count: 1, weight: 0 },
     ]);
-    setWorkloads((current) => ({ ...current, [name]: { count: 1, hours: 1 } }));
+    setWorkloads((current) => ({ ...current, [assessmentWorkloadName(name)]: { count: 1, hours: 0 } }));
     setNextAssessment((value) => value + 1);
+  };
+  const updateAssessmentName = (item: Assessment, name: string) => {
+    setAssessments((current) => current.map((row) => row.id === item.id ? { ...row, name } : row));
+    setWorkloads((current) => {
+      const linked = linkedWorkloadNames(current, item.name);
+      if (!linked.length) return current;
+      const target = assessmentWorkloadName(name);
+      const source = current[linked[0]];
+      return Object.fromEntries([
+        ...Object.entries(current).filter(([workloadName]) => !linked.includes(workloadName) && workloadName !== target),
+        [target, source],
+      ]);
+    });
+  };
+  const updateAssessmentCount = (item: Assessment, rawCount: number) => {
+    const count = Math.max(0, Number.isFinite(rawCount) ? rawCount : 0);
+    setAssessments((current) => rebalanceAssessmentWeights(current.map((row) => row.id === item.id
+      ? { ...row, count, weight: count === 0 ? 0 : row.weight }
+      : row)));
+    setWorkloads((current) => {
+      const linked = linkedWorkloadNames(current, item.name);
+      if (count === 0) return redistributeRemovedWorkload(current, linked);
+      const target = linked.find((name) => normalizeActivityName(name).endsWith("hazirligi")) || linked[0] || assessmentWorkloadName(item.name);
+      const row = current[target] ?? { count, hours: 0 };
+      return { ...current, [target]: { ...row, count } };
+    });
   };
   const removeAssessment = (item: Assessment) => {
     if (item.fixed) return;
-    setAssessments((current) => current.filter((row) => row.id !== item.id));
-    setWorkloads((current) => {
-      const copy = { ...current };
-      delete copy[item.name];
-      return copy;
-    });
+    setAssessments((current) => rebalanceAssessmentWeights(current.filter((row) => row.id !== item.id)));
+    setWorkloads((current) => redistributeRemovedWorkload(current, linkedWorkloadNames(current, item.name)));
   };
   const fetchObsDraft = async () => {
     setObsBusy(true);
@@ -834,13 +854,9 @@ export function CourseBolognaEditor({
           </div>
           {assessments.map((item) => (
             <div key={item.id}>
-              <input name={`Değerlendirme ${item.id}`} value={item.name} readOnly={item.fixed} onChange={(event) => setAssessments((current) => current.map((row) => row.id === item.id ? { ...row, name: event.target.value } : row))} />
-              <input type="number" min="0" value={item.count} onChange={(event) => {
-                const count = Number(event.target.value);
-                setAssessments((current) => current.map((row) => row.id === item.id ? { ...row, count } : row));
-                updateWorkload(item.name, "count", count);
-              }} />
-              <input type="number" min="0" max="100" value={item.weight} onChange={(event) => setAssessments((current) => current.map((row) => row.id === item.id ? { ...row, weight: Number(event.target.value) } : row))} />
+              <input name={`Değerlendirme ${item.id}`} value={item.name} readOnly={item.fixed} onChange={(event) => updateAssessmentName(item, event.target.value)} />
+              <input type="number" min="0" value={item.count} onChange={(event) => updateAssessmentCount(item, Number(event.target.value))} />
+              <input type="number" min="0" max="100" value={item.weight} disabled={item.count === 0} onChange={(event) => setAssessments((current) => current.map((row) => row.id === item.id ? { ...row, weight: Number(event.target.value) } : row))} />
               {!item.fixed ? (
                 <button type="button" onClick={() => removeAssessment(item)}>
                   <Trash2 size={14} />
