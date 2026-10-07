@@ -6425,6 +6425,22 @@ function isCourseContentPublicOverride(course = {}, visibility = getPublicVisibi
   return visibility[courseContentVisibilityKeyFor(course)] === true;
 }
 
+function visibleMainDepartmentCount() {
+  const visibility = getPublicVisibilityMap();
+  const mainDepartments = new Set();
+  const rows = db.prepare(`
+    SELECT main_department, department, program_name
+    FROM programs
+    WHERE COALESCE(TRIM(main_department), '') <> ''
+  `).all();
+  for (const row of rows) {
+    if (!isVisibilityKeyPublic(programVisibilityKeyFor(row), visibility)) continue;
+    const mainDepartment = normalizeScope(row.main_department || "");
+    if (mainDepartment) mainDepartments.add(mainDepartment);
+  }
+  return mainDepartments.size;
+}
+
 function isPublicCourseStatus(value = "") {
   return ["Yayımlandı", "Yayınlandı", "Public"].includes(repairText(value));
 }
@@ -6677,7 +6693,7 @@ async function homeStats() {
     academicYear,
     totalCourses,
     totalPrograms: programKeys.size,
-    mainDepartments: departments.size,
+    mainDepartments: visibleMainDepartmentCount() || departments.size,
     instructors: instructors.size,
     assignedCourses,
     unassignedCourses: totalCourses - assignedCourses,
@@ -7742,19 +7758,19 @@ async function handleDbpApi(request) {
         return jsonResponse({ message: "Ders kodu program düzeyiyle uyumlu değil: 700 Tezsiz YL, 800 Tezli YL, 900 Doktora olmalıdır." }, { status: 422 });
       }
       if (body.action === "assign") {
+        const existing = findExactCourseRow({ code, department: body.department, programName: body.programName, level });
+        if (!existing) return jsonResponse({ message: "Atama yapılacak ders kaydı bulunamadı." }, { status: 404 });
         const result = db.prepare(`
           UPDATE courses SET instructor = ?, updated_at = ?
-          WHERE code = ? AND department = ? AND program_name = ? AND level = ?
-        `).run(body.instructor || "", now, code, body.department, body.programName, level);
-        if (!result.changes) return jsonResponse({ message: "Atama yapılacak ders kaydı bulunamadı." }, { status: 404 });
+          WHERE id = ?
+        `).run(body.instructor || "", now, existing.id);
         audit("course.assignment.update", actor, { code, department: body.department, programName: body.programName, level });
         invalidateHomeStatsCache({ instructors: true });
         queueQualitySnapshotRefresh("course.assignment.update");
         await refreshHomeInstructorCount();
         return jsonResponse({ ok: true, changed: result.changes });
       }
-      const existing = db.prepare(`SELECT id FROM courses WHERE code = ? AND department = ? AND program_name = ? AND level = ?`)
-        .get(code, body.department, body.programName, level);
+      const existing = findExactCourseRow({ code, department: body.department, programName: body.programName, level });
       if (existing) return jsonResponse({ message: "Bu ders kodu seçilen program ve düzeyde zaten bulunuyor." }, { status: 409 });
       db.prepare(`
         INSERT INTO courses(academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, source, package_json, created_at, updated_at)
