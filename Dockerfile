@@ -16,6 +16,7 @@ ENV DBP_SQLITE_PATH=/app/data/dbp.sqlite
 ENV DBP_BACKUP_DIR=/app/data/backups
 ENV DBP_PDF_CACHE_DIR=/app/data/generated-pdfs
 ENV DBP_COURSE_DATA_FILE=/app/seed/courses/2026-2027.json
+ENV SCIMAGO_CSV_PATH=/app/reference/scimago/scimagojr-2025.csv
 
 RUN apk add --no-cache python3 py3-reportlab \
   && npm install --omit=dev --no-audit --no-fund --package-lock=false cheerio@1.2.0 \
@@ -23,6 +24,9 @@ RUN apk add --no-cache python3 py3-reportlab \
 COPY package.json ./package.json
 COPY server.mjs ./server.mjs
 COPY lib/thesisSdg.mjs ./lib/thesisSdg.mjs
+COPY lib/thesisBibliometrics.mjs ./lib/thesisBibliometrics.mjs
+COPY lib/thesisPublicationMatcher.mjs ./lib/thesisPublicationMatcher.mjs
+COPY lib/scimagoQuartiles.mjs ./lib/scimagoQuartiles.mjs
 COPY lib/scopusBibliometrics.mjs ./lib/scopusBibliometrics.mjs
 COPY lib/trDizinBibliometrics.mjs ./lib/trDizinBibliometrics.mjs
 COPY lib/publicDataRefreshPlan.mjs ./lib/publicDataRefreshPlan.mjs
@@ -36,6 +40,7 @@ COPY data/courses ./seed/courses
 COPY public/fonts/noto-sans ./public/fonts/noto-sans
 COPY public/oku-logo.png ./public/oku-logo.png
 COPY public/sdg ./public/sdg
+COPY data/scimago/scimagojr-2025.csv ./reference/scimago/scimagojr-2025.csv
 RUN mkdir -p /app/data /app/data/backups /app/data/generated-pdfs && chown -R node:node /app/data
 
 VOLUME ["/app/data"]

@@ -9,6 +9,7 @@ import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
 import * as cheerio from "cheerio";
 import {
+  displayDepartment,
   harvestTheses,
   readThesisSnapshot,
   thesisDashboard,
@@ -25,6 +26,17 @@ import {
   readTrDizinSnapshot,
   refreshTrDizinSnapshot,
 } from "./lib/trDizinBibliometrics.mjs";
+import {
+  THESIS_EVALUATION_YEARS,
+  activityRuleOptions,
+  calculateActivityScore,
+  calculateJuryRubric,
+  degreeGroup,
+  juryCriteria,
+  publicThesisBibliometrics,
+} from "./lib/thesisBibliometrics.mjs";
+import { matchThesisPublications, scientificFieldForDepartment } from "./lib/thesisPublicationMatcher.mjs";
+import { readScimagoQuartiles } from "./lib/scimagoQuartiles.mjs";
 import {
   DEFAULT_PUBLIC_DATA_REFRESH_PLAN,
   latestQuarterlyRefreshDate,
@@ -89,6 +101,8 @@ let qualityRefreshTimer;
 let thesisSnapshotCache;
 let thesisSyncPromise;
 let thesisRefreshTimer;
+let eEnstituThesisPublicationSyncPromise;
+let eEnstituThesisPublicationRefreshTimer;
 let scopusSnapshotCache;
 let scopusSyncPromise;
 let scopusRefreshTimer;
@@ -135,6 +149,8 @@ const dbpModules = [
   "review_queue",
   "publish_control",
   "quality_reports",
+  "thesis_evaluations",
+  "thesis_awards",
   "view_stats_admin",
   "database_admin",
   "user_roles",
@@ -147,8 +163,8 @@ const defaultRoleAccess = {
   abd_sekreteri: ["review_queue"],
   lee_ogrenci_isleri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
   enstitu_sekreteri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
-  enstitu_yoneticisi: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports", "view_stats_admin"],
-  admin: ["my_courses", "database_admin", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "view_stats_admin", "user_roles", "permission_matrix"],
+  enstitu_yoneticisi: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports", "thesis_awards", "view_stats_admin"],
+  admin: ["my_courses", "database_admin", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "thesis_evaluations", "thesis_awards", "view_stats_admin", "user_roles", "permission_matrix"],
 };
 
 const viewStatTypes = {
@@ -160,7 +176,8 @@ const viewStatTypes = {
   tez_ska_analiz: "TEZ_SKA Analiz",
   bib_scopus: "Bibliyometrik Göstergeler - Scopus",
   bib_tr_dizin: "Bibliyometrik Göstergeler - TR Dizin",
-  bib_doktora: "Bibliyometrik Göstergeler - Doktora",
+  bib_tez: "Bibliyometrik Göstergeler - Lisansüstü Tez",
+  bib_doktora: "Bibliyometrik Göstergeler - Lisansüstü Tez (Eski Bağlantı)",
 };
 
 const statsManagerRoles = new Set(["admin", "enstitu_yoneticisi"]);
@@ -422,6 +439,7 @@ function eEnstituApiBaseUrls() {
     ? ["http://e-enstitu:8080", "http://web:8080", "http://localhost:3001"]
     : ["http://localhost:3001", "http://e-enstitu:8080", "http://web:8080"];
   const candidates = [
+    process.env.E_ENSTITU_API_URL,
     process.env.EENSTITU_API_BASE_URL,
     process.env.NEXT_PUBLIC_EENSTITU_API_BASE_URL,
     process.env.EENSTITU_INTERNAL_API_BASE_URL,
@@ -488,6 +506,7 @@ function startPublicDataRefreshPlanPolling() {
     if (JSON.stringify(publicDataRefreshPlan) !== before) {
       scheduleQualityRefresh(); scheduleThesisRefresh(); scheduleScopusRefresh(); scheduleScopusCitationRefresh();
       scheduleTrDizinRefresh(); scheduleTrDizinCitationRefresh(); scheduleStudentStatisticsRefresh();
+      scheduleEEnstituThesisPublicationRefresh();
     }
   }, 15 * 60 * 1000);
   publicDataRefreshPlanTimer.unref?.();
@@ -4128,6 +4147,72 @@ async function ensureDb() {
       UNIQUE(year_month, view_type, item_id)
     );
     CREATE INDEX IF NOT EXISTS idx_page_view_monthly_stats_type ON page_view_monthly_stats(view_type, year_month);
+    CREATE TABLE IF NOT EXISTS thesis_publications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      thesis_identifier TEXT NOT NULL,
+      thesis_title TEXT NOT NULL DEFAULT '',
+      thesis_cohort_year INTEGER NOT NULL,
+      degree_type TEXT NOT NULL,
+      department TEXT NOT NULL DEFAULT '',
+      publication_title TEXT NOT NULL,
+      publication_year INTEGER NOT NULL,
+      publication_type TEXT NOT NULL DEFAULT '',
+      doi TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT '',
+      indexed_scopus INTEGER NOT NULL DEFAULT 0,
+      indexed_trdizin INTEGER NOT NULL DEFAULT 0,
+      indexed_wos INTEGER NOT NULL DEFAULT 0,
+      quartile TEXT NOT NULL DEFAULT '',
+      sdg_json TEXT NOT NULL DEFAULT '[]',
+      funding_type TEXT NOT NULL DEFAULT 'unknown',
+      funding_detail TEXT NOT NULL DEFAULT '',
+      relation_status TEXT NOT NULL DEFAULT 'under_review',
+      evidence_note TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      updated_by TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_thesis_publications_public ON thesis_publications(relation_status, publication_year, degree_type);
+    CREATE INDEX IF NOT EXISTS idx_thesis_publications_thesis ON thesis_publications(thesis_identifier);
+    CREATE INDEX IF NOT EXISTS idx_thesis_publications_doi ON thesis_publications(doi);
+    CREATE TABLE IF NOT EXISTS thesis_academic_activities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      thesis_identifier TEXT NOT NULL,
+      thesis_cohort_year INTEGER NOT NULL,
+      activity_code TEXT NOT NULL,
+      activity_title TEXT NOT NULL,
+      relation_type TEXT NOT NULL,
+      base_score REAL NOT NULL DEFAULT 0,
+      author_count INTEGER NOT NULL DEFAULT 1,
+      author_position INTEGER NOT NULL DEFAULT 1,
+      quantity REAL NOT NULL DEFAULT 1,
+      apply_author_contribution INTEGER NOT NULL DEFAULT 1,
+      contribution_coefficient REAL NOT NULL DEFAULT 1,
+      calculated_score REAL NOT NULL DEFAULT 0,
+      evidence_note TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'under_review',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      updated_by TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_thesis_activities_thesis ON thesis_academic_activities(thesis_identifier, status);
+    CREATE TABLE IF NOT EXISTS thesis_jury_evaluations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      thesis_identifier TEXT NOT NULL,
+      thesis_cohort_year INTEGER NOT NULL,
+      jury_name TEXT NOT NULL,
+      jury_title TEXT NOT NULL DEFAULT '',
+      scores_json TEXT NOT NULL DEFAULT '{}',
+      rubric_score REAL NOT NULL DEFAULT 0,
+      activity_score REAL NOT NULL DEFAULT 0,
+      general_total REAL NOT NULL DEFAULT 0,
+      evaluation_status TEXT NOT NULL DEFAULT 'draft',
+      evaluated_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      updated_by TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_thesis_jury_thesis ON thesis_jury_evaluations(thesis_identifier, evaluation_status);
   `);
   seedInitialData();
   syncCourseCatalogFromSeed();
@@ -4491,7 +4576,11 @@ function roleAccessMap() {
 
 function modulesForRole(role) {
   const access = roleAccessMap();
-  return access[role] || [];
+  return (access[role] || []).filter((module) =>
+    module !== "thesis_evaluations" || role === "admin",
+  ).filter((module) =>
+    module !== "thesis_awards" || ["admin", "enstitu_yoneticisi"].includes(role),
+  );
 }
 
 function normalizeRoleAccessPayload(payload) {
@@ -4502,7 +4591,11 @@ function normalizeRoleAccessPayload(payload) {
   const normalized = {};
   for (const role of dbpRoles) {
     const modules = Array.isArray(source[role]) ? source[role] : [];
-    normalized[role] = [...new Set(modules.filter(isKnownModule))];
+    normalized[role] = [...new Set(modules.filter((module) =>
+      isKnownModule(module) &&
+      (module !== "thesis_evaluations" || role === "admin") &&
+      (module !== "thesis_awards" || ["admin", "enstitu_yoneticisi"].includes(role)),
+    ))];
   }
   return normalized;
 }
@@ -6328,6 +6421,7 @@ function queueThesisSync(actor = "system", full = false) {
     thesisSyncPromise = harvestTheses(db, { actor, full })
       .then((snapshot) => {
         thesisSnapshotCache = snapshot;
+        refreshAutomaticThesisPublicationMatches("thesis-refresh");
         return snapshot;
       })
       .catch((error) => {
@@ -6354,6 +6448,433 @@ function scheduleThesisRefresh() {
     }
   }, delay);
   thesisRefreshTimer.unref?.();
+}
+
+function thesisRecordByIdentifier(identifier) {
+  return currentThesisSnapshot()?.records?.find((record) => record.identifier === identifier && record.status !== "deleted") || null;
+}
+
+function publicThesisPublicationRows() {
+  return db.prepare(`
+    SELECT * FROM thesis_publications
+    WHERE relation_status = 'verified'
+    ORDER BY publication_year DESC, publication_title COLLATE NOCASE
+  `).all();
+}
+
+function internalDbpTokenIsValid(request) {
+  const expected = String(process.env.DBP_SSO_SECRET || process.env.E_ENSTITU_API_TOKEN || "");
+  const supplied = String(request.headers.get("x-dbp-internal-token") || "");
+  return Boolean(expected && supplied && expected === supplied);
+}
+
+function thesisPublicationCandidatePayload() {
+  const thesisByIdentifier = new Map(
+    (currentThesisSnapshot()?.records || [])
+      .filter((record) => record.status !== "deleted")
+      .map((record) => [record.identifier, record]),
+  );
+  return {
+    generatedAt: new Date().toISOString(),
+    records: publicThesisPublicationRows().map((row) => {
+      const thesis = thesisByIdentifier.get(row.thesis_identifier) || {};
+      return {
+        thesisIdentifier: row.thesis_identifier,
+        thesisTitle: row.thesis_title,
+        thesisYear: Number(row.thesis_cohort_year || thesis.publicationYear || 0),
+        degreeType: row.degree_type || thesis.degreeType || "",
+        department: row.department || displayDepartment(thesis.department || ""),
+        sourceUrl: thesis.sourceUrl || "",
+        studentNames: thesis.authors || [],
+        advisorNames: thesis.advisors || [],
+        publicationKey: String(row.doi || "").trim().toLocaleLowerCase("tr-TR")
+          || `${String(row.publication_title || "").trim().toLocaleLowerCase("tr-TR")}|${row.publication_year}`,
+        publicationTitle: row.publication_title,
+        publicationYear: Number(row.publication_year || 0),
+        publicationType: row.publication_type || "",
+        doi: row.doi || "",
+        sourceName: row.source || "",
+        journalName: String(row.source || "").split(" · ").slice(1).join(" · "),
+        indexedScopus: Boolean(row.indexed_scopus),
+        indexedTrdizin: Boolean(row.indexed_trdizin),
+        indexedWos: Boolean(row.indexed_wos),
+        quartile: row.quartile || "",
+        fundingType: row.funding_type || "unknown",
+        fundingDetail: row.funding_detail || "",
+        authors: [],
+        evidenceUrl: row.doi ? `https://doi.org/${row.doi}` : "",
+        evidenceNote: row.evidence_note || "",
+        sourceUpdatedAt: row.updated_at || "",
+      };
+    }),
+  };
+}
+
+async function syncVerifiedEEnstituThesisPublications(actor = "e-enstitu-quarterly-sync") {
+  if (eEnstituThesisPublicationSyncPromise) return eEnstituThesisPublicationSyncPromise;
+  eEnstituThesisPublicationSyncPromise = (async () => {
+    const token = String(process.env.DBP_SSO_SECRET || process.env.E_ENSTITU_API_TOKEN || "");
+    if (!token) throw new Error("e-Enstitü dahili servis anahtarı tanımlı değil.");
+    let payload;
+    let lastError;
+    for (const apiBaseUrl of eEnstituApiBaseUrls()) {
+      try {
+        const response = await withTimeout(fetch(`${apiBaseUrl}/api/thesis-publications/internal/verified`, {
+          headers: { "x-dbp-internal-token": token }, cache: "no-store",
+        }), Math.max(eEnstituDbTimeoutMs(), 15_000), "e-Enstitü tez-yayın isteği zaman aşımı");
+        if (!response.ok) throw new Error(`e-Enstitü yanıtı ${response.status}`);
+        payload = await response.json();
+        break;
+      } catch (error) { lastError = error; }
+    }
+    if (!payload) throw lastError || new Error("e-Enstitü tez-yayın servisine ulaşılamadı.");
+    const records = Array.isArray(payload.records) ? payload.records : [];
+    const insert = db.prepare(`
+      INSERT INTO thesis_publications(thesis_identifier,thesis_title,thesis_cohort_year,degree_type,department,
+        publication_title,publication_year,publication_type,doi,source,indexed_scopus,indexed_trdizin,indexed_wos,
+        quartile,sdg_json,funding_type,funding_detail,relation_status,evidence_note,created_at,updated_at,updated_by)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'[]',?,?,'verified',?,?,?,'e-enstitu-sync')
+    `);
+    const now = new Date().toISOString();
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.prepare("DELETE FROM thesis_publications WHERE updated_by='e-enstitu-sync'").run();
+      for (const row of records) {
+        insert.run(
+          row.thesis_identifier || row.thesisIdentifier || "", row.thesis_title || row.thesisTitle || "",
+          Number(row.thesis_cohort_year || row.thesisYear || 0), row.degree_type || row.degreeType || "",
+          row.department || row.departmentName || "", row.publication_title || row.publicationTitle || "",
+          Number(row.publication_year || row.publicationYear || 0), row.publication_type || row.publicationType || "",
+          row.doi || "", row.source || row.sourceName || row.journal_name || "", row.indexed_scopus ? 1 : 0,
+          row.indexed_trdizin ? 1 : 0, row.indexed_wos ? 1 : 0, row.quartile || "", row.funding_type || "unknown",
+          row.funding_detail || "", row.evidence_note || "", now, row.updated_at || now,
+        );
+      }
+      db.prepare("INSERT INTO metadata(key,value) VALUES('e_enstitu_thesis_publications_synced_at',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(now);
+      db.exec("COMMIT");
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
+    audit("thesis.publication.e-enstitu-sync", actor, { imported: records.length, generatedAt: payload.generatedAt || "" });
+    return { imported: records.length, generatedAt: now };
+  })().finally(() => { eEnstituThesisPublicationSyncPromise = undefined; });
+  return eEnstituThesisPublicationSyncPromise;
+}
+
+function scheduleEEnstituThesisPublicationRefresh() {
+  if (eEnstituThesisPublicationRefreshTimer) clearTimeout(eEnstituThesisPublicationRefreshTimer);
+  const lastSuccessfulAt = db.prepare("SELECT value FROM metadata WHERE key='e_enstitu_thesis_publications_synced_at'").get()?.value || "";
+  const next = refreshRetryDate(lastSuccessfulAt) || nextMainDataRefreshDate();
+  if (!next) return;
+  const delay = Math.min(Math.max(next.getTime() - Date.now(), 1_000), 2_000_000_000);
+  eEnstituThesisPublicationRefreshTimer = setTimeout(async () => {
+    try { if (Date.now() >= next.getTime()) await syncVerifiedEEnstituThesisPublications(); }
+    catch (error) { console.error(`[dbp] e-Enstitü tez-yayın yenileme hatası: ${error instanceof Error ? error.message : error}`); }
+    finally { scheduleEEnstituThesisPublicationRefresh(); }
+  }, delay);
+  eEnstituThesisPublicationRefreshTimer.unref?.();
+}
+
+function metadataJson(key, fallback) {
+  return parseJsonField(db.prepare("SELECT value FROM metadata WHERE key = ?").get(key)?.value, fallback);
+}
+
+function refreshAutomaticThesisPublicationMatches(actor = "automatic-thesis-match") {
+  const thesisSnapshot = currentThesisSnapshot();
+  const theses = thesisSnapshot?.records || [];
+  const scopus = metadataJson("scopus_bibliometrics_records_v1", []);
+  const trDizin = metadataJson("tr_dizin_bibliometrics_records_v1", { papers: [] });
+  const scopusAvailable = scopus.length > 0;
+  const trDizinAvailable = (trDizin.papers || []).length > 0;
+  if (!theses.length || (!scopusAvailable && !trDizinAvailable)) {
+    return { matched: 0, inserted: 0, scimago: { loaded: false, journalCount: 0, files: [], years: [] } };
+  }
+  const scimago = readScimagoQuartiles(dataDir);
+  const revision = [
+    thesisSnapshot?.generatedAt || "",
+    currentScopusSnapshot()?.generatedAt || "",
+    currentTrDizinSnapshot()?.generatedAt || "",
+    scimago.files.join(","),
+  ].join("|");
+  const revisionKey = "thesis_publication_match_revision_v1";
+  const previousRevision = db.prepare("SELECT value FROM metadata WHERE key = ?").get(revisionKey)?.value || "";
+  const automaticCount = Number(db.prepare("SELECT COUNT(*) AS count FROM thesis_publications WHERE updated_by = 'automatic-thesis-match'").get()?.count || 0);
+  if (revision && revision === previousRevision && automaticCount > 0) {
+    return { matched: automaticCount, inserted: automaticCount, skipped: true, scimago: { loaded: scimago.loaded, journalCount: scimago.journalCount, files: scimago.files, years: scimago.years } };
+  }
+  const matches = matchThesisPublications({ theses, scopus, trDizin });
+  const manualRows = db.prepare("SELECT thesis_identifier, publication_title, publication_year, doi FROM thesis_publications WHERE updated_by <> 'automatic-thesis-match'").all();
+  const manualKeys = new Set(manualRows.map((row) => `${row.thesis_identifier}|${String(row.doi || "").toLocaleLowerCase("tr-TR") || `${String(row.publication_title || "").toLocaleLowerCase("tr-TR")}|${row.publication_year}`}`));
+  const insert = db.prepare(`
+    INSERT INTO thesis_publications(thesis_identifier, thesis_title, thesis_cohort_year, degree_type, department, publication_title, publication_year, publication_type, doi, source, indexed_scopus, indexed_trdizin, indexed_wos, quartile, sdg_json, funding_type, funding_detail, relation_status, evidence_note, created_at, updated_at, updated_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 'verified', ?, ?, ?, 'automatic-thesis-match')
+  `);
+  const now = new Date().toISOString();
+  let inserted = 0;
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    db.prepare(`
+      DELETE FROM thesis_publications
+      WHERE updated_by = 'automatic-thesis-match'
+        AND ((? = 1 AND indexed_scopus = 1) OR (? = 1 AND indexed_trdizin = 1))
+    `).run(scopusAvailable ? 1 : 0, trDizinAvailable ? 1 : 0);
+    for (const match of matches) {
+      const key = `${match.thesisIdentifier}|${String(match.doi || "").toLocaleLowerCase("tr-TR") || `${String(match.publicationTitle || "").toLocaleLowerCase("tr-TR")}|${match.publicationYear}`}`;
+      if (manualKeys.has(key)) continue;
+      const journal = String(match.source || "").split(" · ").slice(1).join(" · ");
+      const quartile = scimago.lookup(journal, match.publicationYear);
+      insert.run(
+        match.thesisIdentifier, match.thesisTitle, match.thesisCohortYear, match.degreeType,
+        displayDepartment(match.department), match.publicationTitle, match.publicationYear,
+        match.publicationType, match.doi, match.source, match.indexedScopus ? 1 : 0,
+        match.indexedTrdizin ? 1 : 0, quartile, JSON.stringify(match.sdgs), match.fundingType,
+        match.fundingDetail, match.evidenceNote, now, now,
+      );
+      inserted += 1;
+    }
+    db.prepare("INSERT INTO metadata(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(revisionKey, revision);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  audit("thesis.publication.automatic-match", actor, { matched: matches.length, inserted, scimagoFiles: scimago.files });
+  return { matched: matches.length, inserted, scimago: { loaded: scimago.loaded, journalCount: scimago.journalCount, files: scimago.files, years: scimago.years } };
+}
+
+function adminThesisEvaluationPayload() {
+  const snapshot = currentThesisSnapshot();
+  const theses = (snapshot?.records || [])
+    .filter((record) => record.status !== "deleted" && THESIS_EVALUATION_YEARS.includes(Number(record.publicationYear)))
+    .sort((a, b) => Number(b.publicationYear) - Number(a.publicationYear) || String(a.title).localeCompare(String(b.title), "tr"))
+    .map((record) => ({
+      identifier: record.identifier,
+      title: record.title,
+      author: record.authors?.join(", ") || "",
+      advisors: record.advisors || [],
+      department: displayDepartment(record.department),
+      degreeType: record.degreeType,
+      cohortYear: record.publicationYear,
+      sourceUrl: record.sourceUrl,
+    }));
+  return {
+    theses,
+    publications: db.prepare("SELECT * FROM thesis_publications ORDER BY updated_at DESC").all().map((row) => ({ ...row, sdgs: parseJsonField(row.sdg_json, []) })),
+    activities: db.prepare("SELECT * FROM thesis_academic_activities ORDER BY updated_at DESC").all(),
+    juryEvaluations: db.prepare("SELECT * FROM thesis_jury_evaluations ORDER BY updated_at DESC").all().map((row) => ({ ...row, scores: parseJsonField(row.scores_json, {}) })),
+    activityRules: activityRuleOptions,
+    juryCriteria,
+    limits: { evaluationYears: THESIS_EVALUATION_YEARS, rubricMaximum: 110, maximumSdgSelections: 4 },
+  };
+}
+
+function adminThesisAwardPayload(requestedYear) {
+  const snapshot = currentThesisSnapshot();
+  const awardYears = [2023, 2024, 2025];
+  const publicationRows = db.prepare("SELECT * FROM thesis_publications WHERE relation_status='verified' ORDER BY updated_at DESC").all();
+  const matchedThesisIdentifiers = new Set(publicationRows.map((row) => row.thesis_identifier));
+  const sourceTheses = (snapshot?.records || []).filter((record) => {
+    const year = Number(record.publicationYear);
+    return record.status !== "deleted" && awardYears.includes(year) && matchedThesisIdentifiers.has(record.identifier);
+  });
+  const availableYears = [...new Set(sourceTheses.map((record) => Number(record.publicationYear)))]
+    .sort((left, right) => right - left);
+  const year = availableYears.includes(Number(requestedYear)) ? Number(requestedYear) : (availableYears[0] || awardYears.at(-1));
+  const activityRows = db.prepare("SELECT * FROM thesis_academic_activities WHERE status='accepted' ORDER BY updated_at DESC").all();
+  const juryRows = db.prepare("SELECT * FROM thesis_jury_evaluations WHERE evaluation_status='final' ORDER BY updated_at DESC, id DESC").all();
+
+  const candidates = sourceTheses.filter((record) => Number(record.publicationYear) === year).map((record) => {
+    const publications = publicationRows.filter((item) => item.thesis_identifier === record.identifier);
+    const uniquePublications = [...publications.reduce((map, item) => {
+      const key = String(item.doi || "").trim().toLocaleLowerCase("tr-TR")
+        || `${String(item.publication_title || "").trim().toLocaleLowerCase("tr-TR")}|${item.publication_year}`;
+      const existing = map.get(key);
+      if (!existing) map.set(key, { ...item });
+      else map.set(key, {
+        ...existing,
+        indexed_wos: existing.indexed_wos || item.indexed_wos ? 1 : 0,
+        indexed_scopus: existing.indexed_scopus || item.indexed_scopus ? 1 : 0,
+        indexed_trdizin: existing.indexed_trdizin || item.indexed_trdizin ? 1 : 0,
+        quartile: existing.quartile || item.quartile,
+      });
+      return map;
+    }, new Map()).values()];
+    const activities = activityRows.filter((item) => item.thesis_identifier === record.identifier);
+    const activityScore = Math.round(activities.reduce((sum, item) => sum + Number(item.calculated_score || 0), 0) * 100) / 100;
+    const latestJuryByName = new Map();
+    for (const item of juryRows.filter((jury) => jury.thesis_identifier === record.identifier)) {
+      const key = normalizePublicRouteSegment(item.jury_name || `jury-${item.id}`);
+      if (!latestJuryByName.has(key)) latestJuryByName.set(key, item);
+    }
+    const finalJuries = [...latestJuryByName.values()];
+    const juryScore = finalJuries.length
+      ? Math.round((finalJuries.reduce((sum, item) => sum + Number(item.rubric_score || 0), 0) / finalJuries.length) * 100) / 100
+      : 0;
+    const field = scientificFieldForDepartment(record.department);
+    const degree = degreeGroup(record.degreeType);
+    const missing = [];
+    if (field === "Atanamayan") missing.push("Bilim alanı eşleştirmesi gerekli");
+    if (!activities.length) missing.push("Kabul edilmiş akademik faaliyet yok");
+    if (!finalJuries.length) missing.push("Nihai jüri değerlendirmesi yok");
+    return {
+      thesisIdentifier: record.identifier,
+      thesisTitle: record.title,
+      studentName: (record.authors || []).join(", "),
+      advisors: record.advisors || [],
+      department: displayDepartment(record.department),
+      field,
+      degree,
+      thesisYear: year,
+      sourceUrl: record.sourceUrl,
+      publicationCount: uniquePublications.length,
+      publicationYears: [...new Set(uniquePublications.map((item) => Number(item.publication_year)).filter(Boolean))].sort((left, right) => left - right),
+      wosCount: uniquePublications.filter((item) => item.indexed_wos).length,
+      scopusCount: uniquePublications.filter((item) => item.indexed_scopus).length,
+      trDizinCount: uniquePublications.filter((item) => item.indexed_trdizin).length,
+      q1Q2Count: uniquePublications.filter((item) => ["Q1", "Q2"].includes(String(item.quartile || "").toUpperCase())).length,
+      activityCount: activities.length,
+      activityScore,
+      juryCount: finalJuries.length,
+      juryScore,
+      totalScore: Math.round((activityScore + juryScore) * 100) / 100,
+      eligible: missing.length === 0,
+      missing,
+      publications: uniquePublications.map((item) => ({
+        title: item.publication_title, year: Number(item.publication_year), doi: item.doi || "",
+        source: item.source || "", quartile: item.quartile || "", indexedWos: Boolean(item.indexed_wos),
+        indexedScopus: Boolean(item.indexed_scopus), indexedTrDizin: Boolean(item.indexed_trdizin),
+      })),
+    };
+  });
+
+  const categoryRows = (field, degree) => {
+    const sorted = candidates
+    .filter((candidate) => candidate.eligible && candidate.degree === degree && (field === "Genel" || candidate.field === field))
+    .sort((left, right) => right.totalScore - left.totalScore || right.juryScore - left.juryScore
+      || right.activityScore - left.activityScore || right.q1Q2Count - left.q1Q2Count
+      || right.wosCount - left.wosCount || right.publicationCount - left.publicationCount
+      || left.studentName.localeCompare(right.studentName, "tr"));
+    const tieKeys = ["totalScore", "juryScore", "activityScore", "q1Q2Count", "wosCount", "publicationCount"];
+    return sorted.map((candidate, index) => ({
+      ...candidate,
+      rank: sorted.findIndex((other) => tieKeys.every((key) => other[key] === candidate[key])) + 1 || index + 1,
+    }));
+  };
+  const fields = ["Fen Bilimleri", "Sosyal Bilimler", "Sağlık Bilimleri", "Genel"];
+  const degrees = ["masters", "doctorate"];
+  const rankings = fields.flatMap((field) => degrees.map((degree) => ({ field, degree, candidates: categoryRows(field, degree) })));
+  return {
+    generatedAt: new Date().toISOString(),
+    scoringNote: "2023–2025 tezlerinden, lisansüstü tez tabanlı sayfada tez-yayın eşleşmesi bulunan kayıtlar analiz edilir. Adaylık tez yılına göre belirlenir; eşleşen yayınların yayın yılı sınırlanmaz. 2026 tezleri doğrulama tamamlandıktan sonra ayrıca kapsama alınacaktır.",
+    availableYears,
+    selectedYear: year,
+    summary: {
+      total: candidates.length,
+      eligible: candidates.filter((item) => item.eligible).length,
+      incomplete: candidates.filter((item) => !item.eligible).length,
+      publications: candidates.reduce((sum, item) => sum + item.publicationCount, 0),
+    },
+    candidates,
+    rankings,
+  };
+}
+
+function verifiedThesisInput(identifier, allowedYears = null) {
+  const thesis = thesisRecordByIdentifier(repairText(identifier));
+  if (!thesis) throw new Error("DSpace tez kaydı bulunamadı.");
+  if (allowedYears && !allowedYears.includes(Number(thesis.publicationYear))) throw new Error("Tez yılı bu işlemin kapsamında değil.");
+  return thesis;
+}
+
+function normalizeSdgInput(value) {
+  const source = Array.isArray(value) ? value : String(value || "").split(",");
+  return [...new Set(source.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item >= 1 && item <= 17))].map(String);
+}
+
+function saveThesisPublication(body, actor) {
+  const thesis = verifiedThesisInput(body.thesisIdentifier);
+  const publicationTitle = repairText(body.publicationTitle);
+  const publicationYear = Number(body.publicationYear);
+  if (!publicationTitle || !Number.isInteger(publicationYear) || publicationYear < Number(thesis.publicationYear) || publicationYear > new Date().getFullYear()) throw new Error("Yayın başlığı ile tez yılı ve günümüz arasındaki geçerli yayın yılı zorunludur.");
+  const relationStatus = ["under_review", "verified", "rejected", "needs_evidence"].includes(body.relationStatus) ? body.relationStatus : "under_review";
+  const fundingType = ["bap", "tubitak", "tuseb", "eu", "other", "none", "unknown"].includes(body.fundingType) ? body.fundingType : "unknown";
+  const now = new Date().toISOString();
+  const values = [
+    thesis.identifier,
+    thesis.title || "",
+    Number(thesis.publicationYear),
+    thesis.degreeType || "",
+    displayDepartment(thesis.department),
+    publicationTitle,
+    publicationYear,
+    repairText(body.publicationType),
+    repairText(body.doi).toLocaleLowerCase("tr-TR").replace(/^https?:\/\/(?:dx\.)?doi\.org\//u, ""),
+    repairText(body.source),
+    body.indexedScopus ? 1 : 0,
+    body.indexedTrdizin ? 1 : 0,
+    body.indexedWos ? 1 : 0,
+    repairText(body.quartile).toUpperCase(),
+    JSON.stringify(normalizeSdgInput(body.sdgs)),
+    fundingType,
+    repairText(body.fundingDetail),
+    relationStatus,
+    repairText(body.evidenceNote),
+    now,
+    actor,
+  ];
+  if (Number(body.id)) {
+    db.prepare(`
+      UPDATE thesis_publications SET thesis_identifier=?, thesis_title=?, thesis_cohort_year=?, degree_type=?, department=?, publication_title=?, publication_year=?, publication_type=?, doi=?, source=?, indexed_scopus=?, indexed_trdizin=?, indexed_wos=?, quartile=?, sdg_json=?, funding_type=?, funding_detail=?, relation_status=?, evidence_note=?, updated_at=?, updated_by=? WHERE id=?
+    `).run(...values, Number(body.id));
+    audit("thesis.publication.update", actor, { id: Number(body.id), thesisIdentifier: thesis.identifier, relationStatus });
+    return Number(body.id);
+  }
+  const result = db.prepare(`
+    INSERT INTO thesis_publications(thesis_identifier, thesis_title, thesis_cohort_year, degree_type, department, publication_title, publication_year, publication_type, doi, source, indexed_scopus, indexed_trdizin, indexed_wos, quartile, sdg_json, funding_type, funding_detail, relation_status, evidence_note, created_at, updated_at, updated_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(...values.slice(0, 19), now, now, actor);
+  audit("thesis.publication.create", actor, { id: Number(result.lastInsertRowid), thesisIdentifier: thesis.identifier, relationStatus });
+  return Number(result.lastInsertRowid);
+}
+
+function saveThesisAcademicActivity(body, actor) {
+  const thesis = verifiedThesisInput(body.thesisIdentifier, THESIS_EVALUATION_YEARS);
+  const rule = activityRuleOptions.find((item) => item.code === body.activityCode);
+  if (!rule) throw new Error("Geçerli bir EK-1 faaliyet kodu seçilmelidir.");
+  const applyAuthorContribution = Boolean(rule.supportsAuthorContribution)
+    && (body.applyAuthorContribution === undefined || Boolean(body.applyAuthorContribution));
+  const authorCount = Math.max(1, Number(body.authorCount) || 1);
+  const authorPosition = Math.min(authorCount, Math.max(1, Number(body.authorPosition) || 1));
+  const requestedQuantity = Math.max(1, Number(body.quantity) || 1);
+  const quantity = rule.maxQuantity ? Math.min(requestedQuantity, rule.maxQuantity) : requestedQuantity;
+  const calculatedScore = calculateActivityScore({ baseScore: rule.baseScore, authorCount, authorPosition, quantity, applyAuthorContribution });
+  const contributionCoefficient = applyAuthorContribution ? calculatedScore / (Number(rule.baseScore) * quantity || 1) : 1;
+  const status = ["under_review", "accepted", "rejected", "needs_evidence"].includes(body.status) ? body.status : "under_review";
+  const now = new Date().toISOString();
+  const result = db.prepare(`
+    INSERT INTO thesis_academic_activities(thesis_identifier, thesis_cohort_year, activity_code, activity_title, relation_type, base_score, author_count, author_position, quantity, apply_author_contribution, contribution_coefficient, calculated_score, evidence_note, status, created_at, updated_at, updated_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(thesis.identifier, Number(thesis.publicationYear), rule.code, rule.label, rule.relationType, Number(rule.baseScore), authorCount, authorPosition, quantity, applyAuthorContribution ? 1 : 0, contributionCoefficient, calculatedScore, repairText(body.evidenceNote), status, now, now, actor);
+  audit("thesis.activity.create", actor, { id: Number(result.lastInsertRowid), thesisIdentifier: thesis.identifier, activityCode: rule.code, calculatedScore, status });
+  return Number(result.lastInsertRowid);
+}
+
+function saveThesisJuryEvaluation(body, actor) {
+  const thesis = verifiedThesisInput(body.thesisIdentifier, THESIS_EVALUATION_YEARS);
+  const juryName = repairText(body.juryName);
+  if (!juryName) throw new Error("Jüri üyesinin adı zorunludur.");
+  const rubric = calculateJuryRubric(body.scores || {});
+  const activityScore = Number(db.prepare(`
+    SELECT COALESCE(SUM(calculated_score), 0) AS total FROM thesis_academic_activities
+    WHERE thesis_identifier = ? AND status = 'accepted'
+  `).get(thesis.identifier)?.total || 0);
+  const generalTotal = Math.round((rubric.rubricScore + activityScore) * 100) / 100;
+  const evaluationStatus = body.evaluationStatus === "final" ? "final" : "draft";
+  const now = new Date().toISOString();
+  const result = db.prepare(`
+    INSERT INTO thesis_jury_evaluations(thesis_identifier, thesis_cohort_year, jury_name, jury_title, scores_json, rubric_score, activity_score, general_total, evaluation_status, evaluated_at, created_at, updated_at, updated_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(thesis.identifier, Number(thesis.publicationYear), juryName, repairText(body.juryTitle), JSON.stringify(rubric.scores), rubric.rubricScore, activityScore, generalTotal, evaluationStatus, evaluationStatus === "final" ? now : null, now, now, actor);
+  audit("thesis.jury.create", actor, { id: Number(result.lastInsertRowid), thesisIdentifier: thesis.identifier, rubricScore: rubric.rubricScore, activityScore, generalTotal, evaluationStatus });
+  return Number(result.lastInsertRowid);
 }
 
 function normalizePublicRouteSegment(value = "") {
@@ -6506,6 +7027,7 @@ function queueScopusSync(actor = "system") {
     scopusSyncPromise = refreshScopusSnapshot(db, { actor, instructors: scopusInstructorCatalog })
       .then((snapshot) => {
         scopusSnapshotCache = snapshot;
+        refreshAutomaticThesisPublicationMatches("scopus-refresh");
         return snapshot;
       })
       .catch((error) => {
@@ -6579,6 +7101,7 @@ function queueTrDizinSync(actor = "system", mode = "FULL") {
     trDizinSyncPromise = refreshTrDizinSnapshot(db, { actor, mode, instructors: scopusInstructorCatalog })
       .then((snapshot) => {
         trDizinSnapshotCache = snapshot;
+        if (mode === "FULL") refreshAutomaticThesisPublicationMatches("tr-dizin-refresh");
         return snapshot;
       })
       .catch((error) => {
@@ -6997,7 +7520,7 @@ function tableRows(table) {
 
 function exportData() {
   return {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     tables: {
       metadata: tableRows("metadata"),
@@ -7015,6 +7538,9 @@ function exportData() {
       audit_logs: tableRows("audit_logs"),
       page_view_events: tableRows("page_view_events"),
       page_view_monthly_stats: tableRows("page_view_monthly_stats"),
+      thesis_publications: tableRows("thesis_publications"),
+      thesis_academic_activities: tableRows("thesis_academic_activities"),
+      thesis_jury_evaluations: tableRows("thesis_jury_evaluations"),
     },
   };
 }
@@ -7026,7 +7552,7 @@ function replaceFromExport(payload, actor = "admin") {
   const now = new Date().toISOString();
   db.exec("BEGIN");
   try {
-    for (const table of ["metadata", "user_roles", "users", "role_module_access", "committee_members", "course_review_assignees", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs", "page_view_events", "page_view_monthly_stats"]) {
+    for (const table of ["metadata", "user_roles", "users", "role_module_access", "committee_members", "course_review_assignees", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs", "page_view_events", "page_view_monthly_stats", "thesis_publications", "thesis_academic_activities", "thesis_jury_evaluations"]) {
       db.exec(`DELETE FROM ${table}`);
     }
     const insertMetadata = db.prepare("INSERT INTO metadata(key, value) VALUES (?, ?)");
@@ -7139,6 +7665,21 @@ function replaceFromExport(payload, actor = "admin") {
       const row = normalizeViewEventRow(source);
       if (row.viewType) insertViewEvent.run(source.id || null, row.eventUuid, row.viewedAt, row.yearMonth, row.viewType, row.itemId, row.itemTitle, row.path, row.ip, row.userAgent);
     }
+    const insertThesisPublication = db.prepare(`
+      INSERT INTO thesis_publications(id, thesis_identifier, thesis_title, thesis_cohort_year, degree_type, department, publication_title, publication_year, publication_type, doi, source, indexed_scopus, indexed_trdizin, indexed_wos, quartile, sdg_json, funding_type, funding_detail, relation_status, evidence_note, created_at, updated_at, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const row of payload.tables.thesis_publications || []) insertThesisPublication.run(row.id || null, row.thesis_identifier, row.thesis_title || "", row.thesis_cohort_year, row.degree_type || "", row.department || "", row.publication_title, row.publication_year, row.publication_type || "", row.doi || "", row.source || "", row.indexed_scopus ? 1 : 0, row.indexed_trdizin ? 1 : 0, row.indexed_wos ? 1 : 0, row.quartile || "", row.sdg_json || "[]", row.funding_type || "unknown", row.funding_detail || "", row.relation_status || "under_review", row.evidence_note || "", row.created_at || now, row.updated_at || now, row.updated_by || "import");
+    const insertThesisActivity = db.prepare(`
+      INSERT INTO thesis_academic_activities(id, thesis_identifier, thesis_cohort_year, activity_code, activity_title, relation_type, base_score, author_count, author_position, quantity, apply_author_contribution, contribution_coefficient, calculated_score, evidence_note, status, created_at, updated_at, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const row of payload.tables.thesis_academic_activities || []) insertThesisActivity.run(row.id || null, row.thesis_identifier, row.thesis_cohort_year, row.activity_code, row.activity_title, row.relation_type, row.base_score || 0, row.author_count || 1, row.author_position || 1, row.quantity || 1, row.apply_author_contribution ? 1 : 0, row.contribution_coefficient ?? 1, row.calculated_score || 0, row.evidence_note || "", row.status || "under_review", row.created_at || now, row.updated_at || now, row.updated_by || "import");
+    const insertThesisJury = db.prepare(`
+      INSERT INTO thesis_jury_evaluations(id, thesis_identifier, thesis_cohort_year, jury_name, jury_title, scores_json, rubric_score, activity_score, general_total, evaluation_status, evaluated_at, created_at, updated_at, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const row of payload.tables.thesis_jury_evaluations || []) insertThesisJury.run(row.id || null, row.thesis_identifier, row.thesis_cohort_year, row.jury_name, row.jury_title || "", row.scores_json || "{}", row.rubric_score || 0, row.activity_score || 0, row.general_total || 0, row.evaluation_status || "draft", row.evaluated_at || null, row.created_at || now, row.updated_at || now, row.updated_by || "import");
     rebuildPageViewMonthlyStats();
     audit("import.replace", actor, { programs: payload.tables.programs.length, courses: payload.tables.courses.length });
     db.exec("COMMIT");
@@ -7153,7 +7694,7 @@ function replaceFromExport(payload, actor = "admin") {
 function resetDatabase(actor) {
   db.exec("BEGIN");
   try {
-    for (const table of ["committee_members", "course_review_assignees", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs", "page_view_events", "page_view_monthly_stats"]) {
+    for (const table of ["committee_members", "course_review_assignees", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs", "page_view_events", "page_view_monthly_stats", "thesis_publications", "thesis_academic_activities", "thesis_jury_evaluations"]) {
       db.exec(`DELETE FROM ${table}`);
     }
     db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("seeded_from_current_data", "reset_empty");
@@ -7215,6 +7756,9 @@ async function adminSummary() {
       auditLogs: countRows("audit_logs"),
       pageViewEvents: countRows("page_view_events"),
       pageViewMonthlyStats: countRows("page_view_monthly_stats"),
+      thesisPublications: countRows("thesis_publications"),
+      thesisAcademicActivities: countRows("thesis_academic_activities"),
+      thesisJuryEvaluations: countRows("thesis_jury_evaluations"),
       backups: (await listBackups()).length,
     },
     statusRows,
@@ -7740,6 +8284,22 @@ async function handleDbpApi(request) {
       return jsonResponse(queryTrDizinRecords(db, Object.fromEntries(url.searchParams.entries())));
     }
 
+    if (pathname === "/api/dbp/thesis-bibliometrics" && request.method === "GET") {
+      const data = publicThesisBibliometrics(publicThesisPublicationRows(), {
+        field: repairText(url.searchParams.get("field") || ""),
+        degree: repairText(url.searchParams.get("degree") || ""),
+      });
+      const scimago = readScimagoQuartiles(dataDir);
+      return jsonResponse({ ...data, scimago: { loaded: scimago.loaded, journalCount: scimago.journalCount, files: scimago.files, years: scimago.years } });
+    }
+
+    if (pathname === "/api/dbp/internal/thesis-publications" && request.method === "GET") {
+      if (!internalDbpTokenIsValid(request)) {
+        return jsonResponse({ message: "Yetkisiz dahili veri isteği." }, { status: 401 });
+      }
+      return jsonResponse(thesisPublicationCandidatePayload());
+    }
+
     if (pathname === "/api/dbp/course-management" && request.method === "POST") {
       const auth = requireDbpSession(request, { write: true });
       if (auth.error) return auth.error;
@@ -8064,6 +8624,13 @@ async function handleDbpApi(request) {
       return jsonResponse({ ok: true, profile: upsertProgramProfile(body.profile || body, actor) });
     }
 
+    if (pathname === "/api/dbp/admin/thesis-awards" && request.method === "GET") {
+      const auth = requireStatsManager(request);
+      if (auth.error) return auth.error;
+      upsertSessionUser(auth.session);
+      return jsonResponse(adminThesisAwardPayload(url.searchParams.get("year")));
+    }
+
     if (!pathname.startsWith("/api/dbp/admin/")) {
       return jsonResponse({ message: "DBP API endpoint bulunamadı." }, { status: 404 });
     }
@@ -8085,6 +8652,28 @@ async function handleDbpApi(request) {
         generatedAt: snapshot.generatedAt,
         nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
       });
+    }
+
+    if (pathname === "/api/dbp/admin/thesis-evaluations" && request.method === "GET") {
+      return jsonResponse(adminThesisEvaluationPayload());
+    }
+
+    if (pathname === "/api/dbp/admin/thesis-publications" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      const id = saveThesisPublication(body, actor);
+      return jsonResponse({ ok: true, id, data: adminThesisEvaluationPayload() });
+    }
+
+    if (pathname === "/api/dbp/admin/thesis-activities" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      const id = saveThesisAcademicActivity(body, actor);
+      return jsonResponse({ ok: true, id, data: adminThesisEvaluationPayload() });
+    }
+
+    if (pathname === "/api/dbp/admin/thesis-jury" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      const id = saveThesisJuryEvaluation(body, actor);
+      return jsonResponse({ ok: true, id, data: adminThesisEvaluationPayload() });
     }
 
     if (pathname === "/api/dbp/admin/role-module-access" && request.method === "GET") {
@@ -8234,7 +8823,8 @@ function pageViewContextForPath(pathname) {
   if (stripped === "/tez-ska") return { viewType: "tez_ska_analiz", itemId: "tez-ska", itemTitle: "TEZ_SKA Analiz" };
   if (stripped === "/article") return { viewType: "bib_scopus", itemId: "article", itemTitle: "Scopus Tabanlı Bibliyometrik Göstergeler" };
   if (stripped === "/yayin") return { viewType: "bib_tr_dizin", itemId: "yayin", itemTitle: "TR Dizin Tabanlı Bibliyometrik Göstergeler" };
-  if (stripped === "/article/doktora") return { viewType: "bib_doktora", itemId: "article/doktora", itemTitle: "Doktora Tabanlı Bibliyometrik Göstergeler" };
+  if (stripped === "/article/tez") return { viewType: "bib_tez", itemId: "article/tez", itemTitle: "Lisansüstü Tez Tabanlı Bibliyometrik Göstergeler" };
+  if (stripped === "/article/doktora") return { viewType: "bib_doktora", itemId: "article/doktora", itemTitle: "Lisansüstü Tez Tabanlı Bibliyometrik Göstergeler" };
   const courseRoute = publicCourseRouteContext(pathname);
   if (courseRoute?.found?.course) {
     const course = courseRoute.found.course;
@@ -8451,6 +9041,11 @@ const thesisGeneratedAt = thesisSnapshotCache?.generatedAt ? new Date(thesisSnap
 if (!thesisSnapshotCache) queueThesisSync("startup", true);
 else if (latestThesisRefresh && (!thesisGeneratedAt || thesisGeneratedAt < latestThesisRefresh)) queueThesisSync("scheduled-startup", false);
 scheduleThesisRefresh();
+const lastEEnstituThesisPublicationSync = db.prepare("SELECT value FROM metadata WHERE key='e_enstitu_thesis_publications_synced_at'").get()?.value || "";
+if (latestThesisRefresh && (!lastEEnstituThesisPublicationSync || new Date(lastEEnstituThesisPublicationSync) < latestThesisRefresh)) {
+  void syncVerifiedEEnstituThesisPublications("scheduled-startup").catch((error) => console.error(`[dbp] e-Enstitü tez-yayın başlangıç yenilemesi başarısız: ${error instanceof Error ? error.message : error}`));
+}
+scheduleEEnstituThesisPublicationRefresh();
 scopusSnapshotCache = rebuildScopusUnitMappings(db, {
   instructors: scopusInstructorCatalog,
   actor: "startup-unit-directory",
@@ -8470,6 +9065,11 @@ const trDizinGeneratedAt = trDizinSnapshotCache?.generatedAt ? new Date(trDizinS
 if (!trDizinSnapshotCache) queueTrDizinSync("startup", "FULL");
 else if (latestTrDizinRefresh && (!trDizinGeneratedAt || trDizinGeneratedAt < latestTrDizinRefresh)) queueTrDizinSync("scheduled-startup", "FULL");
 scheduleTrDizinRefresh();
+try {
+  refreshAutomaticThesisPublicationMatches("startup");
+} catch (error) {
+  console.error(`[dbp] Tez-yayın eşleştirmesi hazırlanamadı: ${error instanceof Error ? error.message : error}`);
+}
 const latestTrDizinCitationRefresh = latestCitationDataRefreshDate();
 const trDizinCitationGeneratedAt = trDizinSnapshotCache?.lastCitationRefreshAt ? new Date(trDizinSnapshotCache.lastCitationRefreshAt) : null;
 if (latestTrDizinCitationRefresh && trDizinSnapshotCache && (!trDizinCitationGeneratedAt || trDizinCitationGeneratedAt < latestTrDizinCitationRefresh)) queueTrDizinSync("weekly-startup", "CITATIONS");

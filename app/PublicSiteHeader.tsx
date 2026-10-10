@@ -4,7 +4,7 @@ import { BibliometricsMenu } from "./BibliometricsMenu";
 import { dbpPath } from "../lib/dbpPath";
 import { eEnstituUrl } from "../lib/eEnstituUrl";
 
-export function PublicSiteHeader({ active = "home", bibliometricsSource }: { active?: "home" | "catalog" | "quality" | "students" | "thesisSdg" | "bibliometrics" | "viewStats"; bibliometricsSource?: "scopus" | "trdizin" | "doctorate" }) {
+export function PublicSiteHeader({ active = "home", bibliometricsSource }: { active?: "home" | "catalog" | "quality" | "students" | "thesisSdg" | "bibliometrics" | "viewStats"; bibliometricsSource?: "scopus" | "trdizin" | "thesis" }) {
   const mobilePriorityClass = "mobile-priority";
 
   return (

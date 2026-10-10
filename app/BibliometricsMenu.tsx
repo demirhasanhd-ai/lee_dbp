@@ -1,9 +1,9 @@
 "use client";
 
-import { BookOpenCheck, ChevronDown, Construction, Database, ScatterChart } from "lucide-react";
+import { BookOpenCheck, ChevronDown, Database, GraduationCap, ScatterChart } from "lucide-react";
 import { dbpPath } from "../lib/dbpPath";
 
-type BibliometricsSource = "scopus" | "trdizin" | "doctorate";
+type BibliometricsSource = "scopus" | "trdizin" | "thesis";
 
 export function BibliometricsMenu({ active, variant = "navigation" }: { active?: BibliometricsSource; variant?: "navigation" | "quick" }) {
   const quick = variant === "quick";
@@ -13,7 +13,7 @@ export function BibliometricsMenu({ active, variant = "navigation" }: { active?:
       <div className="bibliometrics-options">
         <a className={active === "scopus" ? "current" : undefined} href={dbpPath("/article")}><Database size={16} /><span><b>SCOPUS Tabanlı</b><small>Uluslararası yayın ve atıf analizi</small></span></a>
         <a className={active === "trdizin" ? "current" : undefined} href={dbpPath("/yayin")}><BookOpenCheck size={16} /><span><b>TR DİZİN Tabanlı</b><small>Ulusal yayın ve proje analizi</small></span></a>
-        <a className={active === "doctorate" ? "current" : undefined} href={dbpPath("/article/doktora")}><Construction size={16} /><span><b>Doktora Tabanlı</b><small>Hazırlanıyor</small></span></a>
+        <a className={active === "thesis" ? "current" : undefined} href={dbpPath("/article/tez")}><GraduationCap size={16} /><span><b>Lisansüstü Tez Tabanlı</b><small>Tezden üretilen yayın ve destek analizi</small></span></a>
       </div>
     </details>
   );

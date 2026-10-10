@@ -9,11 +9,13 @@ import {
   ClipboardList,
   Eye,
   FileDown,
+  GraduationCap,
   HardDrive,
   Plus,
   Save,
   Settings,
   ShieldCheck,
+  Trophy,
   UserCog,
   Users,
 } from "lucide-react";
@@ -32,6 +34,8 @@ import { QualityReports } from "./QualityReports";
 import { ReviewQueue } from "./ReviewQueue";
 import { DatabaseAdminPanel } from "./DatabaseAdminPanel";
 import { ViewStatsAdminPanel } from "./ViewStatsAdminPanel";
+import { ThesisEvaluationAdmin } from "./ThesisEvaluationAdmin";
+import { ThesisAwardsAdmin } from "./ThesisAwardsAdmin";
 import { CommitteeManagement } from "./CommitteeManagement";
 import { ThemeToggle } from "../ThemeToggle";
 import { LEE_PROGRAMS, type LeeProgram } from "../../lib/data/programs";
@@ -721,6 +725,10 @@ export function RoleDashboard() {
                   <Users size={16} />
                 ) : module === "quality_reports" ? (
                   <ShieldCheck size={16} />
+                ) : module === "thesis_evaluations" ? (
+                  <GraduationCap size={16} />
+                ) : module === "thesis_awards" ? (
+                  <Trophy size={16} />
                 ) : module === "view_stats_admin" ? (
                   <Eye size={16} />
                 ) : module === "database_admin" ? (
@@ -1100,6 +1108,8 @@ export function RoleDashboard() {
         )}
         {active === "publish_control" && <ProgramPublishControl onSave={save} session={session} />}
         {active === "quality_reports" && <QualityReports />}
+        {active === "thesis_evaluations" && session.role === "admin" && <ThesisEvaluationAdmin session={session} />}
+        {active === "thesis_awards" && ["admin", "enstitu_yoneticisi"].includes(session.role) && <ThesisAwardsAdmin session={session} />}
         {active === "view_stats_admin" && <ViewStatsAdminPanel />}
         {active === "database_admin" && <DatabaseAdminPanel />}
         {(active === "permission_matrix" || active === "user_roles") && (
@@ -1133,7 +1143,11 @@ export function RoleDashboard() {
                         type="checkbox"
                         checked={permissionDraft[role].includes(module)}
                         onChange={(event) => toggleRoleAccess(role, module, event.currentTarget.checked)}
-                        disabled={permissionsBusy}
+                        disabled={
+                          permissionsBusy ||
+                          (module === "thesis_evaluations" && role !== "admin") ||
+                          (module === "thesis_awards" && !["admin", "enstitu_yoneticisi"].includes(role))
+                        }
                       />
                       <span />
                     </label>

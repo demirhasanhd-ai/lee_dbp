@@ -2,6 +2,9 @@
 @import "tailwindcss";
 @import "./period-menu.css";
 @import "./bibliometrics-menu.css";
+@import "./thesis-bibliometrics.css";
+@import "./thesis-admin.css";
+@import "./thesis-awards.css";
 @import "./yayin.css";
 @import "./theme.css";
 @import "./login.css";

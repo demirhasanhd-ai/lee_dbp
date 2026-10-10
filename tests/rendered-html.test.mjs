@@ -134,16 +134,98 @@ test("Bibliyometrik Göstergeler menüde TEZ_SKA ile Duyurular arasında yer al�
   assert.ok(bibliometrics < announcements, "Bibliyometri Duyurulardan önce gelmeli");
   assert.match(menu, /SCOPUS Tabanlı/u);
   assert.match(menu, /TR DİZİN Tabanlı/u);
-  assert.match(menu, /Doktora Tabanlı/u);
+  assert.match(menu, /Lisansüstü Tez Tabanlı/u);
   assert.match(menu, /dbpPath\("\/article"\)/u);
   assert.match(menu, /dbpPath\("\/yayin"\)/u);
-  assert.match(menu, /dbpPath\("\/article\/doktora"\)/u);
+  assert.match(menu, /dbpPath\("\/article\/tez"\)/u);
   assert.match(home, /<BibliometricsMenu variant="quick" \/>/u);
   const response = await render({}, "/dbp/article");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Bibliyometrik Göstergeler/u);
   assert.match(html, /OKÜ adresli bilimsel yayınların/u);
+});
+
+test("Lisansüstü tez tabanlı göstergeler yayın kırılımlarını ve admin rubriğini ayırır", async () => {
+  const [page, adminPage, server, access, dockerfile] = await Promise.all([
+    readFile(new URL("../app/article/tez/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/panel/ThesisEvaluationAdmin.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../server.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../lib/auth/access.ts", import.meta.url), "utf8"),
+    readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /\/api\/dbp\/thesis-bibliometrics/u);
+  assert.match(page, /Yıllara göre yayınlar/u);
+  assert.match(page, /Bilim alanlarına göre yayın dağılımı/u);
+  assert.match(page, /WoS \/ SCI-SCIE doğrulanan/u);
+  assert.match(page, /Yayın ve destek bilgileri/u);
+  assert.doesNotMatch(page, /quality-table-scroll/u);
+  assert.match(page, /Tüm bilim alanları/u);
+  assert.match(page, /SCImago/u);
+  assert.match(page, /BAP, TÜBİTAK ve diğer destekler/u);
+  assert.doesNotMatch(page, /Toplam tez/u);
+  assert.match(adminPage, /2023-2025 tezlerinin EK-1/u);
+  assert.match(adminPage, /Jüri nihai değerlendirme rubriği/u);
+  assert.match(server, /requireAdmin\(request\)/u);
+  assert.match(server, /pathname === "\/api\/dbp\/admin\/thesis-jury"/u);
+  assert.match(access, /thesis_evaluations: "Tez Akademik ve Jüri Değerlendirmesi"/u);
+  assert.match(dockerfile, /COPY lib\/thesisBibliometrics\.mjs/u);
+  assert.match(dockerfile, /COPY lib\/thesisPublicationMatcher\.mjs/u);
+  assert.match(dockerfile, /COPY lib\/scimagoQuartiles\.mjs/u);
+  const response = await render({}, "/dbp/article/tez");
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /Lisansüstü Tez Tabanlı Göstergeler/u);
+});
+
+test("tez faaliyet katsayısı ve EK-2 rubrik sınırları doğru hesaplanır", async () => {
+  const { activityRuleOptions, authorContribution, calculateActivityScore, calculateJuryRubric, juryCriteria, publicThesisBibliometrics } = await import(new URL("../lib/thesisBibliometrics.mjs", import.meta.url));
+  assert.equal(authorContribution(4, 4), 0.5);
+  assert.equal(calculateActivityScore({ baseScore: 30, authorCount: 2, authorPosition: 1, quantity: 1 }), 28.5);
+  assert.equal(juryCriteria.length, 35);
+  assert.ok(activityRuleOptions.some((item) => item.code === "7.2.6"), "Sanat ve tasarım faaliyetleri eksiksiz olmalı");
+  assert.equal(activityRuleOptions.find((item) => item.code === "2.1.3")?.maxQuantity, 2);
+  assert.equal(activityRuleOptions.find((item) => item.code === "5.4-Y")?.supportsAuthorContribution, false);
+  const validScores = Object.fromEntries(juryCriteria.map((item) => [String(item.no), item.section === "C" && item.no > 22 ? 0 : 5]));
+  assert.equal(calculateJuryRubric(validScores).rubricScore, 110);
+  assert.throws(() => calculateJuryRubric({ 19: 1, 20: 1, 21: 1, 22: 1, 23: 1 }), /en fazla 4/u);
+  const dashboard = publicThesisBibliometrics([
+    { id: 1, relation_status: "verified", publication_year: 2023, publication_title: "A", doi: "10.1/a", degree_type: "Master Thesis", department: "A ABD", sdg_json: '["3"]', funding_type: "bap", updated_at: "2026-01-01" },
+    { id: 3, relation_status: "verified", publication_year: 2023, publication_title: "A", doi: "10.1/a", degree_type: "Doctoral Thesis", department: "A ABD", sdg_json: '["3"]', funding_type: "bap", updated_at: "2026-01-02" },
+    { id: 2, relation_status: "verified", publication_year: 2026, publication_title: "B", doi: "10.1/b", degree_type: "Doctoral Thesis", department: "B ABD", sdg_json: '["7"]', funding_type: "tubitak", updated_at: "2026-02-01" },
+  ]);
+  assert.deepEqual(dashboard.yearly.map((item) => item.year), [2023, 2024, 2025, 2026]);
+  assert.deepEqual(dashboard.yearly.map((item) => item.cumulative), [1, 1, 1, 2]);
+  assert.equal(dashboard.summary.uniquePublications, 2);
+  assert.equal(dashboard.summary.masters, 1);
+  assert.equal(dashboard.summary.doctorates, 2);
+});
+
+test("otomatik tez-yayın eşleştirmesi OKÜ adresi, ortak yazarlık ve konu uyumunu birlikte arar", async () => {
+  const { matchThesisPublications, scientificFieldForDepartment } = await import(new URL("../lib/thesisPublicationMatcher.mjs", import.meta.url));
+  const thesis = {
+    identifier: "tez-1",
+    title: "Termofilik Bacillus suşlarında alfa amilaz enziminin karakterizasyonu",
+    alternativeTitle: "Characterization of alpha amylase in thermophilic Bacillus strains",
+    keywords: ["Bacillus", "alpha amylase"],
+    authors: ["Türker, Celal"],
+    advisors: ["Özcan, Bahri Devrim"],
+    department: "Biyoloji Ana Bilim Dalı",
+    degreeType: "Master Thesis",
+    publicationYear: 2014,
+  };
+  const publication = {
+    id: "pub-1",
+    title: "Characterization of alpha amylase from thermophilic Bacillus strains",
+    year: 2015,
+    authors: [{ name: "Türker C." }, { name: "Özcan B.D." }],
+    affiliations: [{ id: "60088374", name: "Osmaniye Korkut Ata University" }],
+    source: "Example Journal",
+  };
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [publication] }).length, 1);
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [{ ...publication, affiliations: [] }] }).length, 0);
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [{ ...publication, authors: [{ name: "Türker C." }] }] }).length, 0);
+  assert.equal(scientificFieldForDepartment("Lisansüstü Eğitim Enstitüsü, Biyoloji Ana Bilim Dalı"), "Fen Bilimleri");
 });
 
 test("Scopus bibliyometrisi yayınları çeyreklik, atıfları haftalık günceller", async () => {

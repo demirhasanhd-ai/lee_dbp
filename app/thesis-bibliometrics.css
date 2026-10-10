@@ -1,0 +1,74 @@
+.thesis-public-filter,.thesis-public-kpis,.thesis-chart-panel,.thesis-field-chart,.thesis-index-summary,.thesis-quartile-chart,.thesis-funding-grid,.thesis-public-sdgs,.thesis-publication-highlights{width:min(1480px,calc(100% - 64px));margin-inline:auto}
+.thesis-public-filter{margin-top:22px;display:grid;grid-template-columns:1fr 1fr minmax(280px,.9fr);border:1px solid var(--border);border-radius:20px;background:var(--card);box-shadow:0 10px 30px -24px color-mix(in srgb,var(--primary) 40%,transparent);overflow:hidden}
+.thesis-public-filter>*{min-height:78px;padding:14px 18px;border-right:1px solid var(--border)}
+.thesis-public-filter>*:last-child{border:0}
+.thesis-public-filter label span,.thesis-public-filter>div span{display:block;margin-bottom:7px;color:var(--muted-foreground);font-size:9px;font-weight:750;letter-spacing:.08em}
+.thesis-public-filter select{width:100%;border:0;outline:0;background:transparent;color:var(--foreground);font:600 13px var(--font-sans)}
+.thesis-public-filter>div{display:grid;grid-template-columns:24px 1fr;align-content:center}
+.thesis-public-filter>div svg{grid-row:1/3;color:var(--primary)}
+.thesis-public-filter>div strong{font-size:11px}
+.thesis-public-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.thesis-public-kpis article{min-height:142px;padding:20px;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:21px;background:var(--card);box-shadow:0 12px 32px -26px color-mix(in srgb,var(--primary) 50%,transparent);transition:transform .2s ease,border-color .2s ease}
+.thesis-public-kpis article:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--primary) 30%,var(--border))}
+.thesis-public-kpis svg{color:var(--primary)}
+.thesis-public-kpis span{margin-top:14px;color:var(--muted-foreground);font-size:11px}
+.thesis-public-kpis strong{margin-top:5px;font-size:30px}
+.thesis-public-kpis small{margin-top:auto;color:var(--muted-foreground);font-size:9px}
+.thesis-chart-panel,.thesis-field-chart,.thesis-quartile-chart{border:1px solid var(--border);border-radius:22px;background:var(--card);box-shadow:0 14px 36px -29px color-mix(in srgb,var(--primary) 46%,transparent)}
+.thesis-chart-panel{padding:22px 24px 20px}
+.thesis-chart-legend{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center;color:var(--muted-foreground);font-size:9px}
+.thesis-chart-legend span{display:inline-flex;align-items:center;gap:6px}
+.thesis-chart-legend i{width:10px;height:10px;border-radius:3px;background:var(--chart-1)}
+.thesis-chart-legend i.master,.year-column-bars .master,.field-metric em.master{background:linear-gradient(180deg,var(--chart-3),color-mix(in srgb,var(--chart-3) 70%,var(--primary)))}
+.thesis-chart-legend i.doctorate,.year-column-bars .doctorate,.field-metric em.doctorate{background:linear-gradient(180deg,var(--chart-4),color-mix(in srgb,var(--chart-4) 66%,var(--primary)))}
+.thesis-chart-legend i.total,.field-metric em.total{background:linear-gradient(90deg,var(--primary),color-mix(in srgb,var(--primary) 70%,var(--chart-2)))}
+.thesis-chart-legend i.scopus,.field-metric em.scopus{background:linear-gradient(90deg,var(--chart-2),color-mix(in srgb,var(--chart-2) 64%,var(--chart-4)))}
+.thesis-chart-legend i.trdizin,.field-metric em.trdizin{background:linear-gradient(90deg,var(--chart-5),color-mix(in srgb,var(--chart-5) 65%,var(--primary)))}
+.thesis-year-chart{min-height:310px;margin-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:9px;align-items:end;border-bottom:1px solid var(--border)}
+.thesis-year-chart article{height:290px;display:grid;grid-template-rows:26px 1fr 28px;justify-items:center;align-items:end}
+.thesis-year-chart article>strong{align-self:start;color:var(--primary);font-size:12px}
+.thesis-year-chart article>b{align-self:center;font-size:9px;color:var(--muted-foreground)}
+.year-column-bars{width:100%;height:226px;display:flex;align-items:flex-end;justify-content:center;gap:5px}
+.year-column-bars i{position:relative;width:min(24px,38%);border-radius:9px 9px 2px 2px;box-shadow:0 5px 14px -8px color-mix(in srgb,var(--foreground) 55%,transparent);transition:height .25s ease}
+.year-column-bars em{position:absolute;top:-17px;left:50%;transform:translateX(-50%);font:700 8px var(--font-sans);color:var(--foreground)}
+.thesis-field-chart{padding:22px 24px;display:grid;gap:14px}
+.thesis-field-chart article{padding:16px 18px;border:1px solid var(--border);border-radius:17px;background:color-mix(in srgb,var(--card) 94%,var(--muted))}
+.thesis-field-chart article header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.thesis-field-chart article header b{font-size:14px}.thesis-field-chart article header strong{font-size:20px;color:var(--primary)}
+.field-metrics{display:grid;gap:8px}
+.field-metric{display:grid;grid-template-columns:72px minmax(0,1fr) 48px;align-items:center;gap:10px;font-size:9px}
+.field-metric>span{color:var(--muted-foreground)}.field-metric>strong{text-align:right}
+.field-metric>i{height:9px;overflow:hidden;border-radius:999px;background:var(--muted)}
+.field-metric>i>em{height:100%;display:block;min-width:0;border-radius:inherit;transition:width .25s ease}
+.thesis-index-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.thesis-index-summary article{min-height:112px;padding:17px;border:1px solid var(--border);border-radius:18px;background:var(--card);box-shadow:0 11px 28px -25px color-mix(in srgb,var(--chart-4) 60%,transparent)}
+.thesis-index-summary span{display:block;color:var(--muted-foreground);font-size:9px;line-height:1.45}.thesis-index-summary strong{display:block;margin-top:14px;font-size:25px;color:var(--primary)}
+.thesis-quartile-chart{margin-top:12px;padding:18px;display:grid;gap:10px}
+.thesis-quartile-chart article{display:grid;grid-template-columns:40px minmax(0,1fr) 54px;align-items:center;gap:12px}
+.thesis-quartile-chart article>span{font-weight:800}.thesis-quartile-chart article>strong{text-align:right;color:var(--primary)}
+.thesis-quartile-chart i{height:14px;overflow:hidden;border-radius:999px;background:var(--muted)}
+.thesis-quartile-chart em{height:100%;display:block;border-radius:inherit;background:linear-gradient(90deg,var(--chart-4),var(--chart-2))}
+.thesis-funding-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.thesis-funding-grid article{padding:17px;display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:9px;border:1px solid var(--border);border-radius:17px;background:var(--card)}
+.thesis-funding-grid svg{color:var(--primary)}.thesis-funding-grid span{font-size:10px}.thesis-funding-grid strong{font-size:21px;color:var(--primary)}
+.thesis-public-sdgs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.thesis-public-sdgs article{padding:10px;display:grid;grid-template-columns:44px minmax(0,1fr) 42px;align-items:center;gap:10px;border:1px solid var(--border);border-radius:14px;background:var(--card)}
+.thesis-public-sdgs img{width:42px;height:42px;border-radius:9px}.thesis-public-sdgs span b{display:block;font-size:10px}
+.thesis-public-sdgs i{height:7px;margin-top:7px;display:block;overflow:hidden;border-radius:999px;background:var(--muted)}
+.thesis-public-sdgs em{height:100%;display:block;border-radius:inherit;background:linear-gradient(90deg,var(--chart-1),var(--chart-4))}.thesis-public-sdgs strong{text-align:right;font-size:16px}
+.thesis-public-empty{min-height:180px;display:grid;place-content:center;justify-items:center;gap:8px;color:var(--muted-foreground);text-align:center}.thesis-public-empty b{color:var(--foreground)}
+.thesis-publication-list{margin-bottom:50px}
+.thesis-publication-highlights{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.thesis-publication-highlights>article{min-height:235px;padding:20px;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:20px;background:var(--card);box-shadow:0 12px 30px -27px color-mix(in srgb,var(--primary) 52%,transparent);transition:transform .2s ease,border-color .2s ease}
+.thesis-publication-highlights>article:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--primary) 32%,var(--border))}
+.thesis-publication-highlights header,.publication-badges{display:flex;flex-wrap:wrap;gap:6px}
+.thesis-publication-highlights header span,.publication-badges span{padding:5px 8px;border-radius:999px;background:var(--muted);color:var(--muted-foreground);font-size:8px;font-weight:750}
+.thesis-publication-highlights h3{margin:14px 0 10px;font-size:14px;line-height:1.45}
+.publication-badges span{background:color-mix(in srgb,var(--primary) 9%,var(--card));color:var(--primary)}
+.thesis-publication-highlights p{margin:14px 0;padding:11px 12px;display:grid;grid-template-columns:22px 1fr;gap:8px;border-radius:13px;background:color-mix(in srgb,var(--muted) 72%,var(--card))}
+.thesis-publication-highlights p svg{color:var(--primary)}.thesis-publication-highlights p small{display:block;color:var(--muted-foreground);font-size:8px}.thesis-publication-highlights p b{display:block;margin-top:3px;font-size:10px;line-height:1.45}
+.thesis-publication-highlights footer{margin-top:auto;display:flex;justify-content:space-between;gap:12px;color:var(--muted-foreground);font-size:8px}
+.thesis-publication-highlights footer a{display:inline-flex;align-items:center;gap:4px;color:var(--primary);font-weight:800;text-decoration:none}
+@media(max-width:1050px){.thesis-public-kpis,.thesis-funding-grid,.thesis-index-summary{grid-template-columns:repeat(2,1fr)}.thesis-year-chart{grid-template-columns:repeat(7,minmax(60px,1fr))}}
+@media(max-width:760px){.thesis-public-filter,.thesis-public-kpis,.thesis-chart-panel,.thesis-field-chart,.thesis-index-summary,.thesis-quartile-chart,.thesis-funding-grid,.thesis-public-sdgs,.thesis-publication-highlights{width:min(100% - 28px,1480px)}.thesis-public-filter{grid-template-columns:1fr}.thesis-public-filter>*{border-right:0;border-bottom:1px solid var(--border)}.thesis-public-sdgs,.thesis-publication-highlights{grid-template-columns:1fr}.thesis-year-chart{grid-template-columns:repeat(4,minmax(58px,1fr))}.field-metric{grid-template-columns:62px minmax(0,1fr) 38px}}
+@media(max-width:540px){.thesis-public-kpis,.thesis-funding-grid,.thesis-index-summary{grid-template-columns:1fr}.thesis-year-chart{grid-template-columns:repeat(3,minmax(56px,1fr))}}
