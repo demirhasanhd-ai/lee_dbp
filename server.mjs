@@ -7194,7 +7194,10 @@ function metadataJson(key, fallback) {
 function refreshAutomaticThesisPublicationMatches(actor = "automatic-thesis-match") {
   const thesisSnapshot = currentThesisSnapshot();
   const theses = thesisSnapshot?.records || [];
-  const scopus = metadataJson("scopus_bibliometrics_records_v1", []);
+  const scopus = [...new Map([
+    ...metadataJson("scopus_bibliometrics_records_v1", []),
+    ...metadataJson("scopus_thesis_author_records_v1", []),
+  ].map((record) => [record.id || `${record.title}|${record.year}`, record])).values()];
   const trDizin = metadataJson("tr_dizin_bibliometrics_records_v1", { papers: [] });
   const scopusAvailable = scopus.length > 0;
   const trDizinAvailable = (trDizin.papers || []).length > 0;
@@ -7208,7 +7211,9 @@ function refreshAutomaticThesisPublicationMatches(actor = "automatic-thesis-matc
     currentTrDizinSnapshot()?.generatedAt || "",
     scimago.files.join(","),
   ].join("|");
-  const revisionKey = "thesis_publication_match_revision_v1";
+  // Versioned so matcher rule changes are applied once after deployment even
+  // when the underlying DSpace/Scopus/TR Dizin snapshots did not change.
+  const revisionKey = "thesis_publication_match_revision_v3";
   const previousRevision = db.prepare("SELECT value FROM metadata WHERE key = ?").get(revisionKey)?.value || "";
   const automaticCount = Number(db.prepare("SELECT COUNT(*) AS count FROM thesis_publications WHERE updated_by = 'automatic-thesis-match'").get()?.count || 0);
   if (revision && revision === previousRevision && automaticCount > 0) {
@@ -9752,8 +9757,9 @@ scopusSnapshotCache = rebuildScopusUnitMappings(db, {
 }) || readScopusSnapshot(db);
 const latestScopusRefresh = latestMainDataRefreshDate();
 const scopusGeneratedAt = scopusSnapshotCache?.generatedAt ? new Date(scopusSnapshotCache.generatedAt) : null;
+const thesisAuthorScopusRecordsReady = Boolean(db.prepare("SELECT 1 FROM metadata WHERE key='scopus_thesis_author_records_v1'").get());
 if (!scopusSnapshotCache && scopusConfigured()) queueScopusSync("startup");
-else if (scopusConfigured() && latestScopusRefresh && (!scopusGeneratedAt || scopusGeneratedAt < latestScopusRefresh)) queueScopusSync("scheduled-startup");
+else if (scopusConfigured() && (!thesisAuthorScopusRecordsReady || (latestScopusRefresh && (!scopusGeneratedAt || scopusGeneratedAt < latestScopusRefresh)))) queueScopusSync(thesisAuthorScopusRecordsReady ? "scheduled-startup" : "thesis-author-bootstrap");
 scheduleScopusRefresh();
 const latestCitationRefresh = latestCitationDataRefreshDate();
 const citationGeneratedAt = scopusSnapshotCache?.lastCitationRefreshAt ? new Date(scopusSnapshotCache.lastCitationRefreshAt) : null;
