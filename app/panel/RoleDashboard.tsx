@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Eye,
+  Download,
   FileDown,
   GraduationCap,
   HardDrive,
@@ -64,6 +65,11 @@ type Course = {
   level: "Tezsiz Yüksek Lisans" | "Tezli Yüksek Lisans" | "Doktora";
   department?: string;
   programName?: string;
+  term?: string;
+  type?: string;
+  theory?: number;
+  practice?: number;
+  ects?: number;
   updatedAt?: string;
   workflow?: DbpCourse["workflow"];
 };
@@ -138,6 +144,24 @@ const centralRoles: DbpRole[] = [
   "enstitu_yoneticisi",
   "admin",
 ];
+const allProgramCourseDownloadRoles: DbpRole[] = [
+  "admin",
+  "enstitu_yoneticisi",
+  "lee_ogrenci_isleri",
+];
+const approvedCourseStatuses = new Set(["Yayımlandı", "Yayınlandı", "Public", "Onaylandı"]);
+const isApprovedCourseStatus = (status: string) => approvedCourseStatuses.has(repairText(status).trim());
+const excelEscape = (value: string | number | undefined) =>
+  String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+const filenamePart = (value: string) =>
+  repairText(value)
+    .toLocaleLowerCase("tr-TR")
+    .replace(/[^a-z0-9ığüşöçİĞÜŞÖÇ]+/giu, "-")
+    .replace(/^-+|-+$/g, "") || "ders-listesi";
 const shortLevel = (level: Course["level"]) =>
   level === "Tezsiz Yüksek Lisans"
     ? "Tezsiz YL"
@@ -214,6 +238,11 @@ const toPanelCourse = (course: DbpCourse): Course => ({
   level: panelLevel(course.level),
   department: course.department,
   programName: course.programName,
+  term: course.term,
+  type: course.type,
+  theory: Number(course.theory || 0),
+  practice: Number(course.practice || 0),
+  ects: Number(course.ects || 0),
   updatedAt: course.updatedAt,
   workflow: course.workflow,
 });
@@ -525,6 +554,7 @@ export function RoleDashboard() {
   const canCreateCourse = ["lee_ogrenci_isleri", "admin"].includes(session.role);
   const canEditAcademicContent = session.role === "admin";
   const isCentralRole = centralRoles.includes(session.role);
+  const canDownloadAllProgramCourses = allProgramCourseDownloadRoles.includes(session.role);
   const useDemoFallback = !catalogBusy && displayedCatalogCourses.length === 0 && isLocalDevelopmentHost();
   const scopedPrograms = isCentralRole
     ? LEE_PROGRAMS
@@ -627,6 +657,66 @@ export function RoleDashboard() {
       : displayedCatalogCourses.length ? displayedCatalogCourses : useDemoFallback ? courses : [];
   const reviewCourses = allReviewCourses;
   const pickerDepartments = [...new Set(scopedPrograms.map((program) => program.mainDepartment))];
+  const downloadAllProgramCourseList = () => {
+    const headers = [
+      "ABD / ASD",
+      "Program",
+      "Düzey",
+      "Dersin Kodu",
+      "Dersin Adı",
+      "Dönem",
+      "Zorunlu / Seçmeli",
+      "Öğretim Elemanı",
+      "T",
+      "U",
+      "AKTS",
+      "Onay",
+    ];
+    const sortedCourses = [...displayedCatalogCourses].sort((first, second) =>
+      [
+        first.department || "",
+        first.programName || "",
+        first.level,
+        first.code,
+      ].join("|").localeCompare(
+        [
+          second.department || "",
+          second.programName || "",
+          second.level,
+          second.code,
+        ].join("|"),
+        "tr-TR",
+      ),
+    );
+    const rows = sortedCourses.map((course) => [
+      repairText(course.department || ""),
+      repairText(course.programName || ""),
+      course.level,
+      course.code,
+      repairText(course.name),
+      repairText(course.term || ""),
+      repairText(course.type || ""),
+      course.instructor?.trim() ? repairText(course.instructor) : "Atama bekliyor",
+      course.theory ?? 0,
+      course.practice ?? 0,
+      course.ects ?? 0,
+      isApprovedCourseStatus(course.status) ? "Onaylandı" : "Onay tamamlanmadı",
+    ]);
+    const worksheet = `<!doctype html><html><head><meta charset="utf-8"></head><body><table><thead><tr>${headers
+      .map((header) => `<th>${excelEscape(header)}</th>`)
+      .join("")}</tr></thead><tbody>${rows
+      .map((row) => `<tr>${row.map((cell) => `<td>${excelEscape(cell)}</td>`).join("")}</tr>`)
+      .join("")}</tbody></table></body></html>`;
+    const blob = new Blob([worksheet], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${filenamePart("tum-programlar")}-ders-listesi.xls`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
   const changeModule = (module: DbpModule) => {
     setActive(module);
     setSelectedCourse(null);
@@ -643,7 +733,20 @@ export function RoleDashboard() {
             kontrol ekranına geçin.
           </p>
         </div>
-        <span>{scopedPrograms.length} program</span>
+        <div className="program-picker-actions">
+          {active === "my_courses" && canDownloadAllProgramCourses && (
+            <button
+              className="table-action public-course-download"
+              type="button"
+              onClick={downloadAllProgramCourseList}
+              disabled={catalogBusy || displayedCatalogCourses.length === 0}
+            >
+              <Download size={15} />
+              <span>Ders listesini indir</span>
+            </button>
+          )}
+          <span>{scopedPrograms.length} program</span>
+        </div>
       </div>
       <div className="publish-department-list">
         {pickerDepartments.map((department, departmentIndex) => {

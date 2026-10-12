@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
+import { deflateRawSync, inflateRawSync } from "node:zlib";
 import * as cheerio from "cheerio";
 import {
   displayDepartment,
@@ -1179,6 +1180,551 @@ function loadCourseCatalogInstructorOptions(filters = {}) {
     console.warn(`[dbp] DBP ders kataloğundan akademisyen listesi okunamadi: ${error instanceof Error ? error.message : error}`);
     return { instructors: [], source: "dbp_course_catalog", scopeApplied: false };
   }
+}
+
+async function resolveInstructorIdentityFromName(name = "", filters = {}) {
+  const instructorName = sanitizeInstructorName(name || "");
+  if (!instructorName || !isMeaningfulInstructorName(instructorName)) return {};
+  const normalizedName = normalizePerson(instructorName);
+  const result = await loadEEnstituInstructorOptions(filters);
+  const match = (result.instructors || []).find((item) => normalizePerson(item.name || "") === normalizedName) ||
+    (result.instructors || []).find((item) => {
+      const optionName = normalizePerson(item.name || "");
+      return optionName && (optionName.includes(normalizedName) || normalizedName.includes(optionName));
+    });
+  if (!match) return {};
+  const id = normalizeTcKimlik(match.id || "");
+  return {
+    instructorTcKimlik: id.length === 11 ? id : "",
+    instructorEmail: normalizeEmail(match.email || ""),
+    instructorTitle: sanitizeInstructorName(match.title || ""),
+    instructorSource: match.source || result.source || "",
+  };
+}
+
+function instructorPayloadFromExcelOption(option = {}, source = "excel_import") {
+  return {
+    instructor: sanitizeInstructorName(option.name || ""),
+    instructorTcKimlik: normalizeTcKimlik(option.tcKimlik || option.tc || ""),
+    instructorEmail: normalizeEmail(option.email || ""),
+    instructorTitle: sanitizeInstructorName(option.title || ""),
+    instructorSource: source,
+  };
+}
+
+function courseIsUnassigned(course = {}) {
+  return !isMeaningfulInstructorName(course.instructor || "");
+}
+
+function sameInstructorIdentity(course = {}, instructor = {}) {
+  const courseTc = normalizeTcKimlik(course.instructor_tc_kimlik || course.instructorTcKimlik || "");
+  const nextTc = normalizeTcKimlik(instructor.instructorTcKimlik || instructor.tcKimlik || "");
+  if (courseTc && nextTc) return courseTc === nextTc;
+  const courseEmail = normalizeEmail(course.instructor_email || course.instructorEmail || "");
+  const nextEmail = normalizeEmail(instructor.instructorEmail || instructor.email || "");
+  if (courseEmail && nextEmail) return courseEmail === nextEmail;
+  return normalizePerson(course.instructor || "") === normalizePerson(instructor.instructor || instructor.name || "");
+}
+
+function normalizeExcelHeader(value = "") {
+  return normalizeScope(value).replace(/\s+/g, "");
+}
+
+function displayLevelFromProgramName(value = "") {
+  const normalized = normalizeScope(value);
+  if (!normalized) return "";
+  if (normalized.includes("doktora")) return "Doktora";
+  if (normalized.includes("tezsiz")) return "Tezsiz Yüksek Lisans";
+  return "Tezli Yüksek Lisans";
+}
+
+function decodeXmlText(value = "") {
+  return String(value || "")
+    .replace(/&#x([0-9a-f]+);/giu, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/gu, (_, code) => String.fromCodePoint(Number.parseInt(code, 10)))
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+function xmlAttributes(tag = "") {
+  const attributes = {};
+  for (const match of String(tag).matchAll(/([\w:-]+)\s*=\s*"([^"]*)"/gu)) {
+    attributes[match[1]] = decodeXmlText(match[2]);
+  }
+  return attributes;
+}
+
+function findZipEndOfCentralDirectory(buffer) {
+  const minimumOffset = Math.max(0, buffer.length - 0xffff - 22);
+  for (let offset = buffer.length - 22; offset >= minimumOffset; offset -= 1) {
+    if (buffer.readUInt32LE(offset) === 0x06054b50) return offset;
+  }
+  throw Object.assign(new Error("Excel dosyası .xlsx biçiminde olmalı."), { statusCode: 422 });
+}
+
+function readXlsxZipEntries(buffer) {
+  const endOffset = findZipEndOfCentralDirectory(buffer);
+  const totalEntries = buffer.readUInt16LE(endOffset + 10);
+  let centralOffset = buffer.readUInt32LE(endOffset + 16);
+  const entries = new Map();
+  for (let index = 0; index < totalEntries; index += 1) {
+    if (buffer.readUInt32LE(centralOffset) !== 0x02014b50) {
+      throw Object.assign(new Error("Excel ZIP dizini okunamadı."), { statusCode: 422 });
+    }
+    const method = buffer.readUInt16LE(centralOffset + 10);
+    const compressedSize = buffer.readUInt32LE(centralOffset + 20);
+    const nameLength = buffer.readUInt16LE(centralOffset + 28);
+    const extraLength = buffer.readUInt16LE(centralOffset + 30);
+    const commentLength = buffer.readUInt16LE(centralOffset + 32);
+    const localOffset = buffer.readUInt32LE(centralOffset + 42);
+    const name = buffer.toString("utf8", centralOffset + 46, centralOffset + 46 + nameLength).replaceAll("\\", "/");
+    if (buffer.readUInt32LE(localOffset) !== 0x04034b50) {
+      throw Object.assign(new Error("Excel ZIP girdisi okunamadı."), { statusCode: 422 });
+    }
+    const localNameLength = buffer.readUInt16LE(localOffset + 26);
+    const localExtraLength = buffer.readUInt16LE(localOffset + 28);
+    const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
+    const compressed = buffer.subarray(dataOffset, dataOffset + compressedSize);
+    if (method === 0) entries.set(name, Buffer.from(compressed));
+    else if (method === 8) entries.set(name, inflateRawSync(compressed));
+    else throw Object.assign(new Error("Excel dosyasında desteklenmeyen sıkıştırma yöntemi var."), { statusCode: 422 });
+    centralOffset += 46 + nameLength + extraLength + commentLength;
+  }
+  return entries;
+}
+
+function xmlTextRuns(xml = "") {
+  return [...String(xml).matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/gu)].map((match) => decodeXmlText(match[1]));
+}
+
+function parseXlsxSharedStrings(xml = "") {
+  if (!xml) return [];
+  return [...String(xml).matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/gu)].map((match) => xmlTextRuns(match[1]).join(""));
+}
+
+function worksheetColumnIndex(cellRef = "") {
+  const letters = String(cellRef || "").match(/^[A-Z]+/iu)?.[0]?.toLocaleUpperCase("en-US") || "";
+  if (!letters) return -1;
+  return [...letters].reduce((total, letter) => (total * 26) + letter.charCodeAt(0) - 64, 0) - 1;
+}
+
+function resolveXlsxPath(baseDir, target = "") {
+  const normalized = String(target || "").replaceAll("\\", "/");
+  if (normalized.startsWith("/")) return normalized.slice(1);
+  const stack = baseDir.split("/").filter(Boolean);
+  for (const part of normalized.split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") stack.pop();
+    else stack.push(part);
+  }
+  return stack.join("/");
+}
+
+function firstWorksheetPath(entries) {
+  const workbookXml = entries.get("xl/workbook.xml")?.toString("utf8") || "";
+  const relsXml = entries.get("xl/_rels/workbook.xml.rels")?.toString("utf8") || "";
+  const relationships = new Map();
+  for (const match of relsXml.matchAll(/<Relationship\b[^>]*\/?>/gu)) {
+    const attrs = xmlAttributes(match[0]);
+    if (attrs.Id && attrs.Target) relationships.set(attrs.Id, resolveXlsxPath("xl", attrs.Target));
+  }
+  const sheetMatch = workbookXml.match(/<sheet\b[^>]*\/?>/u);
+  const relationId = sheetMatch ? xmlAttributes(sheetMatch[0])["r:id"] : "";
+  return relationships.get(relationId) || "xl/worksheets/sheet1.xml";
+}
+
+function parseXlsxWorksheetRows(xml = "", sharedStrings = []) {
+  const rows = [];
+  for (const rowMatch of String(xml).matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>/gu)) {
+    const rowAttrs = xmlAttributes(rowMatch[1]);
+    const rowIndex = Math.max(0, Number.parseInt(rowAttrs.r || `${rows.length + 1}`, 10) - 1);
+    const cells = [];
+    let fallbackColumn = 0;
+    for (const cellMatch of rowMatch[2].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/gu)) {
+      const attrs = xmlAttributes(cellMatch[1]);
+      const columnIndex = worksheetColumnIndex(attrs.r) >= 0 ? worksheetColumnIndex(attrs.r) : fallbackColumn;
+      fallbackColumn = columnIndex + 1;
+      const body = cellMatch[2];
+      const rawValue = body.match(/<v\b[^>]*>([\s\S]*?)<\/v>/u)?.[1] || "";
+      let value = "";
+      if (attrs.t === "s") value = sharedStrings[Number.parseInt(rawValue || "0", 10)] || "";
+      else if (attrs.t === "inlineStr") value = xmlTextRuns(body).join("");
+      else value = decodeXmlText(rawValue);
+      cells[columnIndex] = value;
+    }
+    rows[rowIndex] = cells;
+  }
+  return rows.map((row) => row || []);
+}
+
+function readFirstXlsxSheetRows(buffer) {
+  const entries = readXlsxZipEntries(buffer);
+  const worksheetPath = firstWorksheetPath(entries);
+  const worksheet = entries.get(worksheetPath);
+  if (!worksheet) throw Object.assign(new Error("Excel dosyasında ilk sayfa bulunamadı."), { statusCode: 422 });
+  const sharedStrings = parseXlsxSharedStrings(entries.get("xl/sharedStrings.xml")?.toString("utf8") || "");
+  return parseXlsxWorksheetRows(worksheet.toString("utf8"), sharedStrings);
+}
+
+const crc32Table = (() => {
+  const table = [];
+  for (let index = 0; index < 256; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = (value & 1) ? (0xedb88320 ^ (value >>> 1)) : (value >>> 1);
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
+})();
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc = crc32Table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function zipEntryDate() {
+  const year = 2026 - 1980;
+  const month = 1;
+  const day = 1;
+  return { time: 0, date: (year << 9) | (month << 5) | day };
+}
+
+function createZip(entries = []) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  const stamp = zipEntryDate();
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name, "utf8");
+    const data = Buffer.isBuffer(entry.data) ? entry.data : Buffer.from(String(entry.data || ""), "utf8");
+    const compressed = deflateRawSync(data);
+    const checksum = crc32(data);
+    const local = Buffer.alloc(30 + name.length);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(8, 8);
+    local.writeUInt16LE(stamp.time, 10);
+    local.writeUInt16LE(stamp.date, 12);
+    local.writeUInt32LE(checksum, 14);
+    local.writeUInt32LE(compressed.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    name.copy(local, 30);
+    localParts.push(local, compressed);
+
+    const central = Buffer.alloc(46 + name.length);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(8, 10);
+    central.writeUInt16LE(stamp.time, 12);
+    central.writeUInt16LE(stamp.date, 14);
+    central.writeUInt32LE(checksum, 16);
+    central.writeUInt32LE(compressed.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt32LE(offset, 42);
+    name.copy(central, 46);
+    centralParts.push(central);
+    offset += local.length + compressed.length;
+  }
+  const centralOffset = offset;
+  const centralDirectory = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralDirectory.length, 12);
+  end.writeUInt32LE(centralOffset, 16);
+  return Buffer.concat([...localParts, centralDirectory, end]);
+}
+
+function xlsxColumnName(index) {
+  let value = index + 1;
+  let name = "";
+  while (value > 0) {
+    const mod = (value - 1) % 26;
+    name = String.fromCharCode(65 + mod) + name;
+    value = Math.floor((value - mod) / 26);
+  }
+  return name;
+}
+
+function xmlEscape(value = "") {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+const courseAssignmentTemplateHeaders = ["Ders Kodu", "Ders Adı", "Danışman T.C.", "Danışman Unvan", "Danışman İsim", "Danışman E-posta"];
+
+function createCourseAssignmentTemplateWorkbook() {
+  const headerCells = courseAssignmentTemplateHeaders.map((header, index) => {
+    const ref = `${xlsxColumnName(index)}1`;
+    return `<c r="${ref}" t="inlineStr" s="1"><is><t>${xmlEscape(header)}</t></is></c>`;
+  }).join("");
+  const entries = [
+    {
+      name: "[Content_Types].xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`,
+    },
+    {
+      name: "_rels/.rels",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`,
+    },
+    {
+      name: "xl/workbook.xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="Atama Listesi" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`,
+    },
+    {
+      name: "xl/_rels/workbook.xml.rels",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`,
+    },
+    {
+      name: "xl/styles.xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
+  <fills count="1"><fill><patternFill patternType="none"/></fill></fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" applyFont="1"/></cellXfs>
+</styleSheet>`,
+    },
+    {
+      name: "xl/worksheets/sheet1.xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:F1"/>
+  <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+  <sheetFormatPr defaultRowHeight="15"/>
+  <cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="2" width="42" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="4" width="18" customWidth="1"/><col min="5" max="5" width="28" customWidth="1"/><col min="6" max="6" width="32" customWidth="1"/></cols>
+  <sheetData><row r="1">${headerCells}</row></sheetData>
+</worksheet>`,
+    },
+  ];
+  return createZip(entries);
+}
+
+function readCourseAssignmentWorkbook(fileBase64 = "") {
+  const buffer = Buffer.from(String(fileBase64 || "").replace(/^data:.*?;base64,/u, ""), "base64");
+  if (!buffer.length) throw Object.assign(new Error("Excel dosyası okunamadı."), { statusCode: 400 });
+  const rows = readFirstXlsxSheetRows(buffer);
+  const header = (rows[0] || []).map((cell) => repairText(cell).trim());
+  const headerMap = new Map(header.map((cell, index) => [normalizeExcelHeader(cell), index]));
+  const missing = courseAssignmentTemplateHeaders.filter((name) => !headerMap.has(normalizeExcelHeader(name)));
+  if (missing.length) {
+    throw Object.assign(new Error(`Excel şablonu güncel değil. Lütfen Boş Şablon indirip şu kolonları kullanın: ${courseAssignmentTemplateHeaders.join(", ")}`), { statusCode: 422 });
+  }
+  const pick = (row, headerName) => {
+    const index = headerMap.get(normalizeExcelHeader(headerName));
+    return index === undefined ? "" : repairText(row[index] || "").trim();
+  };
+  return rows.slice(1).map((row, index) => {
+    const code = pick(row, "Ders Kodu");
+    const name = pick(row, "Ders Adı");
+    const instructor = sanitizeInstructorName(pick(row, "Danışman İsim"));
+    return {
+      rowNumber: index + 2,
+      department: "",
+      programId: "",
+      obsProgram: "",
+      programBase: "",
+      level: "",
+      code: repairText(code).trim().toLocaleUpperCase("tr-TR"),
+      name,
+      instructor: {
+        name: instructor,
+        tcKimlik: normalizeTcKimlik(pick(row, "Danışman T.C.")),
+        personnelNo: "",
+        title: sanitizeInstructorName(pick(row, "Danışman Unvan")),
+        email: normalizeEmail(pick(row, "Danışman E-posta")),
+      },
+    };
+  }).filter((row) => row.code && row.instructor.name);
+}
+
+function uniqueInstructorOptions(rows = []) {
+  const byKey = new Map();
+  for (const row of rows) {
+    const instructor = row.instructor || {};
+    const key = normalizeTcKimlik(instructor.tcKimlik) ||
+      normalizeEmail(instructor.email) ||
+      normalizePerson(instructor.name);
+    if (!key || byKey.has(key)) continue;
+    byKey.set(key, {
+      key,
+      name: sanitizeInstructorName(instructor.name || ""),
+      tcKimlik: normalizeTcKimlik(instructor.tcKimlik || ""),
+      email: normalizeEmail(instructor.email || ""),
+      title: sanitizeInstructorName(instructor.title || ""),
+      rows: rows.filter((item) => {
+        const other = item.instructor || {};
+        const otherKey = normalizeTcKimlik(other.tcKimlik) || normalizeEmail(other.email) || normalizePerson(other.name);
+        return otherKey === key;
+      }).map((item) => item.rowNumber),
+    });
+  }
+  return [...byKey.values()];
+}
+
+function findImportCourseCandidates(group) {
+  const candidates = courseCodeCandidates(group.code);
+  if (!candidates.length) return [];
+  const placeholders = candidates.map(() => "?").join(", ");
+  const rows = db.prepare(`
+    SELECT *
+    FROM courses
+    WHERE code IN (${placeholders})
+    ORDER BY updated_at DESC, id DESC
+  `).all(...candidates);
+  let filtered = rows;
+  if (group.level) filtered = filtered.filter((row) => levelKey(row.level) === levelKey(group.level));
+  if (group.programBase) filtered = filtered.filter((row) => normalizeProgramBase(row.program_name) === group.programBase);
+  if (!group.programBase && group.name) {
+    const name = normalizeScope(group.name);
+    const exactNameMatches = filtered.filter((row) => normalizeScope(row.name || "") === name);
+    if (exactNameMatches.length) return exactNameMatches;
+  }
+  return filtered;
+}
+
+function importActionForCourse(course, instructor) {
+  if (!course) return "not_found";
+  if (!instructor?.instructor) return "needs_instructor_choice";
+  if (courseIsUnassigned(course)) return "assign_empty";
+  if (sameInstructorIdentity(course, instructor)) return "same";
+  return "change_existing";
+}
+
+function buildCourseAssignmentImportPreview(fileBase64 = "") {
+  const rows = readCourseAssignmentWorkbook(fileBase64);
+  const groups = new Map();
+  for (const row of rows) {
+    const key = row.programBase
+      ? [row.programBase, levelKey(row.level), row.code].join("|")
+      : [row.code, normalizeScope(row.name || "")].join("|");
+    if (!groups.has(key)) groups.set(key, { ...row, rows: [] });
+    groups.get(key).rows.push(row);
+  }
+  const items = [...groups.values()].map((group, index) => {
+    const instructorOptions = uniqueInstructorOptions(group.rows);
+    const selected = instructorOptions.length === 1 ? instructorPayloadFromExcelOption(instructorOptions[0]) : null;
+    const candidates = findImportCourseCandidates(group);
+    const exactCandidates = candidates.filter((course) => repairText(course.code || "").trim().toLocaleUpperCase("tr-TR") === group.code);
+    const courseAmbiguous = (exactCandidates.length > 1) || (!exactCandidates.length && candidates.length > 1);
+    const course = courseAmbiguous ? null : (exactCandidates[0] || candidates[0] || null);
+    const action = courseAmbiguous ? "course_ambiguous" : importActionForCourse(course, selected);
+    return {
+      id: `import-${index + 1}`,
+      rows: group.rows.map((row) => row.rowNumber),
+      programId: group.programId,
+      obsProgram: group.obsProgram,
+      department: group.department,
+      level: group.level ? displayLevel(group.level) : "",
+      code: group.code,
+      name: group.name,
+      course: course ? courseFromRow(course) : null,
+      courseCandidates: candidates.slice(0, 5).map(courseFromRow),
+      instructorOptions,
+      selectedInstructorKey: selected
+        ? normalizeTcKimlik(selected.instructorTcKimlik) || normalizeEmail(selected.instructorEmail) || normalizePerson(selected.instructor)
+        : "",
+      action,
+      multipleInstructors: instructorOptions.length > 1,
+    };
+  });
+  const summary = {
+    totalGroups: items.length,
+    found: items.filter((item) => item.course).length,
+    notFound: items.filter((item) => item.action === "not_found").length,
+    multipleInstructors: items.filter((item) => item.multipleInstructors).length,
+    assignEmpty: items.filter((item) => item.action === "assign_empty").length,
+    changeExisting: items.filter((item) => item.action === "change_existing").length,
+    same: items.filter((item) => item.action === "same").length,
+    needsChoice: items.filter((item) => item.action === "needs_instructor_choice").length,
+  };
+  return { rowsRead: rows.length, summary, items };
+}
+
+function applyCourseAssignmentImport(items = [], actor = "dbp-user") {
+  const now = new Date().toISOString();
+  const update = db.prepare(`
+    UPDATE courses
+    SET instructor = ?,
+        instructor_tc_kimlik = ?,
+        instructor_email = ?,
+        instructor_title = ?,
+        instructor_source = ?,
+        instructor_assigned_at = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
+  let changed = 0;
+  const skipped = [];
+  db.exec("BEGIN");
+  try {
+    for (const item of items) {
+      const courseId = Number(item.courseId || item.course?.id || 0);
+      const instructor = item.instructor || {};
+      const name = sanitizeInstructorName(instructor.instructor || instructor.name || "");
+      const course = courseId ? db.prepare("SELECT * FROM courses WHERE id = ?").get(courseId) : null;
+      if (!course || !isMeaningfulInstructorName(name)) {
+        skipped.push({ courseId, reason: "invalid" });
+        continue;
+      }
+      update.run(
+        name,
+        normalizeTcKimlik(instructor.instructorTcKimlik || instructor.tcKimlik || ""),
+        normalizeEmail(instructor.instructorEmail || instructor.email || ""),
+        sanitizeInstructorName(instructor.instructorTitle || instructor.title || ""),
+        instructor.instructorSource || instructor.source || "excel_import",
+        now,
+        now,
+        courseId,
+      );
+      changed += 1;
+      audit("course.assignment.import.update", actor, {
+        courseId,
+        code: course.code,
+        instructor: name,
+        instructorTcKimlik: normalizeTcKimlik(instructor.instructorTcKimlik || instructor.tcKimlik || ""),
+      });
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  return { changed, skipped };
 }
 
 function levelsFromFlags(flags) {
@@ -3396,6 +3942,42 @@ function normalizePerson(value = "") {
     .trim();
 }
 
+function normalizeTcKimlik(value = "") {
+  return String(value || "").replace(/\D+/g, "").trim();
+}
+
+function normalizeEmail(value = "") {
+  return repairText(value || "").trim().toLocaleLowerCase("tr-TR");
+}
+
+function normalizeProgramBase(value = "") {
+  return normalizeScope(
+    repairText(value || "")
+      .replace(/\([^)]*\)/gu, " ")
+      .replace(/\b(?:tezsiz|tezli)?\s*y(?:ü|u)ksek\s*lisans\b/giu, " ")
+      .replace(/\bdoktora\b/giu, " ")
+      .replace(/\bve\b/giu, " "),
+  );
+}
+
+function courseInstructorMatchesSession(course = {}, session = {}) {
+  const sessionTc = normalizeTcKimlik(session.tcKimlik || session.tc_kimlik || "");
+  const courseTc = normalizeTcKimlik(course.instructor_tc_kimlik || course.instructorTcKimlik || "");
+  if (sessionTc && courseTc && sessionTc === courseTc) return true;
+
+  const sessionEmail = normalizeEmail(session.email || "");
+  const courseEmail = normalizeEmail(course.instructor_email || course.instructorEmail || "");
+  if (sessionEmail && courseEmail && sessionEmail === courseEmail) return true;
+
+  const sessionPerson = normalizePerson(session.name || session.displayName || "");
+  const instructor = normalizePerson(course.instructor || "");
+  return Boolean(sessionPerson && instructor && (
+    sessionPerson === instructor ||
+    sessionPerson.includes(instructor) ||
+    instructor.includes(sessionPerson)
+  ));
+}
+
 function isDepartmentPoolCourseRecord(course = {}) {
   const name = repairText(course.name || "").toLocaleUpperCase("tr-TR");
   if (["BES7XX", "BEF7XX", "BİO7XX", "İKT7XX", "EPY7XX", "GMS7XX", "GTB7XX", "YBS7XX", "YON7XX"].includes(repairText(course.code || "").toLocaleUpperCase("tr-TR"))) return true;
@@ -3448,11 +4030,10 @@ function canEditCoursePackage(session, body, rows) {
   const sessionDepartment = normalizeScope(session.department || "");
   const requestedDepartment = normalizeScope(body.department || "");
   const departmentMatches = Boolean(sessionDepartment && requestedDepartment && sessionDepartment === requestedDepartment);
-  const sessionPerson = normalizePerson(session.name || "");
   const trustedInstructorOverrides = { YBS925: "Doç. Dr. Emre YAKUT" };
   const assignedToUser = rows.some((row) => {
-    const instructor = normalizePerson(row.instructor || trustedInstructorOverrides[row.code] || "");
-    return Boolean(sessionPerson && instructor && (sessionPerson === instructor || sessionPerson.includes(instructor) || instructor.includes(sessionPerson)));
+    if (courseInstructorMatchesSession(row, session)) return true;
+    return courseInstructorMatchesSession({ instructor: trustedInstructorOverrides[row.code] || "" }, session);
   });
 
   if (session.role === "akademisyen") return assignedToUser;
@@ -3958,6 +4539,24 @@ function transitionCoursePackageStatus(body, status, actor, options = {}) {
   }
 }
 
+function ensureCourseInstructorIdentityColumns() {
+  const existing = new Set(db.prepare("PRAGMA table_info(courses)").all().map((column) => column.name));
+  const columns = [
+    ["instructor_tc_kimlik", "TEXT"],
+    ["instructor_email", "TEXT"],
+    ["instructor_title", "TEXT"],
+    ["instructor_source", "TEXT"],
+    ["instructor_assigned_at", "TEXT"],
+  ];
+  for (const [name, type] of columns) {
+    if (!existing.has(name)) db.exec(`ALTER TABLE courses ADD COLUMN ${name} ${type}`);
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_courses_instructor_tc ON courses(instructor_tc_kimlik);
+    CREATE INDEX IF NOT EXISTS idx_courses_instructor_email ON courses(instructor_email);
+  `);
+}
+
 async function ensureDb() {
   if (db) return db;
   await mkdir(dataDir, { recursive: true });
@@ -4214,6 +4813,7 @@ async function ensureDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_thesis_jury_thesis ON thesis_jury_evaluations(thesis_identifier, evaluation_status);
   `);
+  ensureCourseInstructorIdentityColumns();
   seedInitialData();
   syncCourseCatalogFromSeed();
   migrateArkeolojiBes802PackageFromSeed();
@@ -5001,6 +5601,11 @@ function courseFromRow(row) {
     term: row.term || "",
     status: row.status || "",
     instructor: row.instructor || "",
+    instructorTcKimlik: row.instructor_tc_kimlik || "",
+    instructorEmail: row.instructor_email || "",
+    instructorTitle: row.instructor_title || "",
+    instructorSource: row.instructor_source || "",
+    instructorAssignedAt: row.instructor_assigned_at || "",
     source: row.source || "",
     hasPackage: row.has_package === undefined
       ? Boolean(row.package_json && row.package_json !== "{}")
@@ -5255,6 +5860,11 @@ const courseListSelect = `
       term,
       status,
       instructor,
+      instructor_tc_kimlik,
+      instructor_email,
+      instructor_title,
+      instructor_source,
+      instructor_assigned_at,
       source,
       CASE WHEN package_json IS NOT NULL AND TRIM(package_json) <> '' AND package_json <> '{}' THEN 1 ELSE 0 END AS has_package,
       updated_at
@@ -5310,6 +5920,18 @@ function dbCourseList(filters = {}) {
 }
 
 function instructorCandidateRows(session) {
+  const identityClauses = [];
+  const identityParams = [];
+  const tcKimlik = normalizeTcKimlik(session.tcKimlik || "");
+  const email = normalizeEmail(session.email || "");
+  if (tcKimlik) {
+    identityClauses.push("instructor_tc_kimlik = ?");
+    identityParams.push(tcKimlik);
+  }
+  if (email) {
+    identityClauses.push("lower(instructor_email) = ?");
+    identityParams.push(email);
+  }
   const rawName = repairText(session.name || "").trim();
   const titleWords = new Set(["PROF", "DR", "DOC", "DOÇ", "ÖĞR", "OGR", "ÜYESİ", "UYESI", "GÖR", "GOR"]);
   const tokens = rawName
@@ -5317,7 +5939,7 @@ function instructorCandidateRows(session) {
     .map((token) => token.replace(/[^\p{L}\p{N}]/gu, "").trim())
     .filter((token) => token.length > 2 && !titleWords.has(token.toLocaleUpperCase("tr-TR")));
   const searchTokens = [...new Set(tokens.slice(-2))];
-  if (!searchTokens.length) return [];
+  if (!searchTokens.length && !identityClauses.length) return [];
 
   const clauses = [];
   const params = [];
@@ -5325,7 +5947,10 @@ function instructorCandidateRows(session) {
     clauses.push("(instructor LIKE ? OR instructor LIKE ?)");
     params.push(`%${token}%`, `%${token.toLocaleUpperCase("tr-TR")}%`);
   }
-  return dbCourseRows(`WHERE TRIM(COALESCE(instructor, '')) <> '' AND ${clauses.join(" AND ")}`, params);
+  const whereParts = [];
+  if (identityClauses.length) whereParts.push(`(${identityClauses.join(" OR ")})`);
+  if (clauses.length) whereParts.push(`(TRIM(COALESCE(instructor, '')) <> '' AND ${clauses.join(" AND ")})`);
+  return dbCourseRows(`WHERE ${whereParts.join(" OR ")}`, [...identityParams, ...params]);
 }
 
 function scopeCandidateRows(session) {
@@ -5347,7 +5972,6 @@ function committeeScopeCandidateRows(session) {
 }
 
 function sessionScopedCourses(session) {
-  const sessionPerson = normalizePerson(session.name || "");
   const sessionDepartment = normalizeScope(session.department || "");
   const committeeDepartmentScopes = new Set(committeeMembershipsForSession(session).map((item) => item.departmentScope));
 
@@ -5359,12 +5983,7 @@ function sessionScopedCourses(session) {
     const rows = [...rowsById.values()];
     const courses = dbCourseListFromRows(rows.length ? rows : dbCourseRows());
     return courses.filter((course) => {
-      const instructor = normalizePerson(course.instructor || "");
-      const assignedToUser = Boolean(sessionPerson && instructor && (
-        sessionPerson === instructor ||
-        sessionPerson.includes(instructor) ||
-        instructor.includes(sessionPerson)
-      ));
+      const assignedToUser = courseInstructorMatchesSession(course, session);
       const assignedForCommittee = [course.department, course.programName]
         .filter(Boolean)
         .some((value) => committeeDepartmentScopes.has(normalizeScope(value)));
@@ -5380,12 +5999,7 @@ function sessionScopedCourses(session) {
     const rows = [...rowsById.values()];
     const courses = dbCourseListFromRows(rows.length ? rows : dbCourseRows());
     return courses.filter((course) => {
-      const instructor = normalizePerson(course.instructor || "");
-      const assignedToUser = Boolean(sessionPerson && instructor && (
-        sessionPerson === instructor ||
-        sessionPerson.includes(instructor) ||
-        instructor.includes(sessionPerson)
-      ));
+      const assignedToUser = courseInstructorMatchesSession(course, session);
       const scopeMatches = Boolean(sessionDepartment && [course.department, course.programName]
         .filter(Boolean)
         .some((value) => normalizeScope(value) === sessionDepartment));
@@ -8300,6 +8914,50 @@ async function handleDbpApi(request) {
       return jsonResponse(thesisPublicationCandidatePayload());
     }
 
+    if (pathname === "/api/dbp/course-assignment-import/template" && request.method === "GET") {
+      const auth = requireDbpSession(request);
+      if (auth.error) return auth.error;
+      if (!["lee_ogrenci_isleri", "admin"].includes(auth.session.role)) {
+        return jsonResponse({ message: "Liste ile atama şablonu LEE Öğrenci İşleri rolündedir." }, { status: 403 });
+      }
+      return new Response(createCourseAssignmentTemplateWorkbook(), {
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": 'attachment; filename="ders-hoca-atama-sablonu.xlsx"',
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
+    if (pathname === "/api/dbp/course-assignment-import/preview" && request.method === "POST") {
+      const auth = requireDbpSession(request);
+      if (auth.error) return auth.error;
+      if (!["lee_ogrenci_isleri", "admin"].includes(auth.session.role)) {
+        return jsonResponse({ message: "Liste ile atama önizlemesi LEE Öğrenci İşleri rolündedir." }, { status: 403 });
+      }
+      const body = await readJsonBody(request);
+      try {
+        return jsonResponse({ ok: true, preview: buildCourseAssignmentImportPreview(body.fileBase64 || "") });
+      } catch (error) {
+        return jsonResponse({ message: error instanceof Error ? error.message : "Excel önizlemesi oluşturulamadı." }, { status: error.statusCode || 422 });
+      }
+    }
+
+    if (pathname === "/api/dbp/course-assignment-import/apply" && request.method === "POST") {
+      const auth = requireDbpSession(request, { write: true });
+      if (auth.error) return auth.error;
+      if (!["lee_ogrenci_isleri", "admin"].includes(auth.session.role)) {
+        return jsonResponse({ message: "Liste ile atama yetkisi LEE Öğrenci İşleri rolündedir." }, { status: 403 });
+      }
+      const body = await readJsonBody(request);
+      const actor = auth.session.username || auth.session.name || "dbp-user";
+      const result = applyCourseAssignmentImport(Array.isArray(body.items) ? body.items : [], actor);
+      invalidateHomeStatsCache({ instructors: true });
+      queueQualitySnapshotRefresh("course.assignment.import");
+      await refreshHomeInstructorCount();
+      return jsonResponse({ ok: true, result });
+    }
+
     if (pathname === "/api/dbp/course-management" && request.method === "POST") {
       const auth = requireDbpSession(request, { write: true });
       if (auth.error) return auth.error;
@@ -8320,10 +8978,29 @@ async function handleDbpApi(request) {
       if (body.action === "assign") {
         const existing = findExactCourseRow({ code, department: body.department, programName: body.programName, level });
         if (!existing) return jsonResponse({ message: "Atama yapılacak ders kaydı bulunamadı." }, { status: 404 });
+        const resolvedInstructor = body.instructor
+          ? await resolveInstructorIdentityFromName(body.instructor, { department: body.department, programName: body.programName })
+          : {};
         const result = db.prepare(`
-          UPDATE courses SET instructor = ?, updated_at = ?
+          UPDATE courses
+          SET instructor = ?,
+              instructor_tc_kimlik = ?,
+              instructor_email = ?,
+              instructor_title = ?,
+              instructor_source = ?,
+              instructor_assigned_at = ?,
+              updated_at = ?
           WHERE id = ?
-        `).run(body.instructor || "", now, existing.id);
+        `).run(
+          body.instructor || "",
+          body.instructorTcKimlik || resolvedInstructor.instructorTcKimlik || "",
+          body.instructorEmail || resolvedInstructor.instructorEmail || "",
+          body.instructorTitle || resolvedInstructor.instructorTitle || "",
+          body.instructorSource || resolvedInstructor.instructorSource || (body.instructor ? "manual" : ""),
+          body.instructor ? now : "",
+          now,
+          existing.id,
+        );
         audit("course.assignment.update", actor, { code, department: body.department, programName: body.programName, level });
         invalidateHomeStatsCache({ instructors: true });
         queueQualitySnapshotRefresh("course.assignment.update");
@@ -8332,10 +9009,33 @@ async function handleDbpApi(request) {
       }
       const existing = findExactCourseRow({ code, department: body.department, programName: body.programName, level });
       if (existing) return jsonResponse({ message: "Bu ders kodu seçilen program ve düzeyde zaten bulunuyor." }, { status: 409 });
+      const resolvedInstructor = body.instructor
+        ? await resolveInstructorIdentityFromName(body.instructor, { department: body.department, programName: body.programName })
+        : {};
       db.prepare(`
-        INSERT INTO courses(academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, source, package_json, created_at, updated_at)
-        VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 'Taslak', ?, 'lee_ogrenci_isleri', '{}', ?, ?)
-      `).run(body.academicYear || "2026-2027", body.department, body.programName, level, code, repairText(String(body.name || "")).trim(), body.type || "Seçmeli", Number(body.credit || 0), Number(body.ects || 0), Number(body.theory || 0), Number(body.practice || 0), body.instructor || "", now, now);
+        INSERT INTO courses(academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, instructor_tc_kimlik, instructor_email, instructor_title, instructor_source, instructor_assigned_at, source, package_json, created_at, updated_at)
+        VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 'Taslak', ?, ?, ?, ?, ?, ?, 'lee_ogrenci_isleri', '{}', ?, ?)
+      `).run(
+        body.academicYear || "2026-2027",
+        body.department,
+        body.programName,
+        level,
+        code,
+        repairText(String(body.name || "")).trim(),
+        body.type || "Seçmeli",
+        Number(body.credit || 0),
+        Number(body.ects || 0),
+        Number(body.theory || 0),
+        Number(body.practice || 0),
+        body.instructor || "",
+        body.instructorTcKimlik || resolvedInstructor.instructorTcKimlik || "",
+        body.instructorEmail || resolvedInstructor.instructorEmail || "",
+        body.instructorTitle || resolvedInstructor.instructorTitle || "",
+        body.instructorSource || resolvedInstructor.instructorSource || (body.instructor ? "manual" : ""),
+        body.instructor ? now : "",
+        now,
+        now,
+      );
       audit("course.create", actor, { code, department: body.department, programName: body.programName, level });
       invalidateHomeStatsCache({ instructors: true });
       queueQualitySnapshotRefresh("course.create");

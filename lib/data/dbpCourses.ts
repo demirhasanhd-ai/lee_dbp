@@ -17,6 +17,11 @@ export type DbpCourse = {
   term?: string;
   status: string;
   instructor?: string;
+  instructorTcKimlik?: string;
+  instructorEmail?: string;
+  instructorTitle?: string;
+  instructorSource?: string;
+  instructorAssignedAt?: string;
   source?: string;
   hasPackage?: boolean;
   updatedAt?: string;
