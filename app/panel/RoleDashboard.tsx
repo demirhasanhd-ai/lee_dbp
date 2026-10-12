@@ -45,6 +45,7 @@ import { fetchDbpCourses, fetchMyDbpCourses, type DbpCourse } from "../../lib/da
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { getEEnstituUrl } from "../../lib/eEnstituUrl";
+import { downloadXlsx } from "../../lib/downloadXlsx";
 type Session = {
   name: string;
   username: string;
@@ -151,12 +152,14 @@ const allProgramCourseDownloadRoles: DbpRole[] = [
 ];
 const approvedCourseStatuses = new Set(["Yayımlandı", "Yayınlandı", "Public", "Onaylandı"]);
 const isApprovedCourseStatus = (status: string) => approvedCourseStatuses.has(repairText(status).trim());
-const excelEscape = (value: string | number | undefined) =>
-  String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+const formatInstructor = (value: string | undefined, fallback = "Atama bekliyor") => {
+  const instructor = repairText(value ?? "").trim();
+  if (!instructor) return fallback;
+  return instructor.replace(
+    /([A-Za-zÇĞİÖŞÜçğıöşü])((?:Prof\.|Doç\.|Dr\. Öğr\. Üyesi|Öğr\. Gör\. Dr\.)\s)/gu,
+    "$1; $2",
+  );
+};
 const filenamePart = (value: string) =>
   repairText(value)
     .toLocaleLowerCase("tr-TR")
@@ -696,26 +699,13 @@ export function RoleDashboard() {
       repairText(course.name),
       repairText(course.term || ""),
       repairText(course.type || ""),
-      course.instructor?.trim() ? repairText(course.instructor) : "Atama bekliyor",
+      formatInstructor(course.instructor),
       course.theory ?? 0,
       course.practice ?? 0,
       course.ects ?? 0,
       isApprovedCourseStatus(course.status) ? "Onaylandı" : "Onay tamamlanmadı",
     ]);
-    const worksheet = `<!doctype html><html><head><meta charset="utf-8"></head><body><table><thead><tr>${headers
-      .map((header) => `<th>${excelEscape(header)}</th>`)
-      .join("")}</tr></thead><tbody>${rows
-      .map((row) => `<tr>${row.map((cell) => `<td>${excelEscape(cell)}</td>`).join("")}</tr>`)
-      .join("")}</tbody></table></body></html>`;
-    const blob = new Blob([worksheet], { type: "application/vnd.ms-excel;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${filenamePart("tum-programlar")}-ders-listesi.xls`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadXlsx([headers, ...rows], `${filenamePart("tum-programlar")}-ders-listesi.xlsx`);
   };
   const changeModule = (module: DbpModule) => {
     setActive(module);

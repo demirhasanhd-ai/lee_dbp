@@ -19,6 +19,7 @@ import { fetchProgramProfile, getProgramProfile } from "../../../lib/data/progra
 import type { ProgramTyycRow } from "../../../lib/data/programProfiles";
 import { publicCourseHref } from "../../../lib/data/publicRoutes";
 import { programViewHref } from "../../../lib/data/programNavigation";
+import { downloadXlsx } from "../../../lib/downloadXlsx";
 
 export type PublicCourse = {
   code: string;
@@ -155,12 +156,14 @@ const approvedStatuses = new Set(["Yayımlandı", "Yayınlandı", "Public", "Ona
 const isApprovedCourse = (course: PublicCourse) =>
   approvedStatuses.has(repairText(course.status || "").trim());
 
-const excelEscape = (value: string | number | undefined) =>
-  String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+const formatInstructor = (value: string | undefined, fallback = "Atama bekliyor") => {
+  const instructor = repairText(value ?? "").trim();
+  if (!instructor) return fallback;
+  return instructor.replace(
+    /([A-Za-zÇĞİÖŞÜçğıöşü])((?:Prof\.|Doç\.|Dr\. Öğr\. Üyesi|Öğr\. Gör\. Dr\.)\s)/gu,
+    "$1; $2",
+  );
+};
 
 const filenamePart = (value: string) =>
   repairText(value)
@@ -431,27 +434,17 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
         repairText(course.name),
         mergedProcessCourseCodes.has(course.code) ? "Güz ve Bahar" : repairText(course.term),
         repairText(course.type),
-        course.instructor?.trim() ? repairText(course.instructor) : "Atama bekliyor",
+        formatInstructor(course.instructor),
         course.theory,
         course.practice,
         course.ects,
         isApprovedCourse(course) ? "Onaylandı" : "Onay tamamlanmadı",
       ]),
     );
-    const worksheet = `<!doctype html><html><head><meta charset="utf-8"></head><body><table><thead><tr>${headers
-      .map((header) => `<th>${excelEscape(header)}</th>`)
-      .join("")}</tr></thead><tbody>${rows
-      .map((row) => `<tr>${row.map((cell) => `<td>${excelEscape(cell)}</td>`).join("")}</tr>`)
-      .join("")}</tbody></table></body></html>`;
-    const blob = new Blob([worksheet], { type: "application/vnd.ms-excel;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${filenamePart(activeProgram.programName)}-${filenamePart(activeLevel)}-ders-listesi.xls`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadXlsx(
+      [headers, ...rows],
+      `${filenamePart(activeProgram.programName)}-${filenamePart(activeLevel)}-ders-listesi.xlsx`,
+    );
   };
   const changeView = (next: ViewState) => {
     setActiveView(next);
@@ -513,7 +506,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
                           <td><b>{course.code}</b></td><td>{repairText(course.name)}</td>
                           <td>{mergedProcessCourseCodes.has(course.code) ? "Güz ve Bahar" : repairText(course.term)}</td>
                           <td><span className={`course-type ${repairText(course.type) === "Zorunlu" ? "required" : "elective"}`}>{repairText(course.type)}</span></td>
-                          <td>{course.instructor?.trim() ? repairText(course.instructor) : "Atama bekliyor"}</td>
+                          <td>{formatInstructor(course.instructor)}</td>
                           <td>{course.theory}</td><td>{course.practice}</td><td><b>{course.ects}</b></td>
                           <td>
                             <span className={`approval-badge ${isApprovedCourse(course) ? "approved" : "pending"}`} title={isApprovedCourse(course) ? "Onaylandı" : "Onay süreci tamamlanmadı"} aria-label={isApprovedCourse(course) ? "Onaylandı" : "Onay süreci tamamlanmadı"}>
