@@ -50,6 +50,9 @@ type QualityStats = {
   sdgCoverageCourses: number;
   sdgLinks: number;
   assignedCourses: number;
+  approvedCourses: number;
+  unapprovedCourses: number;
+  awaitingAssignmentCourses: number;
   processCourses: number;
   processResponsible: number;
   termCounts: Record<string, number>;
@@ -115,6 +118,9 @@ export default function QualityIndicatorsPage() {
   );
   const stats = selectedProgram?.stats ?? snapshot?.institute;
   const isInstitute = !selectedProgram;
+  const approvedCourses = stats?.approvedCourses ?? 0;
+  const unapprovedCourses = stats?.unapprovedCourses ?? Math.max((stats?.totalCourses ?? 0) - approvedCourses, 0);
+  const awaitingAssignmentCourses = stats?.awaitingAssignmentCourses ?? 0;
 
   return (
     <main className="dbp-page quality-page">
@@ -170,10 +176,14 @@ export default function QualityIndicatorsPage() {
             </div>
           </article>
           <article className="quality-panel">
-            <header><div><small>SÜREÇ DERSLERİ</small><h2>Danışman ve sorumlu tanımları</h2></div><Users size={20} /></header>
-            <div className="process-radial" style={{ "--progress": `${ratio(stats.processResponsible, stats.processCourses)}%` } as CSSProperties}><div><strong>%{ratio(stats.processResponsible, stats.processCourses)}</strong><span>{stats.processResponsible}/{stats.processCourses} süreç dersi</span></div></div>
-            <p><b>{stats.processCourses}</b> ortak / süreç dersi içinde sorumluluk tanımı</p>
-            <small>Danışmanlık, uzmanlık alanı, seminer, yeterlik, tez ve bitirme projesi kayıtları akademik derslerden ayrı izlenir.</small>
+            <header><div><small>DERS DURUMU</small><h2>Onay, yayın ve atama görünümü</h2></div><Users size={20} /></header>
+            <div className="process-radial" style={{ "--progress": `${ratio(approvedCourses, stats.totalCourses)}%` } as CSSProperties}><div><strong>%{ratio(approvedCourses, stats.totalCourses)}</strong><span>{approvedCourses}/{stats.totalCourses} onaylı ders</span></div></div>
+            <div className="course-status-summary">
+              <article><span>Onaylı / yayımlı</span><b>{approvedCourses}</b></article>
+              <article><span>Onaysız / süreçte</span><b>{unapprovedCourses}</b></article>
+              <article><span>Atama bekleyen</span><b>{awaitingAssignmentCourses}</b><small>{stats.totalCourses} ders içinde</small></article>
+            </div>
+            <small>Rapor kapsamı değiştikçe onay durumu ve öğretim elemanı ataması aynı program filtresine göre güncellenir.</small>
           </article>
         </section>
 
@@ -207,12 +217,12 @@ export default function QualityIndicatorsPage() {
           <p className="quality-note">Analiz, ders paketlerinde kayıtlı SKA ilişkilerini sayar; içerikten otomatik veya tahmine dayalı SKA üretmez.</p>
         </section>
 
-        {isInstitute && <section className="quality-panel instructor-panel">
-          <header><div><small>KVKK UYUMLU GENEL DERS YÜKÜ</small><h2>Akademik unvana göre ders ve haftalık saat dağılımı</h2></div><span>{stats.titleLoads.reduce((sum, row) => sum + row.academics, 0)} akademisyen</span></header>
+        <section className="quality-panel instructor-panel">
+          <header><div><small>{isInstitute ? "KVKK UYUMLU GENEL DERS YÜKÜ" : "SEÇİLİ KAPSAM DERS YÜKÜ"}</small><h2>Akademik unvana göre ders ve haftalık saat dağılımı</h2></div><span>{stats.titleLoads.reduce((sum, row) => sum + row.academics, 0)} akademisyen</span></header>
           <TitleLoadChart values={stats.titleLoads} />
           <div className="quality-table-scroll"><table className="quality-table"><thead><tr><th>Akademik unvan</th><th>Akademisyen</th><th>Ders görevlendirmesi</th><th>Teorik saat</th><th>Uygulama</th><th>Toplam haftalık saat</th></tr></thead><tbody>{stats.titleLoads.map((item) => <tr key={item.title}><td>{item.title}</td><td>{item.academics}</td><td>{item.assignedCourses}</td><td>{item.theory}</td><td>{item.practice}</td><td><b>{item.weeklyHours}</b></td></tr>)}</tbody></table></div>
-          <p className="quality-note">Kişi adı, e-posta veya özlük verisi gösterilmez. Akademisyen sayısı mevcut akademisyen kaynağından; ders ve saatler LEE_DBP görevlendirmelerinden unvan bazında gruplanır.</p>
-        </section>}
+          <p className="quality-note">Kişi adı, e-posta veya özlük verisi gösterilmez. {isInstitute ? "Akademisyen sayısı mevcut akademisyen kaynağından; ders ve saatler LEE_DBP görevlendirmelerinden unvan bazında gruplanır." : "Seçili kapsamda ders görevlendirmesi bulunan akademisyenler unvan bazında gruplanır."}</p>
+        </section>
 
         <section className="quality-panel warning-panel">
           <header><div><small>İYİLEŞTİRME GÜNDEMİ</small><h2>Öncelikli incelenecek dersler</h2></div><span className={stats.warnings.length ? "warning-count" : "success-count"}>{stats.warnings.length}</span></header>
@@ -253,6 +263,7 @@ function SdgBars({ goals }: { goals: SdgGoal[] }) {
 }
 
 function TitleLoadChart({ values }: { values: TitleLoad[] }) {
+  if (!values.length) return <div className="quality-success"><CheckCircle2 size={20} />Seçili kapsamda ders görevlendirmesi bulunmadı.</div>;
   const maximum = Math.max(...values.map((item) => item.weeklyHours), 1);
   return <figure className="load-chart title-load-chart"><figcaption>Unvan gruplarının toplam haftalık ders saati</figcaption><div>{values.map((item, index) => <article key={item.title}><span>{item.title}</span><div className="lollipop-track"><i className={`tone-${(index % 5) + 1}`} style={{ width: `${(item.weeklyHours / maximum) * 100}%` }}><b>{item.weeklyHours}</b></i></div><small>{item.assignedCourses} ders</small></article>)}</div></figure>;
 }

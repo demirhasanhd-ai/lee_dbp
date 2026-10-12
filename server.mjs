@@ -6803,8 +6803,23 @@ function titleLoadStats(courses, instructorOptions = []) {
   return [...rows.values()].sort((a, b) => b.weeklyHours - a.weeklyHours || b.academics - a.academics || a.title.localeCompare(b.title, "tr-TR"));
 }
 
+function qualityPackageRecordForRow(row = {}, visibility = getPublicVisibilityMap()) {
+  if (!row) return null;
+  return publicPackageRecordForRow(row, visibility) || editablePackageRecordForRow(row, visibility);
+}
+
+function workloadMatchesEcts(workloadTotal, ects) {
+  return workloadTotal > 0 && ects > 0 && Math.round(workloadTotal / 30) === ects;
+}
+
+function scopedInstructorOptions(instructors = [], filters = {}) {
+  const scoped = instructors.filter((item) => departmentMatchesInstructorScope(item, filters));
+  return scoped.length ? scoped : [];
+}
+
 function qualityStats(filters = {}, options = {}) {
   const courses = options.courses || dbCourseList(filters);
+  const visibility = options.visibility || getPublicVisibilityMap();
   const termCounts = {};
   const typeCounts = {};
   const levelCounts = {};
@@ -6821,13 +6836,17 @@ function qualityStats(filters = {}, options = {}) {
   let sdgCoverageCourses = 0;
   let sdgLinks = 0;
   let assignedCourses = 0;
+  let approvedCourses = 0;
+  let unapprovedCourses = 0;
+  let awaitingAssignmentCourses = 0;
   let processCourses = 0;
   let processResponsible = 0;
 
   for (const course of courses) {
     const row = options.rowsByCourse?.get(course) || findExactCourseRow(course);
-    const hasPackage = Boolean(row?.package_json && row.package_json !== "{}");
-    const packageData = parseJsonField(row?.package_json, {});
+    const packageRecord = qualityPackageRecordForRow(row, visibility);
+    const packageData = packageRecord?.package || {};
+    const hasPackage = Boolean(packageRecord?.package);
     if (hasPackage) packagedCourses += 1;
     const details = packageData.detailFields || {};
     const outcomes = Array.isArray(packageData.outcomes) ? packageData.outcomes : [];
@@ -6841,7 +6860,7 @@ function qualityStats(filters = {}, options = {}) {
     const matrixOk = outcomes.length > 0 && matrix.length >= outcomes.length && matrix.slice(0, outcomes.length).every((matrixRow) =>
       Array.from({ length: 11 }, (_, index) => Number(matrixRow?.[`P${index + 1}`])).every((value) => value >= 1 && value <= 5)
     );
-    const workloadOk = ects > 0 && Math.abs(workloadTotal - ects * 30) < 0.01;
+    const workloadOk = workloadMatchesEcts(workloadTotal, ects);
     const packageOk = Boolean(
       String(details.purpose || "").trim() && String(details.content || "").trim() &&
       String(details.methods || "").trim() && String(details.resources || "").trim() &&
@@ -6867,11 +6886,15 @@ function qualityStats(filters = {}, options = {}) {
     const processCourse = ["danismanlik", "uzmanlik alan", "tez calismasi", "doktora tezi", "doktora yeterlik", "seminer"]
       .some((label) => normalizedName.includes(label));
     const responsible = repairText(course.instructor || details.instructors || "").trim();
+    const responsibleAssigned = isMeaningfulInstructorName(responsible);
+    if (isPublicCourseStatus(course.status || "")) approvedCourses += 1;
+    else unapprovedCourses += 1;
+    if (!responsibleAssigned || normalizeScope(course.status || "").includes("atama bekliyor")) awaitingAssignmentCourses += 1;
     if (processCourse) {
       processCourses += 1;
-      if (responsible) processResponsible += 1;
+      if (responsibleAssigned) processResponsible += 1;
     }
-    if (responsible) assignedCourses += 1;
+    if (responsibleAssigned) assignedCourses += 1;
     const term = repairText(course.term || "Belirtilmemiş");
     const type = repairText(course.type || "Belirtilmemiş");
     const level = displayLevel(course.level || "Belirtilmemiş");
@@ -6916,6 +6939,9 @@ function qualityStats(filters = {}, options = {}) {
     sdgCoverageCourses,
     sdgLinks,
     assignedCourses,
+    approvedCourses,
+    unapprovedCourses,
+    awaitingAssignmentCourses,
     processCourses,
     processResponsible,
     termCounts,
@@ -6941,6 +6967,7 @@ async function refreshQualitySnapshot(actor = "system") {
   const instructorCatalog = await loadEEnstituInstructorOptions();
   const generatedAt = new Date().toISOString();
   const allCourses = dbCourseList({});
+  const visibility = getPublicVisibilityMap();
   const rowIndex = new Map();
   const rowKey = (value) => [
     normalizeScope(value.department || ""),
@@ -6953,17 +6980,32 @@ async function refreshQualitySnapshot(actor = "system") {
     if (!rowIndex.has(key)) rowIndex.set(key, row);
   }
   const rowsByCourse = new Map(allCourses.map((course) => [course, rowIndex.get(rowKey(course)) || findExactCourseRow(course)]));
-  const institute = qualityStats({}, { courses: allCourses, rowsByCourse, includeTitleLoads: true, instructorOptions: instructorCatalog.instructors });
-  const scopes = db.prepare(`SELECT department, program_name, level FROM courses GROUP BY department, program_name, level ORDER BY department, program_name, level`).all();
+  const institute = qualityStats({}, { courses: allCourses, rowsByCourse, visibility, includeTitleLoads: true, instructorOptions: instructorCatalog.instructors });
+  const scopeIndex = new Map();
+  for (const course of allCourses) {
+    const filters = { department: course.department, programName: course.programName, level: displayLevel(course.level || "") };
+    const key = [filters.department, filters.programName, filters.level].map(normalizeScope).join("|");
+    if (!scopeIndex.has(key)) scopeIndex.set(key, filters);
+  }
+  const scopes = [...scopeIndex.values()].sort((left, right) =>
+    `${left.department}|${left.programName}|${left.level}`.localeCompare(
+      `${right.department}|${right.programName}|${right.level}`,
+      "tr-TR",
+    )
+  );
   const programs = scopes.map((scope) => {
-    const filters = { department: scope.department, programName: scope.program_name, level: scope.level };
+    const filters = { department: scope.department, programName: scope.programName, level: scope.level };
+    const programCourses = allCourses.filter((course) => courseMatchesFilters(course, filters));
     return {
-      key: [scope.department, scope.program_name, displayLevel(scope.level)].map(normalizeScope).join("|"),
-      department: repairText(scope.department), programName: repairText(scope.program_name), level: displayLevel(scope.level),
-      label: `${repairText(scope.department)} · ${repairText(scope.program_name)} · ${displayLevel(scope.level)}`,
+      key: [scope.department, scope.programName, scope.level].map(normalizeScope).join("|"),
+      department: repairText(scope.department), programName: repairText(scope.programName), level: displayLevel(scope.level),
+      label: `${repairText(scope.department)} · ${repairText(scope.programName)} · ${displayLevel(scope.level)}`,
       stats: qualityStats(filters, {
-        courses: allCourses.filter((course) => courseMatchesFilters(course, filters)),
+        courses: programCourses,
         rowsByCourse,
+        visibility,
+        includeTitleLoads: true,
+        instructorOptions: scopedInstructorOptions(instructorCatalog.instructors, filters),
       }),
     };
   });

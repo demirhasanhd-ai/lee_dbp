@@ -422,6 +422,11 @@
 .process-radial > div { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; border-radius: 50%; background: var(--card); }
 .process-radial strong { font-size: 34px; color: var(--chart-3); }
 .process-radial span { margin-top: 4px; color: var(--muted-foreground); font-size: 9px; }
+.course-status-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 18px 18px; }
+.course-status-summary article { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--background); }
+.course-status-summary span, .course-status-summary small { display: block; color: var(--muted-foreground); font-size: 8px; line-height: 1.35; }
+.course-status-summary b { display: block; margin-top: 5px; color: var(--foreground); font-size: 22px; line-height: 1; }
+.course-status-summary small { margin-top: 5px; }
 .load-chart { margin: 22px 0 26px; }
 .load-chart figcaption { margin-bottom: 15px; font-size: 12px; font-weight: 700; }
 .load-chart > div { display: grid; gap: 10px; }
