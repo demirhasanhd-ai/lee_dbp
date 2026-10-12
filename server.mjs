@@ -7124,6 +7124,54 @@ function thesisPublicationCandidatePayload() {
   };
 }
 
+function thesisPortfolioPayload() {
+  const snapshot = currentThesisSnapshot();
+  const publicationsByThesis = new Map();
+  for (const row of publicThesisPublicationRows()) {
+    const bucket = publicationsByThesis.get(row.thesis_identifier) || [];
+    bucket.push({
+      publicationKey: String(row.doi || "").trim().toLocaleLowerCase("tr-TR")
+        || `${String(row.publication_title || "").trim().toLocaleLowerCase("tr-TR")}|${row.publication_year}`,
+      publicationTitle: row.publication_title,
+      publicationYear: Number(row.publication_year || 0),
+      publicationType: row.publication_type || "",
+      doi: row.doi || "",
+      sourceName: row.source || "",
+      journalName: String(row.source || "").split(" · ").slice(1).join(" · "),
+      indexedScopus: Boolean(row.indexed_scopus),
+      indexedTrdizin: Boolean(row.indexed_trdizin),
+      indexedWos: Boolean(row.indexed_wos),
+      quartile: row.quartile || "",
+      fundingType: row.funding_type || "unknown",
+      fundingDetail: row.funding_detail || "",
+      authors: [],
+      evidenceUrl: row.doi ? `https://doi.org/${row.doi}` : "",
+      evidenceNote: row.evidence_note || "",
+      sourceUpdatedAt: row.updated_at || "",
+    });
+    publicationsByThesis.set(row.thesis_identifier, bucket);
+  }
+  return {
+    generatedAt: new Date().toISOString(),
+    sourceGeneratedAt: snapshot?.generatedAt || "",
+    source: snapshot?.source || "dspace_oai_pmh_oai_dc",
+    records: (snapshot?.records || [])
+      .filter((thesis) => thesis.status !== "deleted" && thesis.identifier)
+      .map((thesis) => ({
+        thesisIdentifier: thesis.identifier,
+        thesisTitle: thesis.title || "",
+        thesisYear: Number(thesis.publicationYear || 0),
+        degreeType: thesis.degreeType || "",
+        department: displayDepartment(thesis.department || ""),
+        sourceUrl: thesis.sourceUrl || "",
+        studentNames: thesis.authors || [],
+        advisorNames: thesis.advisors || [],
+        sourceUpdatedAt: thesis.datestamp || "",
+        publications: publicationsByThesis.get(thesis.identifier) || [],
+      })),
+  };
+}
+
 async function syncVerifiedEEnstituThesisPublications(actor = "e-enstitu-quarterly-sync") {
   if (eEnstituThesisPublicationSyncPromise) return eEnstituThesisPublicationSyncPromise;
   eEnstituThesisPublicationSyncPromise = (async () => {
@@ -8917,6 +8965,13 @@ async function handleDbpApi(request) {
         return jsonResponse({ message: "Yetkisiz dahili veri isteği." }, { status: 401 });
       }
       return jsonResponse(thesisPublicationCandidatePayload());
+    }
+
+    if (pathname === "/api/dbp/internal/thesis-portfolios" && request.method === "GET") {
+      if (!internalDbpTokenIsValid(request)) {
+        return jsonResponse({ message: "Yetkisiz dahili veri isteği." }, { status: 401 });
+      }
+      return jsonResponse(thesisPortfolioPayload());
     }
 
     if (pathname === "/api/dbp/course-assignment-import/template" && request.method === "GET") {
