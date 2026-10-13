@@ -40,7 +40,7 @@ import { ThesisAwardsAdmin } from "./ThesisAwardsAdmin";
 import { CommitteeManagement } from "./CommitteeManagement";
 import { ThemeToggle } from "../ThemeToggle";
 import { LEE_PROGRAMS, type LeeProgram } from "../../lib/data/programs";
-import { isDepartmentPoolCourse } from "../../lib/data/courseCatalog";
+import { isDepartmentPoolCourse } from "../../lib/data/courseRules";
 import { fetchDbpCourses, fetchMyDbpCourses, type DbpCourse } from "../../lib/data/dbpCourses";
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";

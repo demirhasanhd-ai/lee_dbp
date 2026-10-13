@@ -2,8 +2,7 @@
 
 import { AlertTriangle, CheckCircle2, ClipboardList, UserRoundCheck } from "lucide-react";
 import { useEffect, useState } from "react";
-import { OFFICIAL_COURSES } from "../../lib/data/courseCatalog";
-import { fetchDbpCourses } from "../../lib/data/dbpCourses";
+import { fetchDbpCourses, type DbpCourse } from "../../lib/data/dbpCourses";
 import { LEE_PROGRAMS } from "../../lib/data/programs";
 import {
   COURSE_LEARNING_OUTCOME_COUNT,
@@ -23,22 +22,26 @@ const scoreClass = (score: number) =>
   score >= 85 ? "good" : score >= 65 ? "watch" : "risk";
 
 export function QualityReports() {
-  const [courses, setCourses] = useState(OFFICIAL_COURSES);
+  const [courses, setCourses] = useState<DbpCourse[]>([]);
+  const [loadStatus, setLoadStatus] = useState<"loading" | "ready" | "error">("loading");
   useEffect(() => {
     let cancelled = false;
     fetchDbpCourses()
       .then((data) => {
-        if (!cancelled) setCourses(data.courses as unknown as typeof OFFICIAL_COURSES);
+        if (!cancelled) {
+          setCourses(data.courses);
+          setLoadStatus("ready");
+        }
       })
       .catch(() => {
-        if (!cancelled) setCourses(OFFICIAL_COURSES);
+        if (!cancelled) setLoadStatus("error");
       });
     return () => {
       cancelled = true;
     };
   }, []);
-  const programSummaries = summarizeQualityByProgram(courses, LEE_PROGRAMS);
-  const instructorSummaries = summarizeQualityByInstructor(courses);
+  const programSummaries = summarizeQualityByProgram(courses as Parameters<typeof summarizeQualityByProgram>[0], LEE_PROGRAMS);
+  const instructorSummaries = summarizeQualityByInstructor(courses as Parameters<typeof summarizeQualityByInstructor>[0]);
   const activePrograms = programSummaries.filter((summary) => summary.courseCount > 0);
   const criticalTotal = activePrograms.reduce((total, item) => total + item.criticalCount, 0);
   const warningTotal = activePrograms.reduce((total, item) => total + item.warningCount, 0);
@@ -66,6 +69,18 @@ export function QualityReports() {
         </div>
         <span>OKÜ DBP Hazırlama Kılavuzu</span>
       </div>
+      {loadStatus === "loading" && (
+        <div className="public-empty">
+          <h2>Kalite raporu veritabanından yükleniyor</h2>
+          <p>Canlı ders kayıtları hazır olduğunda rapor hesaplanacak.</p>
+        </div>
+      )}
+      {loadStatus === "error" && (
+        <div className="public-empty">
+          <h2>Kalite raporu yüklenemedi</h2>
+          <p>Veritabanı yanıtı alınamadı. Sayfayı yenileyerek tekrar deneyebilirsiniz.</p>
+        </div>
+      )}
 
       <div className="quality-stats">
         <article>

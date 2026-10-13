@@ -63,6 +63,8 @@ const localPreviewSeedFile = path.join(__dirname, "local-preview", "program-data
 const seedFile = process.env.DBP_SEED_FILE || (existsSync(bundledSeedFile) ? bundledSeedFile : localPreviewSeedFile);
 const programProfilesSeedFile = process.env.DBP_PROGRAM_PROFILES_SEED_FILE || path.join(__dirname, "seed", "program-profiles.json");
 const coursePackagesSeedFile = process.env.DBP_COURSE_PACKAGES_SEED_FILE || path.join(__dirname, "seed", "course-packages.json");
+const courseListCacheTtlMs = nonNegativeNumber(process.env.DBP_COURSE_LIST_CACHE_TTL_MS, 60_000);
+const courseListCacheMaxEntries = Math.max(1, nonNegativeNumber(process.env.DBP_COURSE_LIST_CACHE_MAX_ENTRIES, 500));
 const publicRouteAliases = JSON.parse(readFileSync(path.join(__dirname, "lib", "data", "public-route-aliases.json"), "utf8"));
 const publicRouteLevels = {
   tezsiz: "Tezsiz Yüksek Lisans",
@@ -71,6 +73,11 @@ const publicRouteLevels = {
 };
 const pdfCacheDir = process.env.DBP_PDF_CACHE_DIR || path.join(dataDir, "generated-pdfs");
 const pdfScript = process.env.DBP_PDF_SCRIPT || path.join(__dirname, "scripts", "generate_public_course_pdfs.py");
+
+function nonNegativeNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : fallback;
+}
 
 function resolveEEnstituRoot() {
   const configured = process.env.EENSTITU_ROOT || process.env.E_ENSTITU_ROOT;
@@ -96,6 +103,7 @@ let homeInstructorCountCache;
 let homeInstructorCountRefresh;
 let homeStatsCache;
 let publicCourseRouteIndexCache;
+let courseListCache = new Map();
 let qualitySnapshotCache;
 let qualitySnapshotRefreshPromise;
 let qualityRefreshTimer;
@@ -265,6 +273,13 @@ function isMeaningfulInstructorName(value) {
   const normalized = normalizeScope(sanitizeInstructorName(value || ""));
   if (!normalized) return false;
   return !placeholderInstructorNames.has(normalized) && normalized !== "-";
+}
+
+function hasUserAssignedInstructor(course = {}) {
+  return Boolean(
+    isMeaningfulInstructorName(course.instructor || "") &&
+    (normalizeScope(course.instructor_source || "") || String(course.instructor_assigned_at || "").trim())
+  );
 }
 
 function repairObject(value, fieldName = "") {
@@ -1217,13 +1232,16 @@ function courseIsUnassigned(course = {}) {
 }
 
 function sameInstructorIdentity(course = {}, instructor = {}) {
+  const courseName = normalizePerson(course.instructor || "");
+  const nextName = normalizePerson(instructor.instructor || instructor.name || "");
+  if (courseName && nextName && courseName !== nextName) return false;
   const courseTc = normalizeTcKimlik(course.instructor_tc_kimlik || course.instructorTcKimlik || "");
   const nextTc = normalizeTcKimlik(instructor.instructorTcKimlik || instructor.tcKimlik || "");
   if (courseTc && nextTc) return courseTc === nextTc;
   const courseEmail = normalizeEmail(course.instructor_email || course.instructorEmail || "");
   const nextEmail = normalizeEmail(instructor.instructorEmail || instructor.email || "");
   if (courseEmail && nextEmail) return courseEmail === nextEmail;
-  return normalizePerson(course.instructor || "") === normalizePerson(instructor.instructor || instructor.name || "");
+  return Boolean(courseName && nextName && courseName === nextName);
 }
 
 function normalizeExcelHeader(value = "") {
@@ -2128,9 +2146,50 @@ function currentHomeInstructorCount() {
   return homeInstructorCountCache;
 }
 
+function normalizeCourseListCacheText(value) {
+  return repairText(String(value || "")).trim();
+}
+
+function courseListCacheKey(filters = {}, limit = 0) {
+  return JSON.stringify({
+    q: normalizeCourseListCacheText(filters.q),
+    department: normalizeCourseListCacheText(filters.department),
+    programName: normalizeCourseListCacheText(filters.programName),
+    level: normalizeCourseListCacheText(filters.level),
+    instructor: normalizeCourseListCacheText(filters.instructor),
+    publicVisible: Boolean(filters.publicVisible),
+    limit: Math.max(0, Number(limit || 0)),
+  });
+}
+
+function readCourseListCache(key) {
+  if (courseListCacheTtlMs <= 0) return null;
+  const cached = courseListCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.createdAt > courseListCacheTtlMs) {
+    courseListCache.delete(key);
+    return null;
+  }
+  return cached.payload;
+}
+
+function writeCourseListCache(key, payload) {
+  if (courseListCacheTtlMs <= 0) return;
+  if (!courseListCache.has(key) && courseListCache.size >= courseListCacheMaxEntries) {
+    const oldestKey = courseListCache.keys().next().value;
+    if (oldestKey) courseListCache.delete(oldestKey);
+  }
+  courseListCache.set(key, { createdAt: Date.now(), payload });
+}
+
+function invalidateCourseListCache() {
+  courseListCache.clear();
+}
+
 function invalidateHomeStatsCache({ instructors = false } = {}) {
   homeStatsCache = undefined;
   publicCourseRouteIndexCache = undefined;
+  invalidateCourseListCache();
   if (instructors) {
     homeInstructorCountCache = undefined;
     homeInstructorCountRefresh = undefined;
@@ -6135,7 +6194,7 @@ function syncCourseCatalogFromSeed() {
     for (const course of officialCourses) {
       const packageSeed = findSeedPackageForCode(packageSeeds, course.code, course);
       const seededPackageJson = packageSeed ? JSON.stringify(storedPackageFromSeed(packageSeed, course)) : "{}";
-      const seededInstructor = sanitizeInstructorName(course.instructor || packageSeed?.instructor || "");
+      const seededInstructor = sanitizeInstructorName(course.instructor || "");
       const existing = findExactCourseRow(course);
       if (!existing) {
         insertCourse.run(
@@ -6167,10 +6226,12 @@ function syncCourseCatalogFromSeed() {
         seededPackageJson !== "{}" && (currentPackageJson === "{}" || isStaticSeedPackage(currentPackageJson))
           ? seededPackageJson
           : currentPackageJson;
-      const nextInstructor =
-        seededInstructor && normalizeInstructorScope(seededInstructor) !== normalizeInstructorScope("Atama bekliyor")
+      const existingInstructor = sanitizeInstructorName(existing.instructor || "");
+      const nextInstructor = hasUserAssignedInstructor(existing)
+        ? existingInstructor
+        : isMeaningfulInstructorName(seededInstructor)
           ? seededInstructor
-          : sanitizeInstructorName(existing.instructor || seededInstructor || "");
+          : existingInstructor;
       updateCourse.run(
         course.academicYear || existing.academic_year || "",
         course.programCode || existing.program_code || "",
@@ -8427,11 +8488,37 @@ function replaceFromExport(payload, actor = "admin") {
       insertProgramProfile.run(row.id || null, row.program_name, normalizeProfileLevel(row.level), row.degree || "", row.manager || "", row.language || "Türkçe", row.qualification_rules || "", row.sections_json || "[]", row.outcomes_json || "[]", row.tyyc_rows_json || "[]", row.created_at || now, row.updated_at || now, row.updated_by || "import");
     }
     const insertCourse = db.prepare(`
-      INSERT INTO courses(id, academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, source, package_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO courses(id, academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, instructor_tc_kimlik, instructor_email, instructor_title, instructor_source, instructor_assigned_at, source, package_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const row of payload.tables.courses) {
-      insertCourse.run(row.id || null, row.academic_year || "", row.program_code || "", row.department, row.program_name, row.level, row.code, row.name, row.type || "", row.credit || 0, row.ects || 0, row.theory || 0, row.practice || 0, row.term || "", row.status || "", row.instructor || "", row.source || "", row.package_json || "{}", row.created_at || now, row.updated_at || now);
+      insertCourse.run(
+        row.id || null,
+        row.academic_year || "",
+        row.program_code || "",
+        row.department,
+        row.program_name,
+        row.level,
+        row.code,
+        row.name,
+        row.type || "",
+        row.credit || 0,
+        row.ects || 0,
+        row.theory || 0,
+        row.practice || 0,
+        row.term || "",
+        row.status || "",
+        row.instructor || "",
+        row.instructor_tc_kimlik || "",
+        row.instructor_email || "",
+        row.instructor_title || "",
+        row.instructor_source || "",
+        row.instructor_assigned_at || "",
+        row.source || "",
+        row.package_json || "{}",
+        row.created_at || now,
+        row.updated_at || now,
+      );
     }
     const insertVisibility = db.prepare("INSERT INTO public_visibility(key, visible, updated_at) VALUES (?, ?, ?)");
     for (const row of payload.tables.public_visibility || []) insertVisibility.run(row.key, row.visible ? 1 : 0, row.updated_at || now);
@@ -8838,11 +8925,28 @@ async function handleDbpApi(request) {
         publicVisible: ["1", "true"].includes((url.searchParams.get("publicVisible") || "").toLocaleLowerCase("tr-TR")),
       };
       const limit = Math.max(0, Number(url.searchParams.get("limit") || 0));
+      const cacheKey = courseListCacheKey(filters, limit);
+      const cachedPayload = readCourseListCache(cacheKey);
+      if (cachedPayload) {
+        return jsonResponse(cachedPayload, {
+          headers: {
+            "Cache-Control": "private, max-age=0, must-revalidate",
+            "X-DBP-Course-List-Cache": "HIT",
+          },
+        });
+      }
       const courses = dbCourseList(filters);
-      return jsonResponse({
+      const payload = {
         courses: limit ? courses.slice(0, limit) : courses,
         total: courses.length,
         source: "database",
+      };
+      writeCourseListCache(cacheKey, payload);
+      return jsonResponse(payload, {
+        headers: {
+          "Cache-Control": "private, max-age=0, must-revalidate",
+          "X-DBP-Course-List-Cache": "MISS",
+        },
       });
     }
 
@@ -9486,6 +9590,7 @@ async function handleDbpApi(request) {
       const body = await readJsonBody(request);
       const actor = auth.session?.username || auth.session?.name || "dbp-user";
       upsertPublicVisibilityMap(body.visibility || {}, actor);
+      invalidateHomeStatsCache();
       return jsonResponse({ ok: true, visibility: getPublicVisibilityMap() });
     }
 

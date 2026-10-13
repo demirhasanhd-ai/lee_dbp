@@ -5,7 +5,6 @@ import { CatalogCourseList } from "./CatalogCourseList";
 import { PublicSiteHeader } from "../PublicSiteHeader";
 import { dbpPath } from "../../lib/dbpPath";
 import { coursePdfHref } from "../../lib/coursePdf";
-import { OFFICIAL_COURSES } from "../../lib/data/courseCatalog";
 
 export const metadata: Metadata = { title: "Ders Kataloğu" };
 
@@ -30,8 +29,7 @@ type CatalogSearchParams = {
 export default async function Catalog({ searchParams }: { searchParams: Promise<CatalogSearchParams> }) {
   const params = await searchParams;
   if (params.ders) {
-    const known = OFFICIAL_COURSES.find((course) => course.code === params.ders);
-    const courseName = params.ad ?? known?.name ?? "Bilimsel Araştırma ve Alan Uygulamaları";
+    const courseName = params.ad ?? "Bilimsel Araştırma ve Alan Uygulamaları";
     const pdfHref = coursePdfHref({
       code: params.ders,
       name: courseName,
@@ -60,9 +58,9 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
           instructor={params.ogretimElemani}
           sdgs={params.sdg}
           pdfHref={pdfHref}
-          department={params.bolum ?? known?.department}
-          programName={params.program ?? known?.programName}
-          level={params.duzey ?? known?.level}
+          department={params.bolum}
+          programName={params.program}
+          level={params.duzey}
         />
       </div>
     );

@@ -271,6 +271,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
     [courses, levels, programItems, programName, visibilityKey],
   );
   const [databaseProgramItems, setDatabaseProgramItems] = useState<PublicProgramMenuItem[] | null>(null);
+  const [courseLoadStatus, setCourseLoadStatus] = useState<"loading" | "ready" | "error">("loading");
   useEffect(() => {
     let cancelled = false;
     fetchDbpCourses({ department, publicVisible: true })
@@ -282,9 +283,13 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
             .filter((course) => repairText(course.programName) === repairText(item.programName))
             .map(toPublicCourse),
         })));
+        setCourseLoadStatus("ready");
       })
       .catch(() => {
-        if (!cancelled) setDatabaseProgramItems(null);
+        if (!cancelled) {
+          setDatabaseProgramItems(null);
+          setCourseLoadStatus("error");
+        }
       });
     return () => {
       cancelled = true;
@@ -522,6 +527,24 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
                 </div>
               </section>
             ))}
+            {courseLoadStatus === "loading" && (
+              <div className="public-empty">
+                <h2>Ders listesi veritabanından yükleniyor</h2>
+                <p>Canlı müfredat hazır olduğunda bu bölümde gösterilecek.</p>
+              </div>
+            )}
+            {courseLoadStatus === "error" && (
+              <div className="public-empty">
+                <h2>Ders listesi yüklenemedi</h2>
+                <p>Veritabanı yanıtı alınamadı. Sayfayı yenileyerek tekrar deneyebilirsiniz.</p>
+              </div>
+            )}
+            {courseLoadStatus === "ready" && courseSections.length === 0 && (
+              <div className="public-empty">
+                <h2>Yayımlanmış ders bulunamadı</h2>
+                <p>Bu program ve düzey için public yayında ders kaydı bulunmuyor.</p>
+              </div>
+            )}
           </>
         )}
       </section>

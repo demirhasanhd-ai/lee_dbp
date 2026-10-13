@@ -128,13 +128,16 @@ const currentCourseUnassigned = (course: ImportPreviewItem["course"]) => {
 };
 
 const sameInstructor = (course: ImportPreviewItem["course"], option: ImportInstructorOption) => {
+  const courseName = normalizePersonName(course?.instructor || "");
+  const nextName = normalizePersonName(option.name);
+  if (courseName && nextName && courseName !== nextName) return false;
   const courseTc = normalizeTc(course?.instructorTcKimlik || "");
   const nextTc = normalizeTc(option.tcKimlik || "");
   if (courseTc && nextTc) return courseTc === nextTc;
   const courseEmail = normalizeEmail(course?.instructorEmail || "");
   const nextEmail = normalizeEmail(option.email || "");
   if (courseEmail && nextEmail) return courseEmail === nextEmail;
-  return normalizePersonName(course?.instructor || "") === normalizePersonName(option.name);
+  return Boolean(courseName && nextName && courseName === nextName);
 };
 
 const actionForSelection = (item: ImportPreviewItem, option: ImportInstructorOption | null) => {
