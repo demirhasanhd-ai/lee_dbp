@@ -75,7 +75,7 @@ export default async function Catalog({ searchParams }: { searchParams: Promise<
         <div>
           <span className="eyebrow">CANLI VERİTABANI</span>
           <h1>Ders Kataloğu</h1>
-          <p>2026-2027 akademik yılına ait lisansüstü dersleri veritabanından yüklenir; ders kodu, program, ana bilim dalı veya öğretim elemanına göre arayın.</p>
+          <p>Lisansüstü dersler canlı katalog veritabanından yüklenir; ders kodu, ders adı, program, ana bilim dalı veya öğretim elemanına göre arayın.</p>
         </div>
         <div className="catalog-total"><strong>Canlı</strong><span>veritabanı</span></div>
       </section>

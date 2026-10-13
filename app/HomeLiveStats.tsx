@@ -72,7 +72,6 @@ export function HomeLiveStats() {
   }, []);
 
   const levels = stats?.levels ?? { tezsiz: 0, tezli: 0, doktora: 0 };
-  const academicYear = stats?.academicYear ?? "2026–2027";
   const numberLabel = (value?: number) =>
     loadStatus === "ready" && typeof value === "number" ? value.toLocaleString("tr-TR") : "—";
   const percentLabel = (value?: number) =>
@@ -81,12 +80,12 @@ export function HomeLiveStats() {
   return (
     <>
       <div className="banner-board" data-stats-source={stats?.source || loadStatus}>
-        <div className="board-heading"><div><small>{academicYear} AKADEMİK YILI</small><strong>Ders Kataloğu</strong></div><span>{loadStatus === "error" ? "Veritabanı bekleniyor" : "Canlı müfredat"}</span></div>
-        <div className="board-main"><strong>{numberLabel(stats?.totalCourses)}</strong><span>{academicYear} müfredatı ders sayısı</span></div>
+        <div className="board-heading"><div><small>CANLI KATALOG</small><strong>Ders Kataloğu</strong></div><span>{loadStatus === "error" ? "Veritabanı bekleniyor" : "Yayımdaki katalog"}</span></div>
+        <div className="board-main"><strong>{numberLabel(stats?.totalCourses)}</strong><span>Ders kataloğundaki toplam ders</span></div>
         <div className="board-stats"><div><b>{numberLabel(stats?.totalPrograms)}</b><span>Program paketi</span></div><div><b>{percentLabel(stats?.assignmentRate)}</b><span>Akademisyen atama oranı</span></div><div><b>{numberLabel(stats?.instructors)}</b><span>Akademisyen</span></div></div>
         <a href={dbpPath("/katalog")}>Kataloğu inceleyin <span>→</span></a>
       </div>
-      <div className="hero-stats" aria-label={`${academicYear} canlı müfredat istatistikleri`}>
+      <div className="hero-stats" aria-label="Canlı ders kataloğu istatistikleri">
         <article><small>Ders havuzu</small><strong>{numberLabel(stats?.totalCourses)}</strong><span>{numberLabel(visibleMainDepartments || stats?.mainDepartments)} Ana ABD / ASD</span></article>
         <article><small>Program düzeyi</small><strong>{numberLabel(stats?.totalPrograms)}</strong><span>{levels.tezsiz} tezsiz · {levels.tezli} tezli · {levels.doktora} doktora</span></article>
         <article><small>Ders türü</small><strong>{numberLabel(stats?.electiveCourses)}</strong><span>{numberLabel(stats?.compulsoryCourses)} zorunlu · {numberLabel(stats?.electiveCourses)} seçmeli</span></article>

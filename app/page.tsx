@@ -3,7 +3,6 @@ import {
   BarChart3,
   Bell,
   BookOpen,
-  ChevronDown,
   ExternalLink,
   GraduationCap,
   PieChart,
@@ -39,16 +38,6 @@ export default function Home() {
           <div className="banner-copy">
             <div className="banner-controls">
               <span className="banner-label">LİSANSÜSTÜ EĞİTİM ENSTİTÜSÜ</span>
-              <details className="period-menu">
-                <summary><span>Güncel Dönem</span><b>2026–2027</b><ChevronDown size={14}/></summary>
-                <div className="period-options">
-                  <a className="current" href={dbpPath("/katalog?donem=2026-2027")}><span>Güncel dönem</span><b>2026–2027</b></a>
-                  <a href={dbpPath("/katalog?donem=2025-2026")}><span>Müfredat bilgileri</span><b>2025–2026</b></a>
-                  <a href={dbpPath("/katalog?donem=2024-2025")}><span>Müfredat bilgileri</span><b>2024–2025</b></a>
-                  <a href={dbpPath("/katalog?donem=2023-2024")}><span>Müfredat bilgileri</span><b>2023–2024</b></a>
-                  <a href={dbpPath("/katalog?donem=2022-2023")}><span>Müfredat bilgileri</span><b>2022–2023</b></a>
-                </div>
-              </details>
             </div>
             <h1>LEE <span>Bilgi Sistemi</span></h1>
             <p>Derslerin Bologna bilgilerine, öğrenme çıktılarına, haftalık içeriklerine ve AKTS iş yüklerine tek noktadan ulaşın.</p>

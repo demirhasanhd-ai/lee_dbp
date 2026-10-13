@@ -745,18 +745,20 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_args()
-    courses = load_official_courses()
     if args.single:
         if not args.code or not args.output:
             raise SystemExit("--single için --code ve --output zorunludur.")
-        course = find_course(courses, args.code, args.program, args.name)
-        if course is None and args.name:
-            course = synthetic_course(args.code, args.name)
-        if course is None:
-            raise SystemExit(f"Ders bulunamadı: {args.code}")
         payload = load_package_payload(args.package_json)
+        if payload:
+            course = course_from_payload(synthetic_course(args.code, args.name), payload)
+        else:
+            courses = load_official_courses()
+            course = find_course(courses, args.code, args.program, args.name)
+            if course is None and args.name:
+                course = synthetic_course(args.code, args.name)
+            if course is None:
+                raise SystemExit(f"Ders bulunamadı: {args.code}")
         package_data = payload.get("package") if isinstance(payload, dict) and isinstance(payload.get("package"), dict) else None
-        course = course_from_payload(course, payload)
         target = Path(args.output)
         make_pdf(course, target, package_data)
         print(target)

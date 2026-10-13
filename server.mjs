@@ -55,6 +55,7 @@ const serverEntry = path.join(__dirname, "dist", "server", "index.js");
 const basePath = "/dbp";
 const port = Number(process.env.PORT || 8081);
 const host = process.env.HOST || "0.0.0.0";
+const defaultEEnstituInternalToken = "oku-eenstitu-dbp-internal-v1";
 const dataDir = process.env.DBP_DATA_DIR || path.join(__dirname, "data");
 const dbPath = process.env.DBP_SQLITE_PATH || path.join(dataDir, "dbp.sqlite");
 const backupDir = process.env.DBP_BACKUP_DIR || path.join(dataDir, "backups");
@@ -63,8 +64,14 @@ const localPreviewSeedFile = path.join(__dirname, "local-preview", "program-data
 const seedFile = process.env.DBP_SEED_FILE || (existsSync(bundledSeedFile) ? bundledSeedFile : localPreviewSeedFile);
 const programProfilesSeedFile = process.env.DBP_PROGRAM_PROFILES_SEED_FILE || path.join(__dirname, "seed", "program-profiles.json");
 const coursePackagesSeedFile = process.env.DBP_COURSE_PACKAGES_SEED_FILE || path.join(__dirname, "seed", "course-packages.json");
-const courseListCacheTtlMs = nonNegativeNumber(process.env.DBP_COURSE_LIST_CACHE_TTL_MS, 60_000);
+const courseListCacheTtlMs = nonNegativeNumber(process.env.DBP_COURSE_LIST_CACHE_TTL_MS, 24 * 60 * 60 * 1000);
 const courseListCacheMaxEntries = Math.max(1, nonNegativeNumber(process.env.DBP_COURSE_LIST_CACHE_MAX_ENTRIES, 500));
+const courseListCacheWarmupDebounceMs = nonNegativeNumber(process.env.DBP_COURSE_LIST_CACHE_WARMUP_DEBOUNCE_MS, 30_000);
+const courseListCacheWarmupHour = Math.min(23, Math.floor(nonNegativeNumber(process.env.DBP_COURSE_LIST_CACHE_WARMUP_HOUR, 3)));
+const homeStatsCacheTtlMs = nonNegativeNumber(process.env.DBP_HOME_STATS_CACHE_TTL_MS, 24 * 60 * 60 * 1000);
+const homeStatsCacheWarmupDebounceMs = nonNegativeNumber(process.env.DBP_HOME_STATS_CACHE_WARMUP_DEBOUNCE_MS, courseListCacheWarmupDebounceMs);
+const homeStatsCacheWarmupHour = Math.min(23, Math.floor(nonNegativeNumber(process.env.DBP_HOME_STATS_CACHE_WARMUP_HOUR, courseListCacheWarmupHour)));
+const seedReloadEnabled = process.env.DBP_ENABLE_SEED_RELOAD === "true";
 const publicRouteAliases = JSON.parse(readFileSync(path.join(__dirname, "lib", "data", "public-route-aliases.json"), "utf8"));
 const publicRouteLevels = {
   tezsiz: "Tezsiz Yüksek Lisans",
@@ -102,8 +109,13 @@ let eEnstituPgPool;
 let homeInstructorCountCache;
 let homeInstructorCountRefresh;
 let homeStatsCache;
+let homeStatsCacheCreatedAt = 0;
+let homeStatsWarmupTimer;
+let homeStatsDailyWarmupTimer;
 let publicCourseRouteIndexCache;
 let courseListCache = new Map();
+let courseListWarmupTimer;
+let courseListDailyWarmupTimer;
 let qualitySnapshotCache;
 let qualitySnapshotRefreshPromise;
 let qualityRefreshTimer;
@@ -273,6 +285,23 @@ function isMeaningfulInstructorName(value) {
   const normalized = normalizeScope(sanitizeInstructorName(value || ""));
   if (!normalized) return false;
   return !placeholderInstructorNames.has(normalized) && normalized !== "-";
+}
+
+const commonProcessCourseLabels = [
+  "danismanlik",
+  "uzmanlik alan",
+  "tez calismasi",
+  "yuksek lisans tezi",
+  "doktora tezi",
+  "doktora yeterlik",
+  "seminer",
+  "bitirme projesi",
+  "donem projesi",
+];
+
+function isCommonProcessCourse(course = {}) {
+  const normalizedName = normalizeScope(course.name || "");
+  return commonProcessCourseLabels.some((label) => normalizedName.includes(label));
 }
 
 function hasUserAssignedInstructor(course = {}) {
@@ -1966,11 +1995,10 @@ async function coursePdfResponse(request, url) {
   if (!packagePayload) {
     const staticPdf = await findStaticPdf({ code, program, name });
     if (staticPdf) return pdfResponseFromFile(request, staticPdf.file, staticPdf.info);
-    try {
-      info = await stat(target);
-    } catch {
-      info = null;
-    }
+    return new Response(null, {
+      status: 302,
+      headers: { Location: coursePackageFallback(url, { code, name, program }) },
+    });
   } else {
     try {
       info = await stat(target);
@@ -2186,10 +2214,192 @@ function invalidateCourseListCache() {
   courseListCache.clear();
 }
 
-function invalidateHomeStatsCache({ instructors = false } = {}) {
+function parseCourseListCacheKey(key) {
+  try {
+    return JSON.parse(key);
+  } catch {
+    return null;
+  }
+}
+
+function cacheFilterMatchesCourseScope(filterValue, courseValue) {
+  const normalizedFilter = normalizeScope(filterValue || "");
+  if (!normalizedFilter) return true;
+  return normalizedFilter === normalizeScope(courseValue || "");
+}
+
+function courseListCacheEntryMightContainCourse(filters = {}, course = {}, instructors = []) {
+  if (!cacheFilterMatchesCourseScope(filters.department, course.department || course.department_name)) return false;
+  if (!cacheFilterMatchesCourseScope(filters.programName, course.programName || course.program_name)) return false;
+  if (filters.level && levelKey(filters.level) !== levelKey(course.level || "")) return false;
+  if (filters.instructor && instructors.length) {
+    const requested = normalizePerson(filters.instructor);
+    const affectedInstructors = instructors.map((value) => normalizePerson(value)).filter(Boolean);
+    if (!affectedInstructors.some((value) => value === requested || value.includes(requested) || requested.includes(value))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function invalidateCourseListCacheForCourse(course = {}, { instructors = [] } = {}) {
+  if (!courseListCache.size) return 0;
+  let removed = 0;
+  for (const key of [...courseListCache.keys()]) {
+    const filters = parseCourseListCacheKey(key);
+    if (!filters || courseListCacheEntryMightContainCourse(filters, course, instructors)) {
+      courseListCache.delete(key);
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
+function courseListPayload(filters = {}, limit = 0) {
+  const courses = dbCourseList(filters);
+  return {
+    courses: limit ? courses.slice(0, limit) : courses,
+    total: courses.length,
+    source: "database",
+  };
+}
+
+function publicCourseListWarmupDepartments() {
+  const visibility = getPublicVisibilityMap();
+  const departments = new Map();
+  for (const row of db.prepare(`
+    SELECT department, program_name
+    FROM programs
+    WHERE COALESCE(TRIM(department), '') <> ''
+    ORDER BY department, program_name
+  `).all()) {
+    if (!isVisibilityKeyPublic(programVisibilityKeyFor(row), visibility)) continue;
+    const department = repairText(row.department || "").trim();
+    const key = normalizeScope(department);
+    if (key && !departments.has(key)) departments.set(key, department);
+  }
+  if (departments.size) return [...departments.values()];
+  return db.prepare(`
+    SELECT DISTINCT department
+    FROM courses
+    WHERE COALESCE(TRIM(department), '') <> ''
+    ORDER BY department
+  `).all()
+    .map((row) => repairText(row.department || "").trim())
+    .filter(Boolean);
+}
+
+function warmPublicCourseListCache(reason = "scheduled") {
+  if (courseListCacheTtlMs <= 0) return { warmed: 0, courses: 0 };
+  let warmed = 0;
+  let totalCourses = 0;
+  for (const department of publicCourseListWarmupDepartments()) {
+    const filters = { department, publicVisible: true };
+    const payload = courseListPayload(filters, 0);
+    writeCourseListCache(courseListCacheKey(filters, 0), payload);
+    warmed += 1;
+    totalCourses += payload.total;
+  }
+  console.log(`[dbp] Ders liste cache warmup (${reason}): ${warmed} ABD/ASD, ${totalCourses} ders.`);
+  return { warmed, courses: totalCourses };
+}
+
+function scheduleCourseListCacheWarmup(reason = "invalidate") {
+  if (courseListCacheTtlMs <= 0) return;
+  if (courseListWarmupTimer) clearTimeout(courseListWarmupTimer);
+  courseListWarmupTimer = setTimeout(() => {
+    courseListWarmupTimer = undefined;
+    try {
+      warmPublicCourseListCache(reason);
+    } catch (error) {
+      console.error(`[dbp] Ders liste cache warmup başarısız: ${error instanceof Error ? error.message : error}`);
+    }
+  }, courseListCacheWarmupDebounceMs);
+  courseListWarmupTimer.unref?.();
+}
+
+function nextCourseListCacheWarmupDate(now = new Date()) {
+  const next = new Date(now);
+  next.setHours(courseListCacheWarmupHour, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  return next;
+}
+
+function scheduleDailyCourseListCacheWarmup() {
+  if (courseListDailyWarmupTimer) clearTimeout(courseListDailyWarmupTimer);
+  if (courseListCacheTtlMs <= 0) return;
+  const next = nextCourseListCacheWarmupDate();
+  courseListDailyWarmupTimer = setTimeout(() => {
+    invalidateCourseListCache();
+    try {
+      warmPublicCourseListCache("daily");
+    } catch (error) {
+      console.error(`[dbp] Günlük ders liste cache warmup başarısız: ${error instanceof Error ? error.message : error}`);
+    } finally {
+      scheduleDailyCourseListCacheWarmup();
+    }
+  }, Math.max(1_000, next.getTime() - Date.now()));
+  courseListDailyWarmupTimer.unref?.();
+}
+
+function isHomeStatsCacheFresh() {
+  return Boolean(homeStatsCache) && homeStatsCacheTtlMs > 0 && Date.now() - homeStatsCacheCreatedAt <= homeStatsCacheTtlMs;
+}
+
+async function warmHomeStatsCache(reason = "scheduled") {
+  const payload = await homeStats();
+  if (homeStatsCacheTtlMs <= 0) return payload;
+  homeStatsCache = payload;
+  homeStatsCacheCreatedAt = Date.now();
+  console.log(`[dbp] Ana sayfa istatistik cache warmup (${reason}): ${homeStatsCache.totalCourses} ders, ${homeStatsCache.totalPrograms} program.`);
+  return homeStatsCache;
+}
+
+function scheduleHomeStatsCacheWarmup(reason = "invalidate") {
+  if (homeStatsCacheTtlMs <= 0) return;
+  if (homeStatsWarmupTimer) clearTimeout(homeStatsWarmupTimer);
+  homeStatsWarmupTimer = setTimeout(() => {
+    homeStatsWarmupTimer = undefined;
+    warmHomeStatsCache(reason).catch((error) => {
+      console.error(`[dbp] Ana sayfa istatistik cache warmup başarısız: ${error instanceof Error ? error.message : error}`);
+    });
+  }, homeStatsCacheWarmupDebounceMs);
+  homeStatsWarmupTimer.unref?.();
+}
+
+function nextHomeStatsCacheWarmupDate(now = new Date()) {
+  const next = new Date(now);
+  next.setHours(homeStatsCacheWarmupHour, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  return next;
+}
+
+function scheduleDailyHomeStatsCacheWarmup() {
+  if (homeStatsDailyWarmupTimer) clearTimeout(homeStatsDailyWarmupTimer);
+  if (homeStatsCacheTtlMs <= 0) return;
+  const next = nextHomeStatsCacheWarmupDate();
+  homeStatsDailyWarmupTimer = setTimeout(() => {
+    homeStatsCache = undefined;
+    homeStatsCacheCreatedAt = 0;
+    warmHomeStatsCache("daily")
+      .catch((error) => {
+        console.error(`[dbp] Günlük ana sayfa istatistik cache warmup başarısız: ${error instanceof Error ? error.message : error}`);
+      })
+      .finally(() => {
+        scheduleDailyHomeStatsCacheWarmup();
+      });
+  }, Math.max(1_000, next.getTime() - Date.now()));
+  homeStatsDailyWarmupTimer.unref?.();
+}
+
+function invalidateHomeStatsCache({ instructors = false, course = null, courseInstructors = [], warmCourseLists = false } = {}) {
   homeStatsCache = undefined;
+  homeStatsCacheCreatedAt = 0;
   publicCourseRouteIndexCache = undefined;
-  invalidateCourseListCache();
+  if (course) invalidateCourseListCacheForCourse(course, { instructors: courseInstructors });
+  else invalidateCourseListCache();
+  if (warmCourseLists) scheduleCourseListCacheWarmup();
+  scheduleHomeStatsCacheWarmup();
   if (instructors) {
     homeInstructorCountCache = undefined;
     homeInstructorCountRefresh = undefined;
@@ -2211,7 +2421,8 @@ async function refreshHomeInstructorCount() {
 }
 
 async function cachedHomeStats() {
-  if (!homeStatsCache) homeStatsCache = await homeStats();
+  if (homeStatsCacheTtlMs <= 0) return homeStats();
+  if (!isHomeStatsCacheFresh()) await warmHomeStatsCache("request");
   return homeStatsCache;
 }
 
@@ -7018,14 +7229,12 @@ function qualityStats(filters = {}, options = {}) {
     sdgLinks += sdgs.length;
     for (const id of sdgs) sdgCounts[id] += 1;
 
-    const normalizedName = normalizeScope(course.name || "");
-    const processCourse = ["danismanlik", "uzmanlik alan", "tez calismasi", "doktora tezi", "doktora yeterlik", "seminer"]
-      .some((label) => normalizedName.includes(label));
+    const processCourse = isCommonProcessCourse(course);
     const responsible = repairText(course.instructor || details.instructors || "").trim();
     const responsibleAssigned = isMeaningfulInstructorName(responsible);
     if (isPublicCourseStatus(course.status || "")) approvedCourses += 1;
     else unapprovedCourses += 1;
-    if (!responsibleAssigned || normalizeScope(course.status || "").includes("atama bekliyor")) awaitingAssignmentCourses += 1;
+    if (!processCourse && (!responsibleAssigned || normalizeScope(course.status || "").includes("atama bekliyor"))) awaitingAssignmentCourses += 1;
     if (processCourse) {
       processCourses += 1;
       if (responsibleAssigned) processResponsible += 1;
@@ -7254,8 +7463,16 @@ function publicThesisPublicationRows() {
   `).all();
 }
 
+function eEnstituInternalToken() {
+  return String(
+    process.env.DBP_SSO_SECRET ||
+    process.env.E_ENSTITU_API_TOKEN ||
+    defaultEEnstituInternalToken,
+  );
+}
+
 function internalDbpTokenIsValid(request) {
-  const expected = String(process.env.DBP_SSO_SECRET || process.env.E_ENSTITU_API_TOKEN || "");
+  const expected = eEnstituInternalToken();
   const supplied = String(request.headers.get("x-dbp-internal-token") || "");
   return Boolean(expected && supplied && expected === supplied);
 }
@@ -7353,7 +7570,7 @@ function thesisPortfolioPayload() {
 async function syncVerifiedEEnstituThesisPublications(actor = "e-enstitu-quarterly-sync") {
   if (eEnstituThesisPublicationSyncPromise) return eEnstituThesisPublicationSyncPromise;
   eEnstituThesisPublicationSyncPromise = (async () => {
-    const token = String(process.env.DBP_SSO_SECRET || process.env.E_ENSTITU_API_TOKEN || "");
+    const token = eEnstituInternalToken();
     if (!token) throw new Error("e-Enstitü dahili servis anahtarı tanımlı değil.");
     let payload;
     let lastError;
@@ -8029,8 +8246,10 @@ async function homeStats() {
   let fallCourses = 0;
   let springCourses = 0;
   let assignedCourses = 0;
+  let assignableCourses = 0;
 
   for (const course of courses) {
+    const processCourse = isCommonProcessCourse(course);
     const level = levelKey(course.level || "");
     const key = [course.department, course.programName, level].map(normalizeScope).join("|");
     if (!programKeys.has(key)) programKeys.set(key, level);
@@ -8043,10 +8262,12 @@ async function homeStats() {
     if (repairText(course.term || "").includes("Güz")) fallCourses += 1;
     if (repairText(course.term || "").includes("Bahar")) springCourses += 1;
     totalEcts += Number(course.ects || 0);
-    if (isMeaningfulInstructorName(course.instructor || "")) {
-      assignedCourses += 1;
+    if (!processCourse) assignableCourses += 1;
+    const assignedInstructor = isMeaningfulInstructorName(course.instructor || "");
+    if (assignedInstructor) {
       instructors.add(normalizeInstructorScope(course.instructor || ""));
     }
+    if (!processCourse && assignedInstructor && !normalizeScope(course.status || "").includes("atama bekliyor")) assignedCourses += 1;
   }
   const programLevels = [...programKeys.values()];
 
@@ -8064,8 +8285,8 @@ async function homeStats() {
     mainDepartments: visibleMainDepartmentCount() || departments.size,
     instructors: instructors.size,
     assignedCourses,
-    unassignedCourses: totalCourses - assignedCourses,
-    assignmentRate: percent(assignedCourses, totalCourses),
+    unassignedCourses: Math.max(assignableCourses - assignedCourses, 0),
+    assignmentRate: percent(assignedCourses, assignableCourses),
     compulsoryCourses,
     electiveCourses,
     fallCourses,
@@ -8935,12 +9156,7 @@ async function handleDbpApi(request) {
           },
         });
       }
-      const courses = dbCourseList(filters);
-      const payload = {
-        courses: limit ? courses.slice(0, limit) : courses,
-        total: courses.length,
-        source: "database",
-      };
+      const payload = courseListPayload(filters, limit);
       writeCourseListCache(cacheKey, payload);
       return jsonResponse(payload, {
         headers: {
@@ -9283,7 +9499,11 @@ async function handleDbpApi(request) {
           existing.id,
         );
         audit("course.assignment.update", actor, { code, department: body.department, programName: body.programName, level });
-        invalidateHomeStatsCache({ instructors: true });
+        invalidateHomeStatsCache({
+          instructors: true,
+          course: { ...existing, department: body.department, programName: body.programName, level, code, instructor: body.instructor || "" },
+          courseInstructors: [existing.instructor, body.instructor],
+        });
         queueQualitySnapshotRefresh("course.assignment.update");
         await refreshHomeInstructorCount();
         return jsonResponse({ ok: true, changed: result.changes });
@@ -9318,7 +9538,11 @@ async function handleDbpApi(request) {
         now,
       );
       audit("course.create", actor, { code, department: body.department, programName: body.programName, level });
-      invalidateHomeStatsCache({ instructors: true });
+      invalidateHomeStatsCache({
+        instructors: true,
+        course: { department: body.department, programName: body.programName, level, code, instructor: body.instructor || "" },
+        courseInstructors: [body.instructor],
+      });
       queueQualitySnapshotRefresh("course.create");
       await refreshHomeInstructorCount();
       return jsonResponse({ ok: true });
@@ -9519,7 +9743,7 @@ async function handleDbpApi(request) {
           actor,
         });
       }
-      invalidateHomeStatsCache();
+      invalidateHomeStatsCache({ course: { department: body.department || "", programName: body.programName || "", level, code: body.code } });
       queueQualitySnapshotRefresh("course.package.save");
       return jsonResponse({
         ok: true,
@@ -9565,7 +9789,7 @@ async function handleDbpApi(request) {
           actor: auth.session.name || auth.session.username || "dbp-admin",
         });
       }
-      invalidateHomeStatsCache();
+      invalidateHomeStatsCache({ course: { department: body.department || "", programName: body.programName || "", level: body.level || "", code: body.code || "" } });
       queueQualitySnapshotRefresh("course.package.status");
       return jsonResponse({ ok: true, status });
     }
@@ -9726,6 +9950,9 @@ async function handleDbpApi(request) {
     }
 
     if (pathname === "/api/dbp/admin/seed" && request.method === "POST") {
+      if (!seedReloadEnabled) {
+        return jsonResponse({ message: "Statik seed yeniden yükleme canlı imajda devre dışı." }, { status: 410 });
+      }
       await writeBackup(actor);
       seedInitialData(true);
       syncCourseCatalogFromSeed();
@@ -10008,7 +10235,10 @@ homeInstructorCountCache = {
   count: new Set(initialInstructorCatalog.instructors.map((item) => normalizeInstructorScope(item.name || "")).filter(Boolean)).size,
   source: initialInstructorCatalog.source,
 };
-homeStatsCache = await homeStats();
+await warmHomeStatsCache("startup");
+scheduleDailyHomeStatsCacheWarmup();
+warmPublicCourseListCache("startup");
+scheduleDailyCourseListCacheWarmup();
 await currentQualitySnapshot();
 scheduleQualityRefresh();
 studentStatisticsSnapshotCache = readStudentStatisticsSnapshot();

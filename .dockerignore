@@ -12,3 +12,7 @@ outputs
 tmp
 local-volume
 data/dbp.sqlite*
+data/courses
+local-preview
+seed/course-packages.json
+seed/program-profiles.json

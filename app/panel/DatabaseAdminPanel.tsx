@@ -193,15 +193,6 @@ export function DatabaseAdminPanel() {
       setResetConfirm("");
     });
 
-  const reseed = () =>
-    runAction("Mevcut ders verisi yeniden yuklendi.", async () => {
-      const response = await fetch(dbpPath("/api/dbp/admin/seed"), {
-        method: "POST",
-        headers: jsonHeaders(),
-      });
-      if (!response.ok) throw new Error("Baslangic verisi yuklenemedi.");
-    });
-
   const refreshQualityIndicators = () =>
     runAction("Kalite ve SKA göstergeleri canlı veriden yenilendi.", async () => {
       const response = await fetch(dbpPath("/api/dbp/admin/quality-refresh"), {
@@ -299,7 +290,6 @@ export function DatabaseAdminPanel() {
                 <small>Riskli işlemler öncesinde yedek alınır.</small>
               </header>
               <div className="database-actions">
-                <button onClick={reseed} disabled={busy}><RefreshCw size={15} /> Mevcut Veriyi Yeniden Yükle</button>
                 <button onClick={refreshQualityIndicators} disabled={busy}><RefreshCw size={15} /> Kalite ve SKA Göstergelerini Yenile</button>
               </div>
               <div className="database-quality-schedule">
