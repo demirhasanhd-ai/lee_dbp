@@ -4557,11 +4557,85 @@ function ensureCourseInstructorIdentityColumns() {
   `);
 }
 
+function sqliteTableExists(tableName) {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName));
+}
+
+function ensureSqliteColumns(tableName, columns) {
+  if (!sqliteTableExists(tableName)) return;
+  const existing = new Set(db.prepare(`PRAGMA table_info(${tableName})`).all().map((column) => column.name));
+  for (const [name, definition] of columns) {
+    if (!existing.has(name)) db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${name} ${definition}`);
+  }
+}
+
+function ensureThesisModuleColumns() {
+  ensureSqliteColumns("thesis_publications", [
+    ["thesis_identifier", "TEXT NOT NULL DEFAULT ''"],
+    ["thesis_title", "TEXT NOT NULL DEFAULT ''"],
+    ["thesis_cohort_year", "INTEGER NOT NULL DEFAULT 0"],
+    ["degree_type", "TEXT NOT NULL DEFAULT ''"],
+    ["department", "TEXT NOT NULL DEFAULT ''"],
+    ["publication_title", "TEXT NOT NULL DEFAULT ''"],
+    ["publication_year", "INTEGER NOT NULL DEFAULT 0"],
+    ["publication_type", "TEXT NOT NULL DEFAULT ''"],
+    ["doi", "TEXT NOT NULL DEFAULT ''"],
+    ["source", "TEXT NOT NULL DEFAULT ''"],
+    ["indexed_scopus", "INTEGER NOT NULL DEFAULT 0"],
+    ["indexed_trdizin", "INTEGER NOT NULL DEFAULT 0"],
+    ["indexed_wos", "INTEGER NOT NULL DEFAULT 0"],
+    ["quartile", "TEXT NOT NULL DEFAULT ''"],
+    ["sdg_json", "TEXT NOT NULL DEFAULT '[]'"],
+    ["funding_type", "TEXT NOT NULL DEFAULT 'unknown'"],
+    ["funding_detail", "TEXT NOT NULL DEFAULT ''"],
+    ["relation_status", "TEXT NOT NULL DEFAULT 'verified'"],
+    ["evidence_note", "TEXT NOT NULL DEFAULT ''"],
+    ["created_at", "TEXT NOT NULL DEFAULT ''"],
+    ["updated_at", "TEXT NOT NULL DEFAULT ''"],
+    ["updated_by", "TEXT NOT NULL DEFAULT ''"],
+  ]);
+  ensureSqliteColumns("thesis_academic_activities", [
+    ["thesis_identifier", "TEXT NOT NULL DEFAULT ''"],
+    ["thesis_cohort_year", "INTEGER NOT NULL DEFAULT 0"],
+    ["activity_code", "TEXT NOT NULL DEFAULT ''"],
+    ["activity_title", "TEXT NOT NULL DEFAULT ''"],
+    ["relation_type", "TEXT NOT NULL DEFAULT ''"],
+    ["base_score", "REAL NOT NULL DEFAULT 0"],
+    ["author_count", "INTEGER NOT NULL DEFAULT 1"],
+    ["author_position", "INTEGER NOT NULL DEFAULT 1"],
+    ["quantity", "REAL NOT NULL DEFAULT 1"],
+    ["apply_author_contribution", "INTEGER NOT NULL DEFAULT 1"],
+    ["contribution_coefficient", "REAL NOT NULL DEFAULT 1"],
+    ["calculated_score", "REAL NOT NULL DEFAULT 0"],
+    ["evidence_note", "TEXT NOT NULL DEFAULT ''"],
+    ["status", "TEXT NOT NULL DEFAULT 'under_review'"],
+    ["created_at", "TEXT NOT NULL DEFAULT ''"],
+    ["updated_at", "TEXT NOT NULL DEFAULT ''"],
+    ["updated_by", "TEXT NOT NULL DEFAULT ''"],
+  ]);
+  ensureSqliteColumns("thesis_jury_evaluations", [
+    ["thesis_identifier", "TEXT NOT NULL DEFAULT ''"],
+    ["thesis_cohort_year", "INTEGER NOT NULL DEFAULT 0"],
+    ["jury_name", "TEXT NOT NULL DEFAULT ''"],
+    ["jury_title", "TEXT NOT NULL DEFAULT ''"],
+    ["scores_json", "TEXT NOT NULL DEFAULT '{}'"],
+    ["rubric_score", "REAL NOT NULL DEFAULT 0"],
+    ["activity_score", "REAL NOT NULL DEFAULT 0"],
+    ["general_total", "REAL NOT NULL DEFAULT 0"],
+    ["evaluation_status", "TEXT NOT NULL DEFAULT 'draft'"],
+    ["evaluated_at", "TEXT"],
+    ["created_at", "TEXT NOT NULL DEFAULT ''"],
+    ["updated_at", "TEXT NOT NULL DEFAULT ''"],
+    ["updated_by", "TEXT NOT NULL DEFAULT ''"],
+  ]);
+}
+
 async function ensureDb() {
   if (db) return db;
   await mkdir(dataDir, { recursive: true });
   await mkdir(backupDir, { recursive: true });
   db = new DatabaseSync(dbPath);
+  ensureThesisModuleColumns();
   db.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA synchronous = NORMAL;
@@ -4814,6 +4888,7 @@ async function ensureDb() {
     CREATE INDEX IF NOT EXISTS idx_thesis_jury_thesis ON thesis_jury_evaluations(thesis_identifier, evaluation_status);
   `);
   ensureCourseInstructorIdentityColumns();
+  ensureThesisModuleColumns();
   seedInitialData();
   syncCourseCatalogFromSeed();
   migrateArkeolojiBes802PackageFromSeed();

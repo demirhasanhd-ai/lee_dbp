@@ -21,7 +21,7 @@ export const userRoles = sqliteTable("user_roles", {
 
 export const roleModuleAccess = sqliteTable("role_module_access", {
   role: text("role", { enum: ["akademisyen", "abd_asd_baskani", "abd_sekreteri", "lee_ogrenci_isleri", "enstitu_sekreteri", "enstitu_yoneticisi", "admin"] }).notNull(),
-  module: text("module", { enum: ["my_courses", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "view_stats_admin", "database_admin", "user_roles", "permission_matrix"] }).notNull(),
+  module: text("module", { enum: ["my_courses", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "thesis_evaluations", "thesis_awards", "view_stats_admin", "database_admin", "user_roles", "permission_matrix"] }).notNull(),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedBy: text("updated_by"),
