@@ -1569,6 +1569,60 @@ input {
   gap: 14px;
 }
 
+.committee-scope-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, .85fr) minmax(0, 1.15fr);
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.committee-scope-panel label,
+.committee-scope-panel article {
+  min-height: 78px;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.committee-scope-panel label {
+  display: grid;
+  gap: 8px;
+}
+
+.committee-scope-panel label span,
+.committee-scope-panel small {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.committee-scope-panel select {
+  width: 100%;
+  min-height: 39px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 11px;
+}
+
+.committee-scope-panel article {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.committee-scope-panel article svg {
+  color: var(--primary);
+}
+
+.committee-scope-panel b {
+  display: block;
+  font-size: 13px;
+}
+
 .committee-picker,
 .committee-list {
   border: 1px solid var(--border);
@@ -1810,6 +1864,10 @@ input {
 @media (max-width: 950px) {
   .review-filters,
   .committee-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .committee-scope-panel {
     grid-template-columns: 1fr;
   }
 

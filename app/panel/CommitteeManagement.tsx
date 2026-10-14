@@ -1,5 +1,5 @@
 "use client";
-import { Save, Trash2, UserPlus, Users } from "lucide-react";
+import { Building2, Save, Trash2, UserPlus, Users } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
@@ -29,6 +29,11 @@ type CommitteeMember = {
   email?: string;
 };
 
+type CommitteeScopeOption = {
+  department: string;
+  programName?: string;
+};
+
 const trustedInstructorSources = new Set(["e_enstitu_api", "e_enstitu_database", "dbp_course_catalog"]);
 const sameText = (left = "", right = "") =>
   left.trim().toLocaleLowerCase("tr-TR") === right.trim().toLocaleLowerCase("tr-TR");
@@ -37,13 +42,29 @@ export function CommitteeManagement({
   session,
   department,
   programName,
+  scopeOptions = [],
   onSave,
 }: {
   session: CommitteeSession;
   department: string;
   programName: string;
+  scopeOptions?: CommitteeScopeOption[];
   onSave: () => void;
 }) {
+  const committeeScopes = useMemo(() => {
+    const byDepartment = new Map<string, CommitteeScopeOption>();
+    for (const option of [{ department, programName }, ...scopeOptions]) {
+      const scopeDepartment = option.department?.trim();
+      if (!scopeDepartment) continue;
+      const key = scopeDepartment.toLocaleLowerCase("tr-TR");
+      if (!byDepartment.has(key)) byDepartment.set(key, {
+        department: scopeDepartment,
+        programName: option.programName?.trim() || scopeDepartment,
+      });
+    }
+    return [...byDepartment.values()].sort((left, right) => left.department.localeCompare(right.department, "tr"));
+  }, [department, programName, scopeOptions]);
+  const [selectedDepartment, setSelectedDepartment] = useState(department);
   const [members, setMembers] = useState<CommitteeMember[]>([]);
   const [selectedInstructorName, setSelectedInstructorName] = useState("");
   const [message, setMessage] = useState("");
@@ -51,11 +72,23 @@ export function CommitteeManagement({
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
   const [instructorsBusy, setInstructorsBusy] = useState(false);
   const instructorListId = useId();
+  const selectedScope = committeeScopes.find((item) => sameText(item.department, selectedDepartment)) ?? committeeScopes[0];
+  const targetDepartment = selectedScope?.department || selectedDepartment || department;
+  const targetProgramName = selectedScope?.programName || programName || targetDepartment;
+  const canSelectScope = session.role === "admin" && committeeScopes.length > 1;
+
+  useEffect(() => {
+    setSelectedDepartment((current) => {
+      if (committeeScopes.some((item) => sameText(item.department, current))) return current;
+      return committeeScopes[0]?.department || department;
+    });
+  }, [committeeScopes, department]);
 
   useEffect(() => {
     const controller = new AbortController();
     setMessage("");
-    fetch(dbpPath(`/api/dbp/committee?department=${encodeURIComponent(department)}`), {
+    setMembers([]);
+    fetch(dbpPath(`/api/dbp/committee?department=${encodeURIComponent(targetDepartment)}`), {
       headers: { "X-DBP-Session": dbpSessionHeader(session) },
       signal: controller.signal,
     })
@@ -68,13 +101,14 @@ export function CommitteeManagement({
         if (!controller.signal.aborted) setMessage(error instanceof Error ? error.message : "Komisyon listesi alınamadı.");
       });
     return () => controller.abort();
-  }, [department, session.username, session.role, session.department]);
+  }, [targetDepartment, session.username, session.role, session.department]);
 
   useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams();
-    if (department) params.set("department", department);
-    if (programName) params.set("programName", programName);
+    if (targetDepartment) params.set("department", targetDepartment);
+    if (targetProgramName) params.set("programName", targetProgramName);
+    setSelectedInstructorName("");
     setInstructorsBusy(true);
     fetch(dbpPath(`/api/dbp/instructors?${params.toString()}`), {
       headers: { "X-DBP-Session": dbpSessionHeader(session) },
@@ -101,7 +135,7 @@ export function CommitteeManagement({
         if (!controller.signal.aborted) setInstructorsBusy(false);
       });
     return () => controller.abort();
-  }, [department, programName, session]);
+  }, [targetDepartment, targetProgramName, session]);
 
   const selectableInstructors = useMemo(() => {
     return instructors.filter((item) => item.name && !members.some((member) => sameText(member.name, item.name)));
@@ -135,7 +169,7 @@ export function CommitteeManagement({
           "Content-Type": "application/json",
           "X-DBP-Session": dbpSessionHeader(session),
         },
-        body: JSON.stringify({ department, programName, members }),
+        body: JSON.stringify({ department: targetDepartment, programName: targetProgramName, members }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || "Komisyon kaydedilemedi.");
@@ -154,7 +188,7 @@ export function CommitteeManagement({
       <div className="panel-intro">
         <div>
           <h2>Ders Bilgi Paketi Komisyonu</h2>
-          <p>{department} kapsamındaki ders güncelleme talepleri önce bu komisyonun önüne düşer.</p>
+          <p>{targetDepartment} kapsamındaki ders güncelleme talepleri önce bu komisyonun önüne düşer.</p>
         </div>
         <button className="primary-action" type="button" onClick={saveMembers} disabled={busy}>
           <Save size={14} />
@@ -162,6 +196,29 @@ export function CommitteeManagement({
         </button>
       </div>
       {message && <div className="database-message">{message}</div>}
+      <section className="committee-scope-panel">
+        <label>
+          <span>ABD / ASD seçimi</span>
+          <select
+            value={targetDepartment}
+            onChange={(event) => setSelectedDepartment(event.currentTarget.value)}
+            disabled={!canSelectScope}
+          >
+            {committeeScopes.map((item) => (
+              <option key={item.department} value={item.department}>
+                {item.department}
+              </option>
+            ))}
+          </select>
+        </label>
+        <article>
+          <Building2 size={18} />
+          <div>
+            <b>{members.length > 0 ? "Komisyon mevcut" : "Komisyon tanımlı değil"}</b>
+            <small>{members.length > 0 ? `${members.length} üye kayıtlı` : "Bu ABD / ASD için henüz üye kaydı yok"}</small>
+          </div>
+        </article>
+      </section>
       <div className="committee-grid">
         <section className="committee-picker">
           <header>

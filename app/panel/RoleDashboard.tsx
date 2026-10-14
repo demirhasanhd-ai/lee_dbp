@@ -653,6 +653,18 @@ export function RoleDashboard() {
   const committeeProgram = activeProfileProgram ?? scopedPrograms[0] ?? null;
   const committeeDepartment = committeeProgram?.department ?? session.department;
   const committeeProgramName = committeeProgram?.programName ?? session.department;
+  const committeeScopeOptions = (() => {
+    const byDepartment = new Map<string, { department: string; programName: string }>();
+    for (const program of scopedPrograms) {
+      const key = normalizeProgramScope(program.department);
+      if (!key || byDepartment.has(key)) continue;
+      byDepartment.set(key, {
+        department: program.department,
+        programName: program.programName,
+      });
+    }
+    return [...byDepartment.values()];
+  })();
   const allReviewCourses = selectedProgram
     ? activeCourses
     : session.role === "abd_asd_baskani"
@@ -1124,6 +1136,7 @@ export function RoleDashboard() {
             session={session}
             department={committeeDepartment}
             programName={committeeProgramName}
+            scopeOptions={committeeScopeOptions}
             onSave={save}
           />
         )}

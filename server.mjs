@@ -7584,7 +7584,7 @@ function refreshAutomaticThesisPublicationMatches(actor = "automatic-thesis-matc
   ].join("|");
   // Versioned so matcher rule changes are applied once after deployment even
   // when the underlying DSpace/Scopus/TR Dizin snapshots did not change.
-  const revisionKey = "thesis_publication_match_revision_v6_candidate_dashboard_enrichment";
+  const revisionKey = "thesis_publication_match_revision_v7_student_candidate_review";
   const previousRevision = db.prepare("SELECT value FROM metadata WHERE key = ?").get(revisionKey)?.value || "";
   const automaticCount = Number(db.prepare("SELECT COUNT(*) AS count FROM thesis_publications WHERE updated_by = 'automatic-thesis-match'").get()?.count || 0);
   if (revision && revision === previousRevision && automaticCount > 0) {

@@ -66,20 +66,66 @@ test("matches the explicitly verified Fatma Gültepe and Fatma Yılmaz identity"
   assert.equal(matches[0].relationStatus, "suggested");
 });
 
-test("does not infer a changed surname without strong topic evidence", () => {
+test("keeps low-topic student publications as advisor-review candidates", () => {
   const matches = matchThesisPublications({
     theses: [{
-      identifier: "thesis-unrelated",
+      identifier: "thesis-ugur-acar-low-topic",
+      publicationYear: 2023,
+      title: "Net sıfır enerjili binaların Türkiye iklim koşullarında uygulanabilirliğinin araştırılması",
+      authors: ["Acar, Uğur"],
+      advisors: ["Kaşka, Önder"],
+    }],
+    scopus: [{
+      id: "publication-building-envelope",
+      title: "Multi-objective optimization of building envelope components at the preliminary design stage for residential buildings in Turkey",
+      year: 2021,
+      authors: [{ name: "Acar U." }, { name: "Kaska O." }, { name: "Tokgoz N." }],
+      affiliations: okuAffiliation,
+    }],
+  });
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].relationStatus, "suggested");
+  assert.match(matches[0].evidenceNote, /otomatik konu analizi yeterli sinyal üretmedi/u);
+});
+
+test("keeps student-only publications as advisor-review candidates", () => {
+  const matches = matchThesisPublications({
+    theses: [{
+      identifier: "thesis-student-only",
+      publicationYear: 2024,
+      title: "Yerel yönetimlerde dijital dönüşüm uygulamaları",
+      authors: ["Yılmaz, Ayşe"],
+      advisors: ["Demir, Mehmet"],
+    }],
+    scopus: [{
+      id: "publication-student-only",
+      title: "A policy note from municipal practice",
+      year: 2025,
+      authors: [{ name: "Ayşe Yılmaz" }],
+      affiliations: [],
+    }],
+  });
+
+  assert.equal(matches.length, 1);
+  assert.match(matches[0].evidenceNote, /danışman ortak yazarlığı otomatik bulunamadı/u);
+  assert.match(matches[0].evidenceNote, /OKÜ adresi açıkça görülemedi/u);
+});
+
+test("does not create candidates when the thesis student is absent", () => {
+  const matches = matchThesisPublications({
+    theses: [{
+      identifier: "thesis-missing-student",
       publicationYear: 2023,
       title: "Salamura kapari meyvelerinin kurutulması",
       authors: ["Gültepe, Fatma"],
       advisors: ["Demir, Hande"],
     }],
     scopus: [{
-      id: "publication-unrelated",
-      title: "A completely unrelated study on building materials",
+      id: "publication-with-advisor-only",
+      title: "Optimization of caper drying",
       year: 2024,
-      authors: [{ name: "Fatma Yılmaz" }, { name: "Hande Demir" }],
+      authors: [{ name: "Hande Demir" }],
       affiliations: okuAffiliation,
     }],
   });

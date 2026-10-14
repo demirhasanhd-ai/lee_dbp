@@ -201,7 +201,7 @@ test("tez faaliyet katsayısı ve EK-2 rubrik sınırları doğru hesaplanır", 
   assert.equal(dashboard.summary.doctorates, 2);
 });
 
-test("otomatik tez-yayın eşleştirmesi OKÜ adresi, ortak yazarlık ve konu uyumunu birlikte arar", async () => {
+test("otomatik tez-yayın eşleştirmesi öğrenciyi temel aday sinyali olarak kullanır", async () => {
   const { matchThesisPublications, scientificFieldForDepartment } = await import(new URL("../lib/thesisPublicationMatcher.mjs", import.meta.url));
   const thesis = {
     identifier: "tez-1",
@@ -223,8 +223,9 @@ test("otomatik tez-yayın eşleştirmesi OKÜ adresi, ortak yazarlık ve konu uy
     source: "Example Journal",
   };
   assert.equal(matchThesisPublications({ theses: [thesis], scopus: [publication] }).length, 1);
-  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [{ ...publication, affiliations: [] }] }).length, 0);
-  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [{ ...publication, authors: [{ name: "Türker C." }] }] }).length, 0);
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [{ ...publication, affiliations: [] }] }).length, 1);
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [{ ...publication, authors: [{ name: "Türker C." }] }] }).length, 1);
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [{ ...publication, authors: [{ name: "Özcan B.D." }] }] }).length, 0);
   assert.equal(scientificFieldForDepartment("Lisansüstü Eğitim Enstitüsü, Biyoloji Ana Bilim Dalı"), "Fen Bilimleri");
 });
 
@@ -443,6 +444,7 @@ test("DBP commission workflow exposes management, review stages and homepage sho
   assert.match(access, /enstitu_sekreteri: \["my_courses", "program_profile", "review_queue", "quality_reports"\]/u);
   assert.match(dashboard, /CommitteeManagement/u);
   assert.match(dashboard, /committee\/memberships/u);
+  assert.match(dashboard, /scopeOptions=\{committeeScopeOptions\}/u);
   assert.match(review, /Onay bekleyenler/u);
   assert.match(review, /Onaylananlar/u);
   assert.match(review, /expectedStatus: course\.status/u);
@@ -460,6 +462,9 @@ test("DBP commission workflow exposes management, review stages and homepage sho
   assert.match(editor, /committeeSkipped/u);
   assert.match(editor, /Atlandı/u);
   assert.match(committee, /api\/dbp\/instructors/u);
+  assert.match(committee, /ABD \/ ASD seçimi/u);
+  assert.match(committee, /Komisyon mevcut/u);
+  assert.match(committee, /Komisyon tanımlı değil/u);
   assert.match(committee, /trustedInstructorSources/u);
   assert.match(committee, /Komisyonu Kaydet/u);
   assert.match(home, /Kalite Göstergeleri/u);
