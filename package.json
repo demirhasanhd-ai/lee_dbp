@@ -1,6 +1,6 @@
 {
   "name": "lee_dbp",
-  "version": "1.71",
+  "version": "1.72",
   "private": true,
   "engines": {
     "node": ">=24.0.0"
