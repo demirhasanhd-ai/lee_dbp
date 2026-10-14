@@ -16,6 +16,7 @@ test("matches a 2023 doctoral thesis with the student and advisor as publication
       advisors: ["Kaşka, Önder"],
       department: "Makine Mühendisliği Ana Bilim Dalı",
       degreeType: "Doctoral Thesis",
+      sdg: [{ id: "7" }],
     }],
     scopus: [{
       id: "publication-1",
@@ -24,11 +25,17 @@ test("matches a 2023 doctoral thesis with the student and advisor as publication
       authors: [{ name: "Uğur Acar" }, { name: "Önder Kaşka" }],
       affiliations: okuAffiliation,
       source: "Journal of Building Engineering",
+      citedByCount: 12,
+      sdgs: [{ id: "9" }],
     }],
   });
 
   assert.equal(matches.length, 1);
   assert.equal(matches[0].thesisIdentifier, "thesis-ugur-acar");
+  assert.equal(matches[0].relationStatus, "suggested");
+  assert.deepEqual(matches[0].authors, ["Uğur Acar", "Önder Kaşka"]);
+  assert.equal(matches[0].citationCount, 12);
+  assert.deepEqual(matches[0].sdgs, ["7", "9"]);
 });
 
 test("matches the explicitly verified Fatma Gültepe and Fatma Yılmaz identity", () => {
@@ -56,6 +63,7 @@ test("matches the explicitly verified Fatma Gültepe and Fatma Yılmaz identity"
 
   assert.equal(matches.length, 1);
   assert.equal(matches[0].thesisIdentifier, "thesis-fatma-gultepe");
+  assert.equal(matches[0].relationStatus, "suggested");
 });
 
 test("does not infer a changed surname without strong topic evidence", () => {

@@ -96,6 +96,9 @@
   --chart-4: #5b6ee1;
   --chart-5: #a855b7;
   --chart-6: #8c4a2f;
+  --thesis-series-master: oklch(0.66 0.19 255);
+  --thesis-series-doctorate: oklch(0.70 0.17 148);
+  --thesis-quartile-four: oklch(0.80 0.16 88);
   --font-sans: "Noto Sans Local", system-ui, sans-serif;
 }
 @theme inline {
@@ -116,6 +119,9 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
   --color-chart-6: var(--chart-6);
+  --color-thesis-series-master: var(--thesis-series-master);
+  --color-thesis-series-doctorate: var(--thesis-series-doctorate);
+  --color-thesis-quartile-four: var(--thesis-quartile-four);
   --font-sans: var(--font-sans);
 }
 * {
