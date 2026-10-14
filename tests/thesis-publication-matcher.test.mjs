@@ -5,15 +5,15 @@ import { matchThesisPublications } from "../lib/thesisPublicationMatcher.mjs";
 
 const okuAffiliation = [{ id: "60088374", name: "Osmaniye Korkut Ata University" }];
 
-test("matches a 2023 doctoral thesis with the student and advisor as publication authors", () => {
+test("matches a 2023 doctoral thesis with accent-insensitive student and advisor names", () => {
   const matches = matchThesisPublications({
     theses: [{
       identifier: "thesis-ugur-acar",
       publicationYear: 2023,
       title: "Net sıfır enerjili binaların Türkiye iklim koşullarında uygulanabilirliğinin araştırılması",
       alternativeTitle: "Investigation of net zero energy buildings under Türkiye climate conditions",
-      authors: ["Acar, Uğur"],
-      advisors: ["Kaşka, Önder"],
+      authors: ["Acar, Ugur"],
+      advisors: ["Kaska, Onder"],
       department: "Makine Mühendisliği Ana Bilim Dalı",
       degreeType: "Doctoral Thesis",
       sdg: [{ id: "7" }],
