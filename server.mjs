@@ -65,13 +65,9 @@ const localPreviewSeedFile = path.join(__dirname, "local-preview", "program-data
 const seedFile = process.env.DBP_SEED_FILE || (existsSync(bundledSeedFile) ? bundledSeedFile : localPreviewSeedFile);
 const programProfilesSeedFile = process.env.DBP_PROGRAM_PROFILES_SEED_FILE || path.join(__dirname, "seed", "program-profiles.json");
 const coursePackagesSeedFile = process.env.DBP_COURSE_PACKAGES_SEED_FILE || path.join(__dirname, "seed", "course-packages.json");
-const courseListCacheTtlMs = nonNegativeNumber(process.env.DBP_COURSE_LIST_CACHE_TTL_MS, 24 * 60 * 60 * 1000);
-const courseListCacheMaxEntries = Math.max(1, nonNegativeNumber(process.env.DBP_COURSE_LIST_CACHE_MAX_ENTRIES, 500));
-const courseListCacheWarmupDebounceMs = nonNegativeNumber(process.env.DBP_COURSE_LIST_CACHE_WARMUP_DEBOUNCE_MS, 30_000);
-const courseListCacheWarmupHour = Math.min(23, Math.floor(nonNegativeNumber(process.env.DBP_COURSE_LIST_CACHE_WARMUP_HOUR, 3)));
 const homeStatsCacheTtlMs = nonNegativeNumber(process.env.DBP_HOME_STATS_CACHE_TTL_MS, 24 * 60 * 60 * 1000);
-const homeStatsCacheWarmupDebounceMs = nonNegativeNumber(process.env.DBP_HOME_STATS_CACHE_WARMUP_DEBOUNCE_MS, courseListCacheWarmupDebounceMs);
-const homeStatsCacheWarmupHour = Math.min(23, Math.floor(nonNegativeNumber(process.env.DBP_HOME_STATS_CACHE_WARMUP_HOUR, courseListCacheWarmupHour)));
+const homeStatsCacheWarmupDebounceMs = nonNegativeNumber(process.env.DBP_HOME_STATS_CACHE_WARMUP_DEBOUNCE_MS, 30_000);
+const homeStatsCacheWarmupHour = Math.min(23, Math.floor(nonNegativeNumber(process.env.DBP_HOME_STATS_CACHE_WARMUP_HOUR, 3)));
 const seedReloadEnabled = process.env.DBP_ENABLE_SEED_RELOAD === "true";
 const publicRouteAliases = JSON.parse(readFileSync(path.join(__dirname, "lib", "data", "public-route-aliases.json"), "utf8"));
 const publicRouteLevels = {
@@ -114,9 +110,6 @@ let homeStatsCacheCreatedAt = 0;
 let homeStatsWarmupTimer;
 let homeStatsDailyWarmupTimer;
 let publicCourseRouteIndexCache;
-let courseListCache = new Map();
-let courseListWarmupTimer;
-let courseListDailyWarmupTimer;
 let qualitySnapshotCache;
 let qualitySnapshotRefreshPromise;
 let qualityRefreshTimer;
@@ -2169,92 +2162,6 @@ async function loadEEnstituInstructorCount() {
   }
 }
 
-function currentHomeInstructorCount() {
-  if (!homeInstructorCountCache) homeInstructorCountCache = loadCourseCatalogInstructorCount();
-  return homeInstructorCountCache;
-}
-
-function normalizeCourseListCacheText(value) {
-  return repairText(String(value || "")).trim();
-}
-
-function courseListCacheKey(filters = {}, limit = 0) {
-  return JSON.stringify({
-    q: normalizeCourseListCacheText(filters.q),
-    department: normalizeCourseListCacheText(filters.department),
-    programName: normalizeCourseListCacheText(filters.programName),
-    level: normalizeCourseListCacheText(filters.level),
-    instructor: normalizeCourseListCacheText(filters.instructor),
-    publicVisible: Boolean(filters.publicVisible),
-    limit: Math.max(0, Number(limit || 0)),
-  });
-}
-
-function readCourseListCache(key) {
-  if (courseListCacheTtlMs <= 0) return null;
-  const cached = courseListCache.get(key);
-  if (!cached) return null;
-  if (Date.now() - cached.createdAt > courseListCacheTtlMs) {
-    courseListCache.delete(key);
-    return null;
-  }
-  return cached.payload;
-}
-
-function writeCourseListCache(key, payload) {
-  if (courseListCacheTtlMs <= 0) return;
-  if (!courseListCache.has(key) && courseListCache.size >= courseListCacheMaxEntries) {
-    const oldestKey = courseListCache.keys().next().value;
-    if (oldestKey) courseListCache.delete(oldestKey);
-  }
-  courseListCache.set(key, { createdAt: Date.now(), payload });
-}
-
-function invalidateCourseListCache() {
-  courseListCache.clear();
-}
-
-function parseCourseListCacheKey(key) {
-  try {
-    return JSON.parse(key);
-  } catch {
-    return null;
-  }
-}
-
-function cacheFilterMatchesCourseScope(filterValue, courseValue) {
-  const normalizedFilter = normalizeScope(filterValue || "");
-  if (!normalizedFilter) return true;
-  return normalizedFilter === normalizeScope(courseValue || "");
-}
-
-function courseListCacheEntryMightContainCourse(filters = {}, course = {}, instructors = []) {
-  if (!cacheFilterMatchesCourseScope(filters.department, course.department || course.department_name)) return false;
-  if (!cacheFilterMatchesCourseScope(filters.programName, course.programName || course.program_name)) return false;
-  if (filters.level && levelKey(filters.level) !== levelKey(course.level || "")) return false;
-  if (filters.instructor && instructors.length) {
-    const requested = normalizePerson(filters.instructor);
-    const affectedInstructors = instructors.map((value) => normalizePerson(value)).filter(Boolean);
-    if (!affectedInstructors.some((value) => value === requested || value.includes(requested) || requested.includes(value))) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function invalidateCourseListCacheForCourse(course = {}, { instructors = [] } = {}) {
-  if (!courseListCache.size) return 0;
-  let removed = 0;
-  for (const key of [...courseListCache.keys()]) {
-    const filters = parseCourseListCacheKey(key);
-    if (!filters || courseListCacheEntryMightContainCourse(filters, course, instructors)) {
-      courseListCache.delete(key);
-      removed += 1;
-    }
-  }
-  return removed;
-}
-
 function courseListPayload(filters = {}, limit = 0) {
   const courses = dbCourseList(filters);
   return {
@@ -2262,84 +2169,6 @@ function courseListPayload(filters = {}, limit = 0) {
     total: courses.length,
     source: "database",
   };
-}
-
-function publicCourseListWarmupDepartments() {
-  const visibility = getPublicVisibilityMap();
-  const departments = new Map();
-  for (const row of db.prepare(`
-    SELECT department, program_name
-    FROM programs
-    WHERE COALESCE(TRIM(department), '') <> ''
-    ORDER BY department, program_name
-  `).all()) {
-    if (!isVisibilityKeyPublic(programVisibilityKeyFor(row), visibility)) continue;
-    const department = repairText(row.department || "").trim();
-    const key = normalizeScope(department);
-    if (key && !departments.has(key)) departments.set(key, department);
-  }
-  if (departments.size) return [...departments.values()];
-  return db.prepare(`
-    SELECT DISTINCT department
-    FROM courses
-    WHERE COALESCE(TRIM(department), '') <> ''
-    ORDER BY department
-  `).all()
-    .map((row) => repairText(row.department || "").trim())
-    .filter(Boolean);
-}
-
-function warmPublicCourseListCache(reason = "scheduled") {
-  if (courseListCacheTtlMs <= 0) return { warmed: 0, courses: 0 };
-  let warmed = 0;
-  let totalCourses = 0;
-  for (const department of publicCourseListWarmupDepartments()) {
-    const filters = { department, publicVisible: true };
-    const payload = courseListPayload(filters, 0);
-    writeCourseListCache(courseListCacheKey(filters, 0), payload);
-    warmed += 1;
-    totalCourses += payload.total;
-  }
-  console.log(`[dbp] Ders liste cache warmup (${reason}): ${warmed} ABD/ASD, ${totalCourses} ders.`);
-  return { warmed, courses: totalCourses };
-}
-
-function scheduleCourseListCacheWarmup(reason = "invalidate") {
-  if (courseListCacheTtlMs <= 0) return;
-  if (courseListWarmupTimer) clearTimeout(courseListWarmupTimer);
-  courseListWarmupTimer = setTimeout(() => {
-    courseListWarmupTimer = undefined;
-    try {
-      warmPublicCourseListCache(reason);
-    } catch (error) {
-      console.error(`[dbp] Ders liste cache warmup başarısız: ${error instanceof Error ? error.message : error}`);
-    }
-  }, courseListCacheWarmupDebounceMs);
-  courseListWarmupTimer.unref?.();
-}
-
-function nextCourseListCacheWarmupDate(now = new Date()) {
-  const next = new Date(now);
-  next.setHours(courseListCacheWarmupHour, 0, 0, 0);
-  if (next <= now) next.setDate(next.getDate() + 1);
-  return next;
-}
-
-function scheduleDailyCourseListCacheWarmup() {
-  if (courseListDailyWarmupTimer) clearTimeout(courseListDailyWarmupTimer);
-  if (courseListCacheTtlMs <= 0) return;
-  const next = nextCourseListCacheWarmupDate();
-  courseListDailyWarmupTimer = setTimeout(() => {
-    invalidateCourseListCache();
-    try {
-      warmPublicCourseListCache("daily");
-    } catch (error) {
-      console.error(`[dbp] Günlük ders liste cache warmup başarısız: ${error instanceof Error ? error.message : error}`);
-    } finally {
-      scheduleDailyCourseListCacheWarmup();
-    }
-  }, Math.max(1_000, next.getTime() - Date.now()));
-  courseListDailyWarmupTimer.unref?.();
 }
 
 function isHomeStatsCacheFresh() {
@@ -2392,13 +2221,9 @@ function scheduleDailyHomeStatsCacheWarmup() {
   homeStatsDailyWarmupTimer.unref?.();
 }
 
-function invalidateHomeStatsCache({ instructors = false, course = null, courseInstructors = [], warmCourseLists = false } = {}) {
+function invalidateHomeStatsCache({ instructors = false } = {}) {
   homeStatsCache = undefined;
   homeStatsCacheCreatedAt = 0;
-  publicCourseRouteIndexCache = undefined;
-  if (course) invalidateCourseListCacheForCourse(course, { instructors: courseInstructors });
-  else invalidateCourseListCache();
-  if (warmCourseLists) scheduleCourseListCacheWarmup();
   scheduleHomeStatsCacheWarmup();
   if (instructors) {
     homeInstructorCountCache = undefined;
@@ -7535,6 +7360,20 @@ function internalDbpTokenIsValid(request) {
   return Boolean(expected && supplied && expected === supplied);
 }
 
+function eEnstituVerificationStatus(status) {
+  if (status === "verified" || status === "institute_verified") return "institute_verified";
+  if (status === "advisor_confirmed") return "advisor_confirmed";
+  if (status === "rejected") return "rejected";
+  return "suggested";
+}
+
+function dbpRelationStatus(status) {
+  if (status === "institute_verified") return "verified";
+  if (status === "advisor_confirmed") return "advisor_confirmed";
+  if (status === "rejected") return "rejected";
+  return "suggested";
+}
+
 function thesisPublicationCandidatePayload() {
   const thesisByIdentifier = new Map(
     allThesisRecords()
@@ -7576,7 +7415,7 @@ function thesisPublicationCandidatePayload() {
         evidenceNote: row.evidence_note || "",
         sourceUpdatedAt: row.updated_at || "",
         dbpPublicationId: Number(row.id),
-        verificationStatus: row.relation_status === "verified" ? "institute_verified" : (row.relation_status || "suggested"),
+        verificationStatus: eEnstituVerificationStatus(row.relation_status),
       };
     }),
   };
@@ -7611,7 +7450,7 @@ function thesisPortfolioPayload() {
       evidenceNote: row.evidence_note || "",
       sourceUpdatedAt: row.updated_at || "",
       dbpPublicationId: Number(row.id),
-      verificationStatus: row.relation_status === "verified" ? "institute_verified" : (row.relation_status || "suggested"),
+      verificationStatus: eEnstituVerificationStatus(row.relation_status),
     });
     publicationsByThesis.set(row.thesis_identifier, bucket);
   }
@@ -7653,12 +7492,13 @@ function updateInternalThesisPublicationStatus(id, body = {}) {
   if (!existing) throw Object.assign(new Error("LEE_DBP yayın adayı bulunamadı."), { statusCode: 404 });
   const now = new Date().toISOString();
   const actor = internalWorkflowActor(body);
+  const relationStatus = dbpRelationStatus(status);
   db.prepare(`UPDATE thesis_publications
     SET relation_status = ?, evidence_note = CASE WHEN ? <> '' THEN ? ELSE evidence_note END,
         updated_at = ?, updated_by = ?
-    WHERE id = ?`).run(status, repairText(body.note), repairText(body.note), now, actor, publicationId);
-  audit("thesis.publication.advisor-decision", actor, { id: publicationId, thesisIdentifier: existing.thesis_identifier, status });
-  return { ok: true, id: publicationId, status, updatedAt: now };
+    WHERE id = ?`).run(relationStatus, repairText(body.note), repairText(body.note), now, actor, publicationId);
+  audit("thesis.publication.advisor-decision", actor, { id: publicationId, thesisIdentifier: existing.thesis_identifier, status, relationStatus });
+  return { ok: true, id: publicationId, status, relationStatus, updatedAt: now };
 }
 
 function createInternalManualThesis(body = {}) {
@@ -9243,22 +9083,11 @@ async function handleDbpApi(request) {
         publicVisible: ["1", "true"].includes((url.searchParams.get("publicVisible") || "").toLocaleLowerCase("tr-TR")),
       };
       const limit = Math.max(0, Number(url.searchParams.get("limit") || 0));
-      const cacheKey = courseListCacheKey(filters, limit);
-      const cachedPayload = readCourseListCache(cacheKey);
-      if (cachedPayload) {
-        return jsonResponse(cachedPayload, {
-          headers: {
-            "Cache-Control": "private, max-age=0, must-revalidate",
-            "X-DBP-Course-List-Cache": "HIT",
-          },
-        });
-      }
       const payload = courseListPayload(filters, limit);
-      writeCourseListCache(cacheKey, payload);
       return jsonResponse(payload, {
         headers: {
-          "Cache-Control": "private, max-age=0, must-revalidate",
-          "X-DBP-Course-List-Cache": "MISS",
+          "Cache-Control": "no-store",
+          "X-DBP-Course-List-Cache": "BYPASS",
         },
       });
     }
@@ -9619,11 +9448,7 @@ async function handleDbpApi(request) {
           existing.id,
         );
         audit("course.assignment.update", actor, { code, department: body.department, programName: body.programName, level });
-        invalidateHomeStatsCache({
-          instructors: true,
-          course: { ...existing, department: body.department, programName: body.programName, level, code, instructor: body.instructor || "" },
-          courseInstructors: [existing.instructor, body.instructor],
-        });
+        invalidateHomeStatsCache({ instructors: true });
         queueQualitySnapshotRefresh("course.assignment.update");
         await refreshHomeInstructorCount();
         return jsonResponse({ ok: true, changed: result.changes });
@@ -9658,11 +9483,7 @@ async function handleDbpApi(request) {
         now,
       );
       audit("course.create", actor, { code, department: body.department, programName: body.programName, level });
-      invalidateHomeStatsCache({
-        instructors: true,
-        course: { department: body.department, programName: body.programName, level, code, instructor: body.instructor || "" },
-        courseInstructors: [body.instructor],
-      });
+      invalidateHomeStatsCache({ instructors: true });
       queueQualitySnapshotRefresh("course.create");
       await refreshHomeInstructorCount();
       return jsonResponse({ ok: true });
@@ -9863,7 +9684,8 @@ async function handleDbpApi(request) {
           actor,
         });
       }
-      invalidateHomeStatsCache({ course: { department: body.department || "", programName: body.programName || "", level, code: body.code } });
+      publicCourseRouteIndexCache = undefined;
+      invalidateHomeStatsCache();
       queueQualitySnapshotRefresh("course.package.save");
       return jsonResponse({
         ok: true,
@@ -9909,7 +9731,8 @@ async function handleDbpApi(request) {
           actor: auth.session.name || auth.session.username || "dbp-admin",
         });
       }
-      invalidateHomeStatsCache({ course: { department: body.department || "", programName: body.programName || "", level: body.level || "", code: body.code || "" } });
+      publicCourseRouteIndexCache = undefined;
+      invalidateHomeStatsCache();
       queueQualitySnapshotRefresh("course.package.status");
       return jsonResponse({ ok: true, status });
     }
@@ -9934,6 +9757,7 @@ async function handleDbpApi(request) {
       const body = await readJsonBody(request);
       const actor = auth.session?.username || auth.session?.name || "dbp-user";
       upsertPublicVisibilityMap(body.visibility || {}, actor);
+      publicCourseRouteIndexCache = undefined;
       invalidateHomeStatsCache();
       return jsonResponse({ ok: true, visibility: getPublicVisibilityMap() });
     }
@@ -10040,6 +9864,7 @@ async function handleDbpApi(request) {
     if (pathname === "/api/dbp/admin/restore" && request.method === "POST") {
       const body = await readJsonBody(request);
       await restoreBackup(body.fileName, actor);
+      publicCourseRouteIndexCache = undefined;
       invalidateHomeStatsCache({ instructors: true });
       queueQualitySnapshotRefresh("admin.restore");
       await refreshHomeInstructorCount();
@@ -10050,6 +9875,7 @@ async function handleDbpApi(request) {
       const payload = await readJsonBody(request);
       await writeBackup(actor);
       replaceFromExport(payload, actor);
+      publicCourseRouteIndexCache = undefined;
       invalidateHomeStatsCache({ instructors: true });
       queueQualitySnapshotRefresh("admin.import");
       await refreshHomeInstructorCount();
@@ -10063,6 +9889,7 @@ async function handleDbpApi(request) {
       }
       await writeBackup(actor);
       resetDatabase(actor);
+      publicCourseRouteIndexCache = undefined;
       invalidateHomeStatsCache({ instructors: true });
       queueQualitySnapshotRefresh("admin.reset");
       await refreshHomeInstructorCount();
@@ -10078,6 +9905,7 @@ async function handleDbpApi(request) {
       syncCourseCatalogFromSeed();
       seedProgramProfiles(true);
       ensureTestProgramData();
+      publicCourseRouteIndexCache = undefined;
       invalidateHomeStatsCache({ instructors: true });
       queueQualitySnapshotRefresh("admin.seed");
       await refreshHomeInstructorCount();
@@ -10357,8 +10185,6 @@ homeInstructorCountCache = {
 };
 await warmHomeStatsCache("startup");
 scheduleDailyHomeStatsCacheWarmup();
-warmPublicCourseListCache("startup");
-scheduleDailyCourseListCacheWarmup();
 await currentQualitySnapshot();
 scheduleQualityRefresh();
 studentStatisticsSnapshotCache = readStudentStatisticsSnapshot();
