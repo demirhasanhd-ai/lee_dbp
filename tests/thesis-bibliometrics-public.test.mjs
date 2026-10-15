@@ -40,6 +40,7 @@ test("uses suggested matches, excludes rejected matches and deduplicates publica
   assert.equal(result.international.total, 1);
   assert.equal(result.funding.find((item) => item.type === "tubitak")?.count, 1);
   assert.deepEqual(result.yearlyPublications, [{ year: 2024, total: 1, masters: 1, doctorates: 1 }]);
+  assert.deepEqual(result.yearlyCitations, [{ year: 2024, masters: 5, doctorates: 3 }]);
   assert.equal(result.fieldBreakdown.find((item) => item.field === "Fen Bilimleri")?.mastersPerformance.converted, 1);
 });
 

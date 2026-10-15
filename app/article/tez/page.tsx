@@ -23,6 +23,7 @@ type PublicData = {
   publicationTypes: Array<{ type: string; count: number }>;
   timeToPublication: Array<{ difference: number; label: string; count: number }>;
   citationPerformance: { total: CitationMetric; masters: CitationMetric; doctorates: CitationMetric };
+  yearlyCitations: Array<{ year: number; masters: number; doctorates: number }>;
   funding: Array<{ type: string; count: number }>;
   international: { total: number; rate: number; masters: number; doctorates: number };
   sdgs: Array<{ id: string; count: number }>;
@@ -106,7 +107,7 @@ export default function ThesisBibliometricsPage() {
   }, [filters, retry]);
 
   const supportedFunding = useMemo(() => (data?.funding || []).filter((item) => !["none", "unknown"].includes(item.type)), [data]);
-  const maxDepartment = Math.max(1, ...(data?.departmentBreakdown || []).map((item) => item.conversionRate));
+  const maxDepartment = Math.max(1, ...(data?.departmentBreakdown || []).map((item) => item.publications));
   const maxSdg = Math.max(1, ...(data?.sdgs || []).map((item) => item.count));
 
   return <main className="dbp-page quality-page article-page thesis-bibliometrics-page">
@@ -138,15 +139,15 @@ export default function ThesisBibliometricsPage() {
 
       <section className="article-section"><SectionTitle no="03" eyebrow="YAYINA DÖNÜŞÜM" title="Yıllara göre tezlerin yayına dönüşüm oranı" /><ConversionLineChart rows={data.yearly} /></section>
 
-      <section className="article-section"><SectionTitle no="04" eyebrow="BİLİM ALANLARI" title="Fen, Sosyal ve Sağlık Bilimleri karşılaştırması" /><GroupedBarChart percentScale rows={data.fieldBreakdown.map((item) => ({ label: item.field.replace(/ Bilimleri?$/u, ""), masters: item.mastersPerformance.rate, doctorates: item.doctoratePerformance.rate, detail: `${item.publications} yayın · ${item.convertedTheses}/${item.theses} tez` }))} /></section>
+      <section className="article-section"><SectionTitle no="04" eyebrow="BİLİM ALANLARI" title="Fen, Sosyal ve Sağlık Bilimleri yayın sayıları" /><GroupedBarChart rows={data.fieldBreakdown.map((item) => ({ label: item.field.replace(/ Bilimleri?$/u, ""), masters: item.masters, doctorates: item.doctorates, detail: `${item.publications} tekil tez kaynaklı yayın` }))} /></section>
 
       <section className="article-section thesis-two-column"><div><SectionTitle no="05" eyebrow="YAYIN KAPSAMI" title="İndekslere göre dağılım" /><GroupedBarChart rows={data.indexDistribution.map((item) => ({ label: item.index, masters: item.masters, doctorates: item.doctorates, detail: `${item.total} tekil yayın` }))} /></div><div><SectionTitle no="06" eyebrow={`SCIMAGO ${data.scimago.years.join(", ") || ""}`} title="Quartile dağılımı" /><QuartileDonut rows={data.quartiles} /></div></section>
 
-      <section className="article-section"><SectionTitle no="07" eyebrow="PROGRAM PERFORMANSI" title="ABD / ASD bazında yayına dönüşüm" /><div className="thesis-department-chart">{data.departmentBreakdown.map((item) => <article key={item.department}><div><b>{item.department}</b><small>{item.field} · {item.convertedTheses}/{item.theses} tez · {item.publications} yayın</small></div><i><em style={{ width: `${item.conversionRate / maxDepartment * 100}%` }} /></i><strong>{percent(item.conversionRate)}</strong></article>)}</div></section>
+      <section className="article-section"><SectionTitle no="07" eyebrow="PROGRAM PERFORMANSI" title="ABD / ASD bazında tez kaynaklı yayın sayısı" /><div className="thesis-department-chart">{data.departmentBreakdown.map((item) => <article key={item.department}><div><b>{item.department}</b><small>{item.field} · {item.convertedTheses} yayın üreten tez / {item.theses} tamamlanan tez</small></div><i><em style={{ width: `${item.publications / maxDepartment * 100}%` }} /></i><strong>{number(item.publications)}</strong></article>)}</div></section>
 
       <section className="article-section thesis-two-column"><div><SectionTitle no="08" eyebrow="ÇIKTI TÜRLERİ" title="Yayın türü dağılımı" /><Bars rows={data.publicationTypes.map((item) => ({ label: item.type, value: item.count }))} /></div><div><SectionTitle no="09" eyebrow="YAYIN ZAMANLAMASI" title="Tez yılına göre yayın zamanı" /><Bars rows={data.timeToPublication.map((item) => ({ label: item.label, value: item.count }))} /><p className="thesis-method-note">DSpace kaydında mezuniyet ayı bulunmadığı için süreler yıl farkı üzerinden hesaplanır.</p></div></section>
 
-      <section className="article-section"><SectionTitle no="10" eyebrow="ATIF PERFORMANSI" title="Tezli YL ve doktora yayınlarının atıfları" /><div className="thesis-public-kpis thesis-citation-kpis"><CitationCard label="Tüm yayınlar" metric={data.citationPerformance.total} /><CitationCard label="Tezli Yüksek Lisans" metric={data.citationPerformance.masters} /><CitationCard label="Doktora" metric={data.citationPerformance.doctorates} /></div></section>
+      <section className="article-section"><SectionTitle no="10" eyebrow="ATIF PERFORMANSI" title="Tezli YL ve doktora yayınlarının yıllara göre atıfları" /><div className="thesis-public-kpis thesis-citation-kpis"><CitationCard label="Tüm yayınlar" metric={data.citationPerformance.total} /><CitationCard label="Tezli Yüksek Lisans" metric={data.citationPerformance.masters} /><CitationCard label="Doktora" metric={data.citationPerformance.doctorates} /></div><GroupedBarChart rows={data.yearlyCitations.map((item) => ({ label: String(item.year), masters: item.masters, doctorates: item.doctorates, detail: `${number(item.masters + item.doctorates)} atıf` }))} /></section>
 
       <section className="article-section thesis-two-column"><div><SectionTitle no="11" eyebrow="PROJE DESTEKLERİ" title="BAP, TÜBİTAK ve diğer destekler" />{supportedFunding.length ? <div className="thesis-funding-grid">{supportedFunding.map((item) => <article key={item.type}><Landmark /><span>{fundingLabels[item.type] || item.type}</span><strong>{number(item.count)}</strong></article>)}</div> : <div className="quality-panel thesis-public-empty"><Landmark /><b>Kaynaklarda proje desteği bulunamadı.</b></div>}</div><div><SectionTitle no="12" eyebrow="İŞ BİRLİĞİ" title="Uluslararası ortak yazarlık" /><div className="thesis-collaboration-card"><Network /><strong>{number(data.international.total)}</strong><span>uluslararası ortak yazarlı yayın</span><b>{percent(data.international.rate)}</b><small>{data.international.masters} tezli YL · {data.international.doctorates} doktora</small></div></div></section>
 

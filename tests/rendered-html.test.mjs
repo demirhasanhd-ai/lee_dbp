@@ -201,7 +201,7 @@ test("tez faaliyet katsayısı ve EK-2 rubrik sınırları doğru hesaplanır", 
   assert.equal(dashboard.summary.doctorates, 2);
 });
 
-test("otomatik tez-yayın eşleştirmesi öğrenciyi temel aday sinyali olarak kullanır", async () => {
+test("otomatik tez-yayın eşleştirmesi öğrenci, danışman ve konu kanıtını birlikte arar", async () => {
   const { matchThesisPublications, scientificFieldForDepartment } = await import(new URL("../lib/thesisPublicationMatcher.mjs", import.meta.url));
   const thesis = {
     identifier: "tez-1",
@@ -223,8 +223,8 @@ test("otomatik tez-yayın eşleştirmesi öğrenciyi temel aday sinyali olarak k
     source: "Example Journal",
   };
   assert.equal(matchThesisPublications({ theses: [thesis], scopus: [publication] }).length, 1);
-  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [{ ...publication, affiliations: [] }] }).length, 1);
-  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [{ ...publication, authors: [{ name: "Türker C." }] }] }).length, 1);
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [{ ...publication, affiliations: [] }] }).length, 0);
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [{ ...publication, authors: [{ name: "Türker C." }] }] }).length, 0);
   assert.equal(matchThesisPublications({ theses: [thesis], scopus: [{ ...publication, authors: [{ name: "Özcan B.D." }] }] }).length, 0);
   assert.equal(scientificFieldForDepartment("Lisansüstü Eğitim Enstitüsü, Biyoloji Ana Bilim Dalı"), "Fen Bilimleri");
 });

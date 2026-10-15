@@ -36,6 +36,25 @@ test("matches a 2023 doctoral thesis with accent-insensitive student and advisor
   assert.deepEqual(matches[0].authors, ["Uğur Acar", "Önder Kaşka"]);
   assert.equal(matches[0].citationCount, 12);
   assert.deepEqual(matches[0].sdgs, ["7", "9"]);
+
+  const withoutOkuAddress = matchThesisPublications({
+    theses: [{
+      identifier: "thesis-ugur-acar",
+      publicationYear: 2023,
+      title: "Net sıfır enerjili binaların Türkiye iklim koşullarında uygulanabilirliğinin araştırılması",
+      alternativeTitle: "Investigation of net zero energy buildings under Türkiye climate conditions",
+      authors: ["Acar, Ugur"],
+      advisors: ["Kaska, Onder"],
+    }],
+    scopus: [{
+      id: "publication-1",
+      title: "Performance of solar panels to achieve zero energy buildings in Türkiye climate conditions",
+      year: 2022,
+      authors: [{ name: "Uğur Acar" }, { name: "Önder Kaşka" }],
+      affiliations: [],
+    }],
+  });
+  assert.equal(withoutOkuAddress.length, 0);
 });
 
 test("matches the explicitly verified Fatma Gültepe and Fatma Yılmaz identity", () => {
@@ -66,7 +85,7 @@ test("matches the explicitly verified Fatma Gültepe and Fatma Yılmaz identity"
   assert.equal(matches[0].relationStatus, "suggested");
 });
 
-test("keeps low-topic student publications as advisor-review candidates", () => {
+test("rejects publications when thesis and publication topics do not match", () => {
   const matches = matchThesisPublications({
     theses: [{
       identifier: "thesis-ugur-acar-low-topic",
@@ -84,12 +103,10 @@ test("keeps low-topic student publications as advisor-review candidates", () => 
     }],
   });
 
-  assert.equal(matches.length, 1);
-  assert.equal(matches[0].relationStatus, "suggested");
-  assert.match(matches[0].evidenceNote, /otomatik konu analizi yeterli sinyal üretmedi/u);
+  assert.equal(matches.length, 0);
 });
 
-test("keeps student-only publications as advisor-review candidates", () => {
+test("rejects publications when the thesis advisor is not a co-author", () => {
   const matches = matchThesisPublications({
     theses: [{
       identifier: "thesis-student-only",
@@ -107,9 +124,7 @@ test("keeps student-only publications as advisor-review candidates", () => {
     }],
   });
 
-  assert.equal(matches.length, 1);
-  assert.match(matches[0].evidenceNote, /danışman ortak yazarlığı otomatik bulunamadı/u);
-  assert.match(matches[0].evidenceNote, /OKÜ adresi açıkça görülemedi/u);
+  assert.equal(matches.length, 0);
 });
 
 test("does not create candidates when the thesis student is absent", () => {
