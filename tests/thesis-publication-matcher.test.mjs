@@ -32,7 +32,7 @@ test("matches a 2023 doctoral thesis with accent-insensitive student and advisor
 
   assert.equal(matches.length, 1);
   assert.equal(matches[0].thesisIdentifier, "thesis-ugur-acar");
-  assert.equal(matches[0].relationStatus, "suggested");
+  assert.equal(matches[0].relationStatus, "verified");
   assert.deepEqual(matches[0].authors, ["Uğur Acar", "Önder Kaşka"]);
   assert.equal(matches[0].citationCount, 12);
   assert.deepEqual(matches[0].sdgs, ["7", "9"]);
@@ -82,7 +82,7 @@ test("matches the explicitly verified Fatma Gültepe and Fatma Yılmaz identity"
 
   assert.equal(matches.length, 1);
   assert.equal(matches[0].thesisIdentifier, "thesis-fatma-gultepe");
-  assert.equal(matches[0].relationStatus, "suggested");
+  assert.equal(matches[0].relationStatus, "verified");
 });
 
 test("rejects publications when thesis and publication topics do not match", () => {

@@ -30,6 +30,7 @@ import {
 import {
   THESIS_EVALUATION_YEARS,
   activityRuleOptions,
+  calculateAutomaticPublicationActivity,
   calculateActivityScore,
   calculateJuryRubric,
   degreeGroup,
@@ -5006,6 +5007,18 @@ async function ensureDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_thesis_jury_thesis ON thesis_jury_evaluations(thesis_identifier, evaluation_status);
   `);
+  const verified241MigrationKey = "thesis_publication_verified_241_migration_v1";
+  if (!db.prepare("SELECT 1 FROM metadata WHERE key = ?").get(verified241MigrationKey)) {
+    const migration = db.prepare(`
+      UPDATE thesis_publications
+      SET relation_status = 'verified', updated_at = ?, updated_by = 'automatic-thesis-match'
+      WHERE updated_by = 'automatic-thesis-match' AND relation_status = 'suggested'
+    `).run(new Date().toISOString());
+    db.prepare("INSERT INTO metadata(key, value) VALUES (?, ?)").run(
+      verified241MigrationKey,
+      JSON.stringify({ migratedAt: new Date().toISOString(), links: Number(migration.changes || 0) }),
+    );
+  }
   ensureCourseInstructorIdentityColumns();
   ensureThesisModuleColumns();
   seedInitialData();
@@ -7584,7 +7597,7 @@ function refreshAutomaticThesisPublicationMatches(actor = "automatic-thesis-matc
   ].join("|");
   // Versioned so matcher rule changes are applied once after deployment even
   // when the underlying DSpace/Scopus/TR Dizin snapshots did not change.
-  const revisionKey = "thesis_publication_match_revision_v9_audited_241_rule";
+  const revisionKey = "thesis_publication_match_revision_v10_verified_241_awards";
   const previousRevision = db.prepare("SELECT value FROM metadata WHERE key = ?").get(revisionKey)?.value || "";
   const automaticCount = Number(db.prepare("SELECT COUNT(*) AS count FROM thesis_publications WHERE updated_by = 'automatic-thesis-match'").get()?.count || 0);
   if (revision && revision === previousRevision && automaticCount > 0) {
@@ -7595,7 +7608,7 @@ function refreshAutomaticThesisPublicationMatches(actor = "automatic-thesis-matc
   const manualKeys = new Set(manualRows.map((row) => `${row.thesis_identifier}|${String(row.doi || "").toLocaleLowerCase("tr-TR") || `${String(row.publication_title || "").toLocaleLowerCase("tr-TR")}|${row.publication_year}`}`));
   const insert = db.prepare(`
     INSERT INTO thesis_publications(thesis_identifier, thesis_title, thesis_cohort_year, degree_type, department, publication_title, publication_year, publication_type, doi, source, authors_json, citation_count, scientific_field, countries_json, international_collaboration, indexed_scopus, indexed_trdizin, indexed_wos, quartile, sdg_json, funding_type, funding_detail, relation_status, evidence_note, created_at, updated_at, updated_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 'suggested', ?, ?, ?, 'automatic-thesis-match')
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'automatic-thesis-match')
   `);
   const now = new Date().toISOString();
   let inserted = 0;
@@ -7618,7 +7631,7 @@ function refreshAutomaticThesisPublicationMatches(actor = "automatic-thesis-matc
         match.scientificField || scientificFieldForDepartment(match.department), JSON.stringify(match.countries || []),
         match.internationalCollaboration ? 1 : 0, match.indexedScopus ? 1 : 0,
         match.indexedTrdizin ? 1 : 0, quartile, JSON.stringify(match.sdgs), match.fundingType,
-        match.fundingDetail, match.evidenceNote, now, now,
+        match.fundingDetail, match.relationStatus, match.evidenceNote, now, now,
       );
       inserted += 1;
     }
@@ -7690,7 +7703,9 @@ function adminThesisAwardPayload(requestedYear) {
       return map;
     }, new Map()).values()];
     const activities = activityRows.filter((item) => item.thesis_identifier === record.identifier);
-    const activityScore = Math.round(activities.reduce((sum, item) => sum + Number(item.calculated_score || 0), 0) * 100) / 100;
+    const automaticActivity = calculateAutomaticPublicationActivity(uniquePublications, record.authors || []);
+    const manualActivityScore = Math.round(activities.reduce((sum, item) => sum + Number(item.calculated_score || 0), 0) * 100) / 100;
+    const activityScore = Math.round((automaticActivity.score + manualActivityScore) * 100) / 100;
     const latestJuryByName = new Map();
     for (const item of juryRows.filter((jury) => jury.thesis_identifier === record.identifier)) {
       const key = normalizePublicRouteSegment(item.jury_name || `jury-${item.id}`);
@@ -7703,9 +7718,10 @@ function adminThesisAwardPayload(requestedYear) {
     const field = scientificFieldForDepartment(record.department);
     const degree = degreeGroup(record.degreeType);
     const missing = [];
+    const warnings = [];
     if (field === "Atanamayan") missing.push("Bilim alanı eşleştirmesi gerekli");
-    if (!activities.length) missing.push("Kabul edilmiş akademik faaliyet yok");
-    if (!finalJuries.length) missing.push("Nihai jüri değerlendirmesi yok");
+    if (!automaticActivity.items.length && !activities.length) missing.push("Puanlanabilir EK-1 faaliyeti yok");
+    if (!finalJuries.length) warnings.push("Nihai EK-2 jüri değerlendirmesi bekleniyor; ön sıralama yalnız EK-1 puanına dayanır");
     return {
       thesisIdentifier: record.identifier,
       thesisTitle: record.title,
@@ -7722,13 +7738,22 @@ function adminThesisAwardPayload(requestedYear) {
       scopusCount: uniquePublications.filter((item) => item.indexed_scopus).length,
       trDizinCount: uniquePublications.filter((item) => item.indexed_trdizin).length,
       q1Q2Count: uniquePublications.filter((item) => ["Q1", "Q2"].includes(String(item.quartile || "").toUpperCase())).length,
-      activityCount: activities.length,
+      activityCount: automaticActivity.items.length + activities.length,
+      automaticActivityCount: automaticActivity.items.length,
+      automaticActivityScore: automaticActivity.score,
+      automaticPublicationScore: automaticActivity.publicationScore,
+      automaticCitationScore: automaticActivity.citationScore,
+      automaticActivityItems: automaticActivity.items,
+      manualActivityCount: activities.length,
+      manualActivityScore,
       activityScore,
       juryCount: finalJuries.length,
       juryScore,
       totalScore: Math.round((activityScore + juryScore) * 100) / 100,
       eligible: missing.length === 0,
+      provisional: finalJuries.length === 0,
       missing,
+      warnings,
       publications: uniquePublications.map((item) => ({
         title: item.publication_title, year: Number(item.publication_year), doi: item.doi || "",
         source: item.source || "", quartile: item.quartile || "", indexedWos: Boolean(item.indexed_wos),
@@ -7755,13 +7780,13 @@ function adminThesisAwardPayload(requestedYear) {
   const rankings = fields.flatMap((field) => degrees.map((degree) => ({ field, degree, candidates: categoryRows(field, degree) })));
   return {
     generatedAt: new Date().toISOString(),
-    scoringNote: "2023–2025 tezlerinden, lisansüstü tez tabanlı sayfada tez-yayın eşleşmesi bulunan kayıtlar analiz edilir. Adaylık tez yılına göre belirlenir; eşleşen yayınların yayın yılı sınırlanmaz. 2026 tezleri doğrulama tamamlandıktan sonra ayrıca kapsama alınacaktır.",
+    scoringNote: "2023–2025 tezleri, öğrenci ve danışman ortak yazarlığı + tez konusu örtüşmesi + OKÜ adresiyle doğrulanan 241 tekil yayın üzerinden değerlendirilir. EK-1 yayın ve atıf puanları kayıtlı indeks, yayın türü, yazar sırası ve atıf verisinden otomatik hesaplanır. Nihai EK-2 girilmemiş adaylar EK-1'e göre ön sıralanır; jüri kaydı tamamlanınca toplam puan ve sıra otomatik güncellenir.",
     availableYears,
     selectedYear: year,
     summary: {
       total: candidates.length,
       eligible: candidates.filter((item) => item.eligible).length,
-      incomplete: candidates.filter((item) => !item.eligible).length,
+      incomplete: candidates.filter((item) => item.provisional || !item.eligible).length,
       publications: candidates.reduce((sum, item) => sum + item.publicationCount, 0),
     },
     candidates,

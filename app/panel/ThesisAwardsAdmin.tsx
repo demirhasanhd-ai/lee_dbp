@@ -11,8 +11,10 @@ type Candidate = {
   thesisIdentifier: string; thesisTitle: string; studentName: string; advisors: string[]; department: string;
   field: string; degree: "masters" | "doctorate"; thesisYear: number; sourceUrl: string; publicationCount: number;
   publicationYears: number[]; wosCount: number; scopusCount: number; trDizinCount: number; q1Q2Count: number;
-  activityCount: number; activityScore: number; juryCount: number; juryScore: number; totalScore: number;
-  eligible: boolean; missing: string[]; publications: Publication[]; rank?: number;
+  activityCount: number; automaticActivityCount: number; automaticActivityScore: number; automaticPublicationScore: number;
+  automaticCitationScore: number; manualActivityCount: number; manualActivityScore: number;
+  activityScore: number; juryCount: number; juryScore: number; totalScore: number;
+  eligible: boolean; provisional: boolean; missing: string[]; warnings: string[]; publications: Publication[]; rank?: number;
 };
 type Ranking = { field: string; degree: "masters" | "doctorate"; candidates: Candidate[] };
 type AwardData = {
@@ -58,7 +60,7 @@ export function ThesisAwardsAdmin({ session }: { session: Session }) {
     [data, field, degree],
   );
   const ranking = useMemo(() => data?.rankings.find((item) => item.field === field && item.degree === degree)?.candidates || [], [data, field, degree]);
-  const incomplete = useMemo(() => (data?.candidates || []).filter((item) => !item.eligible && item.degree === degree && (field === "Genel" || item.field === field)), [data, field, degree]);
+  const incomplete = useMemo(() => (data?.candidates || []).filter((item) => (item.provisional || !item.eligible) && item.degree === degree && (field === "Genel" || item.field === field)), [data, field, degree]);
 
   if (!data) return <section className="panel-loading">Tez ödül sıralaması hazırlanıyor…{message && <small>{message}</small>}</section>;
 
@@ -77,14 +79,14 @@ export function ThesisAwardsAdmin({ session }: { session: Session }) {
       <article><GraduationCap /><span>Eşleşen tezler</span><b>{data.summary.total}</b></article>
       <article><Medal /><span>Sıralamaya hazır</span><b>{data.summary.eligible}</b></article>
       <article><BookOpenCheck /><span>Eşleşen yayınlar</span><b>{data.summary.publications}</b></article>
-      <article><RefreshCw /><span>Eksik değerlendirme</span><b>{data.summary.incomplete}</b></article>
+      <article><RefreshCw /><span>EK-2 bekleyen / eksik</span><b>{data.summary.incomplete}</b></article>
     </div>
 
     <section className="award-ranking-card">
       <header><div><small>{data.selectedYear} TEZLERİ</small><h3>{field} · {degreeOptions.find((item) => item.value === degree)?.label}</h3></div><b>{categoryCandidates.length} aday · {ranking.length} sıralamaya hazır</b></header>
-      {ranking.length === 0 ? <div className="award-empty"><Trophy size={28} /><b>{categoryCandidates.length ? `${categoryCandidates.length} adayın puanlaması henüz tamamlanmadı.` : "Bu kategoride eşleşen aday yok."}</b><span>{categoryCandidates.length ? "Aşağıdaki eksik değerlendirmeler tamamlandığında sıralama otomatik oluşur." : "Seçili tez yılı, bilim alanı ve program türü için tez-yayın eşleşmesi bulunmuyor."}</span></div> : <div className="award-table-wrap"><table className="award-table"><thead><tr><th>Sıra</th><th>Öğrenci ve tez</th><th>Yayınlar</th><th>EK-1</th><th>EK-2 ort.</th><th>Toplam</th></tr></thead><tbody>{ranking.map((item) => <tr key={item.thesisIdentifier}><td><span className={`award-rank rank-${item.rank}`}>{item.rank}</span></td><td><b>{item.studentName || "Öğrenci adı yok"}</b><span>{item.thesisTitle}</span><small>{item.department} · {item.advisors.join(", ")}</small></td><td><b>{item.publicationCount}</b><span>{item.wosCount} WoS · {item.scopusCount} Scopus · {item.trDizinCount} TR Dizin</span><small>Değerlendirme anındaki tüm doğrulanmış yayınlar</small></td><td><b>{number(item.activityScore)}</b><span>{item.activityCount} kabul edilen faaliyet</span></td><td><b>{number(item.juryScore)}</b><span>{item.juryCount} nihai jüri</span></td><td><strong>{number(item.totalScore)}</strong><a href={item.sourceUrl} target="_blank" rel="noreferrer">Tez kaydı <ExternalLink size={12} /></a></td></tr>)}</tbody></table></div>}
+      {ranking.length === 0 ? <div className="award-empty"><Trophy size={28} /><b>{categoryCandidates.length ? `${categoryCandidates.length} aday için puanlanabilir veri bulunamadı.` : "Bu kategoride eşleşen aday yok."}</b><span>{categoryCandidates.length ? "Aşağıdaki veri eksikleri tamamlandığında sıralama otomatik oluşur." : "Seçili tez yılı, bilim alanı ve program türü için tez-yayın eşleşmesi bulunmuyor."}</span></div> : <div className="award-table-wrap"><table className="award-table"><thead><tr><th>Sıra</th><th>Öğrenci ve tez</th><th>Yayınlar</th><th>EK-1</th><th>EK-2 ort.</th><th>Toplam</th></tr></thead><tbody>{ranking.map((item) => <tr key={item.thesisIdentifier}><td><span className={`award-rank rank-${item.rank}`}>{item.rank}</span></td><td><b>{item.studentName || "Öğrenci adı yok"}</b><span>{item.thesisTitle}</span><small>{item.department} · {item.advisors.join(", ")}</small></td><td><b>{item.publicationCount}</b><span>{item.wosCount} WoS · {item.scopusCount} Scopus · {item.trDizinCount} TR Dizin</span><small>Değerlendirme anındaki tüm doğrulanmış yayınlar</small></td><td><b>{number(item.activityScore)}</b><span>{number(item.automaticPublicationScore)} yayın · {number(item.automaticCitationScore)} atıf</span><small>{item.manualActivityCount ? `${item.manualActivityCount} kabul edilmiş ek faaliyet: ${number(item.manualActivityScore)} puan` : "Otomatik bibliyometrik hesap"}</small></td><td><b>{item.juryCount ? number(item.juryScore) : "Bekleniyor"}</b><span>{item.juryCount} nihai jüri</span></td><td><strong>{number(item.totalScore)}</strong><small>{item.provisional ? "EK-1 ön sıralama" : "Nihai sıralama"}</small><a href={item.sourceUrl} target="_blank" rel="noreferrer">Tez kaydı <ExternalLink size={12} /></a></td></tr>)}</tbody></table></div>}
     </section>
 
-    <section className="award-incomplete"><header><div><small>TAMAMLANMASI GEREKENLER</small><h3>Değerlendirme eksiği bulunan tezler</h3></div><b>{incomplete.length} kayıt</b></header>{incomplete.length === 0 ? <p>Bu kategoride değerlendirme eksiği bulunmuyor.</p> : <div>{incomplete.map((item) => <details key={item.thesisIdentifier}><summary><span><b>{item.studentName || "Öğrenci adı yok"}</b><small>{item.thesisTitle}</small></span><em>{item.missing.length} eksik <ChevronRight size={14} /></em></summary><ul>{item.missing.map((reason) => <li key={reason}>{reason}</li>)}</ul><p>Mevcut kayıt: {item.publicationCount} yayın · EK-1 {number(item.activityScore)} · EK-2 {number(item.juryScore)}</p></details>)}</div>}</section>
+    <section className="award-incomplete"><header><div><small>TAMAMLANMASI GEREKENLER</small><h3>Jüri ve veri durumu</h3></div><b>{incomplete.length} kayıt</b></header>{incomplete.length === 0 ? <p>Bu kategoride değerlendirme eksiği bulunmuyor.</p> : <div>{incomplete.map((item) => { const notices = [...item.missing, ...item.warnings]; return <details key={item.thesisIdentifier}><summary><span><b>{item.studentName || "Öğrenci adı yok"}</b><small>{item.thesisTitle}</small></span><em>{notices.length} bildirim <ChevronRight size={14} /></em></summary><ul>{notices.map((reason) => <li key={reason}>{reason}</li>)}</ul><p>Mevcut kayıt: {item.publicationCount} yayın · EK-1 {number(item.activityScore)} · EK-2 {item.juryCount ? number(item.juryScore) : "bekleniyor"}</p></details>; })}</div>}</section>
   </section>;
 }
