@@ -327,8 +327,16 @@ export function CourseBolognaEditor({
   const [obsDraft, setObsDraft] = useState<ObsDraft | null>(null);
   const [obsBusy, setObsBusy] = useState(false);
   const [obsMessage, setObsMessage] = useState("");
+  const [packageLoading, setPackageLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrate and reset the editor when its course or session changes.
+    setPackageLoading(true);
+    setLoadError("");
+    setSaveError("");
     const applyStaticPackage = (value: CoursePackage) => {
       setIdentity({
         name: course.name,
@@ -412,11 +420,19 @@ export function CourseBolognaEditor({
     const controller = new AbortController();
     fetch(`${dbpPath("/api/dbp/course-package")}?${query}`, {
       headers: { "X-DBP-Session": sessionHeader(session) },
+      cache: "no-store",
       signal: controller.signal,
     })
-      .then(async (response) => response.ok ? response.json() : null)
-      .then((data) => { if (data?.package) applySavedPackage(data.package, data.status, data.workflow || null); })
-      .catch((error) => { if (error instanceof Error && error.name !== "AbortError") console.error(error); });
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Kayıtlı ders paketi yüklenemedi.");
+        return data;
+      })
+      .then((data) => { if (!controller.signal.aborted && data?.package) applySavedPackage(data.package, data.status, data.workflow || null); })
+      .catch((error) => {
+        if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : "Kayıtlı ders paketi yüklenemedi.");
+      })
+      .finally(() => { if (!controller.signal.aborted) setPackageLoading(false); });
     return () => controller.abort();
   }, [course.code, course.department, course.level, course.name, course.programName, session]);
 
@@ -668,42 +684,54 @@ export function CourseBolognaEditor({
     setObsOpen(false);
   };
   const persistPackage = async (form: HTMLFormElement, status: string) => {
-    const response = await fetch(dbpPath("/api/dbp/course-package"), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-DBP-Session": sessionHeader(session),
-      },
-      body: JSON.stringify({
-        code: identity.code,
-        name: identity.name,
-        department: course.department || "",
-        programName: course.programName || "",
-        level: course.level,
-        status,
-        package: {
-          fields: serializeForm(form),
-          identity,
-          detailFields,
-          outcomes,
-          assessments,
-          workloads,
-          weeklyTopics,
-          structureValues,
-          contributionMatrix,
-          sdgs,
-          ects,
-          obsSourceUrl: obsDraft?.sourceUrl || "",
-          savedAt: new Date().toISOString(),
+    if (packageLoading || loadError || saving) return null;
+    setSaving(true);
+    setSaveError("");
+    try {
+      const response = await fetch(dbpPath("/api/dbp/course-package"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-DBP-Session": sessionHeader(session),
         },
-      }),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(result.message || "Ders paketi kaydedilemedi.");
+        body: JSON.stringify({
+          code: course.code,
+          name: identity.name,
+          department: course.department || "",
+          programName: course.programName || "",
+          level: course.level,
+          status,
+          package: {
+            fields: serializeForm(form),
+            identity,
+            detailFields,
+            outcomes,
+            assessments,
+            workloads,
+            weeklyTopics,
+            structureValues,
+            contributionMatrix,
+            sdgs,
+            ects,
+            obsSourceUrl: obsDraft?.sourceUrl || "",
+            savedAt: new Date().toISOString(),
+          },
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.ok !== true) {
+        throw new Error(result.message || "Ders paketi kaydedilemedi.");
+      }
+      return { status: result.status || status, committeeSkipped: Boolean(result.committeeSkipped || result.workflow?.committeeSkipped) };
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Ders paketi kaydedilemedi.");
+      return null;
+    } finally {
+      setSaving(false);
     }
-    return { status: result.status || status, committeeSkipped: Boolean(result.committeeSkipped || result.workflow?.committeeSkipped) };
   };
+  if (packageLoading) return <p role="status">Kayıtlı ders paketi yükleniyor…</p>;
+  if (loadError) return <div role="alert"><p>{loadError} Eski içerikle işlem yapmamak için ders düzenleyicisi açılmadı.</p><button type="button" onClick={() => window.location.reload()}>Yeniden yükle</button></div>;
   return (
     <form
       className="course-bologna-form"
@@ -714,6 +742,7 @@ export function CourseBolognaEditor({
         if (publishIssues.length > 0) return;
         if (!window.confirm("Ders bilgi paketini onaya göndermek istediğinize emin misiniz?")) return;
         const result = await persistPackage(event.currentTarget, "Komisyon Onayı Bekliyor");
+        if (!result) return;
         const nextStatus = result.status || "Komisyon Onayı Bekliyor";
         setWorkflowStatus(nextStatus);
         setLatestCorrection(null);
@@ -730,7 +759,7 @@ export function CourseBolognaEditor({
           </div>
           <div className="course-header-actions">
             <button type="button" className="obs-import-button" onClick={() => setObsOpen(true)}>
-              <DownloadCloud size={15} /> OBS'den Doldur
+              <DownloadCloud size={15} /> OBS&apos;den Doldur
             </button>
             <span>{workflowStatus}</span>
           </div>
@@ -1029,6 +1058,7 @@ export function CourseBolognaEditor({
       </section>
       {!readOnly && <div className="course-save-bar">
         <div className="course-publish-status">
+          {saveError && <p role="alert">{saveError} Değişiklikler kaydedilmedi; tekrar deneyin.</p>}
           <span>{saveBarText}</span>
           {publishIssues.length > 0 && (
             <details className="publish-validation">
@@ -1038,8 +1068,8 @@ export function CourseBolognaEditor({
           )}
         </div>
         <div className="course-submit-actions">
-          <button type="button" className="draft" disabled={approvalLocked} title={approvalLocked ? "Paket onay sürecinde." : "Taslak olarak kaydet"} onClick={async (event) => { if (approvalLocked) return; const form = event.currentTarget.form; if (!form) return; await persistPackage(form, "Taslak"); setWorkflowStatus("Taslak"); localStorage.setItem("lee-dbp-course-status", "taslak"); onSave(); }}><Save size={15} />Taslağı Kaydet</button>
-          <button type="submit" className="publish" disabled={approvalLocked || publishIssues.length > 0} title={approvalLocked ? "Paket onay sürecinde." : publishIssues[0] ?? "Onay sürecine gönder"}><Send size={15} />Onaya gönder</button>
+          <button type="button" className="draft" disabled={approvalLocked || saving} title={approvalLocked ? "Paket onay sürecinde." : "Taslak olarak kaydet"} onClick={async (event) => { if (approvalLocked || readOnly) return; const form = event.currentTarget.form; if (!form) return; const result = await persistPackage(form, "Taslak"); if (!result) return; setWorkflowStatus(result.status); localStorage.setItem("lee-dbp-course-status", "taslak"); onSave(); }}><Save size={15} />{saving ? "Kaydediliyor…" : "Taslağı Kaydet"}</button>
+          <button type="submit" className="publish" disabled={approvalLocked || saving || publishIssues.length > 0} title={approvalLocked ? "Paket onay sürecinde." : publishIssues[0] ?? "Onay sürecine gönder"}><Send size={15} />Onaya gönder</button>
         </div>
       </div>}
       {obsOpen && (
@@ -1048,12 +1078,12 @@ export function CourseBolognaEditor({
             <header>
               <div>
                 <small>CANLI OBS</small>
-                <h3 id="obs-import-title">OBS'den Ders Bilgisi Al</h3>
+                <h3 id="obs-import-title">OBS&apos;den Ders Bilgisi Al</h3>
               </div>
               <button type="button" onClick={() => setObsOpen(false)} aria-label="Kapat"><X size={16} /></button>
             </header>
             <div className="obs-guide">
-              <p>OBS'den çağırılmak istenen ders seçildikten sonra açılan sayfanın en altında bulunan linki kopyalayın.</p>
+              <p>OBS&apos;den çağırılmak istenen ders seçildikten sonra açılan sayfanın en altında bulunan linki kopyalayın.</p>
               <a className="obs-guide-link" href={dbpPath("/obs-link-guide.jpg")} target="_blank" rel="noopener noreferrer">
                 <ExternalLink size={15} />
                 Görsel için tıklayınız
