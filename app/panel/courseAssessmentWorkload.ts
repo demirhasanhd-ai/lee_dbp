@@ -8,6 +8,16 @@ export type Assessment = {
 
 export type Workload = { count: number; hours: number; custom?: boolean };
 
+export const minimumAssessmentCount = 2;
+
+export function normalizeAssessments(items: Omit<Assessment, "id">[]): Assessment[] {
+  const rows = items.map((item, index) => ({ ...item, id: index + 1, fixed: index < minimumAssessmentCount }));
+  while (rows.length < minimumAssessmentCount) {
+    rows.push({ id: rows.length + 1, name: "", count: 1, weight: 0, fixed: true });
+  }
+  return rows;
+}
+
 const foldTurkishText = (value: string) => value
   .toLocaleLowerCase("tr-TR")
   .replaceAll("ç", "c")

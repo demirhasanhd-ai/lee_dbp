@@ -9,7 +9,9 @@ import { getCoursePackage, type CoursePackage } from "../../lib/data/coursePacka
 import {
   assessmentWorkloadName,
   linkedWorkloadNames,
+  minimumAssessmentCount,
   normalizeActivityName,
+  normalizeAssessments,
   rebalanceAssessmentWeights,
   redistributeRemovedWorkload,
   workloadTotalHours,
@@ -349,13 +351,14 @@ export function CourseBolognaEditor({
         resources: value.resources,
       });
       setOutcomes(value.outcomes);
-      setAssessments(value.assessments.map((item, index) => ({ ...item, id: index + 1, fixed: index < 2 })));
+      const loadedAssessments = normalizeAssessments(value.assessments);
+      setAssessments(loadedAssessments);
       setWorkloads(Object.fromEntries(value.workloads.map((item) => [item.name, { count: item.count, hours: item.hours }])));
       setWeeklyTopics(Object.fromEntries(value.weeklyTopics.map((item, index) => [index + 1, item])));
       setStructureValues(structuresForCourse(course));
       setContributionMatrix(normalizeContributionRows(value.contributionMatrix.map((row) => Object.fromEntries(row.values.map((score, index) => [`P${index + 1}`, score])))));
       setSdgs(value.sdgs);
-      setNextAssessment(value.assessments.length + 1);
+      setNextAssessment(loadedAssessments.length + 1);
       setWorkflowStatus("Mevcut Paket");
       setLatestCorrection(null);
       setCommitteeSkipped(false);
@@ -366,7 +369,11 @@ export function CourseBolognaEditor({
       if (savedIdentity) setIdentity(savedIdentity);
       if (savedDetails) setDetailFields(savedDetails);
       if (Array.isArray(stored.outcomes)) setOutcomes(stored.outcomes as string[]);
-      if (Array.isArray(stored.assessments)) setAssessments(stored.assessments as Assessment[]);
+      if (Array.isArray(stored.assessments)) {
+        const loadedAssessments = normalizeAssessments(stored.assessments as Assessment[]);
+        setAssessments(loadedAssessments);
+        setNextAssessment(loadedAssessments.length + 1);
+      }
       if (stored.workloads && typeof stored.workloads === "object") setWorkloads(stored.workloads as Record<string, Workload>);
       if (stored.weeklyTopics && typeof stored.weeklyTopics === "object") setWeeklyTopics(stored.weeklyTopics as Record<number, string>);
       if (stored.structureValues && typeof stored.structureValues === "object" && Object.keys(stored.structureValues).length > 0) setStructureValues(stored.structureValues as Record<string, number>);
@@ -452,6 +459,12 @@ export function CourseBolognaEditor({
       issues.push("15 haftanın her biri en az üç kelimelik anlamlı bir konu açıklaması içermelidir.");
     }
 
+    if (assessments.filter((item) => item.name.trim()).length < minimumAssessmentCount) {
+      issues.push("En az iki değerlendirme türü girilmelidir.");
+    }
+    if (assessments.some((item) => !item.name.trim())) {
+      issues.push("Değerlendirme türlerinin adları boş bırakılamaz.");
+    }
     const assessmentTotal = assessments.reduce((sum, item) => sum + Number(item.weight || 0), 0);
     if (assessmentTotal !== 100) {
       issues.push(`Değerlendirme katkılarının toplamı %100 olmalıdır (mevcut: %${assessmentTotal}).`);
@@ -573,7 +586,7 @@ export function CourseBolognaEditor({
     });
   };
   const removeAssessment = (item: Assessment) => {
-    if (item.fixed) return;
+    if (item.fixed || assessments.length <= minimumAssessmentCount) return;
     setAssessments((current) => rebalanceAssessmentWeights(current.filter((row) => row.id !== item.id)));
     setWorkloads((current) => redistributeRemovedWorkload(current, linkedWorkloadNames(current, item.name)));
   };
@@ -636,8 +649,9 @@ export function CourseBolognaEditor({
       setOutcomes([...imported, ...Array.from({ length: Math.max(0, fixedOutcomeCount - imported.length) }, () => "")]);
     }
     if (obsDraft.assessments.length && (mode === "overwrite" || JSON.stringify(assessments) === JSON.stringify(defaultAssessments))) {
-      setAssessments(obsDraft.assessments.map((item, index) => ({ ...item, id: index + 1 })));
-      setNextAssessment(obsDraft.assessments.length + 1);
+      const loadedAssessments = normalizeAssessments(obsDraft.assessments);
+      setAssessments(loadedAssessments);
+      setNextAssessment(loadedAssessments.length + 1);
     }
     if (Object.keys(obsDraft.workloads).length && (mode === "overwrite" || JSON.stringify(workloads) === JSON.stringify(defaultWorkloads))) {
       setWorkloads(obsDraft.workloads);
@@ -854,7 +868,7 @@ export function CourseBolognaEditor({
           </div>
           {assessments.map((item) => (
             <div key={item.id}>
-              <input name={`Değerlendirme ${item.id}`} value={item.name} readOnly={item.fixed} onChange={(event) => updateAssessmentName(item, event.target.value)} />
+              <input name={`Değerlendirme ${item.id}`} value={item.name} onChange={(event) => updateAssessmentName(item, event.target.value)} />
               <input type="number" min="0" value={item.count} onChange={(event) => updateAssessmentCount(item, Number(event.target.value))} />
               <input type="number" min="0" max="100" value={item.weight} disabled={item.count === 0} onChange={(event) => setAssessments((current) => current.map((row) => row.id === item.id ? { ...row, weight: Number(event.target.value) } : row))} />
               {!item.fixed ? (

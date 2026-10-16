@@ -3,10 +3,32 @@ import test from "node:test";
 import {
   assessmentWorkloadName,
   linkedWorkloadNames,
+  normalizeAssessments,
   rebalanceAssessmentWeights,
   redistributeRemovedWorkload,
   workloadTotalHours,
 } from "../app/panel/courseAssessmentWorkload.ts";
+
+test("kaydedilmiş değerlendirme adları ve oranları korunur, satır kimlikleri yenilenir", () => {
+  const rows = normalizeAssessments([
+    { id: 7, name: "Sunum", count: 1, weight: 30, fixed: false },
+    { id: 7, name: "Proje", count: 2, weight: 70 },
+    { id: 9, name: "Ödev", count: 1, weight: 0, fixed: true },
+  ]);
+  assert.deepEqual(rows, [
+    { id: 1, name: "Sunum", count: 1, weight: 30, fixed: true },
+    { id: 2, name: "Proje", count: 2, weight: 70, fixed: true },
+    { id: 3, name: "Ödev", count: 1, weight: 0, fixed: false },
+  ]);
+});
+
+test("eksik değerlendirme satırları mevcut adları değiştirmeden ikiye tamamlanır", () => {
+  const rows = normalizeAssessments([{ name: "Proje", count: 1, weight: 100 }]);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].name, "Proje");
+  assert.deepEqual(rows[1], { id: 2, name: "", count: 1, weight: 0, fixed: true });
+  assert.equal(normalizeAssessments([]).length, 2);
+});
 
 test("sıfırlanan değerlendirme katkısı kalan değerlendirmelere dağıtılır", () => {
   const result = rebalanceAssessmentWeights([
