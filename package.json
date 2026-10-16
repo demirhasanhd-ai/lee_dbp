@@ -11,14 +11,16 @@
     "start:local": "node scripts/start-local-dbp.mjs",
     "build": "vinext build && node scripts/export_course_packages_seed.mjs",
     "start": "node server.mjs",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test": "npm run build && node scripts/run-tests.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "dbp:generate-data": "python scripts/generate_course_data.py",
     "dbp:validate": "python scripts/validate_course_data.py",
     "dbp:generate-pdfs": "python scripts/generate_public_course_pdfs.py",
     "dbp:refresh": "npm run dbp:generate-data && npm run dbp:validate && npm run dbp:generate-pdfs",
-    "dbp:import": "python scripts/import_curriculum_excel.py"
+    "dbp:import": "python scripts/import_curriculum_excel.py",
+    "test:unit": "node scripts/run-tests.mjs --unit",
+    "test:browser:install": "playwright install chromium"
   },
   "dependencies": {
     "cheerio": "^1.2.0",
@@ -46,6 +48,7 @@
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
+    "playwright": "^1.64.1",
     "react-server-dom-webpack": "19.2.6",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",

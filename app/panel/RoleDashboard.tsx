@@ -88,6 +88,7 @@ type CommitteeMembership = {
 type RoleAccess = Record<DbpRole, DbpModule[]>;
 const moduleKeys = Object.keys(DBP_MODULES) as DbpModule[];
 const courseEntryGuideHref = dbpPath("/ders-bilgi-girisi-kullanim-kilavuzu.pdf");
+const programEntryGuideHref = dbpPath("/program-bilgileri-girisi-kilavuzu.pdf");
 const cloneDefaultRoleAccess = (): RoleAccess =>
   Object.fromEntries(
     DBP_ROLE_KEYS.map((role) => [role, [...DEFAULT_ROLE_ACCESS[role]]]),
@@ -554,7 +555,7 @@ export function RoleDashboard() {
       setPermissionsBusy(false);
     }
   };
-  const canCreateCourse = ["lee_ogrenci_isleri", "admin"].includes(session.role);
+  const canManageCourses = ["lee_ogrenci_isleri", "enstitu_yoneticisi", "admin"].includes(session.role);
   const canEditAcademicContent = session.role === "admin";
   const isCentralRole = centralRoles.includes(session.role);
   const canDownloadAllProgramCourses = allProgramCourseDownloadRoles.includes(session.role);
@@ -843,13 +844,13 @@ export function RoleDashboard() {
                 )}
                 <span>{DBP_MODULES[module]}</span>
               </button>
-              {module === "my_courses" && canCreateCourse && (
+              {module === "my_courses" && canManageCourses && (
                 <button
                   className="sidebar-course-create"
                   onClick={() => setShowCourseCreate(true)}
                 >
                   <Plus size={15} />
-                  <span>Ders / Hoca Atama</span>
+                  <span>Ders Düzenleme</span>
                 </button>
               )}
             </Fragment>
@@ -883,6 +884,16 @@ export function RoleDashboard() {
             </div>
           </div>
         </header>
+        {active === "program_profile" && (
+          <a
+            className="course-entry-guide-download"
+            href={programEntryGuideHref}
+            download
+          >
+            <FileDown size={16} />
+            Program Bilgileri Girişi Kılavuzu
+          </a>
+        )}
         {saved && (
           <div className="save-toast">
             <CheckCircle2 size={16} />
@@ -1007,14 +1018,14 @@ export function RoleDashboard() {
                   görüntüleyin; akademik içerik değişiklikleri ders sorumlusu ve ABD başkanı tarafından yapılır.
                 </p>
               </div>
-              {canCreateCourse && (
+              {canManageCourses && (
                 <button
                   className="primary-action"
                   type="button"
                   onClick={() => setShowCourseCreate(true)}
                 >
                   <Plus size={15} />
-                  Ders / Hoca Atama
+                  Ders Düzenleme
                 </button>
               )}
             </div>

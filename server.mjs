@@ -43,6 +43,7 @@ import {
   DEFAULT_PUBLIC_DATA_REFRESH_PLAN,
   latestQuarterlyRefreshDate,
   latestWeeklyRefreshDate,
+  nextDailyRefreshDate,
   nextQuarterlyRefreshDate,
   nextWeeklyRefreshDate,
   normalizePublicDataRefreshPlan,
@@ -67,8 +68,8 @@ const seedFile = process.env.DBP_SEED_FILE || (existsSync(bundledSeedFile) ? bun
 const programProfilesSeedFile = process.env.DBP_PROGRAM_PROFILES_SEED_FILE || path.join(__dirname, "seed", "program-profiles.json");
 const coursePackagesSeedFile = process.env.DBP_COURSE_PACKAGES_SEED_FILE || path.join(__dirname, "seed", "course-packages.json");
 const homeStatsCacheTtlMs = nonNegativeNumber(process.env.DBP_HOME_STATS_CACHE_TTL_MS, 24 * 60 * 60 * 1000);
-const homeStatsCacheWarmupDebounceMs = nonNegativeNumber(process.env.DBP_HOME_STATS_CACHE_WARMUP_DEBOUNCE_MS, 30_000);
 const homeStatsCacheWarmupHour = Math.min(23, Math.floor(nonNegativeNumber(process.env.DBP_HOME_STATS_CACHE_WARMUP_HOUR, 3)));
+const qualitySnapshotTtlMs = 24 * 60 * 60 * 1000;
 const seedReloadEnabled = process.env.DBP_ENABLE_SEED_RELOAD === "true";
 const publicRouteAliases = JSON.parse(readFileSync(path.join(__dirname, "lib", "data", "public-route-aliases.json"), "utf8"));
 const publicRouteLevels = {
@@ -108,7 +109,7 @@ let homeInstructorCountCache;
 let homeInstructorCountRefresh;
 let homeStatsCache;
 let homeStatsCacheCreatedAt = 0;
-let homeStatsWarmupTimer;
+let homeStatsRefreshPromise;
 let homeStatsDailyWarmupTimer;
 let publicCourseRouteIndexCache;
 let qualitySnapshotCache;
@@ -542,7 +543,7 @@ function startPublicDataRefreshPlanPolling() {
     const before = JSON.stringify(publicDataRefreshPlan);
     await refreshPublicDataRefreshPlan();
     if (JSON.stringify(publicDataRefreshPlan) !== before) {
-      scheduleQualityRefresh(); scheduleThesisRefresh(); scheduleScopusRefresh(); scheduleScopusCitationRefresh();
+      scheduleThesisRefresh(); scheduleScopusRefresh(); scheduleScopusCitationRefresh();
       scheduleTrDizinRefresh(); scheduleTrDizinCitationRefresh(); scheduleStudentStatisticsRefresh();
       // Tez-yayın iş akışının ana kaynağı artık LEE_DBP'dir. e-Enstitü bu
       // kaydı danışman arayüzünde kullanır; ters yönde toplu içe aktarma yoktur.
@@ -1306,9 +1307,11 @@ function findZipEndOfCentralDirectory(buffer) {
   throw Object.assign(new Error("Excel dosyası .xlsx biçiminde olmalı."), { statusCode: 422 });
 }
 
-function readXlsxZipEntries(buffer) {
+function readXlsxZipEntries(buffer, limits) {
   const endOffset = findZipEndOfCentralDirectory(buffer);
   const totalEntries = buffer.readUInt16LE(endOffset + 10);
+  if (limits && totalEntries > 128) throw Object.assign(new Error("Excel dosyası çok fazla ZIP girdisi içeriyor."), { statusCode: 422 });
+  let expandedSize = 0;
   let centralOffset = buffer.readUInt32LE(endOffset + 16);
   const entries = new Map();
   for (let index = 0; index < totalEntries; index += 1) {
@@ -1330,20 +1333,22 @@ function readXlsxZipEntries(buffer) {
     const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
     const compressed = buffer.subarray(dataOffset, dataOffset + compressedSize);
     if (method === 0) entries.set(name, Buffer.from(compressed));
-    else if (method === 8) entries.set(name, inflateRawSync(compressed));
+    else if (method === 8) entries.set(name, inflateRawSync(compressed, limits ? { maxOutputLength: limits.maxBytes } : undefined));
     else throw Object.assign(new Error("Excel dosyasında desteklenmeyen sıkıştırma yöntemi var."), { statusCode: 422 });
+    expandedSize += entries.get(name).length;
+    if (limits && expandedSize > limits.maxBytes) throw Object.assign(new Error("Excel dosyasının açılmış boyutu çok büyük."), { statusCode: 422 });
     centralOffset += 46 + nameLength + extraLength + commentLength;
   }
   return entries;
 }
 
 function xmlTextRuns(xml = "") {
-  return [...String(xml).matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/gu)].map((match) => decodeXmlText(match[1]));
+  return [...String(xml).matchAll(/<(?:[\w.-]+:)?t\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?t>/gu)].map((match) => decodeXmlText(match[1]));
 }
 
 function parseXlsxSharedStrings(xml = "") {
   if (!xml) return [];
-  return [...String(xml).matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/gu)].map((match) => xmlTextRuns(match[1]).join(""));
+  return [...String(xml).matchAll(/<(?:[\w.-]+:)?si\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?si>/gu)].map((match) => xmlTextRuns(match[1]).join(""));
 }
 
 function worksheetColumnIndex(cellRef = "") {
@@ -1368,28 +1373,29 @@ function firstWorksheetPath(entries) {
   const workbookXml = entries.get("xl/workbook.xml")?.toString("utf8") || "";
   const relsXml = entries.get("xl/_rels/workbook.xml.rels")?.toString("utf8") || "";
   const relationships = new Map();
-  for (const match of relsXml.matchAll(/<Relationship\b[^>]*\/?>/gu)) {
+  for (const match of relsXml.matchAll(/<(?:[\w.-]+:)?Relationship\b[^>]*\/?>/gu)) {
     const attrs = xmlAttributes(match[0]);
     if (attrs.Id && attrs.Target) relationships.set(attrs.Id, resolveXlsxPath("xl", attrs.Target));
   }
-  const sheetMatch = workbookXml.match(/<sheet\b[^>]*\/?>/u);
+  const sheetMatch = workbookXml.match(/<(?:[\w.-]+:)?sheet\b[^>]*\/?>/u);
   const relationId = sheetMatch ? xmlAttributes(sheetMatch[0])["r:id"] : "";
   return relationships.get(relationId) || "xl/worksheets/sheet1.xml";
 }
 
-function parseXlsxWorksheetRows(xml = "", sharedStrings = []) {
+function parseXlsxWorksheetRows(xml = "", sharedStrings = [], maxRows = Infinity) {
   const rows = [];
-  for (const rowMatch of String(xml).matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>/gu)) {
+  for (const rowMatch of String(xml).matchAll(/<(?:[\w.-]+:)?row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:[\w.-]+:)?row>)/gu)) {
     const rowAttrs = xmlAttributes(rowMatch[1]);
     const rowIndex = Math.max(0, Number.parseInt(rowAttrs.r || `${rows.length + 1}`, 10) - 1);
+    if (rowIndex >= maxRows) throw Object.assign(new Error(`Excel ilk sayfasında en fazla ${maxRows - 1} veri satırı bulunabilir.`), { statusCode: 422 });
     const cells = [];
     let fallbackColumn = 0;
-    for (const cellMatch of rowMatch[2].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/gu)) {
+    for (const cellMatch of (rowMatch[2] || "").matchAll(/<(?:[\w.-]+:)?c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:[\w.-]+:)?c>)/gu)) {
       const attrs = xmlAttributes(cellMatch[1]);
       const columnIndex = worksheetColumnIndex(attrs.r) >= 0 ? worksheetColumnIndex(attrs.r) : fallbackColumn;
       fallbackColumn = columnIndex + 1;
-      const body = cellMatch[2];
-      const rawValue = body.match(/<v\b[^>]*>([\s\S]*?)<\/v>/u)?.[1] || "";
+      const body = cellMatch[2] || "";
+      const rawValue = body.match(/<(?:[\w.-]+:)?v\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?v>/u)?.[1] || "";
       let value = "";
       if (attrs.t === "s") value = sharedStrings[Number.parseInt(rawValue || "0", 10)] || "";
       else if (attrs.t === "inlineStr") value = xmlTextRuns(body).join("");
@@ -1401,13 +1407,13 @@ function parseXlsxWorksheetRows(xml = "", sharedStrings = []) {
   return rows.map((row) => row || []);
 }
 
-function readFirstXlsxSheetRows(buffer) {
-  const entries = readXlsxZipEntries(buffer);
+function readFirstXlsxSheetRows(buffer, limits) {
+  const entries = readXlsxZipEntries(buffer, limits);
   const worksheetPath = firstWorksheetPath(entries);
   const worksheet = entries.get(worksheetPath);
   if (!worksheet) throw Object.assign(new Error("Excel dosyasında ilk sayfa bulunamadı."), { statusCode: 422 });
   const sharedStrings = parseXlsxSharedStrings(entries.get("xl/sharedStrings.xml")?.toString("utf8") || "");
-  return parseXlsxWorksheetRows(worksheet.toString("utf8"), sharedStrings);
+  return parseXlsxWorksheetRows(worksheet.toString("utf8"), sharedStrings, limits?.maxRows);
 }
 
 const crc32Table = (() => {
@@ -1611,6 +1617,118 @@ function readCourseAssignmentWorkbook(fileBase64 = "") {
       },
     };
   }).filter((row) => row.code && row.instructor.name);
+}
+
+const newCourseTemplateHeaders = ["Ders Kodu", "Ders Adı", "Dönem", "Zorunlu / Seçmeli", "Teorik", "Uygulama", "Kredi", "AKTS", "Danışman T.C.", "Danışman Unvan", "Danışman İsim", "Danışman E-posta"];
+
+function readNewCourseWorkbook(fileBase64 = "") {
+  const encoded = String(fileBase64 || "").replace(/^data:.*?;base64,/u, "");
+  if (!encoded || encoded.length > 7_000_000) throw Object.assign(new Error("Excel dosyası boş veya 5 MB sınırından büyük."), { statusCode: 422 });
+  try {
+    const buffer = Buffer.from(encoded, "base64");
+    if (!buffer.length || buffer.length > 5_000_000) throw new Error("Dosya boyutu geçersiz.");
+    const rows = readFirstXlsxSheetRows(buffer, { maxBytes: 16_000_000, maxRows: 1001 });
+    const headers = (rows[0] || []).map(normalizeExcelHeader);
+    const missing = newCourseTemplateHeaders.filter((name) => !headers.includes(normalizeExcelHeader(name)));
+    if (missing.length || new Set(headers.filter(Boolean)).size !== headers.filter(Boolean).length) {
+      throw new Error(`Yeni ders şablonunu kullanın. Gerekli kolonlar: ${newCourseTemplateHeaders.join(", ")}. Kolon adları tekrarlanmamalıdır.`);
+    }
+    return rows.slice(1).flatMap((row, index) => {
+      if (!row.some((cell) => String(cell || "").trim())) return [];
+      return [{ rowNumber: index + 2, cells: Object.fromEntries(newCourseTemplateHeaders.map((name) => [name, repairText(String(row[headers.indexOf(normalizeExcelHeader(name))] ?? "")).trim()])) }];
+    });
+  } catch (error) {
+    throw Object.assign(new Error(`Excel okunamadı: ${error.message}`), { statusCode: 422 });
+  }
+}
+
+function newCourseImportScope(body = {}) {
+  const department = repairText(String(body.department || "")).trim();
+  const programName = repairText(String(body.programName || "")).trim();
+  const level = displayLevel(body.level);
+  if (!department || !programName || !body.level || !["Tezsiz Yüksek Lisans", "Tezli Yüksek Lisans", "Doktora"].includes(level)) {
+    throw Object.assign(new Error("Toplu yeni ders eklemek için ABD/ASD, program ve düzey seçilmelidir."), { statusCode: 422 });
+  }
+  return { department, programName, level };
+}
+
+function buildNewCourseImportPreview(rows, scope) {
+  const codeKey = (code) => repairText(code || "").toLocaleUpperCase("tr-TR").replace(/\s+/gu, "");
+  const existingCodes = new Set(db.prepare("SELECT code, department, program_name, level FROM courses").all()
+    .filter((course) => normalizeScope(course.department) === normalizeScope(scope.department) &&
+      normalizeScope(course.program_name) === normalizeScope(scope.programName) && levelKey(course.level) === levelKey(scope.level))
+    .map((course) => codeKey(course.code)));
+  const items = rows.map(({ rowNumber, cells }) => {
+    const errors = [];
+    const code = cells["Ders Kodu"].toLocaleUpperCase("tr-TR");
+    const name = cells["Ders Adı"];
+    const term = ["Güz", "Bahar", "Güz ve Bahar"].find((value) => normalizeScope(value) === normalizeScope(cells["Dönem"]));
+    const type = ["Zorunlu", "Seçmeli"].find((value) => normalizeScope(value) === normalizeScope(cells["Zorunlu / Seçmeli"]));
+    if (!code || !/^[\p{L}]+\s*\d[\p{L}\d]*$/u.test(code)) errors.push("Ders kodu geçersiz.");
+    else if (!courseCodeMatchesLevel(code, scope.level)) errors.push("Ders kodu program düzeyiyle uyumlu değil (700/800/900).");
+    if (!name) errors.push("Ders adı zorunludur.");
+    if (!term) errors.push("Dönem Güz, Bahar veya Güz ve Bahar olmalıdır.");
+    if (!type) errors.push("Zorunlu / Seçmeli seçimi gereklidir.");
+    const numeric = (header) => {
+      const text = cells[header].replace(",", ".");
+      const value = /^\d+(?:\.\d+)?$/u.test(text) ? Number(text) : NaN;
+      if (!Number.isFinite(value) || value < 0 || (header === "AKTS" && value === 0)) errors.push(`${header} ${header === "AKTS" ? "pozitif" : "sıfır veya pozitif"} bir sayı olmalıdır.`);
+      return Number.isFinite(value) ? value : null;
+    };
+    const theory = numeric("Teorik"), practice = numeric("Uygulama"), credit = numeric("Kredi"), ects = numeric("AKTS");
+    const rawInstructor = sanitizeInstructorName(cells["Danışman İsim"]);
+    const instructor = isMeaningfulInstructorName(rawInstructor) ? rawInstructor : "";
+    const instructorTcKimlik = cells["Danışman T.C."].replace(/\s+/gu, "");
+    const instructorTitle = sanitizeInstructorName(cells["Danışman Unvan"]);
+    const instructorEmail = normalizeEmail(cells["Danışman E-posta"]);
+    if (!instructor && (instructorTcKimlik || instructorTitle || instructorEmail)) errors.push("Danışman bilgileri girilmişse Danışman İsim de doldurulmalıdır.");
+    if (instructorTcKimlik && !/^\d{11}$/u.test(instructorTcKimlik)) errors.push("Danışman T.C. 11 rakam olmalıdır.");
+    if (instructorEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(instructorEmail)) errors.push("Danışman e-posta adresi geçersiz.");
+    return { rowNumber, code, name, term: term || "", type: type || "", theory, practice, credit, ects, instructor, instructorTcKimlik, instructorTitle, instructorEmail, errors };
+  });
+  const counts = new Map();
+  for (const item of items) {
+    const key = item.code.replace(/\s+/gu, "");
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  for (const item of items) {
+    if (counts.get(item.code.replace(/\s+/gu, "")) > 1) item.errors.push("Dosyada aynı ders kodu birden fazla satırda bulunuyor.");
+    const exists = existingCodes.has(codeKey(item.code));
+    item.action = item.errors.length ? "invalid" : exists ? "existing" : "create";
+  }
+  return {
+    scope, rowsRead: items.length, items,
+    summary: {
+      ready: items.filter((item) => item.action === "create").length,
+      existing: items.filter((item) => item.action === "existing").length,
+      invalid: items.filter((item) => item.action === "invalid").length,
+      unassigned: items.filter((item) => item.action === "create" && !item.instructor).length,
+    },
+  };
+}
+
+function applyNewCourseImport(rows, scope, actor) {
+  const now = new Date().toISOString();
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    // Revalidate against current records inside the transaction; never replace an existing course.
+    const preview = buildNewCourseImportPreview(rows, scope);
+    const insert = db.prepare(`INSERT INTO courses(academic_year, program_code, department, program_name, level, code, name, type,
+      credit, ects, theory, practice, term, status, instructor, instructor_tc_kimlik, instructor_email, instructor_title,
+      instructor_source, instructor_assigned_at, source, package_json, created_at, updated_at)
+      VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Taslak', ?, ?, ?, ?, ?, ?, 'excel_import', '{}', ?, ?)`);
+    for (const item of preview.items.filter((item) => item.action === "create")) {
+      insert.run("2026-2027", scope.department, scope.programName, scope.level, item.code, item.name, item.type,
+        item.credit, item.ects, item.theory, item.practice, item.term, item.instructor, item.instructorTcKimlik,
+        item.instructorEmail, item.instructorTitle, item.instructor ? "excel_import" : "", item.instructor ? now : "", now, now);
+    }
+    audit("course.create.import", actor, { ...scope, created: preview.summary.ready, existing: preview.summary.existing, invalid: preview.summary.invalid });
+    db.exec("COMMIT");
+    return { created: preview.summary.ready, existing: preview.summary.existing, invalid: preview.summary.invalid, unassigned: preview.summary.unassigned };
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 function uniqueInstructorOptions(rows = []) {
@@ -2176,32 +2294,37 @@ function isHomeStatsCacheFresh() {
   return Boolean(homeStatsCache) && homeStatsCacheTtlMs > 0 && Date.now() - homeStatsCacheCreatedAt <= homeStatsCacheTtlMs;
 }
 
-async function warmHomeStatsCache(reason = "scheduled") {
-  const payload = await homeStats();
-  if (homeStatsCacheTtlMs <= 0) return payload;
-  homeStatsCache = payload;
-  homeStatsCacheCreatedAt = Date.now();
-  console.log(`[dbp] Ana sayfa istatistik cache warmup (${reason}): ${homeStatsCache.totalCourses} ders, ${homeStatsCache.totalPrograms} program.`);
-  return homeStatsCache;
+function warmHomeStatsCache(reason = "scheduled") {
+  if (!homeStatsRefreshPromise) {
+    homeStatsRefreshPromise = Promise.resolve()
+      .then(() => homeStats())
+      .then((payload) => {
+        if (homeStatsCacheTtlMs <= 0) return payload;
+        homeStatsCache = payload;
+        homeStatsCacheCreatedAt = Date.now();
+        console.log(`[dbp] Ana sayfa istatistik cache warmup (${reason}): ${homeStatsCache.totalCourses} ders, ${homeStatsCache.totalPrograms} program.`);
+        return homeStatsCache;
+      })
+      .finally(() => {
+        homeStatsRefreshPromise = undefined;
+      });
+  }
+  return homeStatsRefreshPromise;
 }
 
-function scheduleHomeStatsCacheWarmup(reason = "invalidate") {
-  if (homeStatsCacheTtlMs <= 0) return;
-  if (homeStatsWarmupTimer) clearTimeout(homeStatsWarmupTimer);
-  homeStatsWarmupTimer = setTimeout(() => {
-    homeStatsWarmupTimer = undefined;
-    warmHomeStatsCache(reason).catch((error) => {
-      console.error(`[dbp] Ana sayfa istatistik cache warmup başarısız: ${error instanceof Error ? error.message : error}`);
-    });
-  }, homeStatsCacheWarmupDebounceMs);
-  homeStatsWarmupTimer.unref?.();
+function queueHomeStatsCacheRefresh(reason) {
+  return warmHomeStatsCache(reason).catch((error) => {
+    console.error(`[dbp] Ana sayfa istatistik cache warmup başarısız: ${error instanceof Error ? error.message : error}`);
+    return homeStatsCache;
+  });
 }
 
 function nextHomeStatsCacheWarmupDate(now = new Date()) {
-  const next = new Date(now);
-  next.setHours(homeStatsCacheWarmupHour, 0, 0, 0);
-  if (next <= now) next.setDate(next.getDate() + 1);
-  return next;
+  return nextDailyRefreshDate(now, homeStatsCacheWarmupHour, "Europe/Istanbul");
+}
+
+function courseStatisticsSchedule() {
+  return [`Her gün · ${String(homeStatsCacheWarmupHour).padStart(2, "0")}:00`, "Europe/Istanbul · Göstergeler günlük güncellenir"];
 }
 
 function scheduleDailyHomeStatsCacheWarmup() {
@@ -2209,27 +2332,12 @@ function scheduleDailyHomeStatsCacheWarmup() {
   if (homeStatsCacheTtlMs <= 0) return;
   const next = nextHomeStatsCacheWarmupDate();
   homeStatsDailyWarmupTimer = setTimeout(() => {
-    homeStatsCache = undefined;
-    homeStatsCacheCreatedAt = 0;
-    warmHomeStatsCache("daily")
-      .catch((error) => {
-        console.error(`[dbp] Günlük ana sayfa istatistik cache warmup başarısız: ${error instanceof Error ? error.message : error}`);
-      })
+    queueHomeStatsCacheRefresh("daily")
       .finally(() => {
         scheduleDailyHomeStatsCacheWarmup();
       });
   }, Math.max(1_000, next.getTime() - Date.now()));
   homeStatsDailyWarmupTimer.unref?.();
-}
-
-function invalidateHomeStatsCache({ instructors = false } = {}) {
-  homeStatsCache = undefined;
-  homeStatsCacheCreatedAt = 0;
-  scheduleHomeStatsCacheWarmup();
-  if (instructors) {
-    homeInstructorCountCache = undefined;
-    homeInstructorCountRefresh = undefined;
-  }
 }
 
 async function refreshHomeInstructorCount() {
@@ -2247,8 +2355,8 @@ async function refreshHomeInstructorCount() {
 }
 
 async function cachedHomeStats() {
-  if (homeStatsCacheTtlMs <= 0) return homeStats();
-  if (!isHomeStatsCacheFresh()) await warmHomeStatsCache("request");
+  if (homeStatsCacheTtlMs <= 0 || !homeStatsCache) return warmHomeStatsCache("request");
+  if (!isHomeStatsCacheFresh()) queueHomeStatsCacheRefresh("expired");
   return homeStatsCache;
 }
 
@@ -5104,8 +5212,6 @@ function migratePublicCoursePackagesToApprovalDrafts() {
     db.exec("COMMIT");
     if (candidates.length) {
       publicCourseRouteIndexCache = undefined;
-      invalidateHomeStatsCache();
-      queueQualitySnapshotRefresh("course.package.bootstrap-approval-drafts");
     }
   } catch (error) {
     db.exec("ROLLBACK");
@@ -5342,9 +5448,9 @@ function seedDefaultRoleAccess() {
   db.exec("BEGIN");
   try {
     for (const role of dbpRoles) {
-      for (const module of dbpModules) {
-        insert.run(role, module, defaultRoleAccess[role]?.includes(module) ? 1 : 0, now);
-        syncSystemDefault.run(defaultRoleAccess[role]?.includes(module) ? 1 : 0, now, role, module);
+      for (const moduleKey of dbpModules) {
+        insert.run(role, moduleKey, defaultRoleAccess[role]?.includes(moduleKey) ? 1 : 0, now);
+        syncSystemDefault.run(defaultRoleAccess[role]?.includes(moduleKey) ? 1 : 0, now, role, moduleKey);
       }
     }
     db.prepare(`
@@ -5421,8 +5527,8 @@ function replaceRoleAccess(access, actor) {
   try {
     for (const role of dbpRoles) {
       const enabledModules = new Set(access[role] || []);
-      for (const module of dbpModules) {
-        upsert.run(role, module, enabledModules.has(module) ? 1 : 0, now, actor || "admin");
+      for (const moduleKey of dbpModules) {
+        upsert.run(role, moduleKey, enabledModules.has(moduleKey) ? 1 : 0, now, actor || "admin");
       }
     }
     audit("role_module_access.update", actor, { access });
@@ -7171,7 +7277,18 @@ function readQualitySnapshot() {
   return qualitySnapshotCache;
 }
 
-async function refreshQualitySnapshot(actor = "system") {
+function refreshQualitySnapshot(actor = "system") {
+  if (!qualitySnapshotRefreshPromise) {
+    qualitySnapshotRefreshPromise = Promise.resolve()
+      .then(() => buildQualitySnapshot(actor))
+      .finally(() => {
+        qualitySnapshotRefreshPromise = undefined;
+      });
+  }
+  return qualitySnapshotRefreshPromise;
+}
+
+async function buildQualitySnapshot(actor = "system") {
   const instructorCatalog = await loadEEnstituInstructorOptions();
   const generatedAt = new Date().toISOString();
   const allCourses = dbCourseList({});
@@ -7217,57 +7334,35 @@ async function refreshQualitySnapshot(actor = "system") {
       }),
     };
   });
-  qualitySnapshotCache = { generatedAt, source: "database_snapshot", instructorSource: instructorCatalog.source, schedule: managedSchedule(), institute, programs };
-  db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(qualitySnapshotMetadataKey, JSON.stringify(qualitySnapshotCache));
+  const snapshot = { generatedAt, source: "database_snapshot", instructorSource: instructorCatalog.source, schedule: courseStatisticsSchedule(), institute, programs };
+  db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(qualitySnapshotMetadataKey, JSON.stringify(snapshot));
+  qualitySnapshotCache = snapshot;
   audit("quality.snapshot.refresh", actor, { generatedAt, programs: programs.length, courses: institute.totalCourses });
   return qualitySnapshotCache;
 }
 
-function latestCourseUpdateDate() {
-  const value = db.prepare("SELECT MAX(updated_at) AS updated_at FROM courses").get()?.updated_at;
-  const date = value ? new Date(value) : null;
-  return date && !Number.isNaN(date.getTime()) ? date : null;
-}
-
-function queueQualitySnapshotRefresh(actor = "course-change") {
-  qualitySnapshotCache = undefined;
-  if (!qualitySnapshotRefreshPromise) {
-    qualitySnapshotRefreshPromise = Promise.resolve()
-      .then(() => refreshQualitySnapshot(actor))
-      .catch((error) => {
-        console.error(`[dbp] Kalite göstergeleri yenileme hatası: ${error instanceof Error ? error.message : error}`);
-        return null;
-      })
-      .finally(() => {
-        qualitySnapshotRefreshPromise = undefined;
-      });
-  }
-  return qualitySnapshotRefreshPromise;
+function queueQualitySnapshotRefresh(actor = "daily") {
+  return refreshQualitySnapshot(actor).catch((error) => {
+    console.error(`[dbp] Kalite göstergeleri yenileme hatası: ${error instanceof Error ? error.message : error}`);
+    return readQualitySnapshot();
+  });
 }
 
 async function currentQualitySnapshot() {
-  if (qualitySnapshotRefreshPromise) return qualitySnapshotRefreshPromise;
   const snapshot = readQualitySnapshot();
-  const latestScheduled = latestMainDataRefreshDate();
-  const latestCourseUpdate = latestCourseUpdateDate();
   const generatedAt = snapshot?.generatedAt ? new Date(snapshot.generatedAt) : null;
   if (!generatedAt || Number.isNaN(generatedAt.getTime())) return refreshQualitySnapshot("missing-snapshot");
-  if (latestScheduled && generatedAt < latestScheduled) return refreshQualitySnapshot("scheduled-startup");
-  if (latestCourseUpdate && generatedAt < latestCourseUpdate) return refreshQualitySnapshot("course-change");
+  if (Date.now() - generatedAt.getTime() >= qualitySnapshotTtlMs) queueQualitySnapshotRefresh("expired-snapshot");
   return snapshot;
 }
 
 function scheduleQualityRefresh() {
   if (qualityRefreshTimer) clearTimeout(qualityRefreshTimer);
-  const snapshot = readQualitySnapshot();
-  const next = refreshRetryDate(snapshot?.generatedAt) || nextMainDataRefreshDate();
-  if (!next) return;
-  const delay = Math.min(Math.max((next?.getTime() || Date.now()) - Date.now(), 1_000), 2_000_000_000);
+  const next = nextHomeStatsCacheWarmupDate();
+  const delay = Math.max(next.getTime() - Date.now(), 1_000);
   qualityRefreshTimer = setTimeout(async () => {
     try {
-      if (next && Date.now() >= next.getTime()) await refreshQualitySnapshot("scheduled");
-    } catch (error) {
-      console.error(`[dbp] Kalite göstergeleri zamanlanmış yenileme hatası: ${error instanceof Error ? error.message : error}`);
+      await queueQualitySnapshotRefresh("daily");
     } finally {
       scheduleQualityRefresh();
     }
@@ -8821,8 +8916,8 @@ async function adminSummary() {
     backups: await listBackups(),
     qualitySnapshot: {
       generatedAt: qualitySnapshot?.generatedAt || "",
-      nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
-      schedule: managedSchedule(),
+      nextRefreshAt: nextHomeStatsCacheWarmupDate().toISOString(),
+      schedule: courseStatisticsSchedule(),
     },
   };
 }
@@ -9264,8 +9359,8 @@ async function handleDbpApi(request) {
       const snapshot = await currentQualitySnapshot();
       return jsonResponse({
         ...snapshot,
-        schedule: managedSchedule(),
-        nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
+        schedule: courseStatisticsSchedule(),
+        nextRefreshAt: nextHomeStatsCacheWarmupDate().toISOString(),
       });
     }
 
@@ -9385,11 +9480,32 @@ async function handleDbpApi(request) {
       return jsonResponse(createInternalManualThesis(body), { status: 201 });
     }
 
+    if (["/api/dbp/course-create-import/preview", "/api/dbp/course-create-import/apply"].includes(pathname) && request.method === "POST") {
+      const applying = pathname.endsWith("/apply");
+      const auth = requireDbpSession(request, { write: applying });
+      if (auth.error) return auth.error;
+      if (!["lee_ogrenci_isleri", "enstitu_yoneticisi", "admin"].includes(auth.session.role)) {
+        return jsonResponse({ message: "Toplu yeni ders eklemek için ders düzenleme yetkisi gereklidir." }, { status: 403 });
+      }
+      const body = await readJsonBody(request);
+      try {
+        const scope = newCourseImportScope(body);
+        const rows = readNewCourseWorkbook(body.fileBase64);
+        if (!rows.length) return jsonResponse({ message: "Excel dosyasında ders satırı bulunamadı." }, { status: 422 });
+        if (!applying) return jsonResponse({ ok: true, preview: buildNewCourseImportPreview(rows, scope) });
+        const result = applyNewCourseImport(rows, scope, auth.session.username || auth.session.name || "dbp-user");
+        if (result.created) publicCourseRouteIndexCache = undefined;
+        return jsonResponse({ ok: true, result });
+      } catch (error) {
+        return jsonResponse({ message: error.message || "Toplu ders ekleme tamamlanamadı." }, { status: error.statusCode || 500 });
+      }
+    }
+
     if (pathname === "/api/dbp/course-assignment-import/template" && request.method === "GET") {
       const auth = requireDbpSession(request);
       if (auth.error) return auth.error;
-      if (!["lee_ogrenci_isleri", "admin"].includes(auth.session.role)) {
-        return jsonResponse({ message: "Liste ile atama şablonu LEE Öğrenci İşleri rolündedir." }, { status: 403 });
+      if (!["lee_ogrenci_isleri", "enstitu_yoneticisi", "admin"].includes(auth.session.role)) {
+        return jsonResponse({ message: "Liste ile atama şablonu için ders düzenleme yetkisi gereklidir." }, { status: 403 });
       }
       return new Response(createCourseAssignmentTemplateWorkbook(), {
         headers: {
@@ -9403,8 +9519,8 @@ async function handleDbpApi(request) {
     if (pathname === "/api/dbp/course-assignment-import/preview" && request.method === "POST") {
       const auth = requireDbpSession(request);
       if (auth.error) return auth.error;
-      if (!["lee_ogrenci_isleri", "admin"].includes(auth.session.role)) {
-        return jsonResponse({ message: "Liste ile atama önizlemesi LEE Öğrenci İşleri rolündedir." }, { status: 403 });
+      if (!["lee_ogrenci_isleri", "enstitu_yoneticisi", "admin"].includes(auth.session.role)) {
+        return jsonResponse({ message: "Liste ile atama önizlemesi için ders düzenleme yetkisi gereklidir." }, { status: 403 });
       }
       const body = await readJsonBody(request);
       try {
@@ -9417,23 +9533,21 @@ async function handleDbpApi(request) {
     if (pathname === "/api/dbp/course-assignment-import/apply" && request.method === "POST") {
       const auth = requireDbpSession(request, { write: true });
       if (auth.error) return auth.error;
-      if (!["lee_ogrenci_isleri", "admin"].includes(auth.session.role)) {
-        return jsonResponse({ message: "Liste ile atama yetkisi LEE Öğrenci İşleri rolündedir." }, { status: 403 });
+      if (!["lee_ogrenci_isleri", "enstitu_yoneticisi", "admin"].includes(auth.session.role)) {
+        return jsonResponse({ message: "Liste ile atama için ders düzenleme yetkisi gereklidir." }, { status: 403 });
       }
       const body = await readJsonBody(request);
       const actor = auth.session.username || auth.session.name || "dbp-user";
       const result = applyCourseAssignmentImport(Array.isArray(body.items) ? body.items : [], actor);
-      invalidateHomeStatsCache({ instructors: true });
-      queueQualitySnapshotRefresh("course.assignment.import");
-      await refreshHomeInstructorCount();
+      publicCourseRouteIndexCache = undefined;
       return jsonResponse({ ok: true, result });
     }
 
     if (pathname === "/api/dbp/course-management" && request.method === "POST") {
       const auth = requireDbpSession(request, { write: true });
       if (auth.error) return auth.error;
-      if (!["lee_ogrenci_isleri", "admin"].includes(auth.session.role)) {
-        return jsonResponse({ message: "Ders açma ve öğretim elemanı atama yetkisi LEE Öğrenci İşleri rolündedir." }, { status: 403 });
+      if (!["lee_ogrenci_isleri", "enstitu_yoneticisi", "admin"].includes(auth.session.role)) {
+        return jsonResponse({ message: "Ders düzenleme için LEE Öğrenci İşleri, Enstitü Yöneticisi veya Admin rolü gereklidir." }, { status: 403 });
       }
       const body = await readJsonBody(request);
       const actor = auth.session.username || auth.session.name || "dbp-user";
@@ -9446,9 +9560,22 @@ async function handleDbpApi(request) {
       if (!courseCodeMatchesLevel(code, level)) {
         return jsonResponse({ message: "Ders kodu program düzeyiyle uyumlu değil: 700 Tezsiz YL, 800 Tezli YL, 900 Doktora olmalıdır." }, { status: 422 });
       }
+      const hasTerm = Object.hasOwn(body, "term");
+      const term = hasTerm ? String(body.term || "").trim() : undefined;
+      if ((hasTerm || body.action !== "assign") && !["Güz", "Bahar", "Güz ve Bahar"].includes(term)) {
+        return jsonResponse({ message: "Dersin dönemi Güz, Bahar veya Güz ve Bahar olarak seçilmelidir." }, { status: 422 });
+      }
       if (body.action === "assign") {
         const existing = findExactCourseRow({ code, department: body.department, programName: body.programName, level });
-        if (!existing) return jsonResponse({ message: "Atama yapılacak ders kaydı bulunamadı." }, { status: 404 });
+        if (!existing) return jsonResponse({ message: "Düzenlenecek ders kaydı bulunamadı." }, { status: 404 });
+        // A term-only edit must not overwrite an instructor assigned by another user.
+        if (!Object.hasOwn(body, "instructor")) {
+          if (!hasTerm) return jsonResponse({ message: "Dönem veya öğretim elemanı bilgisi gereklidir." }, { status: 400 });
+          const result = db.prepare("UPDATE courses SET term = ?, updated_at = ? WHERE id = ?").run(term, now, existing.id);
+          audit("course.term.update", actor, { code, department: body.department, programName: body.programName, level, term });
+          publicCourseRouteIndexCache = undefined;
+          return jsonResponse({ ok: true, changed: result.changes });
+        }
         const resolvedInstructor = body.instructor
           ? await resolveInstructorIdentityFromName(body.instructor, { department: body.department, programName: body.programName })
           : {};
@@ -9460,6 +9587,7 @@ async function handleDbpApi(request) {
               instructor_title = ?,
               instructor_source = ?,
               instructor_assigned_at = ?,
+              term = COALESCE(?, term),
               updated_at = ?
           WHERE id = ?
         `).run(
@@ -9469,13 +9597,12 @@ async function handleDbpApi(request) {
           body.instructorTitle || resolvedInstructor.instructorTitle || "",
           body.instructorSource || resolvedInstructor.instructorSource || (body.instructor ? "manual" : ""),
           body.instructor ? now : "",
+          term ?? null,
           now,
           existing.id,
         );
-        audit("course.assignment.update", actor, { code, department: body.department, programName: body.programName, level });
-        invalidateHomeStatsCache({ instructors: true });
-        queueQualitySnapshotRefresh("course.assignment.update");
-        await refreshHomeInstructorCount();
+        audit("course.assignment.update", actor, { code, department: body.department, programName: body.programName, level, ...(hasTerm ? { term } : {}) });
+        publicCourseRouteIndexCache = undefined;
         return jsonResponse({ ok: true, changed: result.changes });
       }
       const existing = findExactCourseRow({ code, department: body.department, programName: body.programName, level });
@@ -9485,7 +9612,7 @@ async function handleDbpApi(request) {
         : {};
       db.prepare(`
         INSERT INTO courses(academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, instructor_tc_kimlik, instructor_email, instructor_title, instructor_source, instructor_assigned_at, source, package_json, created_at, updated_at)
-        VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 'Taslak', ?, ?, ?, ?, ?, ?, 'lee_ogrenci_isleri', '{}', ?, ?)
+        VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Taslak', ?, ?, ?, ?, ?, ?, 'lee_ogrenci_isleri', '{}', ?, ?)
       `).run(
         body.academicYear || "2026-2027",
         body.department,
@@ -9498,6 +9625,7 @@ async function handleDbpApi(request) {
         Number(body.ects || 0),
         Number(body.theory || 0),
         Number(body.practice || 0),
+        term,
         body.instructor || "",
         body.instructorTcKimlik || resolvedInstructor.instructorTcKimlik || "",
         body.instructorEmail || resolvedInstructor.instructorEmail || "",
@@ -9507,10 +9635,8 @@ async function handleDbpApi(request) {
         now,
         now,
       );
-      audit("course.create", actor, { code, department: body.department, programName: body.programName, level });
-      invalidateHomeStatsCache({ instructors: true });
-      queueQualitySnapshotRefresh("course.create");
-      await refreshHomeInstructorCount();
+      audit("course.create", actor, { code, department: body.department, programName: body.programName, level, term });
+      publicCourseRouteIndexCache = undefined;
       return jsonResponse({ ok: true });
     }
 
@@ -9710,8 +9836,6 @@ async function handleDbpApi(request) {
         });
       }
       publicCourseRouteIndexCache = undefined;
-      invalidateHomeStatsCache();
-      queueQualitySnapshotRefresh("course.package.save");
       return jsonResponse({
         ok: true,
         status: actualStatus,
@@ -9757,8 +9881,6 @@ async function handleDbpApi(request) {
         });
       }
       publicCourseRouteIndexCache = undefined;
-      invalidateHomeStatsCache();
-      queueQualitySnapshotRefresh("course.package.status");
       return jsonResponse({ ok: true, status });
     }
 
@@ -9783,7 +9905,6 @@ async function handleDbpApi(request) {
       const actor = auth.session?.username || auth.session?.name || "dbp-user";
       upsertPublicVisibilityMap(body.visibility || {}, actor);
       publicCourseRouteIndexCache = undefined;
-      invalidateHomeStatsCache();
       return jsonResponse({ ok: true, visibility: getPublicVisibilityMap() });
     }
 
@@ -9825,7 +9946,7 @@ async function handleDbpApi(request) {
       return jsonResponse({
         ok: true,
         generatedAt: snapshot.generatedAt,
-        nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
+        nextRefreshAt: nextHomeStatsCacheWarmupDate().toISOString(),
       });
     }
 
@@ -9890,7 +10011,7 @@ async function handleDbpApi(request) {
       const body = await readJsonBody(request);
       await restoreBackup(body.fileName, actor);
       publicCourseRouteIndexCache = undefined;
-      invalidateHomeStatsCache({ instructors: true });
+      queueHomeStatsCacheRefresh("admin.restore");
       queueQualitySnapshotRefresh("admin.restore");
       await refreshHomeInstructorCount();
       return jsonResponse({ ok: true, summary: await adminSummary() });
@@ -9901,7 +10022,7 @@ async function handleDbpApi(request) {
       await writeBackup(actor);
       replaceFromExport(payload, actor);
       publicCourseRouteIndexCache = undefined;
-      invalidateHomeStatsCache({ instructors: true });
+      queueHomeStatsCacheRefresh("admin.import");
       queueQualitySnapshotRefresh("admin.import");
       await refreshHomeInstructorCount();
       return jsonResponse({ ok: true, summary: await adminSummary() });
@@ -9915,7 +10036,7 @@ async function handleDbpApi(request) {
       await writeBackup(actor);
       resetDatabase(actor);
       publicCourseRouteIndexCache = undefined;
-      invalidateHomeStatsCache({ instructors: true });
+      queueHomeStatsCacheRefresh("admin.reset");
       queueQualitySnapshotRefresh("admin.reset");
       await refreshHomeInstructorCount();
       return jsonResponse({ ok: true, summary: await adminSummary() });
@@ -9931,7 +10052,7 @@ async function handleDbpApi(request) {
       seedProgramProfiles(true);
       ensureTestProgramData();
       publicCourseRouteIndexCache = undefined;
-      invalidateHomeStatsCache({ instructors: true });
+      queueHomeStatsCacheRefresh("admin.seed");
       queueQualitySnapshotRefresh("admin.seed");
       await refreshHomeInstructorCount();
       return jsonResponse({ ok: true, summary: await adminSummary() });

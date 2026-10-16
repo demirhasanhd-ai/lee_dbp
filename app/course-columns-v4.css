@@ -119,7 +119,10 @@
 }
 
 .course-management-dialog {
+  width: min(1120px, 100%);
   max-width: 1120px;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
 }
 
 .course-management-dialog select:disabled {
@@ -131,6 +134,28 @@
   display: grid;
   gap: 16px;
   padding: 21px 23px;
+}
+
+.new-course-import-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 3%, var(--card));
+  min-width: 0;
+}
+
+.new-course-import-panel h3, .new-course-import-panel p { margin: 0; }
+.new-course-import-panel h3 { font-size: 14px; }
+.new-course-import-panel p { font-size: 12px; line-height: 1.6; }
+.new-course-import-panel .bulk-summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.new-course-import-panel .bulk-template-button { text-decoration: none; }
+.course-dialog-tabs button:disabled { cursor: wait; opacity: .55; }
+
+@media (max-width: 600px) {
+  .new-course-import-panel .bulk-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .bulk-import-controls {

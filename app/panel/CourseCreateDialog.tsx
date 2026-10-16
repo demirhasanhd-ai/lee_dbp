@@ -16,6 +16,8 @@ type CatalogCourseOption = {
   level: string;
   code: string;
   name: string;
+  term?: string;
+  instructor?: string;
 };
 
 type InstructorOption = {
@@ -74,6 +76,19 @@ type ImportPreview = {
 };
 
 type ImportApplyMode = "empty" | "changed" | "both";
+
+type NewCoursePreview = {
+  scope: { department: string; programName: string; level: string };
+  rowsRead: number;
+  summary: { ready: number; existing: number; invalid: number; unassigned: number };
+  items: {
+    rowNumber: number; code: string; name: string; term: string; type: string;
+    theory: number | null; practice: number | null; credit: number | null; ects: number | null;
+    instructor: string; instructorTitle: string; instructorEmail: string;
+    action: "create" | "existing" | "invalid"; errors: string[];
+  }[];
+  fileBase64: string;
+};
 
 const trustedInstructorSources = new Set(["e_enstitu_api", "e_enstitu_database", "dbp_course_catalog"]);
 const unassignedInstructorLabel = "Şimdilik boş / atama bekliyor";
@@ -174,6 +189,7 @@ export function CourseCreateDialog({
   const [main, setMain] = useState(MAIN_DEPARTMENTS[0]);
   const [level, setLevel] = useState<ProgramLevel>("Tezli Yüksek Lisans");
   const [selectedProgramKey, setSelectedProgramKey] = useState("");
+  const [selectedCourseCode, setSelectedCourseCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
@@ -183,6 +199,9 @@ export function CourseCreateDialog({
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [importMode, setImportMode] = useState<ImportApplyMode>("empty");
   const [importSelections, setImportSelections] = useState<Record<string, string>>({});
+  const [newCourseFile, setNewCourseFile] = useState<File | null>(null);
+  const [newCoursePreview, setNewCoursePreview] = useState<NewCoursePreview | null>(null);
+  const [newCourseMessage, setNewCourseMessage] = useState("");
   const instructorListId = useId();
 
   const programs = useMemo(
@@ -208,6 +227,7 @@ export function CourseCreateDialog({
         sameText(course.level, level),
       )
     : [];
+  const selectedCourse = curriculumCourses.find((course) => course.code === selectedCourseCode);
 
   useEffect(() => {
     if (!open) return;
@@ -272,6 +292,48 @@ export function CourseCreateDialog({
   }, [importMode, importPreview, importSelections]);
 
   if (!open) return null;
+
+  const clearNewCoursePreview = () => { setNewCoursePreview(null); setNewCourseMessage(""); };
+  const previewNewCourses = async () => {
+    if (!newCourseFile || !selectedProgram) return;
+    setBusy(true);
+    clearNewCoursePreview();
+    try {
+      if (!newCourseFile.name.toLowerCase().endsWith(".xlsx") || newCourseFile.size > 5_000_000) {
+        throw new Error("En fazla 5 MB boyutunda bir .xlsx dosyası seçin.");
+      }
+      const fileBase64 = await fileToBase64(newCourseFile);
+      const response = await fetch(dbpPath("/api/dbp/course-create-import/preview"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-DBP-Session": dbpSessionHeader(session) },
+        body: JSON.stringify({ department: selectedProgram.department, programName: selectedProgram.programName, level, fileBase64 }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Excel önizlemesi oluşturulamadı.");
+      setNewCoursePreview({ ...data.preview, fileBase64 });
+    } catch (error) {
+      setNewCourseMessage(error instanceof Error ? error.message : "Excel okunamadı.");
+    } finally { setBusy(false); }
+  };
+  const applyNewCourses = async () => {
+    if (!newCoursePreview?.summary.ready) return;
+    setBusy(true);
+    setNewCourseMessage("");
+    try {
+      const response = await fetch(dbpPath("/api/dbp/course-create-import/apply"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-DBP-Session": dbpSessionHeader(session) },
+        body: JSON.stringify({ ...newCoursePreview.scope, fileBase64: newCoursePreview.fileBase64 }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Dersler eklenemedi.");
+      setNewCourseMessage(`${data.result.created} yeni ders eklendi. ${data.result.existing} mevcut ders ve ${data.result.invalid} hatalı satır atlandı. ${data.result.unassigned} ders atama bekliyor.`);
+      setNewCoursePreview(null);
+      onCreated();
+    } catch (error) {
+      setNewCourseMessage(error instanceof Error ? error.message : "Dersler eklenemedi.");
+    } finally { setBusy(false); }
+  };
 
   const runImportPreview = async () => {
     if (!importFile) {
@@ -364,7 +426,7 @@ export function CourseCreateDialog({
         <header>
           <div>
             <small>ENSTİTÜ YETKİLİ İŞLEMİ</small>
-            <h2 id="course-create-title">Ders Açma ve Öğretim Elemanı Tanımlama</h2>
+            <h2 id="course-create-title">Ders Düzenleme</h2>
           </div>
           <button type="button" onClick={onClose} aria-label="Kapat">
             <X size={17} />
@@ -372,9 +434,9 @@ export function CourseCreateDialog({
         </header>
 
         <div className="course-dialog-tabs" role="tablist" aria-label="Ders yönetimi">
-          <button type="button" className={mode === "create" ? "active" : ""} onClick={() => setMode("create")}>Yeni Ders Aç</button>
-          <button type="button" className={mode === "assign" ? "active" : ""} onClick={() => setMode("assign")}>Mevcut Derse Hoca Ata</button>
-          <button type="button" className={mode === "bulk" ? "active" : ""} onClick={() => setMode("bulk")}>Liste ile Atama Yap</button>
+          <button type="button" disabled={busy} className={mode === "create" ? "active" : ""} onClick={() => { setMode("create"); setMessage(""); }}>Yeni Ders</button>
+          <button type="button" disabled={busy} className={mode === "assign" ? "active" : ""} onClick={() => { setMode("assign"); setMessage(""); }}>Mevcut Ders</button>
+          <button type="button" disabled={busy} className={mode === "bulk" ? "active" : ""} onClick={() => setMode("bulk")}>Liste ile Atama Yap</button>
         </div>
 
         {mode === "bulk" ? (
@@ -470,6 +532,7 @@ export function CourseCreateDialog({
             try {
               const form = new FormData(event.currentTarget);
               const instructor = String(form.get("instructor") || "").trim();
+              const instructorChanged = form.has("instructor") && (mode === "create" || instructor !== (selectedCourse?.instructor || "").trim());
               const selectedInstructor = instructors.find((item) => normalizePersonName(item.name) === normalizePersonName(instructor));
               const response = await fetch(dbpPath("/api/dbp/course-management"), {
                 method: "POST",
@@ -486,11 +549,14 @@ export function CourseCreateDialog({
                   practice: Number(form.get("practice") || 0),
                   credit: Number(form.get("credit") || 0),
                   ects: Number(form.get("ects") || 0),
-                  instructor: instructor === "unassigned" || instructor === unassignedInstructorLabel ? "" : instructor,
-                  instructorTcKimlik: selectedInstructor && /^\d{11}$/.test(selectedInstructor.id) ? selectedInstructor.id : "",
-                  instructorEmail: selectedInstructor?.email || "",
-                  instructorTitle: selectedInstructor?.title || "",
-                  instructorSource: selectedInstructor?.source || "",
+                  term: form.get("term"),
+                  ...(instructorChanged ? {
+                    instructor: instructor === "unassigned" || instructor === unassignedInstructorLabel ? "" : instructor,
+                    instructorTcKimlik: selectedInstructor && /^\d{11}$/.test(selectedInstructor.id) ? selectedInstructor.id : "",
+                    instructorEmail: selectedInstructor?.email || "",
+                    instructorTitle: selectedInstructor?.title || "",
+                    instructorSource: selectedInstructor?.source || "",
+                  } : {}),
                 }),
               });
               const data = await response.json().catch(() => ({}));
@@ -506,14 +572,14 @@ export function CourseCreateDialog({
             <div className="create-course-grid">
               <label className="wide">
                 <span>Ana ABD / ASD Başkanlığı</span>
-                <select required value={main} onChange={(event) => { setMain(event.target.value); setSelectedProgramKey(""); }}>
+                <select required disabled={busy} value={main} onChange={(event) => { setMain(event.target.value); setSelectedProgramKey(""); setSelectedCourseCode(""); clearNewCoursePreview(); }}>
                   {MAIN_DEPARTMENTS.map((item) => <option key={item}>{item}</option>)}
                 </select>
               </label>
 
               <label>
                 <span>Program düzeyi</span>
-                <select required value={level} onChange={(event) => { setLevel(event.target.value as ProgramLevel); setSelectedProgramKey(""); }}>
+                <select required disabled={busy} value={level} onChange={(event) => { setLevel(event.target.value as ProgramLevel); setSelectedProgramKey(""); setSelectedCourseCode(""); clearNewCoursePreview(); }}>
                   <option>Tezsiz Yüksek Lisans</option>
                   <option>Tezli Yüksek Lisans</option>
                   <option>Doktora</option>
@@ -522,7 +588,7 @@ export function CourseCreateDialog({
 
               <label className="wide">
                 <span>İlgili ABD / ASD ve program</span>
-                <select required value={selectedProgramKey} onChange={(event) => setSelectedProgramKey(event.target.value)}>
+                <select required disabled={busy} value={selectedProgramKey} onChange={(event) => { setSelectedProgramKey(event.target.value); setSelectedCourseCode(""); clearNewCoursePreview(); }}>
                   <option value="" disabled>Programı seçin</option>
                   {programs.map((item) => (
                     <option key={`${item.department}-${item.programName}`} value={`${item.department}||${item.programName}`}>{item.department} — {item.programName}</option>
@@ -530,10 +596,52 @@ export function CourseCreateDialog({
                 </select>
               </label>
 
+              {mode === "create" && (
+                <section className="new-course-import-panel" aria-label="Excel ile toplu yeni ders">
+                  <h3>Excel ile Toplu Yeni Ders</h3>
+                  <p>Önce yukarıdan program ve düzey seçin. Her ders için bir satır doldurun; dönem ve ders bilgileri zorunludur. Danışman bilgileri boşsa sorumlu öğretim elemanı “Atama bekliyor” görünür. En fazla 1000 ders ve 5 MB dosya yükleyebilirsiniz.</p>
+                  <div className="bulk-import-controls">
+                    <label className="bulk-file-picker">
+                      <span>Yeni ders Excel dosyası</span>
+                      <input type="file" disabled={busy} accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => {
+                        setNewCourseFile(event.currentTarget.files?.[0] || null);
+                        clearNewCoursePreview();
+                      }} />
+                    </label>
+                    <a className="bulk-template-button" href={dbpPath("/yeni-ders-sablonu.xlsx")} download><Download size={15} />Boş Şablon</a>
+                    <button className="bulk-preview-button" type="button" onClick={previewNewCourses} disabled={busy || !newCourseFile || !selectedProgram}><FileSpreadsheet size={15} />Önizle</button>
+                  </div>
+                  {newCoursePreview && (
+                    <>
+                      <p><b>{newCoursePreview.scope.programName} — {newCoursePreview.scope.level}</b>: {newCoursePreview.rowsRead} satır okundu. Mevcut dersler değiştirilmez; yalnızca geçerli yeni dersler eklenir.</p>
+                      <div className="bulk-summary-grid">
+                        <b>{newCoursePreview.summary.ready} yeni ders</b><b>{newCoursePreview.summary.existing} mevcut / atlanacak</b><b>{newCoursePreview.summary.invalid} hatalı / atlanacak</b><b>{newCoursePreview.summary.unassigned} atama bekliyor</b>
+                      </div>
+                      <div className="bulk-table-wrap">
+                        <table className="bulk-assignment-table">
+                          <thead><tr><th>Satır / Ders</th><th>Dönem / Tür</th><th>T / U / Kredi / AKTS</th><th>Sorumlu öğretim elemanı</th><th>Durum</th></tr></thead>
+                          <tbody>{newCoursePreview.items.map((item) => (
+                            <tr key={item.rowNumber} className={item.action === "invalid" ? "needs-review" : ""}>
+                              <td><b>{item.code || "Kod eksik"}</b><span>{item.name}</span><small>Excel satırı: {item.rowNumber}</small></td>
+                              <td>{item.term || "Dönem eksik"}<small>{item.type}</small></td>
+                              <td>{[item.theory, item.practice, item.credit, item.ects].map((value) => value ?? "—").join(" / ")}</td>
+                              <td>{item.instructor || "Atama bekliyor"}<small>{item.instructorTitle}</small><small>{item.instructorEmail}</small></td>
+                              <td><b>{item.action === "create" ? "Eklenecek" : item.action === "existing" ? "Zaten kayıtlı / Atlanacak" : "Hatalı / Atlanacak"}</b><small>{item.errors.join(" ")}</small></td>
+                            </tr>
+                          ))}</tbody>
+                        </table>
+                      </div>
+                      <footer><button className="create" type="button" onClick={applyNewCourses} disabled={busy || !newCoursePreview.summary.ready}><Upload size={15} />{newCoursePreview.summary.ready} Yeni Dersi Ekle</button></footer>
+                    </>
+                  )}
+                  {newCourseMessage && <p className="no-program-warning" role="status">{newCourseMessage}</p>}
+                </section>
+              )}
+
               {mode === "assign" ? (
                 <label className="wide">
                   <span>Müfredattaki ders</span>
-                  <select required disabled={!selectedProgram} name="code">
+                  <select required disabled={!selectedProgram} name="code" value={selectedCourseCode} onChange={(event) => setSelectedCourseCode(event.target.value)}>
                     <option value="">{selectedProgram ? "Dersi seçin" : "Önce program seçin"}</option>
                     {curriculumCourses.map((course) => <option key={course.code} value={course.code}>{course.code} — {course.name}</option>)}
                   </select>
@@ -550,9 +658,19 @@ export function CourseCreateDialog({
                 </>
               )}
 
-              <label className="wide">
-                <span>{mode === "assign" ? "Yeni öğretim elemanı" : "Dersi veren öğretim elemanı"}</span>
-                <input required name="instructor" list={instructorListId} disabled={instructorsBusy} placeholder={instructorsBusy ? "Akademisyenler yükleniyor" : "İsim yazın veya listeden seçin"} autoComplete="off" />
+              <label key={`term-${mode}-${selectedProgramKey}-${level}-${selectedCourseCode}`}>
+                <span>Dersin dönemi</span>
+                <select required name="term" defaultValue={mode === "assign" ? selectedCourse?.term || "" : ""} disabled={mode === "assign" && !selectedCourse}>
+                  <option value="" disabled>Dönemi seçin</option>
+                  <option>Güz</option>
+                  <option>Bahar</option>
+                  <option>Güz ve Bahar</option>
+                </select>
+              </label>
+
+              <label className="wide" key={`instructor-${mode}-${selectedProgramKey}-${level}-${selectedCourseCode}`}>
+                <span>Dersi veren öğretim elemanı</span>
+                <input required={mode === "create"} name="instructor" defaultValue={mode === "assign" ? selectedCourse?.instructor || "" : ""} list={instructorListId} disabled={instructorsBusy || (mode === "assign" && !selectedCourse)} placeholder={instructorsBusy ? "Akademisyenler yükleniyor" : "İsim yazın veya listeden seçin"} autoComplete="off" />
                 <datalist id={instructorListId}>
                   <option value={unassignedInstructorLabel} />
                   {instructors.map((item) => <option key={item.id} value={item.name} label={item.departmentNames?.length ? item.departmentNames.slice(0, 2).join(", ") : undefined} />)}
@@ -567,9 +685,9 @@ export function CourseCreateDialog({
 
             <footer>
               <button type="button" onClick={onClose}>Vazgeç</button>
-              <button className="create" type="submit" disabled={busy || programs.length === 0 || (mode === "assign" && curriculumCourses.length === 0)}>
+              <button className="create" type="submit" disabled={busy || programs.length === 0 || (mode === "create" && instructorsBusy) || (mode === "assign" && !selectedCourse)}>
                 {mode === "assign" ? <Save size={15} /> : <Plus size={15} />}
-                {mode === "assign" ? "Atamayı Kaydet" : "Dersi Oluştur"}
+                {mode === "assign" ? "Değişiklikleri Kaydet" : "Dersi Oluştur"}
               </button>
             </footer>
           </form>

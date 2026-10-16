@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Download, FileText, Printer, X } from "lucide-react";
 import {
   fetchProgramVisibility,
@@ -108,6 +108,13 @@ const mergedProcessCourseCodes = new Set([
   "YBS8XX", "YBS805", "YBS81X",
   "YON8XX", "YON805", "YON841", "YON81X",
 ]);
+
+function isMergedProcessCourse(course: PublicCourse, department: string) {
+  if (course.code === "BES801") {
+    return ["Tarih ABD", "Türk Dili ve Edebiyatı ABD"].includes(repairText(department));
+  }
+  return mergedProcessCourseCodes.has(course.code);
+}
 const defaultOutcomes = [
   "Alanındaki ileri düzey bilgileri bilimsel araştırma süreçlerinde kullanır.",
   "Disiplinler arası yaklaşımla problem tanımlar ve çözüm önerileri geliştirir.",
@@ -225,7 +232,6 @@ function ProgramProfile({ department, programName, activeLevel }: { department: 
   const [profile, setProfile] = useState(() => getProgramProfile(repairedProgramName, repairedLevel));
   useEffect(() => {
     let cancelled = false;
-    setProfile(getProgramProfile(repairedProgramName, repairedLevel));
     fetchProgramProfile(repairedProgramName, repairedLevel).then((nextProfile) => {
       if (!cancelled) setProfile(nextProfile);
     });
@@ -299,29 +305,19 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
   const [activeView, setActiveView] = useState<ViewState>(
     initialView ?? { programKey: visibilityKey, level: levels[0], tab: "profile" },
   );
-  const visibleLevelsForItems = (visibility: Record<string, boolean>) =>
+  const visibleLevelsForItems = useCallback((visibility: Record<string, boolean>) =>
     Object.fromEntries(allProgramItems.map((item) => [
       item.visibilityKey,
       item.levels.filter((level) => {
         const key = programLevelVisibilityKeyFromKey(item.visibilityKey, level);
         return key in visibility ? visibility[key] !== false : isProgramVisibilityKeyPublic(item.visibilityKey, visibility);
       }),
-    ]));
+    ])), [allProgramItems]);
   const [visibleLevelsByProgram, setVisibleLevelsByProgram] = useState<Record<string, string[]>>(
     () => visibleLevelsForItems({}),
   );
   const [currentVisibility, setCurrentVisibility] = useState<ProgramVisibilityMap>({});
   const activeProgram = allProgramItems.find((item) => item.visibilityKey === activeView.programKey) ?? allProgramItems[0];
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const requestedProgramKey = params.get("programKey") ?? visibilityKey;
-    const requestedProgram = allProgramItems.find((item) => item.visibilityKey === requestedProgramKey);
-    if (!requestedProgram) return;
-    const requestedLevel = params.get("duzey") ?? requestedProgram.levels[0];
-    if (!requestedProgram.levels.includes(requestedLevel)) return;
-    const requestedTab = params.get("sekme") === "courses" ? "courses" : "profile";
-    setActiveView({ programKey: requestedProgramKey, level: requestedLevel, tab: requestedTab });
-  }, [allProgramItems, visibilityKey]);
   useEffect(() => {
     const sync = () => {
       const visibility = readProgramVisibility();
@@ -349,7 +345,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       window.removeEventListener("storage", sync);
       window.removeEventListener("lee-dbp-public-visibility-change", sync);
     };
-  }, [activeView.level, activeView.programKey, allProgramItems]);
+  }, [activeView.level, activeView.programKey, allProgramItems, visibleLevelsForItems]);
   const activeLevel = activeView.level;
   const activeVisibleLevels = visibleLevelsByProgram[activeProgram.visibilityKey] ?? [];
   const visible = activeProgram.courses.filter((course) =>
@@ -363,13 +359,13 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
     {
       key: "common",
       title: "Ortak / Süreç Dersleri",
-      courses: visible.filter((course) => mergedProcessCourseCodes.has(course.code)),
+      courses: visible.filter((course) => isMergedProcessCourse(course, department)),
     },
     ...(["Güz", "Bahar"] as const).map((term) => ({
       key: term,
       title: `${term} Yarıyılı`,
       courses: visible.filter(
-        (course) => [term, "Güz ve Bahar"].includes(repairText(course.term)) && !mergedProcessCourseCodes.has(course.code),
+        (course) => [term, "Güz ve Bahar"].includes(repairText(course.term)) && !isMergedProcessCourse(course, department),
       ),
     })),
   ].filter((section) => section.courses.length > 0);
@@ -437,7 +433,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       section.courses.map((course) => [
         course.code,
         repairText(course.name),
-        mergedProcessCourseCodes.has(course.code) ? "Güz ve Bahar" : repairText(course.term),
+        isMergedProcessCourse(course, department) ? "Güz ve Bahar" : repairText(course.term),
         repairText(course.type),
         formatInstructor(course.instructor),
         course.theory,
@@ -489,7 +485,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       />
       <section className="public-program-main">
         {activeView.tab === "profile" ? (
-          <ProgramProfile department={department} programName={activeProgram.programName} activeLevel={activeLevel}/>
+          <ProgramProfile key={`${activeProgram.visibilityKey}|${activeLevel}`} department={department} programName={activeProgram.programName} activeLevel={activeLevel}/>
         ) : (
           <>
             <div className="public-course-title">
@@ -509,7 +505,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
                       {section.courses.map((course) => (
                         <tr key={course.code}>
                           <td><b>{course.code}</b></td><td>{repairText(course.name)}</td>
-                          <td>{mergedProcessCourseCodes.has(course.code) ? "Güz ve Bahar" : repairText(course.term)}</td>
+                          <td>{isMergedProcessCourse(course, department) ? "Güz ve Bahar" : repairText(course.term)}</td>
                           <td><span className={`course-type ${repairText(course.type) === "Zorunlu" ? "required" : "elective"}`}>{repairText(course.type)}</span></td>
                           <td>{formatInstructor(course.instructor)}</td>
                           <td>{course.theory}</td><td>{course.practice}</td><td><b>{course.ects}</b></td>

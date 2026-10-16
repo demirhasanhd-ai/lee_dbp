@@ -44,19 +44,58 @@ test("all seed package revisions preserve saved drafts, published revisions and 
         { publicationModel: "published-draft-v1", published: { package: { detailFields: { purpose: "approved revision" } } } },
         { detailFields: { purpose: "legacy user edit" }, savedAt: "yesterday" },
         { staticSeed: true, savedAt: "yesterday", detailFields: { purpose: "legacy edit with seed marker" } },
+        { publicationModel: "published-draft-v1", published: { package: { detailFields: { purpose: "current approved content" } } }, draft: { package: { detailFields: { purpose: "pending teacher revision" } } } },
       ]) {
-        db.prepare("INSERT OR REPLACE INTO courses(id, status, package_json, updated_at) VALUES (1, 'Taslak', ?, 'yesterday')").run(JSON.stringify(saved));
-        assert.equal(update.run(...params).changes, 0, name);
-        const row = db.prepare("SELECT * FROM courses WHERE id = 1").get();
-        assert.equal(row.package_json, JSON.stringify(saved), name);
-        assert.equal(row.status, "Taslak", name);
-        assert.equal(row.updated_at, "yesterday", name);
+        for (const status of ["Taslak", "Komisyon Onayı Bekliyor", "ABD Son Onayı Bekliyor", "Yayımlandı"]) {
+          db.prepare("INSERT OR REPLACE INTO courses(id, status, package_json, updated_at) VALUES (1, ?, ?, 'yesterday')").run(status, JSON.stringify(saved));
+          assert.equal(update.run(...params).changes, 0, `${name}: ${status}`);
+          const row = db.prepare("SELECT * FROM courses WHERE id = 1").get();
+          assert.equal(row.package_json, JSON.stringify(saved), name);
+          assert.equal(row.status, status, name);
+          assert.equal(row.updated_at, "yesterday", name);
+        }
       }
       for (const initial of ["{}", JSON.stringify({ staticSeed: true })]) {
         db.prepare("UPDATE courses SET package_json = ? WHERE id = 1").run(initial);
         assert.equal(update.run(...params).changes, 1, `${name}: untouched seed remains updatable`);
       }
     }
+  } finally { db.close(); }
+});
+
+test("startup package bootstrap preserves current drafts, approvals, assignments and workflow history", () => {
+  const db = new DatabaseSync(":memory:");
+  schema(db);
+  db.exec(`
+    CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT);
+    CREATE TABLE workflow_requests (target TEXT, status TEXT, note TEXT);
+    CREATE TABLE course_review_assignees (course_id INTEGER, member_name TEXT, stage TEXT);
+    INSERT INTO workflow_requests VALUES ('ABC801', 'Komisyon Onayı Bekliyor', 'Teacher submitted revision');
+    INSERT INTO course_review_assignees VALUES (1, 'Committee member', 'committee');
+  `);
+  for (const [index, status] of ["Taslak", "Komisyon Onayı Bekliyor", "ABD Son Onayı Bekliyor", "Yayımlandı"].entries()) {
+    const envelope = context.packageJsonForDraft(
+      JSON.stringify({ detailFields: { purpose: `approved ${index}` } }),
+      { detailFields: { purpose: `teacher edit ${index}` }, savedAt: "2026-10-16T12:00:00Z" },
+      status, "teacher", "2026-10-16T12:00:00Z", "Public",
+    );
+    db.prepare("INSERT INTO courses (id, name, status, package_json, instructor, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(index + 1, `Teacher course ${index}`, status, envelope, `Assigned instructor ${index}`, "2026-10-16T12:00:00Z");
+  }
+  const snapshot = () => JSON.stringify({
+    courses: db.prepare("SELECT * FROM courses ORDER BY id").all(),
+    workflow: db.prepare("SELECT * FROM workflow_requests").all(),
+    reviewers: db.prepare("SELECT * FROM course_review_assignees").all(),
+  });
+  const before = snapshot();
+  context.db = db;
+  context.audit = () => {};
+  vm.runInContext(declarations.find((item) => item[1] === "migratePublicCoursePackagesToApprovalDrafts")[0], context);
+  try {
+    context.migratePublicCoursePackagesToApprovalDrafts();
+    assert.equal(snapshot(), before, "bootstrap must preserve teacher edits, status and approval history");
+    context.migratePublicCoursePackagesToApprovalDrafts();
+    assert.equal(snapshot(), before, "repeated startup must be idempotent");
   } finally { db.close(); }
 });
 

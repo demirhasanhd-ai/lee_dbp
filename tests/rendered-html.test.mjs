@@ -1,9 +1,25 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { renderHydrated } from "./helpers/hydrated-public-page.mjs";
+import { load } from "cheerio";
 
 const okuWebsiteFooterLink =
   /<a(?=[^>]*\bhref=["']https:\/\/osmaniye\.edu\.tr["'])(?=[^>]*\btarget=["']_blank["'])(?=[^>]*\brel=["']noopener noreferrer["'])[^>]*>\s*OKÜ Web Sitesi\s*<\/a>/i;
+
+function contributionRowCount(html) {
+  const $ = load(html);
+  const rows = $(".contribution-table tbody tr");
+  for (const row of rows) assert.equal($(row).find("td").length, 11, "her DÖÇ satırı mevcut 11 program çıktısını içermeli");
+  return rows.length;
+}
+
+function assertPublicText(html, expected, message) {
+  const normalize = (value) => value.normalize("NFC").toLocaleLowerCase("tr-TR");
+  const $ = load(html);
+  $("script, style").remove();
+  assert.ok(normalize($("body").text()).includes(normalize(expected)), message || `Görünür içerikte beklenen metin bulunamadı: ${expected}`);
+}
 
 async function packageVersion() {
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
@@ -69,7 +85,8 @@ test("ana sayfa genel istatistikleri canlı DB ve mevcut akademisyen kaynağınd
   assert.doesNotMatch(liveStatsSource, /setInterval/u);
   assert.match(serverSource, /pathname === "\/api\/dbp\/home-stats"/u);
   assert.match(serverSource, /cachedHomeStats/u);
-  assert.match(serverSource, /invalidateHomeStatsCache/u);
+  assert.match(serverSource, /scheduleDailyHomeStatsCacheWarmup/u);
+  assert.doesNotMatch(serverSource, /invalidateHomeStatsCache/u);
   assert.match(serverSource, /loadEEnstituInstructorOptions\(\)/u);
   assert.match(serverSource, /source: "database"/u);
 });
@@ -106,7 +123,8 @@ test("TEZ_SKA canlı OAI-PMH anlık görüntüsünü kullanır ve çeyreklik tak
   assert.doesNotMatch(page, /oku-ska-stratejik-plan-raporu/u);
   assert.match(server, /pathname === "\/api\/dbp\/thesis-ska"/u);
   assert.match(server, /scheduleThesisRefresh\(\)/u);
-  assert.match(moduleSource, /metadataPrefix", "dim"/u);
+  assert.match(moduleSource, /harvestFormat\("oai_dc"\)/u);
+  assert.match(moduleSource, /harvestFormat\("dim"\)/u);
   assert.match(moduleSource, /resumptionToken/u);
   assert.match(moduleSource, /31 Mart 01:00/u);
   assert.match(moduleSource, /31 Aralık 01:00/u);
@@ -155,13 +173,13 @@ test("Lisansüstü tez tabanlı göstergeler yayın kırılımlarını ve admin 
     readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
   ]);
   assert.match(page, /\/api\/dbp\/thesis-bibliometrics/u);
-  assert.match(page, /Yıllara göre yayınlar/u);
-  assert.match(page, /Bilim alanlarına göre yayın dağılımı/u);
-  assert.match(page, /WoS \/ SCI-SCIE doğrulanan/u);
-  assert.match(page, /Yayın ve destek bilgileri/u);
+  assert.match(page, /Yıllara göre tez kaynaklı yayınlar/u);
+  assert.match(page, /Fen, Sosyal ve Sağlık Bilimleri yayın sayıları/u);
+  assert.match(page, /İndekslere göre dağılım/u);
+  assert.match(page, /12, 24 ve 36 ay içinde yayına dönüşüm/u);
   assert.doesNotMatch(page, /quality-table-scroll/u);
   assert.match(page, /Tüm bilim alanları/u);
-  assert.match(page, /SCImago/u);
+  assert.match(page, /SCIMAGO/iu);
   assert.match(page, /BAP, TÜBİTAK ve diğer destekler/u);
   assert.doesNotMatch(page, /Toplam tez/u);
   assert.match(adminPage, /2023-2025 tezlerinin EK-1/u);
@@ -190,12 +208,17 @@ test("tez faaliyet katsayısı ve EK-2 rubrik sınırları doğru hesaplanır", 
   assert.equal(calculateJuryRubric(validScores).rubricScore, 110);
   assert.throws(() => calculateJuryRubric({ 19: 1, 20: 1, 21: 1, 22: 1, 23: 1 }), /en fazla 4/u);
   const dashboard = publicThesisBibliometrics([
-    { id: 1, relation_status: "verified", publication_year: 2023, publication_title: "A", doi: "10.1/a", degree_type: "Master Thesis", department: "A ABD", sdg_json: '["3"]', funding_type: "bap", updated_at: "2026-01-01" },
-    { id: 3, relation_status: "verified", publication_year: 2023, publication_title: "A", doi: "10.1/a", degree_type: "Doctoral Thesis", department: "A ABD", sdg_json: '["3"]', funding_type: "bap", updated_at: "2026-01-02" },
-    { id: 2, relation_status: "verified", publication_year: 2026, publication_title: "B", doi: "10.1/b", degree_type: "Doctoral Thesis", department: "B ABD", sdg_json: '["7"]', funding_type: "tubitak", updated_at: "2026-02-01" },
-  ]);
+    { id: 1, thesis_identifier: "thesis-1", relation_status: "verified", publication_year: 2023, publication_title: "A", doi: "10.1/a", degree_type: "Master Thesis", department: "A ABD", sdg_json: '["3"]', funding_type: "bap", updated_at: "2026-01-01" },
+    { id: 3, thesis_identifier: "thesis-2", relation_status: "verified", publication_year: 2023, publication_title: "A", doi: "10.1/a", degree_type: "Doctoral Thesis", department: "A ABD", sdg_json: '["3"]', funding_type: "bap", updated_at: "2026-01-02" },
+    { id: 2, thesis_identifier: "thesis-3", relation_status: "verified", publication_year: 2026, publication_title: "B", doi: "10.1/b", degree_type: "Doctoral Thesis", department: "B ABD", sdg_json: '["7"]', funding_type: "tubitak", updated_at: "2026-02-01" },
+  ], { theses: [
+    { identifier: "thesis-1", publicationYear: 2023, degreeType: "Master Thesis", department: "A ABD" },
+    { identifier: "thesis-2", publicationYear: 2023, degreeType: "Doctoral Thesis", department: "A ABD" },
+    { identifier: "thesis-3", publicationYear: 2026, degreeType: "Doctoral Thesis", department: "B ABD" },
+  ] });
   assert.deepEqual(dashboard.yearly.map((item) => item.year), [2023, 2024, 2025, 2026]);
-  assert.deepEqual(dashboard.yearly.map((item) => item.cumulative), [1, 1, 1, 2]);
+  assert.deepEqual(dashboard.yearly.map((item) => item.totalTheses), [2, 0, 0, 1]);
+  assert.deepEqual(dashboard.yearlyPublications.map((item) => [item.year, item.total]), [[2023, 1], [2026, 1]]);
   assert.equal(dashboard.summary.uniquePublications, 2);
   assert.equal(dashboard.summary.masters, 1);
   assert.equal(dashboard.summary.doctorates, 2);
@@ -230,12 +253,12 @@ test("otomatik tez-yayın eşleştirmesi öğrenci, danışman ve konu kanıtın
 });
 
 test("Scopus bibliyometrisi yayınları çeyreklik, atıfları haftalık günceller", async () => {
-  const [page, server, source, dockerfile, envExample, launcher] = await Promise.all([
+  const [page, server, source, dockerfile, readme, launcher] = await Promise.all([
     readFile(new URL("../app/article/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../server.mjs", import.meta.url), "utf8"),
     readFile(new URL("../lib/scopusBibliometrics.mjs", import.meta.url), "utf8"),
     readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
-    readFile(new URL("../.env.example", import.meta.url), "utf8"),
+    readFile(new URL("../README.md", import.meta.url), "utf8"),
     readFile(new URL("../scripts/start-local-dbp.mjs", import.meta.url), "utf8"),
   ]);
   assert.match(page, /\/api\/dbp\/bibliometrics/u);
@@ -255,7 +278,7 @@ test("Scopus bibliyometrisi yayınları çeyreklik, atıfları haftalık güncel
   assert.match(source, /PUBYEAR = \$\{year\}/u);
   assert.match(source, /Mühendislik ve Doğa Bilimleri Fakültesi/u);
   assert.match(dockerfile, /COPY lib\/scopusBibliometrics\.mjs \.\/lib\/scopusBibliometrics\.mjs/u);
-  assert.match(envExample, /SCOPUS_API_KEY=/u);
+  assert.match(readme, /SCOPUS_API_KEY=/u);
   assert.match(launcher, /\.env\.local/u);
   const { scopusRefreshDates } = await import(new URL("../lib/scopusBibliometrics.mjs", import.meta.url));
   assert.deepEqual(scopusRefreshDates(2026).map((date) => date.toISOString()), ["2026-03-30T22:00:00.000Z", "2026-06-29T22:00:00.000Z", "2026-09-29T22:00:00.000Z", "2026-12-30T22:00:00.000Z"]);
@@ -293,8 +316,7 @@ test("course package sidebar resolves the YBS doctorate context", async () => {
 
   assert.match(html, /Y\u00f6netim Bili\u015fim Sistemleri ABD/u);
   assert.doesNotMatch(html, /Aile Dan\u0131\u015fmanl\u0131\u011f\u0131 ve E\u011fitimi ABD/u);
-  assert.match(html, /programKey=yonetim-bilisim-sistemleri-abd-yonetim-bilisim-sistemleri/);
-  assert.match(html, /duzey=Doktora/);
+  assert.match(html, /href="\/dbp\/ybs\/dr\?sekme=courses#program-dersleri"/u);
 });
 
 test("duplicate course codes keep their department context", async () => {
@@ -315,12 +337,12 @@ test("duplicate course codes keep their department context", async () => {
 });
 
 test("YBS common course aliases keep their code and share the complete package", async () => {
-  const context = "&bolum=yonetim-bilisim-sistemleri&program=doktora&duzey=Doktora";
+  const context = "&bolum=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri%20ABD&program=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri&duzey=Doktora";
   const [specializationOne, specializationTwo, thesisOne, thesisTwo] = await Promise.all([
-    render({}, `/dbp/katalog?ders=YBS901${context}`),
-    render({}, `/dbp/katalog?ders=YBS904${context}`),
-    render({}, `/dbp/katalog?ders=YBS912${context}`),
-    render({}, `/dbp/katalog?ders=YBS916${context}`),
+    renderHydrated({}, `/dbp/katalog?ders=YBS901${context}`),
+    renderHydrated({}, `/dbp/katalog?ders=YBS904${context}`),
+    renderHydrated({}, `/dbp/katalog?ders=YBS912${context}`),
+    renderHydrated({}, `/dbp/katalog?ders=YBS916${context}`),
   ]);
   const pages = await Promise.all(
     [specializationOne, specializationTwo, thesisOne, thesisTwo].map((response) => response.text()),
@@ -340,7 +362,7 @@ test("YBS common course aliases keep their code and share the complete package",
 
 test("YBS doctorate public catalog contains one canonical record per repeated process course", async () => {
   const path = "/dbp/programlar/yonetim-bilisim-sistemleri-abd-yonetim-bilisim-sistemleri?programKey=yonetim-bilisim-sistemleri-abd-yonetim-bilisim-sistemleri&duzey=Doktora&sekme=courses";
-  const response = await render({}, path);
+  const response = await renderHydrated({}, path);
   const html = await response.text();
 
   assert.match(html, /YBS9XX/);
@@ -352,7 +374,7 @@ test("YBS doctorate public catalog contains one canonical record per repeated pr
 
 test("Makine tezli YL ortak dersleri tekilleştirilmiş kanonik kodlarla listelenir", async () => {
   const path = "/dbp/programlar/makine-muhendisligi-abd-makine-muhendisligi?programKey=makine-muhendisligi-abd-makine-muhendisligi&duzey=Tezli%20Y%C3%BCksek%20Lisans&sekme=courses";
-  const response = await render({}, path);
+  const response = await renderHydrated({}, path);
   const html = await response.text();
 
   assert.match(html, /DAN8XX/);
@@ -370,7 +392,7 @@ test("Makine ortak ders paketleri 15 hafta, 1-5 matris ve AKTS iş yükü içeri
     ["MMB806", { workload: 180, ects: 6 }],
     ["MMB81X", { workload: 720, ects: 24 }],
   ]);
-  const responses = await Promise.all([...expected.keys()].map((code) => render({}, `/dbp/katalog?ders=${code}${context}`)));
+  const responses = await Promise.all([...expected.keys()].map((code) => renderHydrated({}, `/dbp/katalog?ders=${code}${context}`)));
   const pages = await Promise.all(responses.map((response) => response.text()));
 
   for (const [index, [code, totals]] of [...expected.entries()].entries()) {
@@ -381,7 +403,7 @@ test("Makine ortak ders paketleri 15 hafta, 1-5 matris ve AKTS iş yükü içeri
     assert.doesNotMatch(weeklyPlan, /Quiz|Ödev|Proje|Sunum|Konu Tekrarı|Genel Tekrar/iu, `${code} haftalık konu başlıklarında yasak ifadeler bulunmamalı`);
     assert.match(normalizedHtml, new RegExp(`<tfoot><tr><th[^>]*>[^<]+<\\/th><th>${totals.workload}<\\/th>`, "u"));
     assert.match(normalizedHtml, new RegExp(`<tr><th[^>]*>AKTS<\\/th><th>${totals.ects}<\\/th>`, "u"));
-    assert.equal((html.match(/<th>DÖÇ\d<\/th>/gu) ?? []).length, 5, `${code} 5x11 katkı matrisi içermeli`);
+    assert.equal(contributionRowCount(html), 5, `${code} 5x11 katkı matrisi içermeli`);
     assert.doesNotMatch(html, /contribution-table[\s\S]*?<td>0<\/td>/u, `${code} matrisi 0 içermemeli`);
     assert.doesNotMatch(html, /quality-checklist-table|YÖKAK Ders Bilgi Paketi Kontrol Tablosu/u);
   }
@@ -504,24 +526,25 @@ test("course editing and public display use the persisted package workflow", asy
   assert.match(server, /migratePublicCoursePackagesToApprovalDrafts/u);
   assert.match(server, /course\.package\.bootstrap-approval-drafts/u);
   assert.match(server, /packagePending/u);
-  assert.match(server, /SET status = 'Taslak'/u);
+  assert.match(server, /packageJsonForDraft/u);
+  assert.match(server, /publicPackageRecordForRow/u);
+  assert.doesNotMatch(server, /SET status = 'Taslak'/u, "başlangıçta mevcut onay durumları topluca taslağa çevrilmemeli");
 });
 
 test("every merged YBS process package keeps the program sidebar", async () => {
   const context = "&bolum=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri%20ABD&program=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri&duzey=Doktora";
   const codes = ["YBS9XX", "YBS999", "YBS91X", "DAN902", "YBS910", "YBS917"];
   const responses = await Promise.all(
-    codes.map((code) => render({}, `/dbp/katalog?ders=${code}${context}`)),
+    codes.map((code) => renderHydrated({}, `/dbp/katalog?ders=${code}${context}`)),
   );
   const pages = await Promise.all(responses.map((response) => response.text()));
 
   for (const [index, html] of pages.entries()) {
-    assert.match(html, /Yönetim Bilişim Sistemleri ABD/u, `${codes[index]} sidebar ABD adını göstermeli`);
-    assert.match(html, /programKey=yonetim-bilisim-sistemleri-abd-yonetim-bilisim-sistemleri/);
-    assert.match(html, /duzey=Doktora/);
-    assert.match(html, /Bloom Düzeyleri/u, `${codes[index]} Bloom düzeylerini göstermeli`);
+    assertPublicText(html, "Yönetim Bilişim Sistemleri ABD", `${codes[index]} sidebar ABD adını göstermeli`);
+    assert.match(html, /href="\/dbp\/ybs\/dr\?sekme=courses#program-dersleri"/u);
+    assertPublicText(html, "Bloom Düzeyleri", `${codes[index]} Bloom düzeylerini göstermeli`);
     assert.equal((html.match(/<b>\d+(?:<!-- -->)?\. Hafta<\/b>/g) ?? []).length, 15, `${codes[index]} 15 aşama veya hafta içermeli`);
-    assert.equal((html.match(/<th>DÖÇ\d<\/th>/g) ?? []).length, 5, `${codes[index]} 5x11 katkı matrisi içermeli`);
+    assert.equal(contributionRowCount(html), 5, `${codes[index]} 5x11 katkı matrisi içermeli`);
     assert.doesNotMatch(html, /contribution-table[\s\S]*?<td>0<\/td>/u, `${codes[index]} YBS doktora matrisinde 0 içermemeli`);
     assert.match(html, /contribution-table[\s\S]*?<td>1<\/td>/u, `${codes[index]} en düşük katkıyı 1 göstermeli`);
     assert.match(html, /contribution-table[\s\S]*?<td>5<\/td>/u, `${codes[index]} doğrudan PÇ katkısını göstermeli`);
@@ -531,16 +554,16 @@ test("every merged YBS process package keeps the program sidebar", async () => {
 test("previous YBS doctorate academic packages keep the complete public structure", async () => {
   const codes = ["YBS919", "YBS921", "YBS923"];
   const context = "&bolum=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri%20ABD&program=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri&duzey=Doktora";
-  const responses = await Promise.all(codes.map((code) => render({}, `/dbp/katalog?ders=${code}${context}`)));
+  const responses = await Promise.all(codes.map((code) => renderHydrated({}, `/dbp/katalog?ders=${code}${context}`)));
   const pages = await Promise.all(responses.map((response) => response.text()));
 
   for (const [index, html] of pages.entries()) {
     const normalizedHtml = html.replaceAll("<!-- -->", "");
-    assert.match(html, /Bloom Düzeyleri/u, `${codes[index]} Bloom düzeylerini göstermeli`);
+    assertPublicText(html, "Bloom Düzeyleri", `${codes[index]} Bloom düzeylerini göstermeli`);
     assert.equal((html.match(/<b>\d+(?:<!-- -->)?\. Hafta<\/b>/g) ?? []).length, 15, `${codes[index]} 15 haftalık plan içermeli`);
     assert.match(normalizedHtml, /<tfoot><tr><th[^>]*>[^<]+<\/th><th>180<\/th>/u);
     assert.match(normalizedHtml, /<tr><th[^>]*>AKTS<\/th><th>6<\/th>/u);
-    assert.equal((html.match(/<th>DÖÇ\d<\/th>/g) ?? []).length, 5, `${codes[index]} 5x11 katkı matrisi içermeli`);
+    assert.equal(contributionRowCount(html), 5, `${codes[index]} 5x11 katkı matrisi içermeli`);
     assert.doesNotMatch(html, /contribution-table[\s\S]*?<td>0<\/td>/u);
     assert.match(html, /contribution-table[\s\S]*?<td>1<\/td>/u);
     assert.match(html, /contribution-table[\s\S]*?<td>5<\/td>/u);
@@ -554,13 +577,13 @@ test("all handoff 15 YBS courses render uniform workload totals without the inte
     "YBS945", "YBS947", "YBS949", "YBS951", "YBS953",
   ];
   const context = "&bolum=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri%20ABD&program=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri&duzey=Doktora";
-  const responses = await Promise.all(codes.map((code) => render({}, `/dbp/katalog?ders=${code}${context}`)));
+  const responses = await Promise.all(codes.map((code) => renderHydrated({}, `/dbp/katalog?ders=${code}${context}`)));
   const pages = await Promise.all(responses.map((response) => response.text()));
 
   for (const [index, html] of pages.entries()) {
     const normalizedHtml = html.replaceAll("<!-- -->", "");
     assert.equal((html.match(/class="week-grid"/g) ?? []).length, 1, `${codes[index]} haftalÄ±k planÄ± gÃ¶stermeli`);
-    assert.match(html, /Bloom Düzeyleri/u);
+    assertPublicText(html, "Bloom Düzeyleri");
     assert.match(normalizedHtml, /<tfoot><tr><th[^>]*>[^<]+<\/th><th>180<\/th>/u);
     assert.match(normalizedHtml, /<tr><th[^>]*>AKTS<\/th><th>6<\/th>/u);
     assert.doesNotMatch(html, /contribution-table[\s\S]*?<td>0<\/td>/u);
@@ -575,13 +598,13 @@ test("all handoff 15-2 YBS courses render 15 weeks and uniform workload totals",
     "YBS924", "YBS926", "YBS928", "YBS930", "YBS932",
   ];
   const context = "&bolum=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri%20ABD&program=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri&duzey=Doktora";
-  const responses = await Promise.all(codes.map((code) => render({}, `/dbp/katalog?ders=${code}${context}`)));
+  const responses = await Promise.all(codes.map((code) => renderHydrated({}, `/dbp/katalog?ders=${code}${context}`)));
   const pages = await Promise.all(responses.map((response) => response.text()));
 
   for (const [index, html] of pages.entries()) {
     const normalizedHtml = html.replaceAll("<!-- -->", "");
     assert.equal((html.match(/<b>\d+(?:<!-- -->)?\. Hafta<\/b>/g) ?? []).length, 15, `${codes[index]} 15 haftalık plan içermeli`);
-    assert.match(html, /Bloom Düzeyleri/u);
+    assertPublicText(html, "Bloom Düzeyleri");
     assert.match(normalizedHtml, /<tfoot><tr><th[^>]*>[^<]+<\/th><th>180<\/th>/u);
     assert.match(normalizedHtml, /<tr><th[^>]*>AKTS<\/th><th>6<\/th>/u);
     assert.doesNotMatch(html, /contribution-table[\s\S]*?<td>0<\/td>/u);
@@ -595,13 +618,13 @@ test("all handoff 15-3 YBS courses render 15 weeks and uniform workload totals",
     "YBS950", "YBS952", "YBS954", "YBS956", "YBS958", "YBS960", "YBS962", "YBS964",
   ];
   const context = "&bolum=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri%20ABD&program=Y%C3%B6netim%20Bili%C5%9Fim%20Sistemleri&duzey=Doktora";
-  const responses = await Promise.all(codes.map((code) => render({}, `/dbp/katalog?ders=${code}${context}`)));
+  const responses = await Promise.all(codes.map((code) => renderHydrated({}, `/dbp/katalog?ders=${code}${context}`)));
   const pages = await Promise.all(responses.map((response) => response.text()));
 
   for (const [index, html] of pages.entries()) {
     const normalizedHtml = html.replaceAll("<!-- -->", "");
     assert.equal((html.match(/<b>\d+(?:<!-- -->)?\. Hafta<\/b>/g) ?? []).length, 15, `${codes[index]} 15 haftalık plan içermeli`);
-    assert.match(html, /Bloom Düzeyleri/u);
+    assertPublicText(html, "Bloom Düzeyleri");
     assert.match(normalizedHtml, /<tfoot><tr><th[^>]*>[^<]+<\/th><th>180<\/th>/u);
     assert.match(normalizedHtml, /<tr><th[^>]*>AKTS<\/th><th>6<\/th>/u);
     assert.doesNotMatch(html, /contribution-table[\s\S]*?<td>0<\/td>/u);
@@ -616,7 +639,7 @@ test("handoff 15-1 Makine courses render 15 weeks and semantic 1-5 matrices with
     "MMB827", "MMB829", "MMB831", "MMB833", "MMB835",
   ];
   const context = "&bolum=Makine%20M%C3%BChendisli%C4%9Fi%20ABD&program=Makine%20M%C3%BChendisli%C4%9Fi&duzey=Tezli%20Y%C3%BCksek%20Lisans";
-  const responses = await Promise.all(codes.map((code) => render({}, `/dbp/katalog?ders=${code}${context}`)));
+  const responses = await Promise.all(codes.map((code) => renderHydrated({}, `/dbp/katalog?ders=${code}${context}`)));
   const pages = await Promise.all(responses.map((response) => response.text()));
   const forbiddenWeekTitle = /(?:Quiz|Ã–dev|Proje|Sunum|Konu TekrarÄ±|Genel Tekrar)/iu;
 
@@ -642,7 +665,7 @@ test("handoff 15-2 Makine courses preserve DB-backed public package requirements
     "MMB859", "MMB812", "MMB814", "MMB818", "MMB820",
   ];
   const context = "&bolum=Makine%20M%C3%BChendisli%C4%9Fi%20ABD&program=Makine%20M%C3%BChendisli%C4%9Fi&duzey=Tezli%20Y%C3%BCksek%20Lisans";
-  const responses = await Promise.all(codes.map((code) => render({}, `/dbp/katalog?ders=${code}${context}`)));
+  const responses = await Promise.all(codes.map((code) => renderHydrated({}, `/dbp/katalog?ders=${code}${context}`)));
   const pages = await Promise.all(responses.map((response) => response.text()));
   const forbiddenWeekTitle = /(?:Quiz|Ã–dev|Proje|Sunum|Konu TekrarÄ±|Genel Tekrar)/iu;
 
@@ -824,11 +847,16 @@ test("Arkeoloji ortak süreç dersleri tek havuzda ve ABD başkanı düzenleme a
   assert.match(serverSource, /session\.role === "akademisyen"\) return assignedToUser/u);
   assert.match(serverSource, /return assignedToUser \|\| \(departmentMatches && poolCourse\)/u);
   const path = "/dbp/programlar/arkeoloji-abd-arkeoloji?programKey=arkeoloji-abd-arkeoloji&duzey=Tezli%20Y%C3%BCksek%20Lisans&sekme=courses";
-  const html = await (await render({}, path)).text();
+  const html = await (await renderHydrated({}, path)).text();
   for (const code of ["DAN8XX", "ARK8XX", "ARK806", "ARK81X", "BES801", "BES802"]) assert.match(html, new RegExp(code));
   assert.doesNotMatch(html, /DAN80[12]|ARK80[1-5]|ARK80[78]/u);
-  assert.ok(html.lastIndexOf("BES801") > html.indexOf("Güz Yarıyılı"), "BES801 Güz yarıyılında listelenmeli");
-  assert.ok(html.lastIndexOf("BES802") > html.indexOf("Bahar Yarıyılı"), "BES802 Bahar yarıyılında listelenmeli");
+  const $ = load(html);
+  for (const [code, term] of [["BES801", "Güz"], ["BES802", "Bahar"]]) {
+    const row = $(".public-course-table tbody tr").filter((_, element) => $(element).find("td b").first().text() === code);
+    assert.equal(row.length, 1, `${code} yalnız bir kez listelenmeli`);
+    assert.equal(row.closest("section").find("h3").first().text(), `${term} Yarıyılı`);
+    assert.equal(row.find("td").eq(2).text(), term);
+  }
 });
 
 test("Batarya tezli YL paketleri handoff, ortak havuz ve rol kurallarını korur", async () => {
@@ -1111,7 +1139,7 @@ test("generic YBS package pages render the contribution matrix on the web page",
 
   assert.match(html, /YBS711/);
   assert.match(html, /contribution-table/u);
-  assert.equal((html.match(/<th>D(?:<!-- -->)?ÖÇ\d<\/th>|<th>D(?:<!-- -->)?Ã–Ã‡\d<\/th>/g) ?? []).length, 5);
+  assert.equal(contributionRowCount(html), 5);
 });
 
 test("server-renders the public home page", async () => {
@@ -1120,7 +1148,7 @@ test("server-renders the public home page", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>LEE Ders Bilgi Paketi \| LEE DBP<\/title>/i);
+  assert.match(html, /<title>LEE Bilgi Sistemi<\/title>/u);
   assert.match(html, /Ders Kataloğu/);
   assert.doesNotMatch(html, /Yönetim Alanı|Giriş Yap|\/dbp\/yonetim/i);
   assert.doesNotMatch(html, /Your site is taking shape|Codex is working/i);
@@ -1401,14 +1429,14 @@ test("Aile Danışmanlığı tezsiz bitirme projesi ortak havuz ve rol kurallar�
 });
 
 test("Aile Danışmanlığı tezsiz public listesi bitirme projesini tek ortak süreç dersi olarak gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/aile-danismanligi-ve-egitimi-abd-aile-danismanligi-ve-egitimi?programKey=aile-danismanligi-ve-egitimi-abd-aile-danismanligi-ve-egitimi&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/aile-danismanligi-ve-egitimi-abd-aile-danismanligi-ve-egitimi?programKey=aile-danismanligi-ve-egitimi-abd-aile-danismanligi-ve-egitimi&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /ADE7XX/u);
-  assert.match(html, /BİTİRME PROJESİ/u);
+  assertPublicText(html, "BİTİRME PROJESİ");
   assert.doesNotMatch(html, /ADE702/u);
-  assert.match(html, /Aile Danışmanlığının Temelleri ve Aile Danışmanlığı Kuramları/u);
+  assertPublicText(html, "Aile Danışmanlığının Temelleri ve Aile Danışmanlığı Kuramları");
 });
 
 test("Beden Eğitimi ve Spor tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
@@ -1446,16 +1474,16 @@ test("Beden Eğitimi ve Spor tezsiz ortak havuzu ile rol yetkileri ayrıdır", a
 });
 
 test("Beden Eğitimi ve Spor tezsiz public listesi ortak dersleri tekilleştirir", async () => {
-  const response = await render({}, "/dbp/programlar/beden-egitimi-ve-spor-abd-beden-egitimi-ve-spor?programKey=beden-egitimi-ve-spor-abd-beden-egitimi-ve-spor&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/beden-egitimi-ve-spor-abd-beden-egitimi-ve-spor?programKey=beden-egitimi-ve-spor-abd-beden-egitimi-ve-spor&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /BES7XX/u);
   assert.match(html, /BEF7XX/u);
-  assert.match(html, /BİTİRME PROJESİ/u);
-  assert.match(html, /Güz ve Bahar/u);
+  assertPublicText(html, "BİTİRME PROJESİ");
+  assertPublicText(html, "Güz ve Bahar");
   assert.doesNotMatch(html, /BES702|BEF704/u);
-  assert.match(html, /Fiziksel Aktivite Uygulamaları ile Sağlığın Korunması/u);
+  assertPublicText(html, "Fiziksel Aktivite Uygulamaları ile Sağlığın Korunması");
 });
 
 test("Biyoloji tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
@@ -1496,16 +1524,16 @@ test("Biyoloji tezsiz Bitirme Projesi havuzu ABD başkanına, alan dersleri atan
 });
 
 test("Biyoloji tezsiz public listesi yalnız Bitirme Projesini ortak süreçte gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/biyoloji-abd-biyoloji?programKey=biyoloji-abd-biyoloji&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/biyoloji-abd-biyoloji?programKey=biyoloji-abd-biyoloji&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.doesNotMatch(html, /DAN7XX|DAN701|DAN702/u);
   assert.match(html, /BİO7XX/u);
-  assert.match(html, /BİTİRME PROJESİ/u);
-  assert.match(html, /Güz ve Bahar/u);
+  assertPublicText(html, "BİTİRME PROJESİ");
+  assertPublicText(html, "Güz ve Bahar");
   assert.doesNotMatch(html, /DAN701|DAN702|BİO702/u);
-  assert.match(html, /ANTİBİYOTİK VE ETKİ MEKANİZMALARI/u);
+  assertPublicText(html, "ANTİBİYOTİK VE ETKİ MEKANİZMALARI");
 });
 
 test("Tezsiz yüksek lisans listeleri Danışmanlık ve Uzmanlık Alan derslerini genel olarak dışlar", async () => {
@@ -1548,17 +1576,17 @@ test("Ekonomi ve Finans tezsiz Bitirme Projesi ortak havuz ve rol ayrımını ko
 });
 
 test("Ekonomi ve Finans tezsiz public listesi paketleri ve tek Bitirme Projesini gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/iktisat-abd-ekonomi-ve-finans?programKey=iktisat-abd-ekonomi-ve-finans&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/iktisat-abd-ekonomi-ve-finans?programKey=iktisat-abd-ekonomi-ve-finans&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /İKT7XX/u);
-  assert.match(html, /BİTİRME PROJESİ/u);
+  assertPublicText(html, "BİTİRME PROJESİ");
   assert.doesNotMatch(html, />İKT702</u);
   assert.doesNotMatch(html, />DANIŞMANLIK</u);
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
-  assert.match(html, /FİNANSAL PİYASALAR VE KRİPTO PARALAR/u);
-  assert.match(html, /MAKROEKONOMİK VE FİNANSAL GÖSTERGELERİN TAHMİNİ/u);
+  assertPublicText(html, "FİNANSAL PİYASALAR VE KRİPTO PARALAR");
+  assertPublicText(html, "MAKROEKONOMİK VE FİNANSAL GÖSTERGELERİN TAHMİNİ");
 });
 
 test("Enerji Sistemleri Mühendisliği tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
@@ -1593,17 +1621,17 @@ test("Enerji Sistemleri Mühendisliği tezsiz Bitirme Projesi ortak havuz ve rol
 });
 
 test("Enerji Sistemleri Mühendisliği tezsiz public listesi tekilleştirilmiş dersleri gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/enerji-sistemleri-muhendisligi-abd-enerji-sistemleri-muhendisligi?programKey=enerji-sistemleri-muhendisligi-abd-enerji-sistemleri-muhendisligi&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/enerji-sistemleri-muhendisligi-abd-enerji-sistemleri-muhendisligi?programKey=enerji-sistemleri-muhendisligi-abd-enerji-sistemleri-muhendisligi&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /EPY7XX/u);
-  assert.match(html, /BİTİRME PROJESİ/u);
+  assertPublicText(html, "BİTİRME PROJESİ");
   assert.doesNotMatch(html, />EPY702</u);
   assert.doesNotMatch(html, />DANIŞMANLIK</u);
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
-  assert.match(html, /ENERJİ VERİMLİLİĞİ VE TASARRUFU/u);
-  assert.match(html, /ENERJİ DÖNÜŞÜM SİSTEMLERİ/u);
+  assertPublicText(html, "ENERJİ VERİMLİLİĞİ VE TASARRUFU");
+  assertPublicText(html, "ENERJİ DÖNÜŞÜM SİSTEMLERİ");
 });
 
 test("Gastronomi ve Mutfak Sanatları tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
@@ -1637,18 +1665,18 @@ test("Gastronomi ve Mutfak Sanatları tezsiz Bitirme Projesi ortak havuz ve rol 
 });
 
 test("Gastronomi ve Mutfak Sanatları tezsiz public listesi tekilleştirilmiş dersleri gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/gastronomi-ve-mutfak-sanatlari-abd-gastronomi-ve-mutfak-sanatlari?programKey=gastronomi-ve-mutfak-sanatlari-abd-gastronomi-ve-mutfak-sanatlari&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/gastronomi-ve-mutfak-sanatlari-abd-gastronomi-ve-mutfak-sanatlari?programKey=gastronomi-ve-mutfak-sanatlari-abd-gastronomi-ve-mutfak-sanatlari&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /GMS7XX/u);
-  assert.match(html, /BİTİRME PROJESİ/u);
+  assertPublicText(html, "BİTİRME PROJESİ");
   assert.doesNotMatch(html, />GMS702</u);
   assert.doesNotMatch(html, />GMS704</u);
   assert.doesNotMatch(html, />DANIŞMANLIK</u);
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
-  assert.match(html, /TÜRK MUTFAĞI ARAŞTIRMALARI/u);
-  assert.match(html, /DÜNYA MUTFAĞINDA YENİ TRENDLER/u);
+  assertPublicText(html, "TÜRK MUTFAĞI ARAŞTIRMALARI");
+  assertPublicText(html, "DÜNYA MUTFAĞINDA YENİ TRENDLER");
 });
 
 test("Gıda Teknolojisi tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
@@ -1682,18 +1710,18 @@ test("Gıda Teknolojisi tezsiz Bitirme Projesi ortak havuz ve rol ayrımını ko
 });
 
 test("Gıda Teknolojisi tezsiz public listesi tekilleştirilmiş dersleri gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/gida-teknolojisi-abd-gida-teknolojisi?programKey=gida-teknolojisi-abd-gida-teknolojisi&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/gida-teknolojisi-abd-gida-teknolojisi?programKey=gida-teknolojisi-abd-gida-teknolojisi&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /GTB7XX/u);
-  assert.match(html, /BİTİRME PROJESİ/u);
+  assertPublicText(html, "BİTİRME PROJESİ");
   assert.doesNotMatch(html, />GTB702</u);
   assert.doesNotMatch(html, />GTB704</u);
   assert.doesNotMatch(html, />DANIŞMANLIK</u);
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
-  assert.match(html, /GELENEKSEL VE MODERN MUHAFAZA YÖNTEMLERİ/u);
-  assert.match(html, /ÇEVRE VE İNSAN/u);
+  assertPublicText(html, "GELENEKSEL VE MODERN MUHAFAZA YÖNTEMLERİ");
+  assertPublicText(html, "ÇEVRE VE İNSAN");
 });
 
 test("İşletme tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
@@ -1727,18 +1755,18 @@ test("İşletme tezsiz Bitirme Projesi ortak havuz ve rol ayrımını korur", as
 });
 
 test("İşletme tezsiz public listesi tekilleştirilmiş dersleri gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/isletme-isletme?programKey=isletme-isletme&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/isletme-isletme?programKey=isletme-isletme&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /ISL7XX/u);
-  assert.match(html, /BİTİRME PROJESİ/u);
+  assertPublicText(html, "BİTİRME PROJESİ");
   assert.doesNotMatch(html, />ISL702</u);
   assert.doesNotMatch(html, />ISL704</u);
   assert.doesNotMatch(html, />DANIŞMANLIK</u);
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
-  assert.match(html, /FİNANSAL MUHASEBE/u);
-  assert.match(html, /ELEKTRONİK TİCARET HUKUKU/u);
+  assertPublicText(html, "FİNANSAL MUHASEBE");
+  assertPublicText(html, "ELEKTRONİK TİCARET HUKUKU");
 });
 test("Mühendislik ve Teknoloji Yönetimi tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
   const seed = JSON.parse(await readFile(new URL("../seed/course-packages.json", import.meta.url), "utf8"));
@@ -1804,19 +1832,19 @@ test("Organik Tarım İşletmeciliği tezsiz ortak havuzu ve rol ayrımı korunu
 });
 
 test("Organik Tarım İşletmeciliği tezsiz public listesi yalnız kanonik Bitirme Projesini gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/organik-tarim-isletmeciligi-abd-organik-tarim-isletmeciligi?programKey=organik-tarim-isletmeciligi-abd-organik-tarim-isletmeciligi&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/organik-tarim-isletmeciligi-abd-organik-tarim-isletmeciligi?programKey=organik-tarim-isletmeciligi-abd-organik-tarim-isletmeciligi&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /OTİ7XX/u);
-  assert.match(html, /bitirme projesi/iu);
+  assertPublicText(html, "bitirme projesi");
   assert.doesNotMatch(html, />OTİ701</u);
   assert.doesNotMatch(html, />OTİ702</u);
   assert.doesNotMatch(html, />OTİ704</u);
   assert.doesNotMatch(html, />DANIŞMANLIK</u);
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
-  assert.match(html, /organik tarımın genel prensipleri/iu);
-  assert.match(html, /kırsal kalkınma/iu);
+  assertPublicText(html, "organik tarımın genel prensipleri");
+  assertPublicText(html, "kırsal kalkınma");
 });
 
 test("Resim tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
@@ -1849,18 +1877,18 @@ test("Resim tezsiz Bitirme Projesi ortak havuz ve rol ayrımını korur", async 
 });
 
 test("Resim tezsiz public listesi yalnız kanonik Bitirme Projesini gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/resim-asd-resim?programKey=resim-asd-resim&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/resim-asd-resim?programKey=resim-asd-resim&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /RES7XX/u);
-  assert.match(html, /bitirme projesi/iu);
+  assertPublicText(html, "bitirme projesi");
   assert.doesNotMatch(html, />RES701</u);
   assert.doesNotMatch(html, />RES702</u);
   assert.doesNotMatch(html, />DANIŞMANLIK</u);
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
-  assert.match(html, /resim atölye/iu);
-  assert.match(html, /sanat sosyolojisi/iu);
+  assertPublicText(html, "resim atölye");
+  assertPublicText(html, "sanat sosyolojisi");
 });
 
 test("Siyaset Bilimi ve Kamu Yönetimi tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
@@ -1895,19 +1923,19 @@ test("Siyaset Bilimi ve Kamu Yönetimi tezsiz Bitirme Projesi ortak havuz ve rol
 });
 
 test("Siyaset Bilimi ve Kamu Yönetimi tezsiz public listesi yalnız kanonik Bitirme Projesini gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/siyaset-bilimi-ve-kamu-yonetimi-abd-siyaset-bilimi-ve-kamu-yonetimi?programKey=siyaset-bilimi-ve-kamu-yonetimi-abd-siyaset-bilimi-ve-kamu-yonetimi&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/siyaset-bilimi-ve-kamu-yonetimi-abd-siyaset-bilimi-ve-kamu-yonetimi?programKey=siyaset-bilimi-ve-kamu-yonetimi-abd-siyaset-bilimi-ve-kamu-yonetimi&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /SKY7XX/u);
-  assert.match(html, /bitirme projesi/iu);
-  assert.match(html, /Öğrencinin Danışmanı/u);
+  assertPublicText(html, "bitirme projesi");
+  assertPublicText(html, "Öğrencinin Danışmanı");
   assert.doesNotMatch(html, />SKY701</u);
   assert.doesNotMatch(html, />SKY702</u);
   assert.doesNotMatch(html, />DANIŞMANLIK</u);
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
-  assert.match(html, /kamu yönetimi/iu);
-  assert.match(html, /siyasal ideolojiler/iu);
+  assertPublicText(html, "kamu yönetimi");
+  assertPublicText(html, "siyasal ideolojiler");
 });
 
 test("Tarih tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
@@ -1942,19 +1970,19 @@ test("Tarih tezsiz Bitirme Projesi ortak havuz ve rol ayrımını korur", async 
 });
 
 test("Tarih tezsiz public listesi yalnız kanonik Bitirme Projesini gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/tarih-abd-tarih?programKey=tarih-abd-tarih&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/tarih-abd-tarih?programKey=tarih-abd-tarih&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /TTS7XX/u);
-  assert.match(html, /bitirme projesi/iu);
-  assert.match(html, /Öğrencinin Danışmanı/u);
+  assertPublicText(html, "bitirme projesi");
+  assertPublicText(html, "Öğrencinin Danışmanı");
   assert.doesNotMatch(html, />TTS701</u);
   assert.doesNotMatch(html, />TTS702</u);
   assert.doesNotMatch(html, />DANIŞMANLIK</u);
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
-  assert.match(html, /Tarih felsefesi/iu);
-  assert.match(html, /Ortaçağ tarihi kaynakları/iu);
+  assertPublicText(html, "Tarih felsefesi");
+  assertPublicText(html, "Ortaçağ tarihi kaynakları");
 });
 
 test("Türk Dili ve Edebiyatı tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
@@ -1989,19 +2017,19 @@ test("Türk Dili ve Edebiyatı tezsiz Bitirme Projesi ortak havuz ve rol ayrım�
 });
 
 test("Türk Dili ve Edebiyatı tezsiz public listesi yalnız kanonik Bitirme Projesini gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/turk-dili-ve-edebiyati-abd-turk-dili-ve-edebiyati?programKey=turk-dili-ve-edebiyati-abd-turk-dili-ve-edebiyati&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/turk-dili-ve-edebiyati-abd-turk-dili-ve-edebiyati?programKey=turk-dili-ve-edebiyati-abd-turk-dili-ve-edebiyati&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /TDE7XX/u);
-  assert.match(html, /bitirme projesi/iu);
-  assert.match(html, /Öğrencinin Danışmanı/u);
+  assertPublicText(html, "bitirme projesi");
+  assertPublicText(html, "Öğrencinin Danışmanı");
   assert.doesNotMatch(html, />TDE701</u);
   assert.doesNotMatch(html, />TDE702</u);
   assert.doesNotMatch(html, />DANIŞMANLIK</u);
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
-  assert.match(html, /Osmanlı Türkçesi grameri/iu);
-  assert.match(html, /Karşılaştırmalı edebiyat/iu);
+  assertPublicText(html, "Osmanlı Türkçesi grameri");
+  assertPublicText(html, "Karşılaştırmalı edebiyat");
 });
 
 test("Yönetim Bilişim Sistemleri tezsiz YL paketleri handoff kalite kurallarını karşılar", async () => {
@@ -2038,21 +2066,21 @@ test("Yönetim Bilişim Sistemleri tezsiz Bitirme Projesi ortak havuz ve rol ayr
 });
 
 test("Yönetim Bilişim Sistemleri tezsiz public listesi kanonik dersleri gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/yonetim-bilisim-sistemleri-abd-yonetim-bilisim-sistemleri?programKey=yonetim-bilisim-sistemleri-abd-yonetim-bilisim-sistemleri&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/yonetim-bilisim-sistemleri-abd-yonetim-bilisim-sistemleri?programKey=yonetim-bilisim-sistemleri-abd-yonetim-bilisim-sistemleri&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /YBS7XX/u);
-  assert.match(html, /bitirme projesi/iu);
-  assert.match(html, /Öğrencinin Danışmanı/u);
+  assertPublicText(html, "bitirme projesi");
+  assertPublicText(html, "Öğrencinin Danışmanı");
   assert.doesNotMatch(html, />YBS701</u);
   assert.doesNotMatch(html, />YBS702</u);
   assert.doesNotMatch(html, />YBS704</u);
   assert.equal((html.match(/>YBS703</gu) ?? []).length, 2, "iki dönemde açılan YBS703 güz ve bahar listelerinde görünür");
   assert.doesNotMatch(html, />DANIŞMANLIK</u);
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
-  assert.match(html, /Veri madenciliği uygulamaları/iu);
-  assert.match(html, /Sistem analizi ve tasarımı/iu);
+  assertPublicText(html, "Veri madenciliği uygulamaları");
+  assertPublicText(html, "Sistem analizi ve tasarımı");
   const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
   assert.match(serverSource, /ybs_tezsiz_packages_revision/u);
 });
@@ -2091,21 +2119,21 @@ test("Yönetim ve Organizasyon tezsiz Bitirme Projesi ortak havuz ve rol ayrım�
 });
 
 test("Yönetim ve Organizasyon tezsiz public listesi kanonik dersleri gösterir", async () => {
-  const response = await render({}, "/dbp/programlar/yonetim-organizasyon-yonetim-organizasyon?programKey=yonetim-organizasyon-yonetim-organizasyon&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
+  const response = await renderHydrated({}, "/dbp/programlar/yonetim-organizasyon-yonetim-organizasyon?programKey=yonetim-organizasyon-yonetim-organizasyon&duzey=Tezsiz+Y%C3%BCksek+Lisans&sekme=courses");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /Ortak \/ Süreç Dersleri/u);
   assert.match(html, /YON7XX/u);
-  assert.match(html, /bitirme projesi/iu);
-  assert.match(html, /Öğrencinin Danışmanı/u);
+  assertPublicText(html, "bitirme projesi");
+  assertPublicText(html, "Öğrencinin Danışmanı");
   assert.doesNotMatch(html, />YON701</u);
   assert.doesNotMatch(html, />YON702</u);
   assert.doesNotMatch(html, />BES704</u);
   assert.equal((html.match(/>YON703</gu) ?? []).length, 2, "iki dönemde açılan YON703 güz ve bahar listelerinde görünür");
   assert.doesNotMatch(html, />DANIŞMANLIK</u);
   assert.doesNotMatch(html, />UZMANLIK ALAN DERSİ</u);
-  assert.match(html, /Yönetim ve organizasyon/iu);
-  assert.match(html, /Örgütsel davranış/iu);
+  assertPublicText(html, "Yönetim ve organizasyon");
+  assertPublicText(html, "Örgütsel davranış");
   const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
   assert.match(serverSource, /yonetim_organizasyon_tezsiz_packages_revision/u);
 });
@@ -2117,7 +2145,8 @@ test("kalite göstergeleri enstitü ve program kapsamını canlı DB anlık gör
   assert.match(page, /Lisansüstü Eğitim Enstitüsü · Tüm programlar/u);
   assert.match(page, /snapshot\.programs\.map/u);
   assert.match(page, /stats\.sdgGoals/u);
-  assert.match(page, /isInstitute && <section className="quality-panel instructor-panel"/u);
+  assert.match(page, /<section className="quality-panel instructor-panel"/u);
+  assert.match(page, /SEÇİLİ KAPSAM DERS YÜKÜ/u);
   assert.match(page, /12_000/u, "takılan veri isteği zaman aşımına uğramalı");
   assert.match(page, /Yeniden dene/u, "hata ekranı yeniden deneme olanağı sunmalı");
   assert.doesNotMatch(page, /item\.instructor/u, "public kalite ekranında kişi adı gösterilmemeli");
@@ -2129,9 +2158,10 @@ test("kalite göstergeleri enstitü ve program kapsamını canlı DB anlık gör
   assert.match(server, /titleLoadStats/u);
   assert.match(server, /packageData\.sdgs/u);
   assert.match(server, /content-type[\s\S]*application\/json[\s\S]*content-length/u, "JSON API yanıtı gecikmeden tamamlanmalı");
-  assert.match(server, /latestCourseUpdateDate/u, "ders güncellemesi anlık görüntünün tarihine karşı denetlenmeli");
-  assert.match(server, /queueQualitySnapshotRefresh\("course\.package\.save"\)/u, "paket kaydı kalite anlık görüntüsünü yenilemeli");
-  assert.match(server, /queueQualitySnapshotRefresh\("course\.assignment\.update"\)/u, "öğretim elemanı ataması kalite anlık görüntüsünü yenilemeli");
+  assert.match(server, /qualitySnapshotTtlMs/u, "kalite anlık görüntüsü günlük geçerlilik süresini kullanmalı");
+  assert.match(server, /courseStatisticsSchedule/u, "ders göstergeleri günlük güncelleme takvimini sunmalı");
+  assert.doesNotMatch(server, /latestCourseUpdateDate/u, "ders kaydı kalite anlık görüntüsünü geçersiz kılmamalı");
+  assert.doesNotMatch(server, /queueQualitySnapshotRefresh\("course\./u, "paket ve atama işlemleri toplu kalite hesabı başlatmamalı");
   assert.match(server, /courseLevelFromCode/u, "700/800/900 kodları program düzeyine bağlanmalı");
   assert.match(server, /removeCourseLevelCodeMismatches/u, "yanlış düzeydeki ders kaydı başlangıçta temizlenmeli");
   assert.match(server, /Ders kodu program düzeyiyle uyumlu değil/u, "yanlış düzey koduyla yeni kayıt engellenmeli");

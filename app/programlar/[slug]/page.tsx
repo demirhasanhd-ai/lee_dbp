@@ -33,6 +33,6 @@ export function PublicProgramView({
  const initialView={programKey:requestedProgram.visibilityKey,level:requestedLevel,tab:query.sekme==="courses"?"courses" as const:"profile" as const};
  return <main className="public-program-page">
   <PublicSiteHeader/>
-  <div className="public-program-shell"><div className="public-program-content"><div className="public-breadcrumb"><a href={dbpPath("/")}>Ana Sayfa</a><span>/</span><a href={dbpPath("/#programlar")}>Programlar</a><span>/</span><b>{program.programName}</b></div><div id="program-dersleri"><ProgramCourses visibilityKey={programSlug(program)} department={program.department} programName={program.programName} levels={program.levels} courses={[]} programItems={programItems} initialView={initialView}/></div></div></div>
+  <div className="public-program-shell"><div className="public-program-content"><div className="public-breadcrumb"><a href={dbpPath("/")}>Ana Sayfa</a><span>/</span><a href={dbpPath("/#programlar")}>Programlar</a><span>/</span><b>{program.programName}</b></div><div id="program-dersleri"><ProgramCourses key={`${initialView.programKey}|${initialView.level}|${initialView.tab}`} visibilityKey={programSlug(program)} department={program.department} programName={program.programName} levels={program.levels} courses={[]} programItems={programItems} initialView={initialView}/></div></div></div>
  </main>;
 }
