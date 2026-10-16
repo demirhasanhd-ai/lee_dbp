@@ -54,6 +54,16 @@ Ana sayfa istatistikleri ile enstitü/program kalite göstergeleri her gün Tür
 
 Yönetici panelindeki elle kalite yenileme ve veri içe aktarma/geri yükleme/sıfırlama/seed işlemleri istisna olarak yeniden hesaplama başlatır. Ana sayfa cache geçerlilik süresi `DBP_HOME_STATS_CACHE_TTL_MS` ile ayarlanabilir (varsayılan 24 saat; `0` cache'i kapatır). İşlem sonrası 30 saniyelik warmup kaldırıldığı için `DBP_HOME_STATS_CACHE_WARMUP_DEBOUNCE_MS` artık kullanılmaz. Tez, öğrenci ve bibliyometri kaynaklarının güncelleme takvimleri bağımsızdır.
 
+## Ana sayfa ziyaret sayımı
+
+Ana sayfanın başarılı HTML açılışı aynı tarayıcı oturumunda bir kez sayılır. Ana sayfayı yenilemek, ders kataloğu için ana sayfadaki bölüme gitmek veya diğer sayfalardan geri dönmek bu sayacı artırmaz. Ders, ABD/ASD ve gösterge sayfaları kendi kategorilerinde görüntülenme olarak sayılmaya devam eder. Doğrudan bir alt sayfaya girilmesi ana sayfa ziyareti oluşturmaz.
+
+Oturum kimliği `HttpOnly` ve `SameSite=Lax` nitelikli bir oturum çerezinde tutulur; sabit ömürlü kalıcı çerez kullanılmaz. Aynı oturumun ana sayfa olayı mevcut benzersiz `event_uuid` alanıyla tekilleştirilir; sunucu yeniden başlasa da tekrar sayılmaz. Bu metrik aynı kişinin farklı cihazlarını tek kişiye indiren bir kişi sayacı değildir.
+
+API/arka plan istekleri, RSC, ön yüklemeler, bilinen tarayıcı botları, sağlık kontrolleri, HEAD ve başarısız/HTML olmayan yanıtlar görüntülenme sayılmaz. Docker sağlık kontrolü ana sayfa yerine `/dbp/api/dbp/health` adresini kullanır. Oturum çerezi taşıyan ana sayfa yanıtları paylaşılan önbelleğe alınmaz.
+
+Geçmiş olaylar ve aylık özetler otomatik silinmez veya yeniden yazılmaz; önceki şişmiş kayıtlar korunur. Yeni kural sürüm yayınlandıktan sonraki ziyaretlere uygulanır. Veritabanı şeması veya migration gerekmez.
+
 ## Excel ile toplu yeni ders ekleme
 
 **Ders Düzenleme → Yeni Ders** sekmesinde ABD/ASD, program ve düzey seçildikten sonra **Excel ile Toplu Yeni Ders** alanı kullanılabilir. **Boş Şablon** düğmesi ders kodu/adı, dönem, zorunlu-seçmeli, teorik/uygulama, kredi, AKTS ve danışman T.C./unvan/isim/e-posta sütunlarını içeren `.xlsx` dosyasını indirir. Program seçimi dosyanın tüm satırları için geçerlidir. Dönem ve ders bilgileri zorunludur; danışman bilgileri boş bırakılabilir ve bu dersler **Atama bekliyor** görünür. T.C. ve ders kodu alanları Excel'de metin biçimindedir.

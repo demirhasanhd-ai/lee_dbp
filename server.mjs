@@ -10161,17 +10161,52 @@ function requestClientIp(request) {
   return forwarded.split(",")[0]?.trim() || request.headers.get("cf-connecting-ip") || request.headers.get("x-real-ip") || "";
 }
 
-function trackPageViewRequest(request) {
-  if (request.method !== "GET") return;
+function isPageViewNavigation(request, response) {
+  if (request.method !== "GET" || response.status !== 200 || !response.headers.get("content-type")?.toLowerCase().includes("text/html")) return false;
+  const destination = request.headers.get("sec-fetch-dest");
+  if (destination && destination !== "document") return false;
+  const mode = request.headers.get("sec-fetch-mode");
+  if (mode && mode !== "navigate") return false;
+  if (!request.headers.get("accept")?.toLowerCase().includes("text/html")) return false;
+  if (request.headers.get("rsc") === "1" || request.headers.has("next-router-prefetch") || request.headers.has("x-middleware-prefetch")) return false;
+  if (/prefetch|prerender/iu.test(`${request.headers.get("purpose") || ""} ${request.headers.get("sec-purpose") || ""}`)) return false;
+  if (new URL(request.url).searchParams.has("_rsc")) return false;
+  const agent = request.headers.get("user-agent") || "";
+  return Boolean(agent) && !/bot\b|spider|crawler|wget|curl|python-requests|python-urllib|healthcheck|kube-probe|go-http-client|facebookexternalhit/iu.test(agent);
+}
+
+function trackPageViewRequest(request, response) {
+  if (!isPageViewNavigation(request, response)) return response;
   const url = new URL(request.url);
   const context = pageViewContextForPath(url.pathname) || pageViewContextForCatalogUrl(url);
-  if (!context) return;
+  if (!context) return response;
+  let homeVisitId;
+  let setHomeVisitCookie = false;
+  if (context.viewType === "home") {
+    const cookie = (request.headers.get("cookie") || "").split(";").map((part) => part.trim()).find((part) => part.startsWith("lee_dbp_home_visit="));
+    const existingId = cookie?.slice("lee_dbp_home_visit=".length) || "";
+    homeVisitId = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(existingId) ? existingId : randomUUID();
+    setHomeVisitCookie = homeVisitId !== existingId;
+  }
   logPageView({
     ...context,
+    // The existing unique event UUID keeps home visits idempotent across requests and server restarts.
+    ...(homeVisitId ? { eventUuid: `home-session:${homeVisitId}` } : {}),
     path: `${stripBasePath(url.pathname)}${url.search}`,
     ip: requestClientIp(request),
     userAgent: request.headers.get("user-agent") || "",
   });
+  if (homeVisitId) {
+    const headers = new Headers(response.headers);
+    // Home HTML contains a per-browser session cookie and must not be shared by a cache.
+    headers.set("Cache-Control", "private, no-store");
+    if (setHomeVisitCookie) {
+      const secure = url.protocol === "https:" || request.headers.get("x-forwarded-proto")?.split(",")[0].trim() === "https";
+      headers.append("Set-Cookie", `lee_dbp_home_visit=${homeVisitId}; Path=${basePath}/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`);
+    }
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+  }
+  return response;
 }
 
 function shouldRedirectToBasePath(pathname) {
@@ -10271,6 +10306,8 @@ async function sendWebResponse(res, response) {
   response.headers.forEach((value, key) => {
     headers[key] = value;
   });
+  const cookies = response.headers.getSetCookie();
+  if (cookies.length) headers["set-cookie"] = cookies;
 
   const contentType = response.headers.get("content-type") || "";
   if (response.body && contentType.includes("application/json")) {
@@ -10411,10 +10448,6 @@ createServer(async (req, res) => {
       }
     }
 
-    if (req.method === "GET") {
-      trackPageViewRequest(nodeRequestToWeb(req));
-    }
-
     const apiResponse = await handleDbpApi(nodeRequestToWeb(req));
     if (apiResponse) {
       await sendWebResponse(res, apiResponse);
@@ -10423,7 +10456,8 @@ createServer(async (req, res) => {
 
     if (await sendStaticFile(req, res, url.pathname)) return;
 
-    const response = await worker.fetch(nodeRequestToWeb(req), env, ctx);
+    const pageRequest = nodeRequestToWeb(req);
+    const response = trackPageViewRequest(pageRequest, await worker.fetch(pageRequest, env, ctx));
     await sendWebResponse(res, response);
   } catch (error) {
     console.error("[dbp] Server error:", error);

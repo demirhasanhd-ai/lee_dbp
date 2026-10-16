@@ -42,5 +42,5 @@ VOLUME ["/app/data"]
 USER node
 EXPOSE 8081
 HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:8081/dbp/ || exit 1
+  CMD wget -qO- http://127.0.0.1:8081/dbp/api/dbp/health || exit 1
 CMD ["node", "server.mjs"]

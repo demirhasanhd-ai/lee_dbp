@@ -13,6 +13,7 @@ export default function PageViewStatsPage() {
           <small>SİTE KULLANIM GÖRÜNÜMÜ</small>
           <h1>Görüntülenme İstatistiği</h1>
           <p>Ana sayfa, ABD / ASD, ders, kalite, TEZ_SKA ve bibliyometrik gösterge sayfalarının aylık erişim sayıları.</p>
+          <p>Ana sayfa ziyaretleri aynı tarayıcı oturumunda bir kez sayılır. Diğer sayfalara geçişler bu sayıyı artırmaz.</p>
         </div>
       </section>
       <ViewStatsDashboard />

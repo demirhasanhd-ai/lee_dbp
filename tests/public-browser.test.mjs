@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { withPublicPage } from "./helpers/hydrated-public-page.mjs";
 import { newCourseImportFixture, newCourseImportRow } from "./helpers/course-create-fixtures.mjs";
+import { viewStatisticsTestServer } from "./helpers/view-statistics-fixtures.mjs";
 
 const query = new URLSearchParams({
   ders: "YBS921", bolum: "Yönetim Bilişim Sistemleri ABD",
@@ -10,6 +11,104 @@ const query = new URLSearchParams({
 });
 const packagePath = `/dbp/katalog?${query}`;
 const programPath = "/dbp/programlar/yonetim-bilisim-sistemleri-abd-yonetim-bilisim-sistemleri?duzey=Doktora&sekme=courses";
+
+test("browser sessions count home once while content navigation and reloads keep their own statistics", async (t) => {
+  const { chromium } = await import("playwright");
+  const { origin, totals } = await viewStatisticsTestServer(t);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.goto(`${origin}/dbp/`);
+    assert.equal(totals().home, 1);
+    await page.getByRole("link", { name: "Kalite", exact: true }).click();
+    await page.waitForURL("**/dbp/kalite");
+    assert.equal(totals().home, 1);
+    assert.equal(totals().kalite_gostergeleri, 1);
+    await page.getByRole("link", { name: "Ders Kataloğu", exact: true }).click();
+    await page.waitForURL("**/dbp/#programlar");
+    await page.reload();
+    assert.equal(totals().home, 1);
+    await page.getByRole("link", { name: "Ders", exact: true }).click();
+    await page.waitForURL("**/dbp/mat/tezli/mat864");
+    await page.getByRole("link", { name: "Ana Sayfa", exact: true }).click();
+    await page.waitForURL("**/dbp/");
+    assert.equal(totals().home, 1);
+    assert.equal(totals().ders, 1);
+    const cookie = (await context.cookies()).find((item) => item.name === "lee_dbp_home_visit");
+    assert.equal(cookie.httpOnly, true);
+    assert.equal(cookie.expires, -1, "a session cookie must not persist for a fixed number of days");
+    await page.evaluate(async () => { await fetch("/dbp/"); });
+    assert.equal(totals().home, 1, "background fetches must not count as a visit");
+    const separateSession = await browser.newContext();
+    await (await separateSession.newPage()).goto(`${origin}/dbp/`);
+    assert.equal(totals().home, 2);
+    await context.close();
+    await separateSession.close();
+  } finally { await browser.close(); }
+});
+
+test("public mobile navigation starts collapsed, exposes all links and supports dismissal without changing desktop navigation", async () => {
+  await withPublicPage("/dbp/", {
+    preparePage: async (page) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.route("**/dbp/api/dbp/home-stats", (route) => {
+        assert.equal(route.request().method(), "GET");
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ totalCourses: 2609, totalPrograms: 59, source: "database", levels: { tezli: 30, tezsiz: 20, doktora: 9 } }) });
+      });
+      await page.route("**/dbp/api/dbp/view-stats", (route) => {
+        assert.equal(route.request().method(), "GET");
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ totals: [{ viewType: "home", count: 100 }] }) });
+      });
+    },
+  }, async ({ page }) => {
+    const header = page.locator(".oku-header");
+    const nav = header.locator('nav[aria-label="Ana menü"]');
+    const toggle = header.locator(".mobile-menu-toggle");
+    assert.equal(await toggle.getAttribute("aria-expanded"), "false");
+    assert.equal(await toggle.getAttribute("aria-controls"), await nav.getAttribute("id"));
+    assert.equal(await nav.isVisible(), false);
+    assert.equal(await header.getByRole("link", { name: /LEE Bilgi Sistemi/u }).isVisible(), true);
+    assert.ok((await header.boundingBox()).height < 150, "closed mobile header should leave room for page content");
+    await page.screenshot({ path: "local-volume/test-failure-audit/mobile-menu-closed.png" });
+    await header.getByRole("button", { name: "Menüyü aç", exact: true }).click();
+    assert.equal(await toggle.getAttribute("aria-expanded"), "true");
+    for (const label of ["Ana Sayfa", "Ders Kataloğu", "Kalite Göstergeleri", "Öğrenci Göstergeleri", "TEZ_SKA Analiz", "Görüntülenme İstatistiği"]) {
+      assert.equal(await nav.getByRole("link", { name: label, exact: true }).isVisible(), true, label);
+    }
+    const bibliography = nav.locator(".bibliometrics-menu");
+    await bibliography.locator("summary").click();
+    assert.equal(await bibliography.getByRole("link", { name: /SCOPUS Tabanlı/u }).isVisible(), true);
+    assert.equal(await bibliography.getByRole("link", { name: /TR DİZİN Tabanlı/u }).isVisible(), true);
+    assert.equal(await bibliography.getByRole("link", { name: /Lisansüstü Tez Tabanlı/u }).isVisible(), true);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.screenshot({ path: "local-volume/test-failure-audit/mobile-menu-open.png" });
+    await page.keyboard.press("Escape");
+    assert.equal(await nav.isVisible(), false);
+    assert.equal(await toggle.evaluate((button) => button === document.activeElement), true);
+    await toggle.click();
+    assert.equal(await bibliography.getAttribute("open"), null);
+    await page.mouse.click(5, 5);
+    assert.equal(await nav.isVisible(), false);
+    await toggle.click();
+    await nav.getByRole("link", { name: "Ders Kataloğu", exact: true }).click();
+    await page.waitForURL("**/#programlar");
+    assert.equal(await nav.isVisible(), false, "following a page-section link closes the mobile menu");
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.evaluate(() => scrollTo(0, 0));
+    assert.equal(await toggle.isVisible(), false);
+    assert.equal(await nav.isVisible(), true);
+    assert.equal(await nav.getByRole("link", { name: "Ana Sayfa", exact: true }).isVisible(), true);
+    await page.screenshot({ path: "local-volume/test-failure-audit/mobile-menu-desktop.png" });
+    await page.setViewportSize({ width: 320, height: 844 });
+    assert.equal(await nav.isVisible(), false);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    const brand = await header.locator(".oku-brand").boundingBox();
+    const button = await toggle.boundingBox();
+    assert.ok(brand.x + brand.width <= button.x && Math.abs(brand.y - button.y) < 10, "brand and hamburger stay on the same row at 320px");
+    await page.screenshot({ path: "local-volume/test-failure-audit/mobile-menu-320.png" });
+  });
+});
 
 test("new-course Excel panel downloads the template, previews without writes and inserts only new courses", async (t) => {
   const { db, excel, request } = newCourseImportFixture(t);
