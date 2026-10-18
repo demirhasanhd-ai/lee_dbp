@@ -21,14 +21,17 @@ Windows'ta projeyi çift tıklayarak açmak için:
 web_run_home-UA.bat
 ```
 
-Program gerekli bağımlılıkları kontrol eder, LEE DBP'yi `http://localhost:8081` adresinde başlatır ve varsayılan tarayıcıyı otomatik açar. `8081` portu e-Enstitü'nün `8080` portuyla çakışmaması için seçilmiştir.
+Program gerekli bağımlılıkları kontrol eder, LEE DBP'yi `http://localhost:8081/dbp/` adresinde geliştirme modunda başlatır ve varsayılan tarayıcıyı otomatik açar. React, metin ve CSS değişiklikleri kaydedilince Vite üzerinden tarayıcıya otomatik yansır; her değişiklikte build veya F5 gerekmez. API/sunucu kodu değişikliklerinde Node izleyicisi sunucuyu yeniden başlatır. `8081` portu e-Enstitü'nün `8080` portuyla çakışmaması için seçilmiştir. Mevcut `local-volume/data/dbp.sqlite` ve API uçları kullanılmaya devam eder.
+
+Eski üretim sunucusu açıksa ilk geçişte onun penceresini Ctrl+C ile kapatıp başlatıcıyı yeniden açın. Başlatıcı eski modu algılarsa sessizce eski sunucuyu kullanmak yerine bu bilgiyi gösterir.
 
 Komut satırından çalıştırmak için:
 
 ```bash
 npm run dev
-npm run build
 ```
+
+Yerelde üretim derlemesini kontrol etmek için `npm run start:local:production` kullanılır. Üretim dağıtımı `npm run build` ve `npm start` ile aynı şekilde devam eder; geliştirme sunucusu `dist` çıktısını kullanmaz veya değiştirmez.
 
 ## Testler
 

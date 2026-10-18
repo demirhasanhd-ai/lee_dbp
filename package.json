@@ -1,14 +1,15 @@
 {
   "name": "lee_dbp",
-  "version": "1.78",
+  "version": "1.79",
   "private": true,
   "engines": {
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "node scripts/start-local-dbp.mjs",
+    "dev": "node --watch --watch-path=server.mjs --watch-path=lib --watch-path=scripts --watch-preserve-output scripts/start-local-dbp.mjs",
     "dev:vinext": "vinext dev",
     "start:local": "node scripts/start-local-dbp.mjs",
+    "start:local:production": "node scripts/start-local-dbp.mjs --production",
     "build": "vinext build && node scripts/export_course_packages_seed.mjs",
     "start": "node server.mjs",
     "test": "npm run build && node scripts/run-tests.mjs",

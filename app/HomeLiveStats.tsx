@@ -72,25 +72,29 @@ export function HomeLiveStats() {
   }, []);
 
   const levels = stats?.levels ?? { tezsiz: 0, tezli: 0, doktora: 0 };
+  const mainDepartments = visibleMainDepartments || stats?.mainDepartments;
+  const electiveRate = stats ? (stats.totalCourses > 0 ? (stats.electiveCourses / stats.totalCourses) * 100 : 0) : undefined;
   const numberLabel = (value?: number) =>
     loadStatus === "ready" && typeof value === "number" ? value.toLocaleString("tr-TR") : "—";
   const percentLabel = (value?: number) =>
-    loadStatus === "ready" && typeof value === "number" ? `${value}%` : "—";
+    loadStatus === "ready" && typeof value === "number"
+      ? (value / 100).toLocaleString("tr-TR", { style: "percent", maximumFractionDigits: 1 })
+      : "—";
 
   return (
     <>
       <div className="banner-board" data-stats-source={stats?.source || loadStatus}>
         <div className="board-heading"><div><small>CANLI KATALOG</small><strong>Ders Kataloğu</strong></div><span>{loadStatus === "error" ? "Veritabanı bekleniyor" : "Yayımdaki katalog"}</span></div>
         <div className="board-main"><strong>{numberLabel(stats?.totalCourses)}</strong><span>Ders kataloğundaki toplam ders</span></div>
-        <div className="board-stats"><div><b>{numberLabel(stats?.totalPrograms)}</b><span>Program paketi</span></div><div><b>{percentLabel(stats?.assignmentRate)}</b><span>Akademisyen atama oranı</span></div><div><b>{numberLabel(stats?.instructors)}</b><span>Akademisyen</span></div></div>
+        <div className="board-stats"><div><b>{numberLabel(mainDepartments)}</b><span>ABD/ASD</span></div><div><b>{numberLabel(stats?.totalPrograms)}</b><span>Program</span></div><div><b>{numberLabel(stats?.instructors)}</b><span>Akademisyen</span></div></div>
         <a href={dbpPath("/katalog")}>Kataloğu inceleyin <span>→</span></a>
       </div>
       <div className="hero-stats" aria-label="Canlı ders kataloğu istatistikleri">
-        <article><small>Ders havuzu</small><strong>{numberLabel(stats?.totalCourses)}</strong><span>{numberLabel(visibleMainDepartments || stats?.mainDepartments)} Ana ABD / ASD</span></article>
-        <article><small>Program düzeyi</small><strong>{numberLabel(stats?.totalPrograms)}</strong><span>{levels.tezsiz} tezsiz · {levels.tezli} tezli · {levels.doktora} doktora</span></article>
-        <article><small>Ders türü</small><strong>{numberLabel(stats?.electiveCourses)}</strong><span>{numberLabel(stats?.compulsoryCourses)} zorunlu · {numberLabel(stats?.electiveCourses)} seçmeli</span></article>
-        <article><small>Yarıyıl</small><strong>{numberLabel(stats?.fallCourses)}</strong><span>{numberLabel(stats?.fallCourses)} güz · {numberLabel(stats?.springCourses)} bahar</span></article>
-        <article><small>Öğretim elemanı</small><strong>{numberLabel(stats?.instructors)}</strong><span>{numberLabel(stats?.unassignedCourses)} atama bekliyor</span></article>
+        <article><small>Toplam ders</small><strong>{numberLabel(stats?.totalCourses)}</strong><span>{numberLabel(mainDepartments)} Ana ABD / ASD</span></article>
+        <article><small>Lisansüstü program</small><strong>{numberLabel(stats?.totalPrograms)}</strong><span>{numberLabel(levels.tezsiz)} tezsiz YL · {numberLabel(levels.tezli)} tezli YL · {numberLabel(levels.doktora)} doktora</span></article>
+        <article><small>Seçmeli ders oranı</small><strong>{percentLabel(electiveRate)}</strong><span>{numberLabel(stats?.compulsoryCourses)} zorunlu · {numberLabel(stats?.electiveCourses)} seçmeli</span></article>
+        <article><small>Yarıyıl dağılımı</small><div className="hero-term-stats" title="Güz ve Bahar yarıyıllarında yer alan dersler her iki yarıyılın sayısına dahildir."><div><strong>{numberLabel(stats?.fallCourses)}</strong><span>Güz</span></div><div><strong>{numberLabel(stats?.springCourses)}</strong><span>Bahar</span></div></div></article>
+        <article><small>Öğretim elemanı</small><strong>{numberLabel(stats?.instructors)}</strong><span>Ders Atanma Oranı {percentLabel(stats?.assignmentRate)}</span></article>
       </div>
     </>
   );

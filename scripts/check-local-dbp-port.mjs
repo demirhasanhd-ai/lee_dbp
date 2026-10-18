@@ -26,7 +26,10 @@ if (!(await hasListener())) {
 
 try {
   const response = await fetch(healthUrl, { signal: AbortSignal.timeout(1500) });
-  process.exit(response.ok ? 0 : 2);
+  if (!response.ok) process.exit(2);
+  const health = await response.json();
+  if (process.env.DBP_LOCAL_DEV === "1" && health.runtime !== "development") process.exit(3);
+  process.exit(0);
 } catch {
   process.exit(2);
 }

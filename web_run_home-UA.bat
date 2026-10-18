@@ -21,7 +21,8 @@ set "LOCAL_BACKUP_DIR=%LOCAL_DATA_DIR%\backups"
 set "DBP_DATA_DIR=%LOCAL_DATA_DIR%"
 set "DBP_SQLITE_PATH=%LOCAL_DATA_DIR%\dbp.sqlite"
 set "DBP_BACKUP_DIR=%LOCAL_BACKUP_DIR%"
-set "NODE_ENV=production"
+set "NODE_ENV=development"
+set "DBP_LOCAL_DEV=1"
 set "NEXT_PUBLIC_E_ENSTITU_URL=http://localhost:8080"
 set "DBP_OPEN_BROWSER=1"
 
@@ -31,7 +32,7 @@ where node.exe >nul 2>&1
 if errorlevel 1 (
   echo.
   echo [HATA] Node.js bulunamadi.
-  echo LEE DBP'yi calistirmak icin Node.js 22.13 veya daha yeni bir surum kurun.
+  echo LEE DBP'yi calistirmak icin Node.js 24 veya daha yeni bir surum kurun.
   echo.
   pause
   exit /b 1
@@ -58,6 +59,15 @@ if "%NEED_NPM_INSTALL%"=="1" (
 )
 
 node.exe --preserve-symlinks --preserve-symlinks-main "%APP_DIR%\scripts\check-local-dbp-port.mjs" >nul 2>&1
+if errorlevel 3 (
+  echo.
+  echo [BILGI] Eski uretim sunucusu halen %PORT% portunda calisiyor.
+  echo Eski DBP sunucu penceresini Ctrl+C ile kapatin ve bu dosyayi yeniden acin.
+  echo Yeni baslatici arayuz degisikliklerini tarayiciya otomatik yansitir.
+  echo.
+  pause
+  exit /b 1
+)
 if errorlevel 2 (
   echo.
   echo [HATA] %PORT% portu acik ama canli DBP server yanit vermiyor.
@@ -81,16 +91,17 @@ if not exist "%LOCAL_DATA_DIR%" mkdir "%LOCAL_DATA_DIR%"
 if not exist "%LOCAL_BACKUP_DIR%" mkdir "%LOCAL_BACKUP_DIR%"
 
 echo.
-echo LEE Ders Bilgi Paketi canli server taktigiyle baslatiliyor...
+echo LEE Ders Bilgi Paketi gelistirme modunda baslatiliyor...
 echo Adres: %LOCAL_URL%
 echo Yerel veri klasoru: %LOCAL_VOLUME_DIR%
 echo SQLite: %DBP_SQLITE_PATH%
-echo Build bittikten sonra server bu pencerede acik kalir; bu normaldir.
+echo Metin, React ve CSS degisiklikleri tarayiciya otomatik yansir.
+echo API kodu degisikliklerinde sunucu otomatik yeniden baslar.
 echo Kapatmak icin bu pencerede Ctrl+C tuslarina basin.
 echo.
 
 echo Yerel DBP server aciliyor...
-node.exe --preserve-symlinks --preserve-symlinks-main "%APP_DIR%\scripts\start-local-dbp.mjs"
+node.exe --preserve-symlinks --preserve-symlinks-main --watch --watch-path=server.mjs --watch-path=lib --watch-path=scripts --watch-preserve-output "%APP_DIR%\scripts\start-local-dbp.mjs"
 
 echo.
 echo LEE DBP durduruldu.

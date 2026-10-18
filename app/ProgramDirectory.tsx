@@ -85,6 +85,7 @@ export function ProgramDirectory() {
       <div className="department-accordion">
         {visibleDepartments.map((main) => {
           const children = publicPrograms.filter((item) => item.mainDepartment === main);
+          const programCount = children.reduce((total, item) => total + publicLevelsForProgram(item, visibility).length, 0);
           return (
             <details key={main} open={openDepartment === main}>
               <summary onClick={(event) => {
@@ -92,7 +93,7 @@ export function ProgramDirectory() {
                 setOpenDepartment((current) => current === main ? null : main);
               }}>
                 <span className="department-icon"><Building2 size={18}/></span>
-                <span><b>{main}</b><small>{children.length} public program birimi</small></span>
+                <span><b>{main}</b><small>{programCount} program</small></span>
                 <ChevronDown size={17}/>
               </summary>
               <div className="department-programs">

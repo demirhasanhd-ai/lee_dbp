@@ -58,6 +58,7 @@ const basePath = "/dbp";
 const expectedDspaceThesisCount = 991;
 const port = Number(process.env.PORT || 8081);
 const host = process.env.HOST || "0.0.0.0";
+const localDev = process.env.DBP_LOCAL_DEV === "1";
 const defaultEEnstituInternalToken = "oku-eenstitu-dbp-internal-v1";
 const dataDir = process.env.DBP_DATA_DIR || path.join(__dirname, "data");
 const dbPath = process.env.DBP_SQLITE_PATH || path.join(dataDir, "dbp.sqlite");
@@ -222,7 +223,7 @@ const contentTypes = {
   ".woff2": "font/woff2",
 };
 
-const worker = (await import(`${pathToFileURL(serverEntry).href}?t=${Date.now()}`)).default;
+let worker = localDev ? null : (await import(`${pathToFileURL(serverEntry).href}?t=${Date.now()}`)).default;
 
 const textRepairPairs = [
   ["\u00c3\u201e\u00c2\u00b0", "\u0130"], ["\u00c3\u201e\u00c2\u00b1", "\u0131"],
@@ -9159,7 +9160,7 @@ async function handleDbpApi(request) {
 
   try {
     if (pathname === "/api/dbp/health" && request.method === "GET") {
-      return jsonResponse({ ok: true, dbPath, size: await databaseSize() });
+      return jsonResponse({ ok: true, dbPath, size: await databaseSize(), runtime: localDev ? "development" : "production" });
     }
 
     if (pathname === "/api/dbp/course-pdf") {
@@ -10418,7 +10419,7 @@ const trDizinCitationGeneratedAt = trDizinSnapshotCache?.lastCitationRefreshAt ?
 if (latestTrDizinCitationRefresh && trDizinSnapshotCache && (!trDizinCitationGeneratedAt || trDizinCitationGeneratedAt < latestTrDizinCitationRefresh)) queueTrDizinSync("weekly-startup", "CITATIONS");
 scheduleTrDizinCitationRefresh();
 
-createServer(async (req, res) => {
+const httpServer = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host || `localhost:${port}`}`);
 
@@ -10435,14 +10436,16 @@ createServer(async (req, res) => {
     }
 
     if (req.method === "GET" || req.method === "HEAD") {
-      const publicCourseRoute = publicCourseRouteContext(url.pathname);
+      const rscSuffix = localDev && url.pathname.endsWith(".rsc") ? ".rsc" : "";
+      const coursePathname = rscSuffix ? url.pathname.slice(0, -rscSuffix.length) : url.pathname;
+      const publicCourseRoute = publicCourseRouteContext(coursePathname);
       if (publicCourseRoute?.matched && !publicCourseRoute.found) {
         res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
         res.end("Yayımlanmış ders bilgi paketi bulunamadı.");
         return;
       }
-      if (publicCourseRoute?.found && publicCourseRoute.canonicalPath !== url.pathname) {
-        res.writeHead(308, { Location: `${publicCourseRoute.canonicalPath}${url.search}` });
+      if (publicCourseRoute?.found && publicCourseRoute.canonicalPath !== coursePathname) {
+        res.writeHead(308, { Location: `${publicCourseRoute.canonicalPath}${rscSuffix}${url.search}` });
         res.end();
         return;
       }
@@ -10454,7 +10457,7 @@ createServer(async (req, res) => {
       return;
     }
 
-    if (await sendStaticFile(req, res, url.pathname)) return;
+    if (!localDev && await sendStaticFile(req, res, url.pathname)) return;
 
     const pageRequest = nodeRequestToWeb(req);
     const response = trackPageViewRequest(pageRequest, await worker.fetch(pageRequest, env, ctx));
@@ -10466,9 +10469,22 @@ createServer(async (req, res) => {
     }
     res.end("Internal Server Error");
   }
-}).listen(port, host, () => {
+});
+
+if (localDev) {
+  const { createLocalDevRenderer } = await import("./scripts/local-dev-renderer.mjs");
+  worker = await createLocalDevRenderer({ rootDir: __dirname, httpServer, port });
+  httpServer.on("close", () => { void worker.close(); });
+  httpServer.on("error", async (error) => {
+    await worker.close();
+    console.error(`[dbp] Local server could not start: ${error.message}`);
+    process.exit(1);
+  });
+}
+
+httpServer.listen(port, host, () => {
   const localUrl = `http://localhost:${port}${basePath}/`;
-  console.log(`[dbp] Production server running at http://${host}:${port}${basePath}/`);
+  console.log(`[dbp] ${localDev ? "Development" : "Production"} server running at http://${host}:${port}${basePath}/`);
   console.log(`[dbp] Browser URL: ${localUrl}`);
   if (process.env.DBP_OPEN_BROWSER === "1") {
     console.log("[dbp] Browser aciliyor...");
