@@ -39,7 +39,8 @@ import { ThesisEvaluationAdmin } from "./ThesisEvaluationAdmin";
 import { ThesisAwardsAdmin } from "./ThesisAwardsAdmin";
 import { CommitteeManagement } from "./CommitteeManagement";
 import { ThemeToggle } from "../ThemeToggle";
-import { LEE_PROGRAMS, type LeeProgram } from "../../lib/data/programs";
+import type { LeeProgram } from "../../lib/data/programs";
+import { fetchDbpPrograms } from "../../lib/data/programCatalog";
 import { isDepartmentPoolCourse } from "../../lib/data/courseRules";
 import { fetchDbpCourses, fetchMyDbpCourses, type DbpCourse } from "../../lib/data/dbpCourses";
 import { dbpPath } from "../../lib/dbpPath";
@@ -334,6 +335,7 @@ export function RoleDashboard() {
   const [assignCourse, setAssignCourse] = useState<Course | null>(null);
   const [assignmentMessage, setAssignmentMessage] = useState("");
   const [catalogCourses, setCatalogCourses] = useState<Course[]>([]);
+  const [catalogPrograms, setCatalogPrograms] = useState<LeeProgram[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogMessage, setCatalogMessage] = useState("");
   const [catalogSessionKey, setCatalogSessionKey] = useState("");
@@ -433,15 +435,18 @@ export function RoleDashboard() {
     setCatalogLoading(true);
     setCatalogMessage("");
     try {
-      const data = await fetchCatalogCoursesForSession(session, {
-        headers: { "X-DBP-Session": dbpSessionHeader(session) },
-      });
+      const init = { headers: { "X-DBP-Session": dbpSessionHeader(session) } };
+      const [data, programs] = await Promise.all([
+        fetchCatalogCoursesForSession(session, init), fetchDbpPrograms(init),
+      ]);
       setCatalogCourses(data.courses.map(toPanelCourse));
+      setCatalogPrograms(programs);
       setCatalogSessionKey(requestKey);
       setCatalogMessage("");
     } catch {
-      setCatalogMessage("Ders kataloğu veritabanından alınamadı. Lütfen bağlantınızı kontrol edip tekrar deneyin.");
+      setCatalogMessage("Ders ve program kataloğu veritabanından alınamadı. Lütfen bağlantınızı kontrol edip tekrar deneyin.");
       setCatalogCourses([]);
+      setCatalogPrograms([]);
       setCatalogSessionKey(requestKey);
     } finally {
       setCatalogLoading(false);
@@ -453,17 +458,20 @@ export function RoleDashboard() {
     const requestKey = catalogKeyForSession(session);
     const loadCatalogCourses = async () => {
       try {
-        const data = await fetchCatalogCoursesForSession(session, {
-          headers: { "X-DBP-Session": dbpSessionHeader(session) },
-        });
+        const init = { headers: { "X-DBP-Session": dbpSessionHeader(session) } };
+        const [data, programs] = await Promise.all([
+          fetchCatalogCoursesForSession(session, init), fetchDbpPrograms(init),
+        ]);
         if (cancelled) return;
         setCatalogCourses(data.courses.map(toPanelCourse));
+        setCatalogPrograms(programs);
         setCatalogSessionKey(requestKey);
         setCatalogMessage("");
       } catch {
         if (cancelled) return;
-        setCatalogMessage("Ders kataloğu veritabanından alınamadı. Lütfen bağlantınızı kontrol edip tekrar deneyin.");
+        setCatalogMessage("Ders ve program kataloğu veritabanından alınamadı. Lütfen bağlantınızı kontrol edip tekrar deneyin.");
         setCatalogCourses([]);
+        setCatalogPrograms([]);
         setCatalogSessionKey(requestKey);
       }
     };
@@ -511,6 +519,7 @@ export function RoleDashboard() {
   const currentCatalogKey = catalogKeyForSession(session);
   const catalogIsCurrent = catalogSessionKey === currentCatalogKey;
   const displayedCatalogCourses = catalogIsCurrent ? catalogCourses : [];
+  const displayedCatalogPrograms = catalogIsCurrent ? catalogPrograms : [];
   const catalogBusy = catalogLoading || !catalogIsCurrent;
   const baseModules = roleAccess[session.role] ?? DEFAULT_ROLE_ACCESS[session.role];
   const modules = committeeMemberships.length > 0 && !baseModules.includes("commission_review")
@@ -561,12 +570,13 @@ export function RoleDashboard() {
   const canDownloadAllProgramCourses = allProgramCourseDownloadRoles.includes(session.role);
   const useDemoFallback = !catalogBusy && displayedCatalogCourses.length === 0 && isLocalDevelopmentHost();
   const scopedPrograms = isCentralRole
-    ? LEE_PROGRAMS
-    : LEE_PROGRAMS.filter((program) => {
+    ? displayedCatalogPrograms
+    : displayedCatalogPrograms.filter((program) => {
         const scope = normalizeProgramScope(session.department);
+        const mainDepartment = normalizeProgramScope(program.mainDepartment);
         const department = normalizeProgramScope(program.department);
         const programName = normalizeProgramScope(program.programName);
-        return department === scope || programName === scope;
+        return Boolean(scope) && (mainDepartment === scope || department === scope || programName === scope);
       });
   const activeProfileProgram =
     selectedProgram ?? (!isCentralRole && scopedPrograms.length === 1 ? scopedPrograms[0] : null);
@@ -644,7 +654,12 @@ export function RoleDashboard() {
   const activeProgramLevels = selectedProgram
     ? orderedLevelsForProgram(selectedProgram.levels, activeCourses)
     : levels;
-  const committeeScopeSet = new Set(committeeMemberships.map((item) => normalizeProgramScope(item.department)));
+  const committeeScopeSet = new Set(committeeMemberships.flatMap((item) => {
+    const scope = normalizeProgramScope(item.department);
+    return [scope, ...displayedCatalogPrograms
+      .filter((program) => normalizeProgramScope(program.mainDepartment) === scope)
+      .flatMap((program) => [normalizeProgramScope(program.department), normalizeProgramScope(program.programName)])];
+  }));
   const committeeCourses = session.role === "admin"
     ? displayedCatalogCourses
     : displayedCatalogCourses.filter((course) =>
@@ -652,16 +667,16 @@ export function RoleDashboard() {
         committeeScopeSet.has(normalizeProgramScope(course.programName || "")),
       );
   const committeeProgram = activeProfileProgram ?? scopedPrograms[0] ?? null;
-  const committeeDepartment = committeeProgram?.department ?? session.department;
-  const committeeProgramName = committeeProgram?.programName ?? session.department;
+  const committeeDepartment = committeeProgram?.mainDepartment ?? session.department;
+  const committeeProgramName = committeeDepartment;
   const committeeScopeOptions = (() => {
     const byDepartment = new Map<string, { department: string; programName: string }>();
     for (const program of scopedPrograms) {
-      const key = normalizeProgramScope(program.department);
+      const key = normalizeProgramScope(program.mainDepartment);
       if (!key || byDepartment.has(key)) continue;
       byDepartment.set(key, {
-        department: program.department,
-        programName: program.programName,
+        department: program.mainDepartment,
+        programName: program.mainDepartment,
       });
     }
     return [...byDepartment.values()];
@@ -1174,7 +1189,7 @@ export function RoleDashboard() {
           </section>
         )}
         {active === "program_profile" && !isCentralRole && !activeProfileProgram && (
-          programPicker("ProgramÄ± AÃ§")
+          programPicker("Programı Aç")
         )}
         {active === "program_profile" && (isCentralRole ? selectedProgram : activeProfileProgram) && (
           <section>

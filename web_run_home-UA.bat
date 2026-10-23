@@ -31,10 +31,11 @@ cd /d "%APP_DIR%"
 where node.exe >nul 2>&1
 if errorlevel 1 (
   echo.
-  echo [HATA] Node.js bulunamadi.
-  echo LEE DBP'yi calistirmak icin Node.js 24 veya daha yeni bir surum kurun.
+  echo [%date% %time:~0,8%] [HATA] Node.js bulunamadi.
+  echo [%date% %time:~0,8%] LEE DBP'yi calistirmak icin Node.js 24 veya daha yeni bir surum kurun.
   echo.
-  pause
+  echo [%date% %time:~0,8%] Devam etmek icin bir tusa basin...
+  pause >nul
   exit /b 1
 )
 
@@ -48,12 +49,12 @@ if exist "%APP_DIR%\package-lock.json" if exist "%APP_DIR%\node_modules\.package
 )
 
 if "%NEED_NPM_INSTALL%"=="1" (
-  echo LEE DBP bagimliliklari kuruluyor/guncelleniyor...
-  call npm.cmd install --include=dev
+  call :log "LEE DBP bagimliliklari kuruluyor/guncelleniyor..."
+  node.exe "%APP_DIR%\scripts\with-timestamps.mjs" "%ComSpec%" /d /s /c "npm.cmd install --include=dev"
   if errorlevel 1 (
     echo.
-    echo [HATA] Bagimliliklar kurulamadi.
-    pause
+    call :log "[HATA] Bagimliliklar kurulamadi."
+    call :wait_for_key
     exit /b 1
   )
 )
@@ -61,29 +62,29 @@ if "%NEED_NPM_INSTALL%"=="1" (
 node.exe --preserve-symlinks --preserve-symlinks-main "%APP_DIR%\scripts\check-local-dbp-port.mjs" >nul 2>&1
 if errorlevel 3 (
   echo.
-  echo [BILGI] Eski uretim sunucusu halen %PORT% portunda calisiyor.
-  echo Eski DBP sunucu penceresini Ctrl+C ile kapatin ve bu dosyayi yeniden acin.
-  echo Yeni baslatici arayuz degisikliklerini tarayiciya otomatik yansitir.
+  call :log "[BILGI] Eski uretim sunucusu halen %PORT% portunda calisiyor."
+  call :log "Eski DBP sunucu penceresini Ctrl+C ile kapatin ve bu dosyayi yeniden acin."
+  call :log "Yeni baslatici arayuz degisikliklerini tarayiciya otomatik yansitir."
   echo.
-  pause
+  call :wait_for_key
   exit /b 1
 )
 if errorlevel 2 (
   echo.
-  echo [HATA] %PORT% portu acik ama canli DBP server yanit vermiyor.
-  echo Bu portu kullanan diger yerel uygulamayi kapatip tekrar deneyin.
+  call :log "[HATA] %PORT% portu acik ama canli DBP server yanit vermiyor."
+  call :log "Bu portu kullanan diger yerel uygulamayi kapatip tekrar deneyin."
   echo.
-  pause
+  call :wait_for_key
   exit /b 1
 )
 if not errorlevel 1 (
   echo.
-  echo LEE Ders Bilgi Paketi zaten calisiyor.
-  echo Adres: %LOCAL_URL%
-  echo Mevcut sekme/pencere aciliyor...
+  call :log "LEE Ders Bilgi Paketi zaten calisiyor."
+  call :log "Adres: %LOCAL_URL%"
+  call :log "Mevcut sekme/pencere aciliyor..."
   echo.
   start "" "%LOCAL_URL%"
-  pause
+  call :wait_for_key
   exit /b 0
 )
 
@@ -91,19 +92,29 @@ if not exist "%LOCAL_DATA_DIR%" mkdir "%LOCAL_DATA_DIR%"
 if not exist "%LOCAL_BACKUP_DIR%" mkdir "%LOCAL_BACKUP_DIR%"
 
 echo.
-echo LEE Ders Bilgi Paketi gelistirme modunda baslatiliyor...
-echo Adres: %LOCAL_URL%
-echo Yerel veri klasoru: %LOCAL_VOLUME_DIR%
-echo SQLite: %DBP_SQLITE_PATH%
-echo Metin, React ve CSS degisiklikleri tarayiciya otomatik yansir.
-echo API kodu degisikliklerinde sunucu otomatik yeniden baslar.
-echo Kapatmak icin bu pencerede Ctrl+C tuslarina basin.
+call :log "LEE Ders Bilgi Paketi gelistirme modunda baslatiliyor..."
+call :log "Adres: %LOCAL_URL%"
+call :log "Yerel veri klasoru: %LOCAL_VOLUME_DIR%"
+call :log "SQLite: %DBP_SQLITE_PATH%"
+call :log "Metin, React ve CSS degisiklikleri tarayiciya otomatik yansir."
+call :log "API kodu degisikliklerinde sunucu otomatik yeniden baslar."
+call :log "Kapatmak icin bu pencerede Ctrl+C tuslarina basin."
 echo.
 
-echo Yerel DBP server aciliyor...
-node.exe --preserve-symlinks --preserve-symlinks-main --watch --watch-path=server.mjs --watch-path=lib --watch-path=scripts --watch-preserve-output "%APP_DIR%\scripts\start-local-dbp.mjs"
+call :log "Yerel DBP server aciliyor..."
+node.exe "%APP_DIR%\scripts\with-timestamps.mjs" node.exe --preserve-symlinks --preserve-symlinks-main --watch --watch-path=server.mjs --watch-path=lib --watch-path=scripts --watch-preserve-output "%APP_DIR%\scripts\start-local-dbp.mjs"
 
 echo.
-echo LEE DBP durduruldu.
-pause
+call :log "LEE DBP durduruldu."
+call :wait_for_key
 endlocal
+exit /b
+
+:log
+node.exe "%APP_DIR%\scripts\with-timestamps.mjs" --message "%~1"
+exit /b
+
+:wait_for_key
+call :log "Devam etmek icin bir tusa basin..."
+pause >nul
+exit /b

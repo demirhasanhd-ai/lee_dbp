@@ -1,3 +1,5 @@
+import { beginStartupStep, measureStartupAsync, measureStartupSync, observeStartupBackground } from "./lib/runtimeLogging.mjs";
+import { errorMonitor } from "node:events";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
@@ -49,6 +51,8 @@ import {
   normalizePublicDataRefreshPlan,
   publicDataScheduleLabels,
 } from "./lib/publicDataRefreshPlan.mjs";
+
+const startupTotal = beginStartupStep("Uygulama başlangıcı", { startedAt: 0 });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -223,7 +227,8 @@ const contentTypes = {
   ".woff2": "font/woff2",
 };
 
-let worker = localDev ? null : (await import(`${pathToFileURL(serverEntry).href}?t=${Date.now()}`)).default;
+let worker = localDev ? null : await measureStartupAsync("Üretim web modülünün yüklenmesi", async () =>
+  (await import(`${pathToFileURL(serverEntry).href}?t=${Date.now()}`)).default);
 
 const textRepairPairs = [
   ["\u00c3\u201e\u00c2\u00b0", "\u0130"], ["\u00c3\u201e\u00c2\u00b1", "\u0131"],
@@ -4127,6 +4132,44 @@ function normalizeScope(value = "") {
     .trim();
 }
 
+function databaseProgramCatalog() {
+  return db.prepare("SELECT main_department, department, program_name, levels_json FROM programs ORDER BY id").all()
+    .map((row) => ({
+      mainDepartment: repairText(row.main_department || row.department).trim(),
+      department: repairText(row.department).trim(),
+      programName: repairText(row.program_name).trim(),
+      levels: [...new Set(JSON.parse(row.levels_json || "[]").map(displayLevel))],
+    }));
+}
+
+// Expand only downward: a parent ABD owns its branches; a branch does not own siblings.
+function departmentScopeNames(department = "") {
+  const scope = normalizeScope(department);
+  if (!scope) return [];
+  const names = new Set([repairText(department).trim()]);
+  for (const program of db.prepare("SELECT main_department, department, program_name FROM programs").all()) {
+    if ([program.main_department, program.department, program.program_name].some((name) => normalizeScope(name) === scope)) {
+      names.add(program.department);
+      names.add(program.program_name);
+    }
+  }
+  return [...names].filter(Boolean);
+}
+
+function departmentScopeIncludes(department, targetDepartment) {
+  const target = normalizeScope(targetDepartment || "");
+  return Boolean(target) && departmentScopeNames(department || "").some((name) => normalizeScope(name) === target);
+}
+
+function committeeDepartmentName(department = "") {
+  const scope = normalizeScope(department);
+  if (!scope) return "";
+  const programs = db.prepare("SELECT main_department, department, program_name FROM programs").all();
+  const program = programs.find((item) => normalizeScope(item.main_department) === scope) ||
+    programs.find((item) => [item.department, item.program_name].some((name) => normalizeScope(name) === scope));
+  return repairText(program?.main_department || department).trim();
+}
+
 function normalizePerson(value = "") {
   return repairText(value)
     .toLocaleLowerCase("tr-TR")
@@ -4232,9 +4275,7 @@ function courseRowsForIdentity({ code = "", department = "", programName = "", l
 
 function canEditCoursePackage(session, body, rows) {
   if (session.role === "admin") return true;
-  const sessionDepartment = normalizeScope(session.department || "");
-  const requestedDepartment = normalizeScope(body.department || "");
-  const departmentMatches = Boolean(sessionDepartment && requestedDepartment && sessionDepartment === requestedDepartment);
+  const departmentMatches = departmentScopeIncludes(session.department, body.department);
   const trustedInstructorOverrides = { YBS925: "Doç. Dr. Emre YAKUT" };
   const assignedToUser = rows.some((row) => {
     if (courseInstructorMatchesSession(row, session)) return true;
@@ -4275,10 +4316,10 @@ function canReadCoursePackage(session, body) {
   if (["admin", "lee_ogrenci_isleri", "enstitu_sekreteri", "enstitu_yoneticisi"].includes(session.role)) return true;
   if (isCommitteeMemberForCourse(session, body)) return true;
   if (session.role === "abd_asd_baskani") {
-    return normalizeScope(session.department || "") === normalizeScope(body.department || "");
+    return departmentScopeIncludes(session.department, body.department);
   }
   if (session.role === "abd_sekreteri") {
-    return normalizeScope(session.department || "") === normalizeScope(body.department || "");
+    return departmentScopeIncludes(session.department, body.department);
   }
   return false;
 }
@@ -4286,7 +4327,7 @@ function canReadCoursePackage(session, body) {
 function canApproveCoursePackage(session, body) {
   if (session.role === "admin") return true;
   return session.role === "abd_asd_baskani" &&
-    normalizeScope(session.department || "") === normalizeScope(body.department || "");
+    departmentScopeIncludes(session.department, body.department);
 }
 
 function memberIdentityKeys(value = {}) {
@@ -4314,7 +4355,7 @@ function primaryMemberKey(value = {}) {
 }
 
 function committeeMembersForDepartment(department) {
-  const scope = normalizeScope(department || "");
+  const scope = normalizeScope(committeeDepartmentName(department || ""));
   if (!scope) return [];
   return db.prepare(`
     SELECT id, department, program_name, member_key, member_username, member_tc_kimlik, member_name, member_email, created_by, created_at
@@ -4428,13 +4469,13 @@ function committeeMembershipsForSession(session) {
   const seen = new Set();
   return [...rows, ...byName, ...courseReviewAssignmentMembershipsForSession(session)]
     .filter((row) => {
-      const key = row.department_scope;
+      const key = row.department_scope || row.departmentScope;
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
     })
     .map((row) => ({
-      departmentScope: row.department_scope,
+      departmentScope: row.department_scope || row.departmentScope,
       department: repairText(row.department || ""),
       programName: repairText(row.program_name || ""),
     }));
@@ -4443,11 +4484,11 @@ function committeeMembershipsForSession(session) {
 function canManageCommittee(session, department) {
   if (session.role === "admin") return true;
   return session.role === "abd_asd_baskani" &&
-    normalizeScope(session.department || "") === normalizeScope(department || "");
+    departmentScopeIncludes(session.department, committeeDepartmentName(department));
 }
 
 function replaceCommitteeMembers({ department, programName, members }, actor) {
-  const departmentName = repairText(String(department || "")).trim();
+  const departmentName = committeeDepartmentName(String(department || ""));
   const departmentScope = normalizeScope(departmentName);
   if (!departmentScope) throw new Error("ABD / ASD bilgisi zorunludur.");
   const now = new Date().toISOString();
@@ -4557,7 +4598,7 @@ function isCommitteeMemberForCourse(session, body) {
   if (frozenAssignees.length) {
     return frozenAssignees.some((assignee) => sessionMatchesReviewAssignee(session, assignee));
   }
-  return committeeMembershipsForSession(session).some((item) => item.departmentScope === departmentScope);
+  return committeeMembersForDepartment(body.department).some((member) => sessionMatchesReviewAssignee(session, member));
 }
 
 function workflowTarget(body = {}) {
@@ -4842,6 +4883,7 @@ function ensureThesisModuleColumns() {
 
 async function ensureDb() {
   if (db) return db;
+  const schemaStep = beginStartupStep("SQLite bağlantısı ve şema hazırlığı");
   await mkdir(dataDir, { recursive: true });
   await mkdir(backupDir, { recursive: true });
   db = new DatabaseSync(dbPath);
@@ -5130,60 +5172,63 @@ async function ensureDb() {
   }
   ensureCourseInstructorIdentityColumns();
   ensureThesisModuleColumns();
-  seedInitialData();
-  syncCourseCatalogFromSeed();
-  migrateArkeolojiBes802PackageFromSeed();
-  migrateMakineTezliQualityPackagesFromSeed();
-  migrateBataryaTezliPackagesFromSeed();
-  migrateBedenTezliPackagesFromSeed();
-  migrateBedenTezsizPackagesFromSeed();
-  migrateBiyolojiTezliPackagesFromSeed();
-  migrateBiyolojiDoktoraPackagesFromSeed();
-  migrateEbelikTezliPackagesFromSeed();
-  migrateEkoturizmTezliPackagesFromSeed();
-  migrateElektrikTezliPackagesFromSeed();
-  migrateEnerjiTezliPackagesFromSeed();
-  migrateEnerjiTezsizPackagesFromSeed();
-  migrateGastronomiTezsizPackagesFromSeed();
-  migrateGidaTeknolojisiTezsizPackagesFromSeed();
-  migrateEnerjiDoktoraPackagesFromSeed();
-  migrateFelsefeDinTezliPackagesFromSeed();
-  migrateFizikTezliPackagesFromSeed();
-  migrateFizikDoktoraPackagesFromSeed();
-  migrateGastronomiTezliPackagesFromSeed();
-  migrateGidaMuhendisligiTezliPackagesFromSeed();
-  migrateGidaMuhendisligiDoktoraPackagesFromSeed();
-  migrateInsaatMuhendisligiDoktoraPackagesFromSeed();
-  migrateGidaTeknolojisiTezliPackagesFromSeed();
-  migrateHaritaTezliPackagesFromSeed();
-  migrateIcHastaliklariHemsireligiTezliPackagesFromSeed();
-  migrateIktisatTezliPackagesFromSeed();
-  migrateInsaatMuhendisligiTezliPackagesFromSeed();
-  migrateIsletmeTezliPackagesFromSeed();
-  migrateIsletmeDoktoraPackagesFromSeed();
-  migrateKimyaDoktoraPackagesFromSeed();
-  migrateMakineMuhendisligiDoktoraPackagesFromSeed();
-  migrateSiyasetKamuYonetimiDoktoraPackagesFromSeed();
-  migrateTurkDiliEdebiyatiDoktoraPackagesFromSeed();
-  migrateKimyaTezliPackagesFromSeed();
-  migrateMatematikTezliPackagesFromSeed();
-  migrateMuhasebeFinansmanTezliPackagesFromSeed();
-  migrateOrganikTarimTezliPackagesFromSeed();
-  migrateResimTezliPackagesFromSeed();
-  migrateSiyasetKamuYonetimiTezliPackagesFromSeed();
-  migrateTarihTezliPackagesFromSeed();
-  migrateTemelIslamTezliPackagesFromSeed();
-  migrateTurkDiliEdebiyatiTezliPackagesFromSeed();
-  migrateYbsTezliPackagesFromSeed();
-  migrateYbsTezsizPackagesFromSeed();
-  migrateYonetimOrganizasyonTezsizPackagesFromSeed();
-  migrateYonetimOrganizasyonTezliPackagesFromSeed();
-  removeCourseLevelCodeMismatches();
-  migrateYbsDoctorateContributionScale();
-  seedProgramProfiles();
-  ensureTestProgramData();
-  migratePublicCoursePackagesToApprovalDrafts();
-  seedDefaultRoleAccess();
+  schemaStep.end();
+  measureStartupSync("İlk verilerin kontrolü", () => seedInitialData());
+  measureStartupSync("Ders katalog senkronizasyonu", syncCourseCatalogFromSeed);
+  measureStartupSync("Ders paketleri, veri geçişleri ve varsayılan ayarlar", () => {
+    migrateArkeolojiBes802PackageFromSeed();
+    migrateMakineTezliQualityPackagesFromSeed();
+    migrateBataryaTezliPackagesFromSeed();
+    migrateBedenTezliPackagesFromSeed();
+    migrateBedenTezsizPackagesFromSeed();
+    migrateBiyolojiTezliPackagesFromSeed();
+    migrateBiyolojiDoktoraPackagesFromSeed();
+    migrateEbelikTezliPackagesFromSeed();
+    migrateEkoturizmTezliPackagesFromSeed();
+    migrateElektrikTezliPackagesFromSeed();
+    migrateEnerjiTezliPackagesFromSeed();
+    migrateEnerjiTezsizPackagesFromSeed();
+    migrateGastronomiTezsizPackagesFromSeed();
+    migrateGidaTeknolojisiTezsizPackagesFromSeed();
+    migrateEnerjiDoktoraPackagesFromSeed();
+    migrateFelsefeDinTezliPackagesFromSeed();
+    migrateFizikTezliPackagesFromSeed();
+    migrateFizikDoktoraPackagesFromSeed();
+    migrateGastronomiTezliPackagesFromSeed();
+    migrateGidaMuhendisligiTezliPackagesFromSeed();
+    migrateGidaMuhendisligiDoktoraPackagesFromSeed();
+    migrateInsaatMuhendisligiDoktoraPackagesFromSeed();
+    migrateGidaTeknolojisiTezliPackagesFromSeed();
+    migrateHaritaTezliPackagesFromSeed();
+    migrateIcHastaliklariHemsireligiTezliPackagesFromSeed();
+    migrateIktisatTezliPackagesFromSeed();
+    migrateInsaatMuhendisligiTezliPackagesFromSeed();
+    migrateIsletmeTezliPackagesFromSeed();
+    migrateIsletmeDoktoraPackagesFromSeed();
+    migrateKimyaDoktoraPackagesFromSeed();
+    migrateMakineMuhendisligiDoktoraPackagesFromSeed();
+    migrateSiyasetKamuYonetimiDoktoraPackagesFromSeed();
+    migrateTurkDiliEdebiyatiDoktoraPackagesFromSeed();
+    migrateKimyaTezliPackagesFromSeed();
+    migrateMatematikTezliPackagesFromSeed();
+    migrateMuhasebeFinansmanTezliPackagesFromSeed();
+    migrateOrganikTarimTezliPackagesFromSeed();
+    migrateResimTezliPackagesFromSeed();
+    migrateSiyasetKamuYonetimiTezliPackagesFromSeed();
+    migrateTarihTezliPackagesFromSeed();
+    migrateTemelIslamTezliPackagesFromSeed();
+    migrateTurkDiliEdebiyatiTezliPackagesFromSeed();
+    migrateYbsTezliPackagesFromSeed();
+    migrateYbsTezsizPackagesFromSeed();
+    migrateYonetimOrganizasyonTezsizPackagesFromSeed();
+    migrateYonetimOrganizasyonTezliPackagesFromSeed();
+    removeCourseLevelCodeMismatches();
+    migrateYbsDoctorateContributionScale();
+    seedProgramProfiles();
+    ensureTestProgramData();
+    migratePublicCoursePackagesToApprovalDrafts();
+    seedDefaultRoleAccess();
+  });
   return db;
 }
 
@@ -6269,26 +6314,24 @@ function instructorCandidateRows(session) {
 }
 
 function scopeCandidateRows(session) {
-  const scope = repairText(session.department || "").trim();
-  if (!scope) return [];
-  return dbCourseRows("WHERE department LIKE ? OR program_name LIKE ?", [`%${scope}%`, `%${scope}%`]);
+  const names = departmentScopeNames(session.department || "");
+  if (!names.length) return [];
+  return dbCourseRows(`WHERE ${names.map(() => "(department LIKE ? OR program_name LIKE ?)").join(" OR ")}`,
+    names.flatMap((name) => [`%${name}%`, `%${name}%`]));
 }
 
 function committeeScopeCandidateRows(session) {
   const rowsById = new Map();
   for (const membership of committeeMembershipsForSession(session)) {
-    for (const scope of [membership.department, membership.programName].filter(Boolean)) {
-      for (const row of dbCourseRows("WHERE department LIKE ? OR program_name LIKE ?", [`%${scope}%`, `%${scope}%`])) {
-        rowsById.set(row.id, row);
-      }
+    for (const row of scopeCandidateRows({ department: membership.department })) {
+      rowsById.set(row.id, row);
     }
   }
   return [...rowsById.values()];
 }
 
 function sessionScopedCourses(session) {
-  const sessionDepartment = normalizeScope(session.department || "");
-  const committeeDepartmentScopes = new Set(committeeMembershipsForSession(session).map((item) => item.departmentScope));
+  const sessionDepartmentScopes = new Set(departmentScopeNames(session.department || "").map(normalizeScope));
 
   if (session.role === "akademisyen") {
     const rowsById = new Map();
@@ -6299,9 +6342,7 @@ function sessionScopedCourses(session) {
     const courses = dbCourseListFromRows(rows.length ? rows : dbCourseRows());
     return courses.filter((course) => {
       const assignedToUser = courseInstructorMatchesSession(course, session);
-      const assignedForCommittee = [course.department, course.programName]
-        .filter(Boolean)
-        .some((value) => committeeDepartmentScopes.has(normalizeScope(value)));
+      const assignedForCommittee = isCommitteeMemberForCourse(session, course);
       return assignedToUser || assignedForCommittee;
     });
   }
@@ -6315,12 +6356,10 @@ function sessionScopedCourses(session) {
     const courses = dbCourseListFromRows(rows.length ? rows : dbCourseRows());
     return courses.filter((course) => {
       const assignedToUser = courseInstructorMatchesSession(course, session);
-      const scopeMatches = Boolean(sessionDepartment && [course.department, course.programName]
+      const scopeMatches = [course.department, course.programName]
         .filter(Boolean)
-        .some((value) => normalizeScope(value) === sessionDepartment));
-      const assignedForCommittee = [course.department, course.programName]
-        .filter(Boolean)
-        .some((value) => committeeDepartmentScopes.has(normalizeScope(value)));
+        .some((value) => sessionDepartmentScopes.has(normalizeScope(value)));
+      const assignedForCommittee = isCommitteeMemberForCourse(session, course);
       return assignedToUser || scopeMatches || assignedForCommittee;
     });
   }
@@ -9213,6 +9252,12 @@ async function handleDbpApi(request) {
       });
     }
 
+    if (pathname === "/api/dbp/programs" && request.method === "GET") {
+      const auth = requireDbpSession(request);
+      if (auth.error) return auth.error;
+      return jsonResponse({ programs: databaseProgramCatalog() }, { headers: { "Cache-Control": "no-store" } });
+    }
+
     if (pathname === "/api/dbp/my-courses" && request.method === "GET") {
       const auth = requireDbpSession(request);
       if (auth.error) return auth.error;
@@ -9261,7 +9306,7 @@ async function handleDbpApi(request) {
       upsertSessionUser(auth.session);
       const department = repairText(url.searchParams.get("department") || auth.session.department || "");
       const canRead = canManageCommittee(auth.session, department) ||
-        committeeMembershipsForSession(auth.session).some((item) => item.departmentScope === normalizeScope(department));
+        committeeMembersForDepartment(department).some((member) => sessionMatchesReviewAssignee(auth.session, member));
       if (!canRead) return jsonResponse({ message: "Bu DBP komisyonunu görüntüleme yetkiniz yok." }, { status: 403 });
       return jsonResponse({ department, members: committeeMembersForDepartment(department) });
     }
@@ -10357,66 +10402,74 @@ const ctx = {
   passThroughOnException() {},
 };
 
-await ensureDb();
-await refreshPublicDataRefreshPlan();
+await measureStartupAsync("Veritabanı hazırlığı (toplam)", ensureDb);
+await measureStartupAsync("Veri güncelleme planının yüklenmesi", refreshPublicDataRefreshPlan);
 startPublicDataRefreshPlanPolling();
-const initialInstructorCatalog = await loadEEnstituInstructorOptions();
-const courseCatalogForScopus = loadCourseCatalogInstructorOptions();
+const initialInstructorCatalog = await measureStartupAsync("e-Enstitü akademisyen listesinin yüklenmesi", loadEEnstituInstructorOptions);
+const courseCatalogForScopus = measureStartupSync("Ders kataloğundan akademisyen listesinin hazırlanması", loadCourseCatalogInstructorOptions);
 const scopusInstructorCatalog = [...initialInstructorCatalog.instructors, ...courseCatalogForScopus.instructors];
 homeInstructorCountCache = {
   count: new Set(initialInstructorCatalog.instructors.map((item) => normalizeInstructorScope(item.name || "")).filter(Boolean)).size,
   source: initialInstructorCatalog.source,
 };
-await warmHomeStatsCache("startup");
+await measureStartupAsync("Ana sayfa istatistik cache warmup", () => warmHomeStatsCache("startup"));
 scheduleDailyHomeStatsCacheWarmup();
-await currentQualitySnapshot();
+await measureStartupAsync("Kalite göstergeleri cache kontrolü", currentQualitySnapshot);
 scheduleQualityRefresh();
+const studentStartupStep = beginStartupStep("Öğrenci istatistikleri başlangıç kontrolü");
 studentStatisticsSnapshotCache = readStudentStatisticsSnapshot();
 const latestStudentStatisticsRefresh = latestMainDataRefreshDate();
 const studentStatisticsGeneratedAt = studentStatisticsSnapshotCache?.generatedAt ? new Date(studentStatisticsSnapshotCache.generatedAt) : null;
-if (!studentStatisticsSnapshotCache || studentStatisticsSnapshotCache.snapshotVersion !== 7) queueStudentStatisticsRefresh("startup");
-else if (latestStudentStatisticsRefresh && (!studentStatisticsGeneratedAt || studentStatisticsGeneratedAt < latestStudentStatisticsRefresh)) queueStudentStatisticsRefresh("scheduled-startup");
+if (!studentStatisticsSnapshotCache || studentStatisticsSnapshotCache.snapshotVersion !== 7) observeStartupBackground("Öğrenci istatistikleri yenileme", () => queueStudentStatisticsRefresh("startup"));
+else if (latestStudentStatisticsRefresh && (!studentStatisticsGeneratedAt || studentStatisticsGeneratedAt < latestStudentStatisticsRefresh)) observeStartupBackground("Öğrenci istatistikleri planlı yenileme", () => queueStudentStatisticsRefresh("scheduled-startup"));
 scheduleStudentStatisticsRefresh();
+studentStartupStep.end();
+const thesisStartupStep = beginStartupStep("Tez verileri başlangıç kontrolü");
 thesisSnapshotCache = readThesisSnapshot(db);
 const latestThesisRefresh = latestMainDataRefreshDate();
 const thesisGeneratedAt = thesisSnapshotCache?.generatedAt ? new Date(thesisSnapshotCache.generatedAt) : null;
 const activeDspaceThesisCount = (thesisSnapshotCache?.records || []).filter((record) => record.status !== "deleted" && record.identifier).length;
 if (!thesisSnapshotCache || activeDspaceThesisCount < expectedDspaceThesisCount) {
-  await queueThesisSync("thesis-991-bootstrap", true);
+  await measureStartupAsync("DSpace tez başlangıç senkronizasyonu", () => queueThesisSync("thesis-991-bootstrap", true));
 }
-else if (latestThesisRefresh && (!thesisGeneratedAt || thesisGeneratedAt < latestThesisRefresh)) queueThesisSync("scheduled-startup", false);
+else if (latestThesisRefresh && (!thesisGeneratedAt || thesisGeneratedAt < latestThesisRefresh)) observeStartupBackground("DSpace tez planlı yenileme", () => queueThesisSync("scheduled-startup", false));
 scheduleThesisRefresh();
+thesisStartupStep.end();
   // LEE_DBP tez-yayın ilişkisinin tek yazma kaynağıdır. Eski e-Enstitü ->
   // LEE_DBP geri beslemesi başlangıçta çalıştırılmaz; danışman işlemleri artık
   // doğrudan yukarıdaki dahili LEE_DBP uçlarına yazılır.
-scopusSnapshotCache = rebuildScopusUnitMappings(db, {
+const scopusStartupStep = beginStartupStep("Scopus başlangıç kontrolü");
+scopusSnapshotCache = measureStartupSync("Scopus birim eşleştirmelerinin hazırlanması", () => rebuildScopusUnitMappings(db, {
   instructors: scopusInstructorCatalog,
   actor: "startup-unit-directory",
-}) || readScopusSnapshot(db);
+}) || readScopusSnapshot(db));
 const latestScopusRefresh = latestMainDataRefreshDate();
 const scopusGeneratedAt = scopusSnapshotCache?.generatedAt ? new Date(scopusSnapshotCache.generatedAt) : null;
 const thesisAuthorScopusRecordsReady = Boolean(db.prepare("SELECT 1 FROM metadata WHERE key='scopus_thesis_author_records_v1'").get());
-if (!scopusSnapshotCache && scopusConfigured()) queueScopusSync("startup");
-else if (scopusConfigured() && (!thesisAuthorScopusRecordsReady || (latestScopusRefresh && (!scopusGeneratedAt || scopusGeneratedAt < latestScopusRefresh)))) queueScopusSync(thesisAuthorScopusRecordsReady ? "scheduled-startup" : "thesis-author-bootstrap");
+if (!scopusSnapshotCache && scopusConfigured()) observeStartupBackground("Scopus ilk veri yüklemesi", () => queueScopusSync("startup"));
+else if (scopusConfigured() && (!thesisAuthorScopusRecordsReady || (latestScopusRefresh && (!scopusGeneratedAt || scopusGeneratedAt < latestScopusRefresh)))) observeStartupBackground("Scopus veri yenileme", () => queueScopusSync(thesisAuthorScopusRecordsReady ? "scheduled-startup" : "thesis-author-bootstrap"));
 scheduleScopusRefresh();
 const latestCitationRefresh = latestCitationDataRefreshDate();
 const citationGeneratedAt = scopusSnapshotCache?.lastCitationRefreshAt ? new Date(scopusSnapshotCache.lastCitationRefreshAt) : null;
-if (latestCitationRefresh && scopusConfigured() && scopusSnapshotCache && (!citationGeneratedAt || citationGeneratedAt < latestCitationRefresh)) queueScopusCitationSync("weekly-startup");
+if (latestCitationRefresh && scopusConfigured() && scopusSnapshotCache && (!citationGeneratedAt || citationGeneratedAt < latestCitationRefresh)) observeStartupBackground("Scopus atıf yenileme", () => queueScopusCitationSync("weekly-startup"));
 scheduleScopusCitationRefresh();
+scopusStartupStep.end();
+const trDizinStartupStep = beginStartupStep("TR Dizin başlangıç kontrolü");
 trDizinSnapshotCache = readTrDizinSnapshot(db);
 const latestTrDizinRefresh = latestMainDataRefreshDate();
 const trDizinGeneratedAt = trDizinSnapshotCache?.generatedAt ? new Date(trDizinSnapshotCache.generatedAt) : null;
-if (!trDizinSnapshotCache) queueTrDizinSync("startup", "FULL");
-else if (latestTrDizinRefresh && (!trDizinGeneratedAt || trDizinGeneratedAt < latestTrDizinRefresh)) queueTrDizinSync("scheduled-startup", "FULL");
+if (!trDizinSnapshotCache) observeStartupBackground("TR Dizin ilk veri yüklemesi", () => queueTrDizinSync("startup", "FULL"));
+else if (latestTrDizinRefresh && (!trDizinGeneratedAt || trDizinGeneratedAt < latestTrDizinRefresh)) observeStartupBackground("TR Dizin veri yenileme", () => queueTrDizinSync("scheduled-startup", "FULL"));
 scheduleTrDizinRefresh();
+trDizinStartupStep.end();
 try {
-  refreshAutomaticThesisPublicationMatches("startup");
+  measureStartupSync("Tez–yayın eşleştirmesi", () => refreshAutomaticThesisPublicationMatches("startup"));
 } catch (error) {
   console.error(`[dbp] Tez-yayın eşleştirmesi hazırlanamadı: ${error instanceof Error ? error.message : error}`);
 }
 const latestTrDizinCitationRefresh = latestCitationDataRefreshDate();
 const trDizinCitationGeneratedAt = trDizinSnapshotCache?.lastCitationRefreshAt ? new Date(trDizinSnapshotCache.lastCitationRefreshAt) : null;
-if (latestTrDizinCitationRefresh && trDizinSnapshotCache && (!trDizinCitationGeneratedAt || trDizinCitationGeneratedAt < latestTrDizinCitationRefresh)) queueTrDizinSync("weekly-startup", "CITATIONS");
+if (latestTrDizinCitationRefresh && trDizinSnapshotCache && (!trDizinCitationGeneratedAt || trDizinCitationGeneratedAt < latestTrDizinCitationRefresh)) observeStartupBackground("TR Dizin atıf yenileme", () => queueTrDizinSync("weekly-startup", "CITATIONS"));
 scheduleTrDizinCitationRefresh();
 
 const httpServer = createServer(async (req, res) => {
@@ -10472,8 +10525,10 @@ const httpServer = createServer(async (req, res) => {
 });
 
 if (localDev) {
-  const { createLocalDevRenderer } = await import("./scripts/local-dev-renderer.mjs");
-  worker = await createLocalDevRenderer({ rootDir: __dirname, httpServer, port });
+  worker = await measureStartupAsync("Geliştirme web sunucusunun hazırlanması (Vite/RSC)", async () => {
+    const { createLocalDevRenderer } = await import("./scripts/local-dev-renderer.mjs");
+    return createLocalDevRenderer({ rootDir: __dirname, httpServer, port });
+  });
   httpServer.on("close", () => { void worker.close(); });
   httpServer.on("error", async (error) => {
     await worker.close();
@@ -10482,7 +10537,11 @@ if (localDev) {
   });
 }
 
+const listenStep = beginStartupStep("HTTP sunucusunun bağlantı kabul etmesi");
+httpServer.once(errorMonitor, (error) => { listenStep.fail(error); startupTotal.fail(error); });
 httpServer.listen(port, host, () => {
+  listenStep.end();
+  startupTotal.end();
   const localUrl = `http://localhost:${port}${basePath}/`;
   console.log(`[dbp] ${localDev ? "Development" : "Production"} server running at http://${host}:${port}${basePath}/`);
   console.log(`[dbp] Browser URL: ${localUrl}`);
