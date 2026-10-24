@@ -22,6 +22,9 @@ RUN apk add --no-cache python3 py3-reportlab \
   && npm ci --omit=dev --no-audit --no-fund \
   && npm cache clean --force
 COPY server.mjs ./server.mjs
+COPY lib/auditTrail.mjs ./lib/auditTrail.mjs
+COPY lib/auditLabels.mjs ./lib/auditLabels.mjs
+COPY lib/serverSession.mjs ./lib/serverSession.mjs
 COPY lib/runtimeLogging.mjs ./lib/runtimeLogging.mjs
 COPY lib/thesisSdg.mjs ./lib/thesisSdg.mjs
 COPY lib/thesisBibliometrics.mjs ./lib/thesisBibliometrics.mjs

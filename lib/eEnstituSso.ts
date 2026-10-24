@@ -1,3 +1,5 @@
+import { signDbpSession } from "./serverSession.mjs";
+
 export type DbpSsoRole =
   | "akademisyen"
   | "abd_asd_baskani"
@@ -18,6 +20,8 @@ export type DbpSsoSession = {
   readOnly: boolean;
   authProvider: "e-enstitu";
   expiresAt: string;
+  sessionId?: string;
+  proof?: string;
 };
 
 type VerifyResponse = {
@@ -94,7 +98,7 @@ export async function verifyEEnstituDbpTicket(ticket: string, fallbackBaseUrl?: 
 
       const dbpSessionExpiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
       return {
-        session: {
+        session: signDbpSession({
           name: payload.user.displayName,
           username: payload.user.username,
           role: payload.dbp.role,
@@ -105,7 +109,7 @@ export async function verifyEEnstituDbpTicket(ticket: string, fallbackBaseUrl?: 
           readOnly: payload.dbp.readOnly,
           authProvider: "e-enstitu",
           expiresAt: dbpSessionExpiresAt,
-        } satisfies DbpSsoSession,
+        } satisfies DbpSsoSession) as DbpSsoSession,
       };
     } catch (error) {
       lastError = error instanceof Error && error.message ? error.message : "baglanti hatasi";

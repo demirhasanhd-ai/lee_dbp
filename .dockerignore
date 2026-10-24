@@ -1,5 +1,6 @@
 .env
 .env.*
+**/.session-secret
 !.env.example
 node_modules
 dist

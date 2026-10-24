@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdirSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+import { queryAudit, auditCsv, auditExportHeaders, auditExportRows } from "../lib/auditTrail.mjs";
 import { withPublicPage } from "./helpers/hydrated-public-page.mjs";
 import { newCourseImportFixture, newCourseImportRow } from "./helpers/course-create-fixtures.mjs";
 import { viewStatisticsTestServer } from "./helpers/view-statistics-fixtures.mjs";
@@ -11,6 +13,85 @@ const query = new URLSearchParams({
 });
 const packagePath = `/dbp/katalog?${query}`;
 const programPath = "/dbp/programlar/yonetim-bilisim-sistemleri-abd-yonetim-bilisim-sistemleri?duzey=Doktora&sekme=courses";
+
+test("admin audit module filters and pages records, shows details and timeline, and downloads all filtered records", async (t) => {
+  const db = new DatabaseSync(":memory:");
+  t.after(() => db.close());
+  db.exec("CREATE TABLE audit_logs(id INTEGER PRIMARY KEY, action TEXT, actor TEXT, payload_json TEXT, created_at TEXT)");
+  const insert = db.prepare("INSERT INTO audit_logs VALUES (?, ?, ?, ?, ?)");
+  for (let index = 1; index <= 31; index++) insert.run(index, "course.package.save", "test.teacher", JSON.stringify({
+    code: "MAT801", department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans", note: "Kontrol için kaydedildi.",
+    _audit: { username: "test.teacher", displayName: "Test Öğretim Üyesi", role: "akademisyen", result: "success", identitySource: "sso" },
+  }), `2026-10-23T10:00:${String(index).padStart(2, "0")}.000Z`);
+  insert.run(32, "backup.create", "system", "{}", "2026-10-23T11:00:00.000Z");
+  mkdirSync("local-volume/audit-module", { recursive: true });
+  await withPublicPage("/dbp/panel", {
+    preparePage: async (page) => {
+      await page.addInitScript(() => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Admin", username: "test.admin", role: "admin", department: "LEE" })));
+      await page.route("**/dbp/api/dbp/**", async (route) => {
+        const url = new URL(route.request().url());
+        if (url.pathname.includes("/admin/audit-logs")) {
+          const exporting = url.pathname.endsWith("/export");
+          const data = queryAudit(db, url.searchParams, { exportAll: exporting });
+          if (exporting && url.searchParams.get("format") === "csv") return route.fulfill({ contentType: "text/csv; charset=utf-8", body: auditCsv(data.rows) });
+          return route.fulfill({ contentType: "application/json", body: JSON.stringify(exporting ? { headers: auditExportHeaders, rows: auditExportRows(data.rows), total: data.total } : data) });
+        }
+        const payload = url.pathname.endsWith("/role-module-access") ? { access: { admin: ["audit_logs"] } } : { ok: true, courses: [], programs: [], memberships: [] };
+        return route.fulfill({ contentType: "application/json", body: JSON.stringify(payload) });
+      });
+    },
+  }, async ({ page }) => {
+    const panel = page.locator(".audit-panel");
+    await panel.getByRole("heading", { name: "Denetim Kayıtları" }).waitFor();
+    await panel.getByText("32", { exact: true }).waitFor();
+    assert.equal(await panel.locator("tbody tr").count(), 25);
+    await panel.getByRole("button", { name: "Sonraki", exact: true }).click();
+    await panel.getByText("Sayfa 2 / 2", { exact: true }).waitFor();
+    assert.equal(await panel.locator("tbody tr").count(), 7);
+    await panel.getByLabel("Ders kodu", { exact: true }).fill("MAT801");
+    await panel.getByLabel("Rol", { exact: true }).selectOption("akademisyen");
+    await panel.getByRole("button", { name: "Filtrele", exact: true }).click();
+    await panel.getByText("31", { exact: true }).waitFor();
+    assert.equal(await panel.locator("tbody tr").count(), 25);
+    await panel.getByRole("button", { name: /Kayıt .* ayrıntısı/u }).first().click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByText("Kontrol için kaydedildi.", { exact: true }).waitFor();
+    assert.equal(await dialog.getByText("Doğrulanmış e-Enstitü oturumu", { exact: true }).count(), 1);
+    await page.keyboard.press("Escape");
+    assert.equal(await dialog.count(), 0);
+    await panel.getByRole("button", { name: "Zaman çizelgesi", exact: true }).click();
+    assert.equal(await panel.locator(".audit-timeline li").count(), 25);
+    await panel.getByRole("button", { name: "Liste", exact: true }).click();
+    const csvPromise = page.waitForEvent("download");
+    await panel.getByRole("button", { name: "CSV İndir", exact: true }).click();
+    const csv = await csvPromise;
+    assert.match(csv.suggestedFilename(), /^dbp-denetim-.*\.csv$/u);
+    assert.equal(readFileSync(await csv.path(), "utf8").split("\r\n").length, 32);
+    const xlsxPromise = page.waitForEvent("download");
+    await panel.getByRole("button", { name: "Excel İndir", exact: true }).click();
+    const xlsx = await xlsxPromise;
+    assert.match(xlsx.suggestedFilename(), /\.xlsx$/u);
+    assert.ok(readFileSync(await xlsx.path()).includes(Buffer.from("xl/worksheets/sheet1.xml")));
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: "local-volume/audit-module/desktop.png" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: "local-volume/audit-module/mobile.png" });
+    const widths = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
+    assert.equal(widths.document <= widths.viewport, true, `audit panel must fit mobile: ${JSON.stringify(widths)}`);
+    await panel.getByLabel("Ders kodu", { exact: true }).fill("NO-SUCH-COURSE");
+    await panel.getByRole("button", { name: "Filtrele", exact: true }).click();
+    await panel.getByText("Seçtiğiniz filtrelerle eşleşen kayıt bulunamadı.", { exact: true }).waitFor();
+    assert.equal(await panel.getByRole("button", { name: "CSV İndir", exact: true }).isDisabled(), true);
+    await panel.getByRole("button", { name: "Temizle", exact: true }).click();
+    await panel.getByText("32", { exact: true }).waitFor();
+    await panel.getByRole("button", { name: "Zaman çizelgesi", exact: true }).click();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByRole("button", { name: "Koyu temaya geç", exact: true }).click();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: "local-volume/audit-module/timeline-dark.png" });
+  });
+});
 
 test("browser sessions count home once while content navigation and reloads keep their own statistics", async (t) => {
   const { chromium } = await import("playwright");
@@ -131,7 +212,12 @@ test("new-course Excel panel downloads the template, previews without writes and
         }
         let payload;
         switch (url.pathname.split("/").pop()) {
+          case "events": {
+            assert.ok(["panel.enter", "module.view", "session.return"].includes(route.request().postDataJSON().event));
+            payload = { ok: true }; break;
+          }
           case "access": payload = { modules: ["my_courses"] }; break;
+          case "programs": payload = { programs: [{ mainDepartment: "Matematik ABD", department: "Matematik ABD", programName: "Matematik", flags: "", levels: ["Tezli Yüksek Lisans"] }] }; break;
           case "memberships": payload = { memberships: [] }; break;
           case "instructors": payload = { instructors: [], source: "e_enstitu_api" }; break;
           case "courses": {
@@ -200,7 +286,12 @@ test("institute manager creates courses with explicit terms and corrects existin
         assert.equal(url.hostname, "127.0.0.1");
         let payload;
         switch (url.pathname.split("/").pop()) {
+          case "events": {
+            assert.ok(["panel.enter", "module.view", "session.return"].includes(request.postDataJSON().event));
+            payload = { ok: true }; break;
+          }
           case "access": payload = { modules: ["my_courses"] }; break;
+          case "programs": payload = { programs: [{ mainDepartment: "Matematik ABD", department: "Matematik ABD", programName: "Matematik", flags: "", levels: ["Tezli Yüksek Lisans"] }] }; break;
           case "memberships": payload = { memberships: [] }; break;
           case "courses": payload = { courses, total: courses.length, source: "database" }; break;
           case "instructors": payload = { instructors: [], source: "e_enstitu_api" }; break;

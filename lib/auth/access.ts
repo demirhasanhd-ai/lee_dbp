@@ -12,6 +12,7 @@ export const DBP_MODULES = {
   thesis_awards: "Tez Ödül",
   view_stats_admin: "Görüntülenme İstatistikleri",
   database_admin: "Veri Tabanı Yönetimi",
+  audit_logs: "Denetim Kayıtları",
   user_roles: "Kullanıcı ve Rol Yönetimi",
   permission_matrix: "Yetki Dağılımı",
 } as const;
@@ -25,5 +26,5 @@ export const DEFAULT_ROLE_ACCESS: Record<DbpRole, DbpModule[]> = {
   lee_ogrenci_isleri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
   enstitu_sekreteri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
   enstitu_yoneticisi: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports", "thesis_awards", "view_stats_admin"],
-  admin: ["my_courses", "database_admin", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "thesis_evaluations", "thesis_awards", "view_stats_admin", "user_roles", "permission_matrix"],
+  admin: ["my_courses", "database_admin", "audit_logs", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "thesis_evaluations", "thesis_awards", "view_stats_admin", "user_roles", "permission_matrix"],
 };

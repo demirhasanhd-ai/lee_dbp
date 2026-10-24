@@ -5,6 +5,7 @@ import { mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promi
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
+import { recordAudit, withAuditRequest, auditNavigation, queryAudit, auditCsv, auditExportHeaders, auditExportRows } from "./lib/auditTrail.mjs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
@@ -173,6 +174,7 @@ const dbpModules = [
   "thesis_awards",
   "view_stats_admin",
   "database_admin",
+  "audit_logs",
   "user_roles",
   "permission_matrix",
 ];
@@ -184,7 +186,7 @@ const defaultRoleAccess = {
   lee_ogrenci_isleri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
   enstitu_sekreteri: ["my_courses", "program_profile", "review_queue", "quality_reports"],
   enstitu_yoneticisi: ["my_courses", "program_profile", "review_queue", "publish_control", "quality_reports", "thesis_awards", "view_stats_admin"],
-  admin: ["my_courses", "database_admin", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "thesis_evaluations", "thesis_awards", "view_stats_admin", "user_roles", "permission_matrix"],
+  admin: ["my_courses", "database_admin", "audit_logs", "program_profile", "committee_management", "commission_review", "review_queue", "publish_control", "quality_reports", "thesis_evaluations", "thesis_awards", "view_stats_admin", "user_roles", "permission_matrix"],
 };
 
 const viewStatTypes = {
@@ -332,11 +334,12 @@ function packageWithCourseInstructor(packageData = {}, course = {}) {
     : {};
   return {
     ...repairedPackage,
-    instructor,
+    instructor: detailFields.instructors ?? repairedPackage.instructor ?? instructor,
     detailFields: {
       ...detailFields,
-      coordinator: instructor,
-      instructors: instructor,
+      // Assignment metadata is only a fallback; package fields belong to the saved revision.
+      coordinator: detailFields.coordinator ?? instructor,
+      instructors: detailFields.instructors ?? instructor,
     },
   };
 }
@@ -1920,7 +1923,7 @@ function cacheSlug(value, fallback = "ders") {
   return text || fallback;
 }
 
-const pdfCacheVersion = "v3";
+const pdfCacheVersion = "v4";
 
 function pdfCacheFile({ code, program, name }) {
   const parts = [pdfCacheVersion, cacheSlug(code, "kod")];
@@ -5047,6 +5050,9 @@ async function ensureDb() {
       payload_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS audit_logs_created_idx ON audit_logs(created_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS audit_logs_action_idx ON audit_logs(action, created_at DESC);
+    CREATE INDEX IF NOT EXISTS audit_logs_session_idx ON audit_logs(action, json_extract(CASE WHEN json_valid(payload_json) THEN payload_json ELSE '{}' END, '$._audit.sessionId'));
     CREATE TABLE IF NOT EXISTS page_view_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_uuid TEXT NOT NULL UNIQUE,
@@ -5270,8 +5276,7 @@ function countRows(table) {
 }
 
 function audit(action, actor, payload = {}) {
-  db.prepare("INSERT INTO audit_logs(action, actor, payload_json, created_at) VALUES (?, ?, ?, ?)")
-    .run(action, actor || null, JSON.stringify(payload), new Date().toISOString());
+  recordAudit(db, action, actor, payload);
 }
 
 function yearMonthFromIso(value) {
@@ -5536,7 +5541,7 @@ function roleAccessMap() {
 function modulesForRole(role) {
   const access = roleAccessMap();
   return (access[role] || []).filter((module) =>
-    module !== "thesis_evaluations" || role === "admin",
+    !["thesis_evaluations", "audit_logs"].includes(module) || role === "admin",
   ).filter((module) =>
     module !== "thesis_awards" || ["admin", "enstitu_yoneticisi"].includes(role),
   );
@@ -5552,7 +5557,7 @@ function normalizeRoleAccessPayload(payload) {
     const modules = Array.isArray(source[role]) ? source[role] : [];
     normalized[role] = [...new Set(modules.filter((module) =>
       isKnownModule(module) &&
-      (module !== "thesis_evaluations" || role === "admin") &&
+      (!["thesis_evaluations", "audit_logs"].includes(module) || role === "admin") &&
       (module !== "thesis_awards" || ["admin", "enstitu_yoneticisi"].includes(role)),
     ))];
   }
@@ -9202,6 +9207,22 @@ async function handleDbpApi(request) {
       return jsonResponse({ ok: true, dbPath, size: await databaseSize(), runtime: localDev ? "development" : "production" });
     }
 
+    if (pathname === "/api/dbp/session/events" && request.method === "POST") {
+      const auth = requireDbpSession(request);
+      if (auth.error) return auth.error;
+      const body = await readJsonBody(request);
+      if (!["panel.enter", "module.view", "session.return"].includes(body.event)) {
+        return jsonResponse({ message: "Geçersiz oturum olayı." }, { status: 400 });
+      }
+      if (body.event === "module.view" && (!isKnownModule(body.module) ||
+          (!modulesForRole(auth.session.role).includes(body.module) &&
+           !(body.module === "commission_review" && committeeMembershipsForSession(auth.session).length > 0)))) {
+        return jsonResponse({ message: "Bu modülü görüntüleme yetkiniz yok." }, { status: 403 });
+      }
+      audit(body.event, auth.session.username, { ...(body.event === "module.view" ? { module: body.module } : {}) });
+      return jsonResponse({ ok: true });
+    }
+
     if (pathname === "/api/dbp/course-pdf") {
       return await coursePdfResponse(request, url);
     }
@@ -9982,6 +10003,25 @@ async function handleDbpApi(request) {
     upsertSessionUser(admin.session);
     const actor = admin.session?.username || admin.session?.name || "admin";
 
+    if (["/api/dbp/admin/audit-logs", "/api/dbp/admin/audit-logs/export"].includes(pathname) && request.method === "GET") {
+      try {
+        const exporting = pathname.endsWith("/export");
+        const data = queryAudit(db, url.searchParams, { exportAll: exporting });
+        if (!exporting) return jsonResponse(data, { headers: { "Cache-Control": "no-store" } });
+        const format = url.searchParams.get("format") || "csv";
+        if (!["csv", "xlsx"].includes(format)) return jsonResponse({ message: "Geçersiz indirme biçimi." }, { status: 400 });
+        audit("audit.export", actor, { format, count: data.total });
+        if (format === "xlsx") return jsonResponse({ headers: auditExportHeaders, rows: auditExportRows(data.rows), total: data.total }, { headers: { "Cache-Control": "no-store" } });
+        return new Response(auditCsv(data.rows), { headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="dbp-denetim-${new Date().toISOString().slice(0, 10)}.csv"`,
+          "Cache-Control": "no-store",
+        } });
+      } catch (error) {
+        return jsonResponse({ message: error.message }, { status: 400 });
+      }
+    }
+
     if (pathname === "/api/dbp/admin/summary" && request.method === "GET") {
       return jsonResponse(await adminSummary());
     }
@@ -10504,16 +10544,27 @@ const httpServer = createServer(async (req, res) => {
       }
     }
 
-    const apiResponse = await handleDbpApi(nodeRequestToWeb(req));
+    const apiRequest = nodeRequestToWeb(req);
+    const apiResponse = await withAuditRequest(apiRequest, handleDbpApi, {
+      getDb: () => db,
+      clientIp: req.socket.remoteAddress,
+      allowUnsignedLocal: localDev && ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress) &&
+        ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname),
+    });
     if (apiResponse) {
       await sendWebResponse(res, apiResponse);
       return;
     }
 
-    if (!localDev && await sendStaticFile(req, res, url.pathname)) return;
+    if (!localDev && await sendStaticFile(req, res, url.pathname)) {
+      auditNavigation(nodeRequestToWeb(req), new Response(null, { status: res.statusCode, headers: { "Content-Type": String(res.getHeader("Content-Type") || "") } }), { getDb: () => db, clientIp: req.socket.remoteAddress });
+      return;
+    }
 
     const pageRequest = nodeRequestToWeb(req);
     const response = trackPageViewRequest(pageRequest, await worker.fetch(pageRequest, env, ctx));
+    const pageContext = pageViewContextForPath(url.pathname) || pageViewContextForCatalogUrl(url) || {};
+    auditNavigation(pageRequest, response, { getDb: () => db, clientIp: req.socket.remoteAddress, target: { pageTitle: pageContext.itemTitle || "" } });
     await sendWebResponse(res, response);
   } catch (error) {
     console.error("[dbp] Server error:", error);

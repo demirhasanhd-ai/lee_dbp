@@ -34,6 +34,7 @@ import { ProgramPublishControl } from "./ProgramPublishControl";
 import { QualityReports } from "./QualityReports";
 import { ReviewQueue } from "./ReviewQueue";
 import { DatabaseAdminPanel } from "./DatabaseAdminPanel";
+import { AuditLogsPanel } from "./AuditLogsPanel";
 import { ViewStatsAdminPanel } from "./ViewStatsAdminPanel";
 import { ThesisEvaluationAdmin } from "./ThesisEvaluationAdmin";
 import { ThesisAwardsAdmin } from "./ThesisAwardsAdmin";
@@ -58,6 +59,7 @@ type Session = {
   readOnly?: boolean;
   authProvider?: "e-enstitu";
   expiresAt?: string;
+  proof?: string;
 };
 type Course = {
   code: string;
@@ -101,7 +103,7 @@ const normalizeRoleAccessPayload = (value: unknown): RoleAccess => {
   for (const role of DBP_ROLE_KEYS) {
     const modules = Array.isArray(source[role]) ? source[role] : fallback[role];
     fallback[role] = [...new Set(modules.filter((module): module is DbpModule =>
-      typeof module === "string" && moduleKeys.includes(module as DbpModule),
+      typeof module === "string" && moduleKeys.includes(module as DbpModule) && (module !== "audit_logs" || role === "admin"),
     ))];
   }
   return fallback;
@@ -344,6 +346,8 @@ export function RoleDashboard() {
   const eEnstituDbpUrl = `${getEEnstituUrl()}/#/modul/ders-bilgi-paketi`;
   useEffect(() => {
     let cancelled = false;
+    queueMicrotask(() => {
+    if (cancelled) return;
     let raw = localStorage.getItem("lee-dbp-session");
     if (!raw) {
       if (!isLocalDevelopmentHost()) {
@@ -372,7 +376,7 @@ export function RoleDashboard() {
         name: repairText(value.name || value.username || "Kullanıcı"),
         department: repairText(value.department || "LEE"),
       };
-      const normalizedValue = { ...repairedValue, role: normalizeSessionRole(repairedValue) };
+      const normalizedValue = value.proof ? value : { ...repairedValue, role: normalizeSessionRole(repairedValue) };
       setSession(normalizedValue);
       const fallbackAccess = cloneDefaultRoleAccess();
       setRoleAccess(fallbackAccess);
@@ -386,6 +390,10 @@ export function RoleDashboard() {
         headers: { "X-DBP-Session": dbpSessionHeader(normalizedValue) },
       })
         .then(async (response) => {
+          if ([401, 403].includes(response.status) && !isLocalDevelopmentHost()) {
+            localStorage.removeItem("lee-dbp-session");
+            location.replace(eEnstituDbpUrl);
+          }
           if (!response.ok) throw new Error("Yetki bilgisi alinamadi.");
           return response.json();
         })
@@ -425,6 +433,7 @@ export function RoleDashboard() {
       localStorage.setItem("lee-dbp-session", JSON.stringify(localSession));
       location.replace(dbpPath("/panel"));
     }
+    });
     return () => {
       cancelled = true;
     };
@@ -514,6 +523,20 @@ export function RoleDashboard() {
       });
     return () => controller.abort();
   }, [session?.username, session?.role, session?.department]);
+  useEffect(() => {
+    if (!session) return;
+    void fetch(dbpPath("/api/dbp/session/events"), {
+      method: "POST", headers: { "Content-Type": "application/json", "X-DBP-Session": dbpSessionHeader(session) },
+      body: JSON.stringify({ event: "panel.enter" }),
+    }).catch(() => {});
+  }, [session]);
+  useEffect(() => {
+    if (!session) return;
+    void fetch(dbpPath("/api/dbp/session/events"), {
+      method: "POST", headers: { "Content-Type": "application/json", "X-DBP-Session": dbpSessionHeader(session) },
+      body: JSON.stringify({ event: "module.view", module: active }),
+    }).catch(() => {});
+  }, [session, active]);
   if (!session)
     return <main className="panel-loading">Panel hazırlanıyor…</main>;
   const currentCatalogKey = catalogKeyForSession(session);
@@ -871,7 +894,13 @@ export function RoleDashboard() {
             </Fragment>
           ))}
         </nav>
-        <a className="logout return-to-eenstitu" href={eEnstituDbpUrl}>
+        <a className="logout return-to-eenstitu" href={eEnstituDbpUrl} onClick={() => {
+          void fetch(dbpPath("/api/dbp/session/events"), {
+            method: "POST", keepalive: true,
+            headers: { "Content-Type": "application/json", "X-DBP-Session": dbpSessionHeader(session) },
+            body: JSON.stringify({ event: "session.return" }),
+          }).catch(() => {});
+        }}>
           <ArrowLeft size={15} />
           e-Enstitüye Dön
         </a>
@@ -1244,6 +1273,7 @@ export function RoleDashboard() {
         {active === "thesis_awards" && ["admin", "enstitu_yoneticisi"].includes(session.role) && <ThesisAwardsAdmin session={session} />}
         {active === "view_stats_admin" && <ViewStatsAdminPanel />}
         {active === "database_admin" && <DatabaseAdminPanel />}
+        {active === "audit_logs" && session.role === "admin" && <AuditLogsPanel />}
         {(active === "permission_matrix" || active === "user_roles") && (
           <section>
             <div className="panel-intro">
@@ -1277,7 +1307,7 @@ export function RoleDashboard() {
                         onChange={(event) => toggleRoleAccess(role, module, event.currentTarget.checked)}
                         disabled={
                           permissionsBusy ||
-                          (module === "thesis_evaluations" && role !== "admin") ||
+                          (["thesis_evaluations", "audit_logs"].includes(module) && role !== "admin") ||
                           (module === "thesis_awards" && !["admin", "enstitu_yoneticisi"].includes(role))
                         }
                       />

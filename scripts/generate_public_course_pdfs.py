@@ -613,7 +613,18 @@ def story(course: Course, package_data: dict | None = None):
             [35 * mm, 60 * mm, 35 * mm, 45 * mm],
         )
     )
-    if course.instructor and not is_generic_instructor_course(course):
+    responsibility_fields = [
+        ("coordinator", "Dersin Koordinatörü"),
+        ("instructors", "Dersi Veren Öğretim Elemanı / Elemanları"),
+    ]
+    responsibility_rows = [
+        [label, repair_text(details.get(key) or "")]
+        for key, label in responsibility_fields if key in details
+    ]
+    if responsibility_rows:
+        body += section("Dersin Sorumluları")
+        body.append(table(responsibility_rows, [60 * mm, 115 * mm]))
+    elif course.instructor and not is_generic_instructor_course(course):
         body += section("Dersi Veren Öğretim Elemanı")
         body.append(table([["Ünvanı, Adı Soyadı"], [course.instructor]], [175 * mm]))
 
