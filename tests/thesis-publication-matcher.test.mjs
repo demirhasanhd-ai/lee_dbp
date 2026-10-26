@@ -64,7 +64,7 @@ test("matches the explicitly verified Fatma Gültepe and Fatma Yılmaz identity"
       publicationYear: 2023,
       title: "Salamura kapari meyvelerinin farklı yöntemler ile kurutulmasının incelenmesi",
       alternativeTitle: "Investigation of drying caper fruits with different methods",
-      keywords: ["caper", "drying", "energy efficiency"],
+      keywords: ["Food Engineering"],
       authors: ["Gültepe, Fatma"],
       advisors: ["Demir, Hande", "Demir, Hasan"],
       department: "Gıda Mühendisliği Ana Bilim Dalı",
@@ -82,6 +82,34 @@ test("matches the explicitly verified Fatma Gültepe and Fatma Yılmaz identity"
 
   assert.equal(matches.length, 1);
   assert.equal(matches[0].thesisIdentifier, "thesis-fatma-gultepe");
+  assert.equal(matches[0].relationStatus, "verified");
+});
+
+test("matches Fatma Gültepe with the ASCII Scopus form Yilmaz F.", () => {
+  const matches = matchThesisPublications({
+    theses: [{
+      identifier: "thesis-fatma-gultepe-scopus",
+      publicationYear: 2023,
+      title: "Salamura kapari meyvelerinin farklı yöntemler ile kurutulmasının incelenmesi",
+      alternativeTitle: "Investigation of drying caper fruits with different methods",
+      keywords: ["Food Engineering"],
+      authors: ["Gültepe, Fatma"],
+      advisors: ["Demir, Hande", "Demir, Hasan"],
+      department: "Gıda Mühendisliği Ana Bilim Dalı",
+      degreeType: "Master Thesis",
+    }],
+    scopus: [{
+      id: "publication-fatma-yilmaz-initials",
+      title: "Optimization of Caper Drying Using Response Surface Methodology and Artificial Neural Networks for Energy Efficiency Characteristics",
+      year: 2023,
+      authors: [{ name: "Demir H." }, { name: "Demir H." }, { name: "Yilmaz F." }],
+      affiliations: okuAffiliation,
+      source: "Energies",
+    }],
+  });
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].thesisIdentifier, "thesis-fatma-gultepe-scopus");
   assert.equal(matches[0].relationStatus, "verified");
 });
 

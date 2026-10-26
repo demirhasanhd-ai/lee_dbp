@@ -7740,7 +7740,7 @@ function refreshAutomaticThesisPublicationMatches(actor = "automatic-thesis-matc
   ].join("|");
   // Versioned so matcher rule changes are applied once after deployment even
   // when the underlying DSpace/Scopus/TR Dizin snapshots did not change.
-  const revisionKey = "thesis_publication_match_revision_v10_verified_241_awards";
+  const revisionKey = "thesis_publication_match_revision_v12_verified_surname_alias";
   const previousRevision = db.prepare("SELECT value FROM metadata WHERE key = ?").get(revisionKey)?.value || "";
   const automaticCount = Number(db.prepare("SELECT COUNT(*) AS count FROM thesis_publications WHERE updated_by = 'automatic-thesis-match'").get()?.count || 0);
   if (revision && revision === previousRevision && automaticCount > 0) {
@@ -7818,6 +7818,8 @@ function adminThesisAwardPayload(requestedYear) {
   const snapshot = currentThesisSnapshot();
   const awardYears = [2023, 2024, 2025];
   const publicationRows = db.prepare("SELECT * FROM thesis_publications WHERE relation_status='verified' ORDER BY updated_at DESC").all();
+  const verifiedPublicationCount = new Set(publicationRows.map((item) => String(item.doi || "").trim().toLocaleLowerCase("tr-TR")
+    || `${String(item.publication_title || "").trim().toLocaleLowerCase("tr-TR")}|${item.publication_year}`)).size;
   const matchedThesisIdentifiers = new Set(publicationRows.map((row) => row.thesis_identifier));
   const awardTheses = (snapshot?.records || []).filter((record) => {
     const year = Number(record.publicationYear);
@@ -7971,7 +7973,7 @@ function adminThesisAwardPayload(requestedYear) {
   const rankings = fields.flatMap((field) => degrees.map((degree) => ({ field, degree, candidates: categoryRows(field, degree) })));
   return {
     generatedAt: new Date().toISOString(),
-    scoringNote: "2023–2025 tezleri, öğrenci ve danışman ortak yazarlığı + tez konusu örtüşmesi + OKÜ adresiyle doğrulanan 241 tekil yayın üzerinden değerlendirilir. EK-1 yayın ve atıf puanları kayıtlı indeks, yayın türü, yazar sırası ve atıf verisinden otomatik hesaplanır. Geçmiş yıllar için manuel jüri beklenmez: EK-2'nin kanıtlanabilen ölçütleri SKA, OKÜ stratejik hedefleri ve yayın kayıtlarından doğrudan puanlanır; tez metni gerektiren A1, A2, A4, A5, A6 ve 12–14. ölçütler sıfır bırakılır. C bölümünde en güçlü en fazla dört SKA eşleşmesi puanlanır.",
+    scoringNote: `2023–2025 tezleri, öğrenci ve danışman ortak yazarlığı + tez konusu örtüşmesi + OKÜ adresiyle doğrulanan ${verifiedPublicationCount} tekil yayın üzerinden değerlendirilir. EK-1 yayın ve atıf puanları kayıtlı indeks, yayın türü, yazar sırası ve atıf verisinden otomatik hesaplanır. Geçmiş yıllar için manuel jüri beklenmez: EK-2'nin kanıtlanabilen ölçütleri SKA, OKÜ stratejik hedefleri ve yayın kayıtlarından doğrudan puanlanır; tez metni gerektiren A1, A2, A4, A5, A6 ve 12–14. ölçütler sıfır bırakılır. C bölümünde en güçlü en fazla dört SKA eşleşmesi puanlanır.`,
     availableYears,
     selectedYear: year,
     summary: {
