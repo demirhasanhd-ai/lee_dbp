@@ -1,0 +1,40 @@
+.award-candidate-row{cursor:pointer;transition:background .16s ease}
+.award-candidate-row:hover,.award-candidate-row[aria-expanded="true"]{background:color-mix(in srgb,var(--primary) 4%,var(--card))}
+.award-candidate-toggle{width:100%;padding:0;display:flex;align-items:flex-start;gap:7px;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}
+.award-candidate-toggle>svg{margin-top:1px;flex:0 0 auto;color:var(--primary);transition:transform .16s ease}
+.award-candidate-toggle>svg.expanded{transform:rotate(90deg)}
+.award-candidate-toggle>span,.award-candidate-toggle b,.award-candidate-toggle small{display:block}
+.award-detail-row>td{padding:0!important;background:color-mix(in srgb,var(--primary) 2%,var(--card))}
+.award-score-details{padding:14px;display:grid;gap:14px}
+.award-score-details>section{overflow:hidden;border:1px solid var(--border);border-radius:14px;background:var(--card)}
+.award-score-details>section>header{padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--border);background:var(--muted)}
+.award-score-details header small{color:var(--primary);font-size:8px;font-weight:850;letter-spacing:.1em}
+.award-score-details header h4{margin:3px 0 0;font-size:12px}
+.award-score-details header>b{font-size:12px;color:var(--primary)}
+.award-detail-table-wrap{overflow:auto}
+.award-detail-table{width:100%;min-width:880px;border-collapse:collapse}
+.award-detail-table th{padding:9px 10px;background:color-mix(in srgb,var(--primary) 3%,var(--card));color:var(--muted-foreground);font-size:8px;text-align:left;white-space:nowrap}
+.award-detail-table td{padding:10px!important;border-top:1px solid var(--border);font-size:9px!important;vertical-align:top}
+.award-detail-table td b,.award-detail-table td span,.award-detail-table td small,.award-detail-table th small{display:block}
+.award-detail-table td span,.award-detail-table td small,.award-detail-table th small{margin-top:3px;color:var(--muted-foreground)}
+.award-detail-table td strong{color:var(--primary);font-size:11px}
+.award-detail-table.jury{min-width:1050px}
+.award-detail-table.jury:not(.automatic) td:nth-child(3){min-width:360px}
+.award-detail-table.jury.automatic{min-width:1020px;table-layout:fixed}
+.award-detail-table.jury.automatic th:first-child,.award-detail-table.jury.automatic td:first-child{width:34px}
+.award-detail-table.jury.automatic th:nth-child(2),.award-detail-table.jury.automatic td:nth-child(2){width:410px}
+.award-detail-table.jury.automatic th:last-child,.award-detail-table.jury.automatic .rubric-evidence{width:330px}
+.award-detail-table.jury.automatic .rubric-evidence{overflow:hidden;line-height:1.3;text-overflow:ellipsis;white-space:nowrap}
+.award-detail-table.jury.automatic tr.rubric-scored td{background:color-mix(in srgb,var(--chart-2) 5%,var(--card))}
+.award-detail-table.jury.automatic tr.rubric-zero td{color:var(--muted-foreground);background:color-mix(in srgb,var(--muted) 40%,var(--card))}
+.award-detail-table .rubric-score-heading{width:34px;min-width:34px;text-align:center}
+.award-detail-table.jury.automatic tbody td{padding:6px 7px!important;white-space:nowrap}
+.award-detail-table .rubric-score-cell{width:34px;min-width:34px;padding:4px 2px!important;border-left:1px solid var(--border);text-align:center;vertical-align:middle}
+.award-detail-table .rubric-score-cell.selected{background:color-mix(in srgb,var(--primary) 13%,var(--card))!important}
+.award-detail-table .rubric-score-cell.selected span{display:inline-grid;width:22px;height:22px;place-items:center;border-radius:50%;background:var(--primary);color:white;font-size:12px;font-weight:900}
+.award-detail-table .rubric-section-row th{padding:8px 10px;border-top:2px solid color-mix(in srgb,var(--primary) 42%,var(--border));background:color-mix(in srgb,var(--primary) 9%,var(--card));color:var(--foreground);font-size:9px;font-weight:900;letter-spacing:.02em}
+.award-detail-table.rubric-matrix tfoot td:nth-child(3){text-align:center;font-size:14px;color:var(--primary)}
+.award-detail-table tfoot td{font-weight:800;background:var(--muted)}
+.award-jury-empty{margin:0;padding:18px;color:var(--muted-foreground);font-size:10px}
+
+@media(max-width:700px){.award-score-details{padding:8px}.award-score-details>section>header{align-items:flex-start;flex-direction:column}}

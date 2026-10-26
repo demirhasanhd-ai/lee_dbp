@@ -15,6 +15,7 @@ import * as cheerio from "cheerio";
 import {
   displayDepartment,
   harvestTheses,
+  publicThesisUrl,
   readThesisSnapshot,
   thesisDashboard,
 } from "./lib/thesisSdg.mjs";
@@ -36,6 +37,7 @@ import {
   calculateAutomaticPublicationActivity,
   calculateActivityScore,
   calculateJuryRubric,
+  calculateAutomaticJuryRubric,
   degreeGroup,
   juryCriteria,
   publicThesisBibliometrics,
@@ -7434,7 +7436,7 @@ function manualThesisRecords() {
     department: row.department || "",
     degreeType: row.degree_type || "",
     publicationYear: Number(row.thesis_year || 0),
-    sourceUrl: row.source_url || "",
+    sourceUrl: publicThesisUrl(row.source_url || "", row.identifier),
     sourceType: "manual",
   }));
 }
@@ -7817,10 +7819,29 @@ function adminThesisAwardPayload(requestedYear) {
   const awardYears = [2023, 2024, 2025];
   const publicationRows = db.prepare("SELECT * FROM thesis_publications WHERE relation_status='verified' ORDER BY updated_at DESC").all();
   const matchedThesisIdentifiers = new Set(publicationRows.map((row) => row.thesis_identifier));
-  const sourceTheses = (snapshot?.records || []).filter((record) => {
+  const awardTheses = (snapshot?.records || []).filter((record) => {
     const year = Number(record.publicationYear);
-    return record.status !== "deleted" && awardYears.includes(year) && matchedThesisIdentifiers.has(record.identifier);
+    return record.status !== "deleted" && awardYears.includes(year);
   });
+  // DSpace can expose the same thesis under an old and a new handle. Collapse
+  // only records that have the same student, title, cohort and degree; keeping
+  // the degree in the key prevents a student's master's and doctorate theses
+  // from ever being merged.
+  const canonicalTheses = new Map();
+  for (const record of awardTheses) {
+    const canonicalKey = [
+      degreeGroup(record.degreeType),
+      Number(record.publicationYear),
+      normalizePublicRouteSegment(record.title),
+      (record.authors || []).map(normalizePublicRouteSegment).sort().join("|"),
+    ].join("::");
+    const existing = canonicalTheses.get(canonicalKey);
+    if (existing) existing.awardIdentifiers.push(record.identifier);
+    else canonicalTheses.set(canonicalKey, { ...record, awardIdentifiers: [record.identifier] });
+  }
+  const sourceTheses = [...canonicalTheses.values()].filter((record) =>
+    record.awardIdentifiers.some((identifier) => matchedThesisIdentifiers.has(identifier))
+  );
   const availableYears = [...new Set(sourceTheses.map((record) => Number(record.publicationYear)))]
     .sort((left, right) => right - left);
   const year = availableYears.includes(Number(requestedYear)) ? Number(requestedYear) : (availableYears[0] || awardYears.at(-1));
@@ -7828,7 +7849,8 @@ function adminThesisAwardPayload(requestedYear) {
   const juryRows = db.prepare("SELECT * FROM thesis_jury_evaluations WHERE evaluation_status='final' ORDER BY updated_at DESC, id DESC").all();
 
   const candidates = sourceTheses.filter((record) => Number(record.publicationYear) === year).map((record) => {
-    const publications = publicationRows.filter((item) => item.thesis_identifier === record.identifier);
+    const thesisIdentifiers = new Set(record.awardIdentifiers);
+    const publications = publicationRows.filter((item) => thesisIdentifiers.has(item.thesis_identifier));
     const uniquePublications = [...publications.reduce((map, item) => {
       const key = String(item.doi || "").trim().toLocaleLowerCase("tr-TR")
         || `${String(item.publication_title || "").trim().toLocaleLowerCase("tr-TR")}|${item.publication_year}`;
@@ -7843,26 +7865,28 @@ function adminThesisAwardPayload(requestedYear) {
       });
       return map;
     }, new Map()).values()];
-    const activities = activityRows.filter((item) => item.thesis_identifier === record.identifier);
+    const activities = activityRows.filter((item) => thesisIdentifiers.has(item.thesis_identifier));
     const automaticActivity = calculateAutomaticPublicationActivity(uniquePublications, record.authors || []);
     const manualActivityScore = Math.round(activities.reduce((sum, item) => sum + Number(item.calculated_score || 0), 0) * 100) / 100;
     const activityScore = Math.round((automaticActivity.score + manualActivityScore) * 100) / 100;
     const latestJuryByName = new Map();
-    for (const item of juryRows.filter((jury) => jury.thesis_identifier === record.identifier)) {
+    for (const item of juryRows.filter((jury) => thesisIdentifiers.has(jury.thesis_identifier))) {
       const key = normalizePublicRouteSegment(item.jury_name || `jury-${item.id}`);
       if (!latestJuryByName.has(key)) latestJuryByName.set(key, item);
     }
     const finalJuries = [...latestJuryByName.values()];
-    const juryScore = finalJuries.length
-      ? Math.round((finalJuries.reduce((sum, item) => sum + Number(item.rubric_score || 0), 0) / finalJuries.length) * 100) / 100
-      : 0;
+    const automaticJury = calculateAutomaticJuryRubric(record, uniquePublications);
+    // The 2023–2025 retrospective award run is closed-data scoring: it does
+    // not wait for a new manual jury session. The evidence-limited automatic
+    // rubric is therefore the EK-2 result used in the ranking. Historical
+    // jury records remain visible as reference but do not replace this result.
+    const juryScore = automaticJury.rubricScore;
     const field = scientificFieldForDepartment(record.department);
     const degree = degreeGroup(record.degreeType);
     const missing = [];
     const warnings = [];
     if (field === "Atanamayan") missing.push("Bilim alanı eşleştirmesi gerekli");
     if (!automaticActivity.items.length && !activities.length) missing.push("Puanlanabilir EK-1 faaliyeti yok");
-    if (!finalJuries.length) warnings.push("Nihai EK-2 jüri değerlendirmesi bekleniyor; ön sıralama yalnız EK-1 puanına dayanır");
     return {
       thesisIdentifier: record.identifier,
       thesisTitle: record.title,
@@ -7885,14 +7909,40 @@ function adminThesisAwardPayload(requestedYear) {
       automaticPublicationScore: automaticActivity.publicationScore,
       automaticCitationScore: automaticActivity.citationScore,
       automaticActivityItems: automaticActivity.items,
+      manualActivityItems: activities.map((item) => ({
+        activityCode: item.activity_code,
+        activityTitle: item.activity_title,
+        relationType: item.relation_type,
+        baseScore: Number(item.base_score || 0),
+        authorCount: Number(item.author_count || 1),
+        authorPosition: Number(item.author_position || 1),
+        quantity: Number(item.quantity || 1),
+        contributionCoefficient: Number(item.contribution_coefficient ?? 1),
+        calculatedScore: Number(item.calculated_score || 0),
+        evidenceNote: item.evidence_note || "",
+      })),
       manualActivityCount: activities.length,
       manualActivityScore,
       activityScore,
       juryCount: finalJuries.length,
       juryScore,
+      automaticJuryEvaluation: {
+        rubricScore: automaticJury.rubricScore,
+        selectedC: automaticJury.selectedC,
+        scores: automaticJury.scores,
+        items: automaticJury.items,
+        isApplied: true,
+      },
+      juryEvaluations: finalJuries.map((item) => ({
+        juryName: item.jury_name || "Jüri",
+        juryTitle: item.jury_title || "",
+        rubricScore: Number(item.rubric_score || 0),
+        scores: parseJsonField(item.scores_json, {}),
+        evaluatedAt: item.evaluated_at || item.updated_at || "",
+      })),
       totalScore: Math.round((activityScore + juryScore) * 100) / 100,
       eligible: missing.length === 0,
-      provisional: finalJuries.length === 0,
+      provisional: false,
       missing,
       warnings,
       publications: uniquePublications.map((item) => ({
@@ -7921,7 +7971,7 @@ function adminThesisAwardPayload(requestedYear) {
   const rankings = fields.flatMap((field) => degrees.map((degree) => ({ field, degree, candidates: categoryRows(field, degree) })));
   return {
     generatedAt: new Date().toISOString(),
-    scoringNote: "2023–2025 tezleri, öğrenci ve danışman ortak yazarlığı + tez konusu örtüşmesi + OKÜ adresiyle doğrulanan 241 tekil yayın üzerinden değerlendirilir. EK-1 yayın ve atıf puanları kayıtlı indeks, yayın türü, yazar sırası ve atıf verisinden otomatik hesaplanır. Nihai EK-2 girilmemiş adaylar EK-1'e göre ön sıralanır; jüri kaydı tamamlanınca toplam puan ve sıra otomatik güncellenir.",
+    scoringNote: "2023–2025 tezleri, öğrenci ve danışman ortak yazarlığı + tez konusu örtüşmesi + OKÜ adresiyle doğrulanan 241 tekil yayın üzerinden değerlendirilir. EK-1 yayın ve atıf puanları kayıtlı indeks, yayın türü, yazar sırası ve atıf verisinden otomatik hesaplanır. Geçmiş yıllar için manuel jüri beklenmez: EK-2'nin kanıtlanabilen ölçütleri SKA, OKÜ stratejik hedefleri ve yayın kayıtlarından doğrudan puanlanır; tez metni gerektiren A1, A2, A4, A5, A6 ve 12–14. ölçütler sıfır bırakılır. C bölümünde en güçlü en fazla dört SKA eşleşmesi puanlanır.",
     availableYears,
     selectedYear: year,
     summary: {
@@ -7932,6 +7982,7 @@ function adminThesisAwardPayload(requestedYear) {
     },
     candidates,
     rankings,
+    juryCriteria,
   };
 }
 
