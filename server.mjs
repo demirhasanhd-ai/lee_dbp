@@ -93,6 +93,7 @@ const publicRouteLevels = {
 };
 const pdfCacheDir = process.env.DBP_PDF_CACHE_DIR || path.join(dataDir, "generated-pdfs");
 const pdfScript = process.env.DBP_PDF_SCRIPT || path.join(__dirname, "scripts", "generate_public_course_pdfs.py");
+const thesisAwardPdfScript = process.env.DBP_THESIS_AWARD_PDF_SCRIPT || path.join(__dirname, "scripts", "generate_thesis_award_top5_pdf.py");
 
 function nonNegativeNumber(value, fallback) {
   const number = Number(value);
@@ -1988,6 +1989,17 @@ function pdfResponseFromFile(request, file, info, cacheControl = "public, max-ag
   return new Response(request.method === "HEAD" ? null : createReadStream(file), { headers });
 }
 
+function pdfDownloadResponseFromFile(request, file, info, filename) {
+  return new Response(request.method === "HEAD" ? null : createReadStream(file), {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Length": String(info.size),
+      "Cache-Control": "no-store",
+      "Content-Disposition": `attachment; filename="${pdfSlug(filename, "tez-odulu-ilk-5")}.pdf"`,
+    },
+  });
+}
+
 function coursePackageFallback(url, { code, name, program }) {
   const params = new URLSearchParams({ ders: code, ad: name });
   if (program) params.set("program", program);
@@ -2053,7 +2065,16 @@ function coursePackagePdfPayload({ code, name, department, programName, level, p
 
 function pythonCandidates() {
   if (process.env.DBP_PYTHON) return [process.env.DBP_PYTHON];
-  return process.platform === "win32" ? ["python", "py"] : ["python3", "python"];
+  if (process.platform !== "win32") return ["python3", "python"];
+  const bundledPython = process.env.USERPROFILE
+    ? path.join(process.env.USERPROFILE, ".cache", "codex-runtimes", "codex-primary-runtime", "dependencies", "python", "python.exe")
+    : "";
+  return [
+    path.join(__dirname, ".venv", "Scripts", "python.exe"),
+    ...(bundledPython && existsSync(bundledPython) ? [bundledPython] : []),
+    "python",
+    "py",
+  ];
 }
 
 function spawnToCompletion(command, args) {
@@ -7746,7 +7767,7 @@ function refreshAutomaticThesisPublicationMatches(actor = "automatic-thesis-matc
   ].join("|");
   // Versioned so matcher rule changes are applied once after deployment even
   // when the underlying DSpace/Scopus/TR Dizin snapshots did not change.
-  const revisionKey = "thesis_publication_match_revision_v13_award_candidate_thresholds";
+  const revisionKey = "thesis_publication_match_revision_v16_all_thesis_advisors_required";
   const previousRevision = db.prepare("SELECT value FROM metadata WHERE key = ?").get(revisionKey)?.value || "";
   const automaticCount = Number(db.prepare("SELECT COUNT(*) AS count FROM thesis_publications WHERE updated_by = 'automatic-thesis-match'").get()?.count || 0);
   if (revision && revision === previousRevision && automaticCount > 0) {
@@ -7824,9 +7845,6 @@ function adminThesisAwardPayload(requestedYear) {
   const snapshot = currentThesisSnapshot();
   const awardYears = thesisAwardCandidateYears;
   const publicationRows = db.prepare("SELECT * FROM thesis_publications WHERE relation_status='verified' ORDER BY updated_at DESC").all();
-  const verifiedPublicationCount = new Set(publicationRows.map((item) => String(item.doi || "").trim().toLocaleLowerCase("tr-TR")
-    || `${String(item.publication_title || "").trim().toLocaleLowerCase("tr-TR")}|${item.publication_year}`)).size;
-  const matchedThesisIdentifiers = new Set(publicationRows.map((row) => row.thesis_identifier));
   const awardTheses = (snapshot?.records || []).filter((record) => {
     const year = Number(record.publicationYear);
     return record.status !== "deleted" && awardYears.includes(year);
@@ -7848,8 +7866,11 @@ function adminThesisAwardPayload(requestedYear) {
     if (existing) existing.awardIdentifiers.push(record.identifier);
     else canonicalTheses.set(canonicalKey, { ...record, awardIdentifiers: [record.identifier] });
   }
-  const sourceTheses = [...canonicalTheses.values()].filter((record) => isThesisAwardCandidate(record)
-    && record.awardIdentifiers.some((identifier) => matchedThesisIdentifiers.has(identifier)));
+  // Keep every thesis selected in the workbook visible even when the stricter
+  // student + all advisors/co-advisors rule leaves it with no qualifying
+  // publication. Such a thesis is shown with EK-1 = 0 and an incomplete flag;
+  // it must not silently disappear from the user-provided candidate list.
+  const sourceTheses = [...canonicalTheses.values()].filter((record) => isThesisAwardCandidate(record));
   const availableYears = [...new Set(sourceTheses.map((record) => Number(record.publicationYear)))]
     .sort((left, right) => right - left);
   const year = availableYears.includes(Number(requestedYear)) ? Number(requestedYear) : (availableYears[0] || awardYears.at(-1));
@@ -7979,7 +8000,7 @@ function adminThesisAwardPayload(requestedYear) {
   const rankings = fields.flatMap((field) => degrees.map((degree) => ({ field, degree, candidates: categoryRows(field, degree) })));
   return {
     generatedAt: new Date().toISOString(),
-    scoringNote: `${thesisAwardCandidateSource} aday listesinde yer alan 2023–2025 tezleri; öğrenci ve danışman ortak yazarlığı, başlıkta en az 2 kelime ve %20 kapsam veya genel konuda en az 3 kelime ve %12 kapsam ile OKÜ adresi doğrulanan ${verifiedPublicationCount} tekil yayın üzerinden değerlendirilir. EK-1 yayın ve atıf puanları kayıtlı indeks, yayın türü, yazar sırası ve atıf verisinden otomatik hesaplanır. Geçmiş yıllar için manuel jüri beklenmez: EK-2'nin kanıtlanabilen ölçütleri SKA, OKÜ stratejik hedefleri ve yayın kayıtlarından doğrudan puanlanır; tez metni gerektiren A1, A2, A4, A5, A6 ve 12–14. ölçütler sıfır bırakılır. C bölümünde en güçlü en fazla dört SKA eşleşmesi puanlanır.`,
+    scoringNote: "2023–2025 Tez Ödülü değerlendirme sonuçları.",
     candidateSource: thesisAwardCandidateSource,
     configuredCandidateCounts: thesisAwardCandidateCounts,
     availableYears,
@@ -7994,6 +8015,64 @@ function adminThesisAwardPayload(requestedYear) {
     rankings,
     juryCriteria,
   };
+}
+
+async function thesisAwardTopFivePdfResponse(request, url) {
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+  const auth = requireStatsManager(request);
+  if (auth.error) return auth.error;
+  upsertSessionUser(auth.session);
+
+  const year = Number(url.searchParams.get("year"));
+  const field = repairText(url.searchParams.get("field") || "Fen Bilimleri");
+  const degree = url.searchParams.get("degree") === "doctorate" ? "doctorate" : "masters";
+  const allowedFields = new Set(["Fen Bilimleri", "Sosyal Bilimler", "Sağlık Bilimleri", "Genel"]);
+  if (!thesisAwardCandidateYears.includes(year) || !allowedFields.has(field)) {
+    return jsonResponse({ message: "Geçerli tez yılı ve bilim alanı seçilmelidir." }, { status: 400 });
+  }
+
+  const data = adminThesisAwardPayload(year);
+  const ranking = data.rankings.find((item) => item.field === field && item.degree === degree)?.candidates || [];
+  const candidates = ranking.slice(0, 5);
+  if (!candidates.length) {
+    return jsonResponse({ message: "Seçili kategoride PDF'e aktarılacak sıralanmış aday bulunamadı." }, { status: 404 });
+  }
+
+  const degreeLabel = degree === "doctorate" ? "Doktora" : "Tezli Yüksek Lisans";
+  const outputDirectory = path.join(pdfCacheDir, "thesis-awards");
+  await mkdir(outputDirectory, { recursive: true });
+  const filename = `${year}-${field}-${degreeLabel}-ilk-5`;
+  const target = path.join(outputDirectory, `${pdfSlug(filename, "tez-odulu-ilk-5")}.pdf`);
+  const payloadFile = path.join(outputDirectory, `${randomUUID()}.json`);
+  const payload = {
+    title: "Tez Ödülü İlk 5 Aday Listesi",
+    year,
+    field,
+    degreeLabel,
+    generatedAt: data.generatedAt,
+    candidates: candidates.map((candidate) => ({
+      rank: candidate.rank,
+      studentName: candidate.studentName,
+      thesisTitle: candidate.thesisTitle,
+      advisors: candidate.advisors,
+      department: candidate.department,
+      activityScore: candidate.activityScore,
+      juryScore: candidate.juryScore,
+      totalScore: candidate.totalScore,
+    })),
+  };
+
+  try {
+    await writeFile(payloadFile, JSON.stringify(payload), "utf8");
+    await runPdfGenerator([thesisAwardPdfScript, "--input", payloadFile, "--output", target]);
+    const info = await stat(target);
+    return pdfDownloadResponseFromFile(request, target, info, filename);
+  } catch (error) {
+    console.error("[dbp] Tez ödülü ilk 5 PDF üretimi başarısız:", error);
+    return jsonResponse({ message: "Tez ödülü ilk 5 PDF dosyası oluşturulamadı." }, { status: 500 });
+  } finally {
+    await unlink(payloadFile).catch(() => {});
+  }
 }
 
 function verifiedThesisInput(identifier, allowedYears = null) {
@@ -10046,6 +10125,10 @@ async function handleDbpApi(request) {
       const body = await readJsonBody(request);
       const actor = auth.session?.username || auth.session?.name || "dbp-user";
       return jsonResponse({ ok: true, profile: upsertProgramProfile(body.profile || body, actor) });
+    }
+
+    if (pathname === "/api/dbp/admin/thesis-awards/pdf" && (request.method === "GET" || request.method === "HEAD")) {
+      return await thesisAwardTopFivePdfResponse(request, url);
     }
 
     if (pathname === "/api/dbp/admin/thesis-awards" && request.method === "GET") {

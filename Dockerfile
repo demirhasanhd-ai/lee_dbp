@@ -29,13 +29,16 @@ COPY lib/runtimeLogging.mjs ./lib/runtimeLogging.mjs
 COPY lib/thesisSdg.mjs ./lib/thesisSdg.mjs
 COPY lib/thesisBibliometrics.mjs ./lib/thesisBibliometrics.mjs
 COPY lib/thesisPublicationMatcher.mjs ./lib/thesisPublicationMatcher.mjs
+COPY lib/thesisAwardCandidates.mjs ./lib/thesisAwardCandidates.mjs
 COPY lib/scimagoQuartiles.mjs ./lib/scimagoQuartiles.mjs
 COPY lib/scopusBibliometrics.mjs ./lib/scopusBibliometrics.mjs
 COPY lib/trDizinBibliometrics.mjs ./lib/trDizinBibliometrics.mjs
 COPY lib/publicDataRefreshPlan.mjs ./lib/publicDataRefreshPlan.mjs
 COPY lib/data/public-route-aliases.json ./lib/data/public-route-aliases.json
+COPY lib/data/thesis-award-candidates-2023-2025.json ./lib/data/thesis-award-candidates-2023-2025.json
 COPY --from=build /app/dist ./dist
 COPY scripts/generate_public_course_pdfs.py ./scripts/generate_public_course_pdfs.py
+COPY scripts/generate_thesis_award_top5_pdf.py ./scripts/generate_thesis_award_top5_pdf.py
 COPY public/fonts/noto-sans ./public/fonts/noto-sans
 COPY public/oku-logo.png ./public/oku-logo.png
 COPY public/sdg ./public/sdg

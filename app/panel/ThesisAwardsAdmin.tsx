@@ -1,6 +1,6 @@
 "use client";
 
-import { Award, BookOpenCheck, ChevronRight, ExternalLink, GraduationCap, Medal, RefreshCw, Trophy } from "lucide-react";
+import { Award, BookOpenCheck, ChevronRight, ExternalLink, GraduationCap, Medal, Printer, RefreshCw, Trophy } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
@@ -51,6 +51,7 @@ export function ThesisAwardsAdmin({ session }: { session: Session }) {
   const [field, setField] = useState("Fen Bilimleri");
   const [degree, setDegree] = useState<"masters" | "doctorate">("masters");
   const [busy, setBusy] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [message, setMessage] = useState("");
   const [expandedThesis, setExpandedThesis] = useState("");
 
@@ -78,10 +79,36 @@ export function ThesisAwardsAdmin({ session }: { session: Session }) {
   const ranking = useMemo(() => data?.rankings.find((item) => item.field === field && item.degree === degree)?.candidates || [], [data, field, degree]);
   const incomplete = useMemo(() => (data?.candidates || []).filter((item) => (item.provisional || !item.eligible) && item.degree === degree && (field === "Genel" || item.field === field)), [data, field, degree]);
 
+  const printTopFive = useCallback(async () => {
+    if (!year) return;
+    setPrinting(true); setMessage("");
+    try {
+      const query = new URLSearchParams({ year: String(year), field, degree });
+      const response = await fetch(dbpPath(`/api/dbp/admin/thesis-awards/pdf?${query}`), {
+        headers: { "X-DBP-Session": dbpSessionHeader(session) },
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({})) as { message?: string };
+        throw new Error(body.message || "İlk 5 aday PDF dosyası oluşturulamadı.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${year}-${field}-${degree === "doctorate" ? "doktora" : "tezli-yl"}-ilk-5.pdf`
+        .toLocaleLowerCase("tr-TR").replace(/[^a-z0-9çğıöşü.-]+/giu, "-");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "İlk 5 aday PDF dosyası oluşturulamadı."); }
+    finally { setPrinting(false); }
+  }, [degree, field, session, year]);
+
   if (!data) return <section className="panel-loading">Tez ödül sıralaması hazırlanıyor…{message && <small>{message}</small>}</section>;
 
   return <section className="thesis-awards">
-    <div className="panel-intro thesis-awards-intro"><div><small>ENSTİTÜ · YILLIK DEĞERLENDİRME</small><h2><Trophy size={22} /> Tez Ödül Modülü</h2><p>{data.scoringNote}</p></div><button className="secondary-action" disabled={busy} onClick={() => void load(year)}><RefreshCw size={14} />Puanları yeniden hesapla</button></div>
+    <div className="panel-intro thesis-awards-intro"><div><small>ENSTİTÜ · YILLIK DEĞERLENDİRME</small><h2><Trophy size={22} /> Tez Ödül Modülü</h2><p>{data.scoringNote}</p></div><div className="award-intro-actions"><button className="secondary-action" disabled={printing || ranking.length === 0} onClick={() => void printTopFive()}><Printer size={14} />{printing ? "PDF hazırlanıyor…" : "İlk 5 Listeyi Yazdır"}</button><button className="secondary-action" disabled={busy} onClick={() => void load(year)}><RefreshCw size={14} />Puanları yeniden hesapla</button></div></div>
     {message && <div className="database-message">{message}</div>}
 
     <div className="award-controls">

@@ -188,6 +188,95 @@ test("rejects publications when the thesis advisor is not a co-author", () => {
   assert.equal(matches.length, 0);
 });
 
+test("requires the student, main advisor and every co-advisor in the same publication", () => {
+  const thesis = {
+    identifier: "thesis-with-co-advisor",
+    publicationYear: 2024,
+    title: "Enerji sistemlerinde hidrojen depolama performansının incelenmesi",
+    keywords: ["hidrojen", "enerji", "depolama"],
+    authors: ["Örnek, Ayşe"],
+    advisors: ["Danışman, Mehmet", "Eşdanışman, Selin"],
+  };
+  const publication = {
+    id: "publication-with-only-main-advisor",
+    title: "Hidrojen enerji sistemlerinde depolama performansı",
+    year: 2025,
+    authors: [{ name: "Ayşe Örnek" }, { name: "Mehmet Danışman" }],
+    affiliations: okuAffiliation,
+  };
+
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [publication] }).length, 0);
+
+  publication.authors.push({ name: "Selin Eşdanışman" });
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [publication] }).length, 1);
+});
+
+test("does not use one abbreviated publication author for two thesis advisors", () => {
+  const thesis = {
+    identifier: "thesis-two-demir-advisors",
+    publicationYear: 2023,
+    title: "Kapari meyvelerinin enerji verimli kurutulması",
+    keywords: ["kapari", "kurutma", "enerji"],
+    authors: ["Gültepe, Fatma"],
+    advisors: ["Demir, Hande", "Demir, Hasan"],
+  };
+  const publication = {
+    id: "publication-one-demir-initial",
+    title: "Kapari kurutma yöntemlerinin enerji performansı",
+    year: 2023,
+    authors: [{ name: "Yilmaz F." }, { name: "Demir H." }],
+    affiliations: okuAffiliation,
+  };
+
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [publication] }).length, 0);
+
+  publication.authors.push({ name: "Demir H." });
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [publication] }).length, 1);
+});
+
+test("matches Turkish dotless ı against ASCII i in abbreviated author names", () => {
+  const matches = matchThesisPublications({
+    theses: [{
+      identifier: "thesis-turkish-dotless-i",
+      publicationYear: 2025,
+      title: "Hidrojen depolama malzemelerinin hesaplamalı incelenmesi",
+      keywords: ["hidrojen", "depolama", "malzeme"],
+      authors: ["Çavdar, Nuran"],
+      advisors: ["Arıkan, Nihat", "Al, Selgin"],
+    }],
+    scopus: [{
+      id: "publication-ascii-arikan",
+      title: "Hidrojen depolama malzemelerinin hesaplamalı incelenmesi",
+      year: 2025,
+      authors: [{ name: "Cavdar N." }, { name: "Arikan N." }, { name: "Al S." }],
+      affiliations: okuAffiliation,
+    }],
+  });
+
+  assert.equal(matches.length, 1);
+});
+
+test("matches a compound advisor surname in abbreviated index form", () => {
+  const matches = matchThesisPublications({
+    theses: [{
+      identifier: "thesis-compound-advisor-surname",
+      publicationYear: 2024,
+      title: "Investigation of citron and sweet orange peels as herbal tea",
+      authors: ["Güneşli, Aysima"],
+      advisors: ["Süfer, Özge", "Özkan Karabacak, Azime"],
+    }],
+    scopus: [{
+      id: "publication-compound-advisor-surname",
+      title: "Investigation of citron and sweet orange peels as herbal tea",
+      year: 2026,
+      authors: [{ name: "Süfer Ö." }, { name: "Özkan Karabacak A." }, { name: "Güneşli A." }],
+      affiliations: okuAffiliation,
+    }],
+  });
+
+  assert.equal(matches.length, 1);
+});
+
 test("does not create candidates when the thesis student is absent", () => {
   const matches = matchThesisPublications({
     theses: [{
