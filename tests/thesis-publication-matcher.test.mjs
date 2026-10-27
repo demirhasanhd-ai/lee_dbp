@@ -57,6 +57,39 @@ test("matches a 2023 doctoral thesis with accent-insensitive student and advisor
   assert.equal(withoutOkuAddress.length, 0);
 });
 
+test("accepts the Uğur Acar 2022 meteorological-year publication at the award thresholds", () => {
+  const matches = matchThesisPublications({
+    theses: [{
+      identifier: "thesis-ugur-acar-award",
+      publicationYear: 2023,
+      title: "Net sıfır enerjili binaların Türkiye iklim koşullarında uygulanabilirliğinin araştırılması",
+      alternativeTitle: "Investigation of applicability of net zero energy buildings under the climate conditions of Türkiye",
+      keywords: ["Mühendislik Bilimleri", "Engineering Sciences"],
+      authors: ["Acar, Uğur"],
+      advisors: ["Kaşka, Önder"],
+      department: "Makine Mühendisliği Ana Bilim Dalı",
+      degreeType: "Doctoral Thesis",
+    }],
+    trDizin: [{
+      id: "1173510",
+      title: "The effects of different typical meteorological year data on the heating and cooling demand of buildings: Case study of Turkiye",
+      abstract: "Weather data affects building energy analysis. Heating and cooling demands of buildings are compared for different climate files in Türkiye using Energyplus.",
+      year: 2022,
+      authors: [
+        { name: "Önder KAŞKA", institutions: ["Osmaniye Korkut Ata Üniversitesi"] },
+        { name: "Ugur Acar", institutions: ["Türkiye Cumhuriyeti Çevre ve Şehircilik Bakanlığı"] },
+      ],
+      institutions: ["OSMANİYE KORKUT ATA ÜNİVERSİTESİ"],
+      journalName: "Journal of Thermal Engineering",
+      doi: "10.18186/thermal.1191087",
+    }],
+  });
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].thesisIdentifier, "thesis-ugur-acar-award");
+  assert.equal(matches[0].indexedTrdizin, true);
+});
+
 test("matches the explicitly verified Fatma Gültepe and Fatma Yılmaz identity", () => {
   const matches = matchThesisPublications({
     theses: [{

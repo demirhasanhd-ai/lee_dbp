@@ -45,6 +45,12 @@ import {
 import { matchThesisPublications, scientificFieldForDepartment } from "./lib/thesisPublicationMatcher.mjs";
 import { readScimagoQuartiles } from "./lib/scimagoQuartiles.mjs";
 import {
+  isThesisAwardCandidate,
+  thesisAwardCandidateCounts,
+  thesisAwardCandidateSource,
+  thesisAwardCandidateYears,
+} from "./lib/thesisAwardCandidates.mjs";
+import {
   DEFAULT_PUBLIC_DATA_REFRESH_PLAN,
   latestQuarterlyRefreshDate,
   latestWeeklyRefreshDate,
@@ -7740,7 +7746,7 @@ function refreshAutomaticThesisPublicationMatches(actor = "automatic-thesis-matc
   ].join("|");
   // Versioned so matcher rule changes are applied once after deployment even
   // when the underlying DSpace/Scopus/TR Dizin snapshots did not change.
-  const revisionKey = "thesis_publication_match_revision_v12_verified_surname_alias";
+  const revisionKey = "thesis_publication_match_revision_v13_award_candidate_thresholds";
   const previousRevision = db.prepare("SELECT value FROM metadata WHERE key = ?").get(revisionKey)?.value || "";
   const automaticCount = Number(db.prepare("SELECT COUNT(*) AS count FROM thesis_publications WHERE updated_by = 'automatic-thesis-match'").get()?.count || 0);
   if (revision && revision === previousRevision && automaticCount > 0) {
@@ -7816,7 +7822,7 @@ function adminThesisEvaluationPayload() {
 
 function adminThesisAwardPayload(requestedYear) {
   const snapshot = currentThesisSnapshot();
-  const awardYears = [2023, 2024, 2025];
+  const awardYears = thesisAwardCandidateYears;
   const publicationRows = db.prepare("SELECT * FROM thesis_publications WHERE relation_status='verified' ORDER BY updated_at DESC").all();
   const verifiedPublicationCount = new Set(publicationRows.map((item) => String(item.doi || "").trim().toLocaleLowerCase("tr-TR")
     || `${String(item.publication_title || "").trim().toLocaleLowerCase("tr-TR")}|${item.publication_year}`)).size;
@@ -7831,7 +7837,8 @@ function adminThesisAwardPayload(requestedYear) {
   // from ever being merged.
   const canonicalTheses = new Map();
   for (const record of awardTheses) {
-    const canonicalKey = [
+    const yokThesisId = String(record.yokThesisId || "").trim();
+    const canonicalKey = yokThesisId ? `yok::${yokThesisId}` : [
       degreeGroup(record.degreeType),
       Number(record.publicationYear),
       normalizePublicRouteSegment(record.title),
@@ -7841,9 +7848,8 @@ function adminThesisAwardPayload(requestedYear) {
     if (existing) existing.awardIdentifiers.push(record.identifier);
     else canonicalTheses.set(canonicalKey, { ...record, awardIdentifiers: [record.identifier] });
   }
-  const sourceTheses = [...canonicalTheses.values()].filter((record) =>
-    record.awardIdentifiers.some((identifier) => matchedThesisIdentifiers.has(identifier))
-  );
+  const sourceTheses = [...canonicalTheses.values()].filter((record) => isThesisAwardCandidate(record)
+    && record.awardIdentifiers.some((identifier) => matchedThesisIdentifiers.has(identifier)));
   const availableYears = [...new Set(sourceTheses.map((record) => Number(record.publicationYear)))]
     .sort((left, right) => right - left);
   const year = availableYears.includes(Number(requestedYear)) ? Number(requestedYear) : (availableYears[0] || awardYears.at(-1));
@@ -7973,7 +7979,9 @@ function adminThesisAwardPayload(requestedYear) {
   const rankings = fields.flatMap((field) => degrees.map((degree) => ({ field, degree, candidates: categoryRows(field, degree) })));
   return {
     generatedAt: new Date().toISOString(),
-    scoringNote: `2023–2025 tezleri, öğrenci ve danışman ortak yazarlığı + tez konusu örtüşmesi + OKÜ adresiyle doğrulanan ${verifiedPublicationCount} tekil yayın üzerinden değerlendirilir. EK-1 yayın ve atıf puanları kayıtlı indeks, yayın türü, yazar sırası ve atıf verisinden otomatik hesaplanır. Geçmiş yıllar için manuel jüri beklenmez: EK-2'nin kanıtlanabilen ölçütleri SKA, OKÜ stratejik hedefleri ve yayın kayıtlarından doğrudan puanlanır; tez metni gerektiren A1, A2, A4, A5, A6 ve 12–14. ölçütler sıfır bırakılır. C bölümünde en güçlü en fazla dört SKA eşleşmesi puanlanır.`,
+    scoringNote: `${thesisAwardCandidateSource} aday listesinde yer alan 2023–2025 tezleri; öğrenci ve danışman ortak yazarlığı, başlıkta en az 2 kelime ve %20 kapsam veya genel konuda en az 3 kelime ve %12 kapsam ile OKÜ adresi doğrulanan ${verifiedPublicationCount} tekil yayın üzerinden değerlendirilir. EK-1 yayın ve atıf puanları kayıtlı indeks, yayın türü, yazar sırası ve atıf verisinden otomatik hesaplanır. Geçmiş yıllar için manuel jüri beklenmez: EK-2'nin kanıtlanabilen ölçütleri SKA, OKÜ stratejik hedefleri ve yayın kayıtlarından doğrudan puanlanır; tez metni gerektiren A1, A2, A4, A5, A6 ve 12–14. ölçütler sıfır bırakılır. C bölümünde en güçlü en fazla dört SKA eşleşmesi puanlanır.`,
+    candidateSource: thesisAwardCandidateSource,
+    configuredCandidateCounts: thesisAwardCandidateCounts,
     availableYears,
     selectedYear: year,
     summary: {
