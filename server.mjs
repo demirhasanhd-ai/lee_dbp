@@ -73,6 +73,8 @@ const port = Number(process.env.PORT || 8081);
 const host = process.env.HOST || "0.0.0.0";
 const localDev = process.env.DBP_LOCAL_DEV === "1";
 const defaultEEnstituInternalToken = "oku-eenstitu-dbp-internal-v1";
+const thesisPublicationMatchRuleVersion = "v18_best_thesis_per_student_publication";
+const thesisPublicationMatchStateKey = "thesis_publication_match_state_v1";
 const dataDir = process.env.DBP_DATA_DIR || path.join(__dirname, "data");
 const dbPath = process.env.DBP_SQLITE_PATH || path.join(dataDir, "dbp.sqlite");
 const backupDir = process.env.DBP_BACKUP_DIR || path.join(dataDir, "backups");
@@ -7765,14 +7767,11 @@ function refreshAutomaticThesisPublicationMatches(actor = "automatic-thesis-matc
     currentTrDizinSnapshot()?.generatedAt || "",
     scimago.files.join(","),
   ].join("|");
-  // Versioned so matcher rule changes are applied once after deployment even
-  // when the underlying DSpace/Scopus/TR Dizin snapshots did not change.
-  const revisionKey = "thesis_publication_match_revision_v18_best_thesis_per_student_publication";
-  const previousRevision = db.prepare("SELECT value FROM metadata WHERE key = ?").get(revisionKey)?.value || "";
-  const automaticCount = Number(db.prepare("SELECT COUNT(*) AS count FROM thesis_publications WHERE updated_by = 'automatic-thesis-match'").get()?.count || 0);
-  if (revision && revision === previousRevision && automaticCount > 0) {
-    return { matched: automaticCount, inserted: automaticCount, skipped: true, scimago: { loaded: scimago.loaded, journalCount: scimago.journalCount, files: scimago.files, years: scimago.years } };
-  }
+  // Always reconcile automatic rows. A version flag alone cannot detect a
+  // partially restored/corrupted volume and previously allowed local and live
+  // installations to keep different relations while claiming the same rule
+  // revision. Advisor-confirmed/manual rows have a different updated_by value
+  // and remain untouched by this rebuild.
   const matches = matchThesisPublications({ theses, scopus, trDizin });
   const manualRows = db.prepare("SELECT thesis_identifier, publication_title, publication_year, doi FROM thesis_publications WHERE updated_by <> 'automatic-thesis-match'").all();
   const manualKeys = new Set(manualRows.map((row) => `${row.thesis_identifier}|${String(row.doi || "").toLocaleLowerCase("tr-TR") || `${String(row.publication_title || "").toLocaleLowerCase("tr-TR")}|${row.publication_year}`}`));
@@ -7805,7 +7804,17 @@ function refreshAutomaticThesisPublicationMatches(actor = "automatic-thesis-matc
       );
       inserted += 1;
     }
-    db.prepare("INSERT INTO metadata(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(revisionKey, revision);
+    const reconciliationState = {
+      ruleVersion: thesisPublicationMatchRuleVersion,
+      sourceRevision: revision,
+      reconciledAt: now,
+      matched: matches.length,
+      inserted,
+      scopusAvailable,
+      trDizinAvailable,
+    };
+    db.prepare("INSERT INTO metadata(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .run(thesisPublicationMatchStateKey, JSON.stringify(reconciliationState));
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
@@ -9344,7 +9353,22 @@ async function handleDbpApi(request) {
 
   try {
     if (pathname === "/api/dbp/health" && request.method === "GET") {
-      return jsonResponse({ ok: true, dbPath, size: await databaseSize(), runtime: localDev ? "development" : "production" });
+      const thesisPublicationMatching = metadataJson(thesisPublicationMatchStateKey, {
+        ruleVersion: thesisPublicationMatchRuleVersion,
+        reconciledAt: "",
+        matched: 0,
+        inserted: 0,
+      });
+      return jsonResponse({
+        ok: true,
+        dbPath,
+        size: await databaseSize(),
+        runtime: localDev ? "development" : "production",
+        thesisPublicationMatching: {
+          ...thesisPublicationMatching,
+          ruleVersion: thesisPublicationMatchRuleVersion,
+        },
+      });
     }
 
     if (pathname === "/api/dbp/session/events" && request.method === "POST") {
