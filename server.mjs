@@ -43,6 +43,7 @@ import {
   publicThesisBibliometrics,
 } from "./lib/thesisBibliometrics.mjs";
 import { matchThesisPublications, scientificFieldForDepartment } from "./lib/thesisPublicationMatcher.mjs";
+import { createThesisAwardPublicationFilter } from "./lib/thesisAwardPublications.mjs";
 import { readScimagoQuartiles } from "./lib/scimagoQuartiles.mjs";
 import {
   isThesisAwardCandidate,
@@ -7919,7 +7920,16 @@ function adminThesisEvaluationPayload() {
 function adminThesisAwardPayload(requestedYear) {
   const snapshot = currentThesisSnapshot();
   const awardYears = thesisAwardCandidateYears;
-  const publicationRows = db.prepare("SELECT * FROM thesis_publications WHERE relation_status='verified' ORDER BY updated_at DESC").all();
+  // Advisor decisions qualify directly; existing verified rows must pass the
+  // award's 23% title-or-topic rule before counts, EK-1 and automatic EK-2.
+  const publicationRows = db.prepare("SELECT * FROM thesis_publications WHERE relation_status IN ('verified', 'advisor_confirmed') ORDER BY updated_at DESC").all();
+  const qualifiesForAward = createThesisAwardPublicationFilter({
+    scopus: [...new Map([
+      ...metadataJson("scopus_bibliometrics_records_v1", []),
+      ...metadataJson("scopus_thesis_author_records_v1", []),
+    ].map((record) => [record.id || `${record.title}|${record.year}`, record])).values()],
+    trDizin: metadataJson("tr_dizin_bibliometrics_records_v1", { papers: [] }),
+  });
   const awardTheses = (snapshot?.records || []).filter((record) => {
     const year = Number(record.publicationYear);
     return record.status !== "deleted" && awardYears.includes(year);
@@ -7954,7 +7964,7 @@ function adminThesisAwardPayload(requestedYear) {
 
   const candidates = sourceTheses.filter((record) => Number(record.publicationYear) === year).map((record) => {
     const thesisIdentifiers = new Set(record.awardIdentifiers);
-    const publications = publicationRows.filter((item) => thesisIdentifiers.has(item.thesis_identifier));
+    const publications = publicationRows.filter((item) => thesisIdentifiers.has(item.thesis_identifier) && qualifiesForAward(item, record));
     const uniquePublications = [...publications.reduce((map, item) => {
       const key = String(item.doi || "").trim().toLocaleLowerCase("tr-TR")
         || `${String(item.publication_title || "").trim().toLocaleLowerCase("tr-TR")}|${item.publication_year}`;
