@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { renderHydrated } from "./helpers/hydrated-public-page.mjs";
 import { load } from "cheerio";
+import { dockerRuntimeSource } from "./helpers/docker-runtime-files.mjs";
 
 const okuWebsiteFooterLink =
   /<a(?=[^>]*\bhref=["']https:\/\/osmaniye\.edu\.tr["'])(?=[^>]*\btarget=["']_blank["'])(?=[^>]*\brel=["']noopener noreferrer["'])[^>]*>\s*OKÜ Web Sitesi\s*<\/a>/i;
@@ -69,7 +70,7 @@ test("Docker runtime image includes public route alias data", async () => {
 
   assert.match(serverSource, /public-route-aliases\.json/u);
   assert.doesNotThrow(() => JSON.parse(aliases));
-  assert.match(dockerfile, /COPY lib\/data\/public-route-aliases\.json \.\/lib\/data\/public-route-aliases\.json/u);
+  assert.ok(dockerRuntimeSource(dockerfile, "/app/lib/data/public-route-aliases.json"));
 });
 
 test("ana sayfa genel istatistikleri canlı DB ve mevcut akademisyen kaynağından alır", async () => {
@@ -128,7 +129,7 @@ test("TEZ_SKA canlı OAI-PMH anlık görüntüsünü kullanır ve çeyreklik tak
   assert.match(moduleSource, /resumptionToken/u);
   assert.match(moduleSource, /31 Mart 01:00/u);
   assert.match(moduleSource, /31 Aralık 01:00/u);
-  assert.match(dockerfile, /COPY lib\/thesisSdg\.mjs \.\/lib\/thesisSdg\.mjs/u);
+  assert.ok(dockerRuntimeSource(dockerfile, "/app/lib/thesisSdg.mjs"));
   assert.match(dockerfile, /VOLUME \["\/app\/data"\]/u);
   assert.match(page, /SKA–Stratejik Plan Uyum Matrisi/u);
   assert.doesNotMatch(page, /Filtrelenen tezler/u);
@@ -187,9 +188,9 @@ test("Lisansüstü tez tabanlı göstergeler yayın kırılımlarını ve admin 
   assert.match(server, /requireAdmin\(request\)/u);
   assert.match(server, /pathname === "\/api\/dbp\/admin\/thesis-jury"/u);
   assert.match(access, /thesis_evaluations: "Tez Akademik ve Jüri Değerlendirmesi"/u);
-  assert.match(dockerfile, /COPY lib\/thesisBibliometrics\.mjs/u);
-  assert.match(dockerfile, /COPY lib\/thesisPublicationMatcher\.mjs/u);
-  assert.match(dockerfile, /COPY lib\/scimagoQuartiles\.mjs/u);
+  assert.ok(dockerRuntimeSource(dockerfile, "/app/lib/thesisBibliometrics.mjs"));
+  assert.ok(dockerRuntimeSource(dockerfile, "/app/lib/thesisPublicationMatcher.mjs"));
+  assert.ok(dockerRuntimeSource(dockerfile, "/app/lib/scimagoQuartiles.mjs"));
   const response = await render({}, "/dbp/article/tez");
   const html = await response.text();
   assert.equal(response.status, 200);
@@ -277,7 +278,7 @@ test("Scopus bibliyometrisi yayınları çeyreklik, atıfları haftalık güncel
   assert.match(source, /SCOPUS_API_KEY/u);
   assert.match(source, /PUBYEAR = \$\{year\}/u);
   assert.match(source, /Mühendislik ve Doğa Bilimleri Fakültesi/u);
-  assert.match(dockerfile, /COPY lib\/scopusBibliometrics\.mjs \.\/lib\/scopusBibliometrics\.mjs/u);
+  assert.ok(dockerRuntimeSource(dockerfile, "/app/lib/scopusBibliometrics.mjs"));
   assert.match(readme, /SCOPUS_API_KEY=/u);
   assert.match(launcher, /\.env\.local/u);
   const { scopusRefreshDates } = await import(new URL("../lib/scopusBibliometrics.mjs", import.meta.url));
@@ -304,7 +305,7 @@ test("TR Dizin bibliyometri panosu gerçek PAPER ve PROJECT akışlarını ayır
   assert.match(source, /OSMANİYE KORKUT ATA ÜNİVERSİTESİ/u);
   assert.match(source, /Math\.min\(100/u);
   assert.ok(source.includes("split(/\\s*>\\s*/u)"));
-  assert.match(dockerfile, /COPY lib\/trDizinBibliometrics\.mjs \.\/lib\/trDizinBibliometrics\.mjs/u);
+  assert.ok(dockerRuntimeSource(dockerfile, "/app/lib/trDizinBibliometrics.mjs"));
   const { trDizinRefreshDates } = await import(new URL("../lib/trDizinBibliometrics.mjs", import.meta.url));
   assert.deepEqual(trDizinRefreshDates(2026).map((date) => date.toISOString()), ["2026-03-30T22:00:00.000Z", "2026-06-29T22:00:00.000Z", "2026-09-29T22:00:00.000Z", "2026-12-30T22:00:00.000Z"]);
 });
@@ -2194,7 +2195,7 @@ test("öğrenci göstergeleri yalnız toplulaştırılmış e-Enstitü verisini 
   assert.match(server, /refreshRetryDate/u);
   assert.match(schedule, /quarterlyMonths: \[3, 6, 9, 12\]/u);
   assert.match(schedule, /latestWeeklyRefreshDate/u);
-  assert.match(dockerfile, /COPY lib\/publicDataRefreshPlan\.mjs/u);
+  assert.ok(dockerRuntimeSource(dockerfile, "/app/lib/publicDataRefreshPlan.mjs"));
   const response = await render({}, "/dbp/ogrenci-gostergeleri");
   assert.equal(response.status, 200);
   assert.match(await response.text(), /Lisansüstü Öğrenci Göstergeleri/u);

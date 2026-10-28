@@ -39,26 +39,6 @@ if errorlevel 1 (
   exit /b 1
 )
 
-set "NEED_NPM_INSTALL=0"
-if not exist "%APP_DIR%\node_modules" set "NEED_NPM_INSTALL=1"
-if not exist "%APP_DIR%\node_modules\.package-lock.json" set "NEED_NPM_INSTALL=1"
-if not exist "%APP_DIR%\node_modules\@cloudflare\vite-plugin\package.json" set "NEED_NPM_INSTALL=1"
-if exist "%APP_DIR%\package-lock.json" if exist "%APP_DIR%\node_modules\.package-lock.json" (
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$lock = Join-Path $env:APP_DIR 'package-lock.json'; $installed = Join-Path $env:APP_DIR 'node_modules\.package-lock.json'; if ((Get-Item -LiteralPath $lock).LastWriteTimeUtc -gt (Get-Item -LiteralPath $installed).LastWriteTimeUtc) { exit 10 }"
-  if errorlevel 10 set "NEED_NPM_INSTALL=1"
-)
-
-if "%NEED_NPM_INSTALL%"=="1" (
-  call :log "LEE DBP bagimliliklari kuruluyor/guncelleniyor..."
-  node.exe "%APP_DIR%\scripts\with-timestamps.mjs" "%ComSpec%" /d /s /c "npm.cmd install --include=dev"
-  if errorlevel 1 (
-    echo.
-    call :log "[HATA] Bagimliliklar kurulamadi."
-    call :wait_for_key
-    exit /b 1
-  )
-)
-
 node.exe --preserve-symlinks --preserve-symlinks-main "%APP_DIR%\scripts\check-local-dbp-port.mjs" >nul 2>&1
 if errorlevel 3 (
   echo.
@@ -86,6 +66,14 @@ if not errorlevel 1 (
   start "" "%LOCAL_URL%"
   call :wait_for_key
   exit /b 0
+)
+
+node.exe "%APP_DIR%\scripts\with-timestamps.mjs" node.exe --preserve-symlinks --preserve-symlinks-main "%APP_DIR%\scripts\prepare-local-dbp.mjs"
+if errorlevel 1 (
+  echo.
+  call :log "[HATA] Baslangic kontrolu tamamlanamadi. Yukaridaki eksik dosya/paket bilgisini kontrol edin."
+  call :wait_for_key
+  exit /b 1
 )
 
 if not exist "%LOCAL_DATA_DIR%" mkdir "%LOCAL_DATA_DIR%"

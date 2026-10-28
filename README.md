@@ -25,6 +25,10 @@ Program gerekli bağımlılıkları kontrol eder, LEE DBP'yi `http://localhost:8
 
 Eski üretim sunucusu açıksa ilk geçişte onun penceresini Ctrl+C ile kapatıp başlatıcıyı yeniden açın. Başlatıcı eski modu algılarsa sessizce eski sunucuyu kullanmak yerine bu bilgiyi gösterir.
 
+Başlatıcı Node.js sürümünü, sunucunun yerel modül dosyalarını ve npm bağımlılık ağacını kontrol eder. Eksik veya uyumsuz paketler otomatik tamamlanır ve kurulum yeniden doğrulanır. Bağımlılık tanımları kilit dosyasıyla uyumluysa `npm ci --include=dev` ile kilitli sürümler yeniden kurulur; yeni/değişmiş paket tanımları için `npm install --include=dev` kullanılır. Eksik proje kaynak dosyaları npm'den kurulmaz; dosya adı ve onu kullanan modül gösterilerek başlatma durdurulur. Kontrol uygulamayı başlatmaz, `.env` dosyalarını yüklemez ve veritabanına erişmez. Yalnız kontrol için `node scripts/prepare-local-dbp.mjs --check-only` kullanılabilir.
+
+Docker çalışma imajı `lib/` klasörünü alt klasörleriyle birlikte alır. Bu klasöre eklenen yeni sunucu modülleri ve referans dosyaları sonraki build'e otomatik dahil edilir. İmaj hazırlanırken `check-project-modules.mjs`, sunucunun statik yerel importlarını ve npm paket girişlerini doğrular; eksik bir dosya/paket varsa build başarısız olur. Yeni npm bağımlılıkları `package.json` ve `package-lock.json` içinde tanımlanmalıdır. `lib/` dışındaki yeni varlıklar ve dinamik olarak hesaplanan dosya yolları için dağıtım kapsamı ayrıca kontrol edilmelidir.
+
 Komut satırından çalıştırmak için:
 
 ```bash

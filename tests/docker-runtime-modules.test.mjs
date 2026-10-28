@@ -1,26 +1,20 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import path from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { inspectProjectModules } from "../scripts/check-project-modules.mjs";
+import { dockerRuntimeSource } from "./helpers/docker-runtime-files.mjs";
 
 test("the Docker runtime contains the server's complete local static module dependency graph", () => {
   const root = new URL("../", import.meta.url);
   const dockerfile = readFileSync(new URL("Dockerfile", root), "utf8");
   const runtime = dockerfile.split(/^FROM .+ AS runtime\s*$/mi)[1];
   assert.ok(runtime, "Dockerfile runtime stage must exist");
-  const copies = new Map([...runtime.matchAll(/^COPY\s+(\S+)\s+(\S+)\s*$/gm)]
-    .map(([, source, destination]) => [path.posix.resolve("/app", destination), source]));
-  const pending = ["/app/server.mjs"];
-  const visited = new Set();
-  while (pending.length) {
-    const module = pending.pop();
-    if (visited.has(module)) continue;
-    visited.add(module);
-    const source = copies.get(module);
-    assert.ok(source, `${module} is required by the server but missing from Docker runtime COPY instructions`);
-    const content = readFileSync(new URL(source, root), "utf8");
-    for (const [, specifier] of content.matchAll(/(?:\bfrom\s*|\bimport\s*)["'](\.[^"']+)["']/g)) {
-      pending.push(path.posix.resolve(path.posix.dirname(module), specifier));
-    }
+  const { files, missingFiles } = inspectProjectModules(fileURLToPath(root));
+  assert.deepEqual(missingFiles, []);
+  for (const file of files) {
+    const relative = file.slice(fileURLToPath(root).length).replaceAll("\\", "/");
+    const target = `/app/${relative}`;
+    assert.equal(dockerRuntimeSource(dockerfile, target), file, `${target} is missing from the runtime image`);
   }
 });

@@ -22,21 +22,9 @@ RUN apk add --no-cache python3 py3-reportlab \
   && npm ci --omit=dev --no-audit --no-fund \
   && npm cache clean --force
 COPY server.mjs ./server.mjs
-COPY lib/auditTrail.mjs ./lib/auditTrail.mjs
-COPY lib/auditLabels.mjs ./lib/auditLabels.mjs
-COPY lib/serverSession.mjs ./lib/serverSession.mjs
-COPY lib/runtimeLogging.mjs ./lib/runtimeLogging.mjs
-COPY lib/thesisSdg.mjs ./lib/thesisSdg.mjs
-COPY lib/thesisBibliometrics.mjs ./lib/thesisBibliometrics.mjs
-COPY lib/thesisPublicationMatcher.mjs ./lib/thesisPublicationMatcher.mjs
-COPY lib/thesisAwardCandidates.mjs ./lib/thesisAwardCandidates.mjs
-COPY lib/thesisAwardPublications.mjs ./lib/thesisAwardPublications.mjs
-COPY lib/scimagoQuartiles.mjs ./lib/scimagoQuartiles.mjs
-COPY lib/scopusBibliometrics.mjs ./lib/scopusBibliometrics.mjs
-COPY lib/trDizinBibliometrics.mjs ./lib/trDizinBibliometrics.mjs
-COPY lib/publicDataRefreshPlan.mjs ./lib/publicDataRefreshPlan.mjs
-COPY lib/data/public-route-aliases.json ./lib/data/public-route-aliases.json
-COPY lib/data/thesis-award-candidates-2023-2025.json ./lib/data/thesis-award-candidates-2023-2025.json
+COPY lib/ ./lib/
+COPY scripts/check-project-modules.mjs ./scripts/check-project-modules.mjs
+RUN node scripts/check-project-modules.mjs
 COPY --from=build /app/dist ./dist
 COPY scripts/generate_public_course_pdfs.py ./scripts/generate_public_course_pdfs.py
 COPY scripts/generate_thesis_award_top5_pdf.py ./scripts/generate_thesis_award_top5_pdf.py
