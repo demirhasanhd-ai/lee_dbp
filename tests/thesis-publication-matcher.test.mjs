@@ -90,6 +90,44 @@ test("accepts the Uğur Acar 2022 meteorological-year publication at the award t
   assert.equal(matches[0].indexedTrdizin, true);
 });
 
+test("assigns Mustafa İsmet Başboğa's 2022 publication only to his matching 2021 master's thesis", () => {
+  const matches = matchThesisPublications({
+    theses: [{
+      identifier: "thesis-basboga-master-2021",
+      publicationYear: 2021,
+      title: "İşyeri mutluluğu ve iş tatmini ilişkisinde algılanan örgütsel desteğin aracı rolünün belirlenmesi",
+      keywords: ["İşyeri Mutluluğu", "İş Tatmini", "Algılanan Örgütsel Destek"],
+      authors: ["Başboğa, Mustafa İsmet"],
+      advisors: ["Kara, Ergün"],
+      degreeType: "Master Thesis",
+    }, {
+      identifier: "thesis-basboga-doctorate-2025",
+      publicationYear: 2025,
+      title: "Göçmen girişimcilerin girişimcilik eğilimi ve yenilikçi iş davranışı ilişkisinde bilinçli farkındalığın aracı rolü",
+      keywords: ["İş davranışı", "Aracı rol"],
+      authors: ["Başboğa, Mustafa İsmet"],
+      advisors: ["Kara, Ergün"],
+      degreeType: "Doctoral Thesis",
+    }],
+    trDizin: [{
+      id: "basboga-workplace-happiness-2022",
+      title: "İşyeri Mutluluğu ve İş Tatmini İlişkisinde Algılanan Örgütsel Desteğin Aracı Rolünün Belirlenmesi",
+      abstract: "İşyeri mutluluğu, iş tatmini ve algılanan örgütsel destek ilişkisi incelenmiştir.",
+      year: 2022,
+      authors: [
+        { name: "Mustafa İsmet Başboğa", institutions: ["Osmaniye Korkut Ata Üniversitesi"] },
+        { name: "Ergün Kara", institutions: ["Osmaniye Korkut Ata Üniversitesi"] },
+      ],
+      institutions: ["Osmaniye Korkut Ata Üniversitesi"],
+      journalName: "Mehmet Akif Ersoy Üniversitesi İktisadi ve İdari Bilimler Fakültesi Dergisi",
+    }],
+  });
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].thesisIdentifier, "thesis-basboga-master-2021");
+  assert.equal(matches[0].degreeType, "Master Thesis");
+});
+
 test("matches the explicitly verified Fatma Gültepe and Fatma Yılmaz identity", () => {
   const matches = matchThesisPublications({
     theses: [{
@@ -271,6 +309,62 @@ test("matches a compound advisor surname in abbreviated index form", () => {
       year: 2026,
       authors: [{ name: "Süfer Ö." }, { name: "Özkan Karabacak A." }, { name: "Güneşli A." }],
       affiliations: okuAffiliation,
+    }],
+  });
+
+  assert.equal(matches.length, 1);
+});
+
+test("does not confuse Ali Mücahit Kaya with Attila Kaya or the incomplete Kaya A. index form", () => {
+  const thesis = {
+    identifier: "thesis-ali-mucahit-kaya",
+    publicationYear: 2025,
+    title: "İşyeri nezaketsizliği ile işe yabancılaşma ilişkisinde örgütsel sinizmin aracı rolü",
+    alternativeTitle: "The Mediating Role of Organizational Identification in the Effect of Perceived Organizational Support on Employee Performance",
+    keywords: ["işyeri", "örgütsel", "çalışan"],
+    authors: ["Kaya, Ali Mücahit"],
+    advisors: ["Kara, Ergün"],
+  };
+  const publication = {
+    id: "publication-attila-kaya",
+    title: "The Mediating Role of Organizational Identification in the Effect of Perceived Organizational Support on Employee Performance",
+    year: 2021,
+    authors: [{ name: "Ergün Kara" }, { name: "Attila Kaya" }],
+    affiliations: okuAffiliation,
+    keywords: ["organizational", "employee", "performance"],
+  };
+
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [publication] }).length, 0);
+
+  publication.authors[1] = { id: "59012441600", name: "Kaya A." };
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [publication] }).length, 0);
+
+  publication.authors[1] = { name: "Kaya A.M." };
+  assert.equal(matchThesisPublications({ theses: [thesis], scopus: [publication] }).length, 1);
+});
+
+test("uses a source-verified full name when a Scopus author entry omits the given-name initial", () => {
+  const matches = matchThesisPublications({
+    theses: [{
+      identifier: "thesis-omer-kenan",
+      publicationYear: 2023,
+      title: "Torpido benzeri geometriler etrafındaki akış yapılarının incelenmesi",
+      alternativeTitle: "Investigation of flow characteristics around a blunt nose and conical stern geometry with single and tandem arrangements",
+      keywords: ["torpido", "akış", "geometri"],
+      authors: ["Kenan, Ömer"],
+      advisors: ["Yanıktepe, Bülent", "Özgören, Muammer"],
+    }],
+    scopus: [{
+      id: "publication-omer-kenan",
+      title: "Investigation of flow characteristics around a blunt nose and conical stern geometry with single and tandem arrangements",
+      year: 2022,
+      authors: [
+        { id: "59485602900", name: "Kenan" },
+        { name: "Yaniktepe B." },
+        { name: "Özgören M." },
+      ],
+      affiliations: okuAffiliation,
+      keywords: ["flow", "torpedo", "geometry"],
     }],
   });
 
