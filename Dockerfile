@@ -30,6 +30,7 @@ COPY lib/thesisSdg.mjs ./lib/thesisSdg.mjs
 COPY lib/thesisBibliometrics.mjs ./lib/thesisBibliometrics.mjs
 COPY lib/thesisPublicationMatcher.mjs ./lib/thesisPublicationMatcher.mjs
 COPY lib/thesisAwardCandidates.mjs ./lib/thesisAwardCandidates.mjs
+COPY lib/thesisAwardPublications.mjs ./lib/thesisAwardPublications.mjs
 COPY lib/scimagoQuartiles.mjs ./lib/scimagoQuartiles.mjs
 COPY lib/scopusBibliometrics.mjs ./lib/scopusBibliometrics.mjs
 COPY lib/trDizinBibliometrics.mjs ./lib/trDizinBibliometrics.mjs
