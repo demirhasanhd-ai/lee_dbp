@@ -32,9 +32,9 @@ function fixture(t) {
     courseWorkflowSummary: () => ({}), latestWorkflowCorrection: () => null,
     getPublicVisibilityMap: () => ({}), normalizeDbCourseForList: (course) => course, isCoursePubliclyVisible: () => true,
     isPublicCourseStatus: (status) => ["Public", "Yayımlandı"].includes(status),
-    publicCourseForRoute: () => ({ row: rows()[0], course: identity }),
+    publicCourseForRoute: () => ({ row: rows()[0], course: { ...identity, instructor: assignedInstructor } }),
   });
-  const names = ["sanitizeInstructorName", "isMeaningfulInstructorName", "repairObject", "packageWithCourseInstructor", "parseCoursePackageJson", "isVersionedCoursePackage", "compactCoursePackageEnvelope", "coursePackageRecords", "publicPackageRecordForRow", "editablePackageRecordForRow", "hasAnyCoursePackage", "packageJsonForDraft", "packageJsonForPublication", "expectedStatusesForTransition", "transitionCoursePackageStatus", "courseFromRow", "coursePackagePdfPayload", "handleDbpApi"];
+  const names = ["sanitizeInstructorName", "isMeaningfulInstructorName", "repairObject", "packageWithCourseIdentity", "packageWithCourseInstructor", "parseCoursePackageJson", "isVersionedCoursePackage", "compactCoursePackageEnvelope", "coursePackageRecords", "publicPackageRecordForRow", "editablePackageRecordForRow", "hasAnyCoursePackage", "packageJsonForDraft", "packageJsonForPublication", "expectedStatusesForTransition", "transitionCoursePackageStatus", "courseFromRow", "coursePackagePdfPayload", "handleDbpApi"];
   vm.runInContext(source.match(/const placeholderInstructorNames = new Set\([\s\S]*?\n\]\);/)[0] + '\nconst coursePackagePublicationModel = "published-draft-v1";\n' + names.map((name) => {
     assert.ok(declarations.has(name), name);
     return declarations.get(name);

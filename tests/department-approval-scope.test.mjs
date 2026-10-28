@@ -19,7 +19,7 @@ const instructor = { username: "teacher", name: "Ders Hocası", role: "akademisy
 function fixture(t, department = chair.department) {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
-  for (const table of ["programs", "courses", "committee_members", "course_review_assignees", "workflow_requests"]) {
+  for (const table of ["metadata", "programs", "courses", "committee_members", "course_review_assignees", "workflow_requests", "public_visibility"]) {
     const schema = source.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n    \\);`));
     assert.ok(schema, table);
     db.exec(schema[0]);
@@ -38,11 +38,16 @@ function fixture(t, department = chair.department) {
     declarations.map(([declaration]) => declaration).join("\n"), context);
   Object.assign(context, {
     repairText: (value = "") => String(value), repairObject: (value) => value,
+    isMeaningfulInstructorName: (value) => Boolean(value),
     ensureDb() {}, upsertSessionUser() {}, audit() {},
     stripBasePath: (pathname) => pathname.replace(/^\/dbp/, ""),
     requireDbpSession: () => ({ session }),
     readJsonBody: (request) => request.json(), jsonResponse: (value, init) => Response.json(value, init),
     displayLevel: (value) => value,
+    normalizeDbCourseForList: (course) => {
+      const edit = context.courseIdentityEditFor(course);
+      return edit ? { ...course, code: edit.code, name: edit.name } : course;
+    },
     courseCodeCandidates: (code) => [code], courseCodeMatchesLevel: () => true,
     // Keep fixtures focused on routing; production list rendering is tested separately.
     dbCourseListFromRows: (rows) => rows.map((row) => ({
@@ -93,6 +98,56 @@ test("all seven levels route from instructor to the shared İşletme committee a
     assert.equal(row.status, "Yayımlandı");
     assert.equal(JSON.parse(row.package_json).published.package.detailFields.content, identity.code);
   }
+});
+
+test("renaming a pending course preserves the frozen reviewers, history and publication, and approval continues with its new code", async (t) => {
+  const { db, context, identities, request } = fixture(t);
+  const identity = identities[3];
+  const content = { identity: { name: "Old academic name", code: "OLD801" }, detailFields: { purpose: "Saved academic content" } };
+  assert.equal((await request(instructor, "course-package", { ...identity, status: "Komisyon Onayı Bekliyor", package: content })).status, 200);
+  const before = db.prepare("SELECT * FROM courses WHERE code = ?").get(identity.code);
+  const history = db.prepare("SELECT * FROM workflow_requests ORDER BY id").all();
+  const reviewers = db.prepare("SELECT * FROM course_review_assignees ORDER BY id").all();
+  const renamed = { ...identity, code: "NEW801", name: "İdari Ders Adı" };
+  const response = await request({ role: "admin", username: "admin" }, "course-management", {
+    ...identity, action: "assign", courseId: before.id, newCode: renamed.code, name: renamed.name,
+  });
+  assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+  const after = db.prepare("SELECT * FROM courses WHERE id = ?").get(before.id);
+  assert.deepEqual({ ...after, name: before.name, code: before.code, updated_at: before.updated_at }, { ...before });
+  assert.deepEqual(db.prepare("SELECT * FROM workflow_requests ORDER BY id").all(), history);
+  assert.deepEqual(db.prepare("SELECT * FROM course_review_assignees ORDER BY id").all(), reviewers);
+  assert.equal(context.workflowTarget(renamed), context.workflowTarget(identity));
+  assert.equal(context.isCommitteeMemberForCourse(member, renamed), true);
+  const preview = await request(member, `course-package?${new URLSearchParams(renamed)}`);
+  const previewData = await preview.json();
+  assert.equal(previewData.package.identity.code, renamed.code);
+  assert.equal(previewData.package.identity.name, renamed.name);
+  assert.equal((await request(member, "course-package/status", { ...renamed, status: "ABD Son Onayı Bekliyor" })).status, 200);
+  assert.equal((await request(chair, "course-package/status", { ...renamed, status: "Yayımlandı" })).status, 200);
+  const published = db.prepare("SELECT * FROM courses WHERE id = ?").get(before.id);
+  assert.equal(published.status, "Yayımlandı");
+  assert.equal(JSON.parse(published.package_json).published.package.detailFields.purpose, content.detailFields.purpose);
+});
+
+test("package API ignores academic identity changes and retains the authoritative course identity", async (t) => {
+  const { db, identities, request } = fixture(t);
+  const identity = identities[0];
+  const response = await request(instructor, "course-package", {
+    ...identity, name: "Unauthorized name", status: "Taslak",
+    package: { name: "Unauthorized name", code: "OTHER801", identity: { name: "Unauthorized name", code: "OTHER801", language: "Türkçe" }, fields: { "Dersin Adı": "Unauthorized name", Kodu: "OTHER801" }, detailFields: { purpose: "Updated purpose" } },
+  });
+  assert.equal(response.status, 200);
+  const row = db.prepare("SELECT * FROM courses WHERE code = ?").get(identity.code);
+  assert.equal(row.name, identity.name);
+  const saved = JSON.parse(row.package_json).draft.package;
+  assert.equal(saved.identity.code, identity.code);
+  assert.equal(saved.identity.name, identity.name);
+  assert.equal(saved.identity.language, "Türkçe");
+  assert.equal(saved.fields["Dersin Adı"], identity.name);
+  assert.equal(saved.fields.Kodu, identity.code);
+  assert.equal(saved.detailFields.purpose, "Updated purpose");
+  assert.equal((await request(instructor, "course-management", { ...identity, action: "assign", name: "Unauthorized" })).status, 403);
 });
 
 test("committee and chair course lists contain every child branch, without unrelated ABD courses", (t) => {

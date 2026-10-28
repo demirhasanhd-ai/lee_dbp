@@ -317,13 +317,6 @@ function isCommonProcessCourse(course = {}) {
   return commonProcessCourseLabels.some((label) => normalizedName.includes(label));
 }
 
-function hasUserAssignedInstructor(course = {}) {
-  return Boolean(
-    isMeaningfulInstructorName(course.instructor || "") &&
-    (normalizeScope(course.instructor_source || "") || String(course.instructor_assigned_at || "").trim())
-  );
-}
-
 function repairObject(value, fieldName = "") {
   if (typeof value === "string") {
     const repaired = repairText(value);
@@ -336,7 +329,22 @@ function repairObject(value, fieldName = "") {
   return value;
 }
 
+function packageWithCourseIdentity(packageData = {}, course = {}) {
+  // Identity belongs to the administrative course record, including for old revisions.
+  if (course.code && typeof course.name === "string") {
+    packageData = {
+      ...packageData,
+      code: course.code,
+      name: course.name,
+      identity: { ...packageData.identity, code: course.code, name: course.name },
+      ...(packageData.fields ? { fields: { ...packageData.fields, "Dersin Adı": course.name, Kodu: course.code } } : {}),
+    };
+  }
+  return packageData;
+}
+
 function packageWithCourseInstructor(packageData = {}, course = {}) {
+  packageData = packageWithCourseIdentity(packageData, course);
   const instructor = sanitizeInstructorName(course.instructor || "");
   if (!isMeaningfulInstructorName(instructor)) return repairObject(packageData || {});
   const repairedPackage = repairObject(packageData || {});
@@ -1678,6 +1686,12 @@ function buildNewCourseImportPreview(rows, scope) {
     .filter((course) => normalizeScope(course.department) === normalizeScope(scope.department) &&
       normalizeScope(course.program_name) === normalizeScope(scope.programName) && levelKey(course.level) === levelKey(scope.level))
     .map((course) => codeKey(course.code)));
+  for (const edit of Object.values(courseIdentityEdits())) {
+    if (normalizeScope(edit.department) === normalizeScope(scope.department) &&
+        normalizeScope(edit.programName) === normalizeScope(scope.programName) && levelKey(edit.level) === levelKey(scope.level)) {
+      for (const alias of [edit.code, ...edit.aliases]) existingCodes.add(codeKey(alias));
+    }
+  }
   const items = rows.map(({ rowNumber, cells }) => {
     const errors = [];
     const code = cells["Ders Kodu"].toLocaleUpperCase("tr-TR");
@@ -2039,13 +2053,14 @@ function coursePackagePdfPayload({ code, name, department, programName, level, p
     };
     return repairObject({ course, package: packageWithCourseInstructor(storedPackageFromSeed(seedPackage, course), course) });
   }
+  const currentIdentity = normalizeDbCourseForList(courseFromRow(row)) || courseFromRow(row);
   const course = {
     academicYear: row.academic_year || "2026-2027",
     department: row.department || department || "",
     programName: row.program_name || programName || "",
     level: displayLevel(row.level || level || ""),
-    code: row.code || code,
-    name: row.name || name,
+    code: currentIdentity.code || code,
+    name: currentIdentity.name || name,
     type: row.type || "",
     credit: Number(row.credit || 0),
     ects: Number(row.ects || 0),
@@ -4289,8 +4304,110 @@ function isDepartmentPoolCourseRecord(course = {}) {
   return /^(?:DANIŞMANLIK|UZMANLIK ALAN DERSİ|(?:YÜKSEK LİSANS |DOKTORA )?SEMİNER|BİTİRME PROJESİ|DOKTORA YETERLİK|DOKTORA TEZİ|TEZ ÇALIŞMASI)$/u.test(name);
 }
 
+function courseIdentityEdits() {
+  // Existing metadata is included in database backups; no schema or startup data migration.
+  if (courseIdentityEdits.cache?.db === db) return courseIdentityEdits.cache.value;
+  const hasMetadata = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'metadata'").get();
+  const row = hasMetadata ? db.prepare("SELECT value FROM metadata WHERE key = ?").get("course_identity_edits_v1") : null;
+  const value = row ? JSON.parse(row.value) : {};
+  courseIdentityEdits.cache = { db, value };
+  return value;
+}
+
+function courseIdentityEditFor(course = {}) {
+  const edits = courseIdentityEdits();
+  if (course.id) return edits[course.id] || null;
+  // Code aliases must always be resolved within a complete program scope.
+  if (!course.department || !(course.programName || course.program_name) || !course.level) return null;
+  const code = normalizeScope(course.code || "");
+  return Object.values(edits).find((edit) =>
+    normalizeScope(edit.department) === normalizeScope(course.department) &&
+    normalizeScope(edit.programName) === normalizeScope(course.programName || course.program_name) &&
+    levelKey(edit.level) === levelKey(course.level) &&
+    [edit.code, ...edit.aliases].some((alias) => normalizeScope(alias) === code)
+  ) || null;
+}
+
+function updateManagedCourse(body, actor, now, instructorFields = {}) {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const scope = { code: body.code, department: body.department, programName: body.programName, level: body.level };
+    const rows = courseRowsForIdentity(scope);
+    const existing = body.courseId ? rows.find((row) => row.id === Number(body.courseId)) : rows[0];
+    const fail = (message, status) => { db.exec("ROLLBACK"); return { message, status }; };
+    if (!existing) return fail("Düzenlenecek ders kaydı bulunamadı.", 404);
+    const current = normalizeDbCourseForList(courseFromRow(existing)) || courseFromRow(existing);
+    if ((body.expectedCode !== undefined && body.expectedCode !== current.code) ||
+        (body.expectedName !== undefined && body.expectedName !== current.name)) {
+      return fail("Ders bilgileri başka bir işlemle değişti. Listeyi yenileyip tekrar deneyin.", 409);
+    }
+    // The previous assignment form sent name:null because it had no name input.
+    const name = Object.hasOwn(body, "name") && body.name !== null ? repairText(String(body.name || "")).trim() : current.name;
+    const code = Object.hasOwn(body, "newCode") ? repairText(String(body.newCode || "")).trim() : current.code;
+    if (!name || !code) return fail("Ders adı ve kodu boş bırakılamaz.", 422);
+    if (code !== current.code && !courseCodeMatchesLevel(code, body.level)) {
+      return fail("Ders kodu program düzeyiyle uyumlu değil: 700 Tezsiz YL, 800 Tezli YL, 900 Doktora olmalıdır.", 422);
+    }
+    const identityChanged = name !== current.name || code !== current.code;
+    if (code !== current.code) {
+      const collision = courseRowsForIdentity({ ...scope, code }).some((row) => row.id !== existing.id);
+      const visibleCollision = dbCourseList({ department: body.department, programName: body.programName, level: body.level })
+        .some((course) => course.id !== existing.id && normalizePublicRouteSegment(course.code) === normalizePublicRouteSegment(code));
+      const aliasCollision = Object.values(courseIdentityEdits()).some((edit) => edit.id !== existing.id &&
+        normalizeScope(edit.department) === normalizeScope(body.department) && normalizeScope(edit.programName) === normalizeScope(body.programName) &&
+        levelKey(edit.level) === levelKey(body.level) && [edit.code, ...edit.aliases].some((alias) => normalizePublicRouteSegment(alias) === normalizePublicRouteSegment(code)));
+      if (collision || visibleCollision || aliasCollision) return fail("Bu ders kodu seçilen program ve düzeyde zaten kullanılıyor.", 409);
+    }
+    const changes = { ...instructorFields };
+    if (Object.hasOwn(body, "term")) changes.term = body.term;
+    if (name !== current.name) changes.name = name;
+    if (code !== current.code) changes.code = code;
+    if (!Object.keys(changes).length) return fail("Kaydedilecek değişiklik bulunamadı.", 400);
+    if (identityChanged) {
+      const edits = courseIdentityEdits();
+      const previous = edits[existing.id];
+      if (code !== current.code) {
+        const visibility = getPublicVisibilityMap();
+        const upsertVisibility = db.prepare("INSERT OR REPLACE INTO public_visibility(key, visible, updated_at) VALUES (?, ?, ?)");
+        for (const [keyFor, defaultVisible] of [[courseVisibilityKeyFor, true], [courseContentVisibilityKeyFor, false]]) {
+          const oldKey = keyFor(current);
+          const newKey = keyFor({ ...current, code });
+          if (oldKey !== newKey && (Object.hasOwn(visibility, oldKey) || Object.hasOwn(visibility, newKey))) {
+            upsertVisibility.run(newKey, Number(visibility[oldKey] ?? defaultVisible), now);
+          }
+        }
+      }
+      const edit = {
+        id: existing.id,
+        department: existing.department, programName: existing.program_name, level: existing.level,
+        name, code, storedCode: changes.code || existing.code, workflowCode: previous?.workflowCode || current.code,
+        aliases: [...new Set([...(previous?.aliases || []), existing.code, current.code, code])],
+      };
+      db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)")
+        .run("course_identity_edits_v1", JSON.stringify({ ...edits, [existing.id]: edit }));
+    }
+    const columns = Object.keys(changes);
+    db.prepare(`UPDATE courses SET ${columns.map((column) => `${column} = ?`).join(", ")}, updated_at = ? WHERE id = ?`)
+      .run(...Object.values(changes), now, existing.id);
+    audit(identityChanged ? "course.identity.update" : Object.hasOwn(body, "instructor") ? "course.assignment.update" : "course.term.update", actor, {
+      courseId: existing.id, department: body.department, programName: body.programName, level: body.level,
+      code, ...(identityChanged ? { previousCode: current.code, previousName: current.name, name } : {}),
+      ...(Object.hasOwn(body, "term") ? { term: body.term } : {}),
+    });
+    db.exec("COMMIT");
+    courseIdentityEdits.cache = undefined;
+    publicCourseRouteIndexCache = undefined;
+    return { ok: true, changed: 1, code, name };
+  } catch (error) {
+    db.exec("ROLLBACK");
+    courseIdentityEdits.cache = undefined;
+    throw error;
+  }
+}
+
 function courseRowsForIdentity({ code = "", department = "", programName = "", level = "" }) {
-  const candidates = courseCodeCandidates(code);
+  const edited = courseIdentityEditFor({ code, department, programName, level });
+  const candidates = [...new Set([...courseCodeCandidates(code), ...(edited ? [edited.storedCode || edited.code] : [])])];
   if (!candidates.length) return [];
   const placeholders = candidates.map(() => "?").join(", ");
   const rows = db.prepare(`
@@ -4301,6 +4418,7 @@ function courseRowsForIdentity({ code = "", department = "", programName = "", l
   const departmentScope = normalizeScope(department);
   const programScope = normalizeScope(programName);
   return rows.filter((row) =>
+    (!edited || row.id === edited.id) &&
     (!level || levelKey(row.level) === levelKey(level)) &&
     (!departmentScope || normalizeScope(row.department) === departmentScope) &&
     (!programScope || normalizeScope(row.program_name) === programScope)
@@ -4636,11 +4754,13 @@ function isCommitteeMemberForCourse(session, body) {
 }
 
 function workflowTarget(body = {}) {
+  // Keep the original target: reviewer assignments and historical approvals are immutable.
+  const edit = courseIdentityEditFor(body);
   return [
     repairText(String(body.department || "")).trim(),
     repairText(String(body.programName || body.program_name || "")).trim(),
     displayLevel(body.level || ""),
-    repairText(String(body.code || "")).trim(),
+    edit?.workflowCode || repairText(String(body.code || "")).trim(),
   ].filter(Boolean).join(" | ");
 }
 
@@ -5571,7 +5691,9 @@ function roleAccessMap() {
 
 function modulesForRole(role) {
   const access = roleAccessMap();
-  return (access[role] || []).filter((module) =>
+  // Both stored keys referred to the same screen; report its current navigation key.
+  const modules = [...new Set((access[role] || []).map((module) => module === "user_roles" ? "permission_matrix" : module))];
+  return modules.filter((module) =>
     !["thesis_evaluations", "audit_logs"].includes(module) || role === "admin",
   ).filter((module) =>
     module !== "thesis_awards" || ["admin", "enstitu_yoneticisi"].includes(role),
@@ -6012,6 +6134,8 @@ function courseFromRow(row) {
 
 function normalizeDbCourseForList(course = {}) {
   const repaired = normalizeTezsizProjectInstructor(repairObject(course));
+  const edited = courseIdentityEditFor(repaired);
+  if (edited) return { ...repaired, name: edited.name, code: edited.code };
   if (isUnsupportedTezsizProcessCourse(repaired)) return null;
   const makineCourse = normalizeMakineTezliCourse(repaired);
   if (!makineCourse) return null;
@@ -6404,12 +6528,14 @@ function sessionScopedCourses(session) {
 }
 
 function findExactCourseRow(course) {
+  const edited = courseIdentityEditFor(course);
   const rows = db.prepare(`
     SELECT * FROM courses
     WHERE code = ?
     ORDER BY updated_at DESC, id DESC
-  `).all(course.code || "");
+  `).all(edited?.storedCode || edited?.code || course.code || "");
   return rows.find((row) =>
+    (!edited || row.id === edited.id) &&
     normalizeScope(row.department) === normalizeScope(course.department || "") &&
     normalizeScope(row.program_name) === normalizeScope(course.programName || "") &&
     levelKey(row.level) === levelKey(course.level || "")
@@ -6425,26 +6551,9 @@ function syncCourseCatalogFromSeed() {
     INSERT INTO courses(academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, source, package_json, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  const updateCourse = db.prepare(`
-    UPDATE courses
-    SET academic_year = ?,
-        program_code = ?,
-        name = ?,
-        type = ?,
-        credit = ?,
-        ects = ?,
-        theory = ?,
-        practice = ?,
-        term = ?,
-        status = CASE WHEN COALESCE(TRIM(status), '') = '' THEN ? ELSE status END,
-        instructor = ?,
-        source = CASE WHEN COALESCE(TRIM(source), '') = '' THEN ? ELSE source END,
-        package_json = ?,
-        updated_at = ?
-    WHERE id = ?
-  `);
   let inserted = 0;
-  let updated = 0;
+  const updated = 0;
+  // Existing administrative data, assignments, revisions and publication states are authoritative.
   db.exec("BEGIN");
   try {
     for (const course of officialCourses) {
@@ -6477,35 +6586,6 @@ function syncCourseCatalogFromSeed() {
         inserted += 1;
         continue;
       }
-      const currentPackageJson = existing.package_json || "{}";
-      const nextPackageJson =
-        seededPackageJson !== "{}" && (currentPackageJson === "{}" || isStaticSeedPackage(currentPackageJson))
-          ? seededPackageJson
-          : currentPackageJson;
-      const existingInstructor = sanitizeInstructorName(existing.instructor || "");
-      const nextInstructor = hasUserAssignedInstructor(existing)
-        ? existingInstructor
-        : isMeaningfulInstructorName(seededInstructor)
-          ? seededInstructor
-          : existingInstructor;
-      updateCourse.run(
-        course.academicYear || existing.academic_year || "",
-        course.programCode || existing.program_code || "",
-        course.name || existing.name || "",
-        course.type || existing.type || "",
-        Number(course.credit ?? existing.credit ?? 0),
-        Number(course.ects ?? existing.ects ?? 0),
-        Number(course.theory ?? existing.theory ?? 0),
-        Number(course.practice ?? existing.practice ?? 0),
-        course.term || existing.term || "",
-        nextPackageJson !== "{}" && !isStaticSeedPackage(nextPackageJson) ? existing.status : course.status || "İncelemede",
-        nextInstructor,
-        course.source || "course_catalog_sync",
-        nextPackageJson,
-        now,
-        existing.id,
-      );
-      updated += 1;
     }
     for (const packageSeed of packageSeeds) {
       const packageCourse = {
@@ -6527,18 +6607,7 @@ function syncCourseCatalogFromSeed() {
         source: "course_package_seed",
       };
       const existingPackageCourse = findExactCourseRow(packageCourse);
-      if (existingPackageCourse) {
-        if (
-          existingPackageCourse.source === "course_package_seed" &&
-          existingPackageCourse.name === existingPackageCourse.code &&
-          packageCourse.name !== packageCourse.code
-        ) {
-          db.prepare("UPDATE courses SET name = ?, updated_at = ? WHERE id = ?")
-            .run(packageCourse.name, now, existingPackageCourse.id);
-          updated += 1;
-        }
-        continue;
-      }
+      if (existingPackageCourse) continue;
       insertCourse.run(
         packageCourse.academicYear,
         packageCourse.programCode,
@@ -6562,12 +6631,6 @@ function syncCourseCatalogFromSeed() {
       );
       inserted += 1;
     }
-    db.prepare(`
-      UPDATE courses
-      SET status = 'Public', updated_at = ?
-      WHERE package_json LIKE '%"staticSeed":true%'
-        AND (status IS NULL OR TRIM(status) = '' OR status LIKE '%ncelemede%' OR status LIKE '%Atama%')
-    `).run(now);
     db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run("course_catalog_synced_at", now);
     audit("course_catalog.sync", "system", { inserted, updated, packages: packageSeeds.length });
     db.exec("COMMIT");
@@ -6579,7 +6642,10 @@ function syncCourseCatalogFromSeed() {
 
 // Seed revisions must never replace a package saved by an instructor.
 function seedPackageReplacementCondition() {
-  return `(package_json IS NULL OR TRIM(package_json) IN ('', '{}') OR
+  return `NOT EXISTS (
+    SELECT 1 FROM metadata WHERE key = 'course_identity_edits_v1'
+      AND json_type(value, '$."' || courses.id || '"') IS NOT NULL
+  ) AND (package_json IS NULL OR TRIM(package_json) IN ('', '{}') OR
     CASE WHEN json_valid(package_json) THEN
       json_extract(package_json, '$.staticSeed') = 1
       AND json_extract(package_json, '$.savedAt') IS NULL
@@ -8286,7 +8352,8 @@ function publicCourseRouteIndex() {
   const index = new Map();
   for (const row of rows) {
     const rawCode = repairText(row.code || "").trim().toLocaleUpperCase("tr-TR");
-    const routeCodes = new Set([rawCode, canonicalCourseCode(rawCode)]);
+    const edit = courseIdentityEditFor(row);
+    const routeCodes = new Set([rawCode, canonicalCourseCode(rawCode), ...(edit?.aliases || [])]);
     for (const routeCode of routeCodes) {
       const key = [
         normalizeScope(row.department),
@@ -8315,7 +8382,9 @@ function publicCourseForRoute({ routeCode = "", department = "", programName = "
   const rows = publicCourseRouteIndex().get(key) || [];
   for (const row of rows) {
     const course = normalizeDbCourseForList(courseFromRow(row));
-    if (!course || normalizePublicRouteSegment(course.code) !== normalizedRouteCode) continue;
+    if (!course) continue;
+    const edit = courseIdentityEditFor(row);
+    if (![course.code, ...(edit?.aliases || [])].some((code) => normalizePublicRouteSegment(code) === normalizedRouteCode)) continue;
     if (options.publicVisibleOnly && !isCoursePubliclyVisible(course)) continue;
     return { course, row };
   }
@@ -8726,10 +8795,22 @@ function ensureTestProgramData() {
 }
 
 function getPublicVisibilityMap() {
-  return Object.fromEntries(
+  const visibility = Object.fromEntries(
     db.prepare("SELECT key, visible FROM public_visibility").all()
       .map((row) => [row.key, Boolean(row.visible)]),
   );
+  // Expose the existing visibility settings under the current code, without changing stored settings.
+  for (const edit of Object.values(courseIdentityEdits())) {
+    for (const content of [false, true]) {
+      const keyFor = content ? courseContentVisibilityKeyFor : courseVisibilityKeyFor;
+      const key = keyFor(edit);
+      if (Object.hasOwn(visibility, key)) continue;
+      const previousKey = [...edit.aliases].reverse().map((code) => keyFor({ ...edit, code }))
+        .find((aliasKey) => Object.hasOwn(visibility, aliasKey));
+      if (previousKey) visibility[key] = visibility[previousKey];
+    }
+  }
+  return visibility;
 }
 
 function canManagePublicVisibility(session) {
@@ -8860,6 +8941,8 @@ function replaceFromExport(payload, actor = "admin") {
   if (!payload?.tables || !Array.isArray(payload.tables.programs) || !Array.isArray(payload.tables.courses)) {
     throw new Error("Geçersiz DBP yedek dosyası.");
   }
+  courseIdentityEdits.cache = undefined;
+  publicCourseRouteIndexCache = undefined;
   const now = new Date().toISOString();
   db.exec("BEGIN");
   try {
@@ -9029,6 +9112,8 @@ function replaceFromExport(payload, actor = "admin") {
     db.exec("ROLLBACK");
     throw error;
   }
+  courseIdentityEdits.cache = undefined;
+  publicCourseRouteIndexCache = undefined;
   seedDefaultRoleAccess();
   ensureTestProgramData();
 }
@@ -9036,6 +9121,7 @@ function replaceFromExport(payload, actor = "admin") {
 function resetDatabase(actor) {
   db.exec("BEGIN");
   try {
+    db.prepare("DELETE FROM metadata WHERE key = ?").run("course_identity_edits_v1");
     for (const table of ["committee_members", "course_review_assignees", "programs", "program_profiles", "courses", "public_visibility", "workflow_requests", "attachments", "audit_logs", "page_view_events", "page_view_monthly_stats", "thesis_manual_records", "thesis_publications", "thesis_academic_activities", "thesis_jury_evaluations"]) {
       db.exec(`DELETE FROM ${table}`);
     }
@@ -9046,6 +9132,8 @@ function resetDatabase(actor) {
     db.exec("ROLLBACK");
     throw error;
   }
+  courseIdentityEdits.cache = undefined;
+  publicCourseRouteIndexCache = undefined;
   ensureTestProgramData();
 }
 
@@ -9788,7 +9876,7 @@ async function handleDbpApi(request) {
       if (!code || !body.department || !body.programName) {
         return jsonResponse({ message: "Ders kodu, ABD/ASD ve program zorunludur." }, { status: 400 });
       }
-      if (!courseCodeMatchesLevel(code, level)) {
+      if (body.action !== "assign" && !courseCodeMatchesLevel(code, level)) {
         return jsonResponse({ message: "Ders kodu program düzeyiyle uyumlu değil: 700 Tezsiz YL, 800 Tezli YL, 900 Doktora olmalıdır." }, { status: 422 });
       }
       const hasTerm = Object.hasOwn(body, "term");
@@ -9797,44 +9885,19 @@ async function handleDbpApi(request) {
         return jsonResponse({ message: "Dersin dönemi Güz, Bahar veya Güz ve Bahar olarak seçilmelidir." }, { status: 422 });
       }
       if (body.action === "assign") {
-        const existing = findExactCourseRow({ code, department: body.department, programName: body.programName, level });
-        if (!existing) return jsonResponse({ message: "Düzenlenecek ders kaydı bulunamadı." }, { status: 404 });
-        // A term-only edit must not overwrite an instructor assigned by another user.
-        if (!Object.hasOwn(body, "instructor")) {
-          if (!hasTerm) return jsonResponse({ message: "Dönem veya öğretim elemanı bilgisi gereklidir." }, { status: 400 });
-          const result = db.prepare("UPDATE courses SET term = ?, updated_at = ? WHERE id = ?").run(term, now, existing.id);
-          audit("course.term.update", actor, { code, department: body.department, programName: body.programName, level, term });
-          publicCourseRouteIndexCache = undefined;
-          return jsonResponse({ ok: true, changed: result.changes });
-        }
-        const resolvedInstructor = body.instructor
+        const resolvedInstructor = Object.hasOwn(body, "instructor") && body.instructor
           ? await resolveInstructorIdentityFromName(body.instructor, { department: body.department, programName: body.programName })
           : {};
-        const result = db.prepare(`
-          UPDATE courses
-          SET instructor = ?,
-              instructor_tc_kimlik = ?,
-              instructor_email = ?,
-              instructor_title = ?,
-              instructor_source = ?,
-              instructor_assigned_at = ?,
-              term = COALESCE(?, term),
-              updated_at = ?
-          WHERE id = ?
-        `).run(
-          body.instructor || "",
-          body.instructorTcKimlik || resolvedInstructor.instructorTcKimlik || "",
-          body.instructorEmail || resolvedInstructor.instructorEmail || "",
-          body.instructorTitle || resolvedInstructor.instructorTitle || "",
-          body.instructorSource || resolvedInstructor.instructorSource || (body.instructor ? "manual" : ""),
-          body.instructor ? now : "",
-          term ?? null,
-          now,
-          existing.id,
-        );
-        audit("course.assignment.update", actor, { code, department: body.department, programName: body.programName, level, ...(hasTerm ? { term } : {}) });
-        publicCourseRouteIndexCache = undefined;
-        return jsonResponse({ ok: true, changed: result.changes });
+        const instructorFields = Object.hasOwn(body, "instructor") ? {
+          instructor: body.instructor || "",
+          instructor_tc_kimlik: body.instructorTcKimlik || resolvedInstructor.instructorTcKimlik || "",
+          instructor_email: body.instructorEmail || resolvedInstructor.instructorEmail || "",
+          instructor_title: body.instructorTitle || resolvedInstructor.instructorTitle || "",
+          instructor_source: body.instructorSource || resolvedInstructor.instructorSource || (body.instructor ? "manual" : ""),
+          instructor_assigned_at: body.instructor ? now : "",
+        } : {};
+        const result = updateManagedCourse({ ...body, code, level, ...(hasTerm ? { term } : {}) }, actor, now, instructorFields);
+        return jsonResponse(result, { status: result.ok ? 200 : result.status });
       }
       const existing = findExactCourseRow({ code, department: body.department, programName: body.programName, level });
       if (existing) return jsonResponse({ message: "Bu ders kodu seçilen program ve düzeyde zaten bulunuyor." }, { status: 409 });
@@ -9890,9 +9953,7 @@ async function handleDbpApi(request) {
       return jsonResponse({
         course: found.course,
         package: publicRecord?.package
-          ? packageWithCourseInstructor(publicRecord.package, {
-            instructor: found.row.instructor || "",
-          })
+          ? packageWithCourseInstructor(publicRecord.package, found.course)
           : null,
         status: repairText(found.row.status || ""),
         updatedAt: found.row.updated_at,
@@ -9934,9 +9995,7 @@ async function handleDbpApi(request) {
         }, { headers: { "Cache-Control": "no-store" } });
       }
       const packageRecord = publicOnly ? publicPackageRecordForRow(row) : editablePackageRecordForRow(row);
-      const course = {
-        instructor: row.instructor || "",
-      };
+      const course = normalizeDbCourseForList(courseFromRow(row)) || courseFromRow(row);
       return jsonResponse({
         package: packageRecord?.package ? packageWithCourseInstructor(packageRecord.package, course) : null,
         status: repairText(row.status || ""),
@@ -9975,80 +10034,20 @@ async function handleDbpApi(request) {
       const committeeExists = submittedForCommittee && committeeMembersAtSubmit.length > 0;
       const actualStatus = submittedForCommittee && !committeeExists ? "ABD Son Onayı Bekliyor" : body.status || "Taslak";
 
-      let update = { changes: 0 };
-      if (matchingRows.length) {
-        const updateById = db.prepare(`
-          UPDATE courses
-          SET status = ?, package_json = ?, updated_at = ?
-          WHERE id = ?
-        `);
-        let changes = 0;
-        for (const row of matchingRows) {
-          changes += updateById.run(
-            actualStatus,
-            packageJsonForDraft(row.package_json, body.package || {}, actualStatus, actor, now, row.status || "", row.updated_at || ""),
-            now,
-            row.id,
-          ).changes;
-        }
-        update = { changes };
-      }
-
-      if (!update.changes) update = db.prepare(`
-        UPDATE courses
-        SET name = ?, status = ?, package_json = ?, updated_at = ?
-        WHERE code = ?
-          AND (? = '' OR department = ?)
-          AND (? = '' OR program_name = ?)
-          AND level = ?
-      `).run(
-        body.name,
-        actualStatus,
-        packageJsonForDraft("{}", body.package || {}, actualStatus, actor, now),
-        now,
-        body.code,
-        body.department || "",
-        body.department || "",
-        body.programName || "",
-        body.programName || "",
-        level,
-      );
-
-      if (!update.changes) {
-        const codeLevelMatches = db.prepare("SELECT id, status, package_json, updated_at FROM courses WHERE code = ? AND level = ?").all(body.code, level);
-        if (codeLevelMatches.length === 1) {
-          update = db.prepare(`
-            UPDATE courses
-            SET name = ?, status = ?, package_json = ?, updated_at = ?
-            WHERE id = ?
-          `).run(
-            body.name,
-            actualStatus,
-            packageJsonForDraft(codeLevelMatches[0].package_json, body.package || {}, actualStatus, actor, now, codeLevelMatches[0].status || "", codeLevelMatches[0].updated_at || ""),
-            now,
-            codeLevelMatches[0].id,
-          );
-        }
-      }
-
-      if (!update.changes) {
-        db.prepare(`
-          INSERT INTO courses(academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, source, package_json, created_at, updated_at)
-          VALUES (?, '', ?, ?, ?, ?, ?, '', 0, 0, 0, 0, '', ?, ?, 'panel', ?, ?, ?)
-        `).run(
-          body.academicYear || "2026-2027",
-          body.department || "",
-          body.programName || "",
-          level,
-          body.code,
-          body.name,
+      if (!matchingRows.length) return jsonResponse({ message: "Düzenlenecek ders kaydı bulunamadı." }, { status: 404 });
+      const updateById = db.prepare(`
+        UPDATE courses SET status = ?, package_json = ?, updated_at = ? WHERE id = ?
+      `);
+      for (const row of matchingRows) {
+        const course = normalizeDbCourseForList(courseFromRow(row)) || courseFromRow(row);
+        const packageData = packageWithCourseIdentity(body.package || {}, course);
+        updateById.run(
           actualStatus,
-          actor,
-          packageJsonForDraft("{}", body.package || {}, actualStatus, actor, now),
-          now,
-          now,
+          packageJsonForDraft(row.package_json, packageData, actualStatus, actor, now, row.status || "", row.updated_at || ""),
+          now, row.id,
         );
       }
+
       audit("course.package.save", actor, { code: body.code, department: body.department || "", level, status: actualStatus });
       if (submittedForCommittee) {
         recordWorkflowRequest({

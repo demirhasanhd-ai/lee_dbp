@@ -38,6 +38,7 @@
 @import "./program-directory.css";
 @import "./public-program.css";
 @import "./course-create-programs.css";
+@import "./course-management.css";
 @import "./course-table-proportions.css";
 @import "./course-table-fit.css";
 @import "./quality-dashboard.css";
@@ -48,6 +49,7 @@
 @import "./publish-control.css";
 @import "./quality-reports.css";
 @import "./database-admin.css";
+@import "./role-permissions.css";
 @import "./demo-course-package.css";
 @import "./package-print-button.css";
 @import "./package-instructor.css";

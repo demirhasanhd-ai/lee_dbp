@@ -17,6 +17,8 @@ function fixture(t, role = "enstitu_yoneticisi") {
     status TEXT, instructor TEXT, instructor_tc_kimlik TEXT, instructor_email TEXT, instructor_title TEXT,
     instructor_source TEXT, instructor_assigned_at TEXT, source TEXT, package_json TEXT, created_at TEXT, updated_at TEXT
   );
+  CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  CREATE TABLE public_visibility (key TEXT PRIMARY KEY, visible INTEGER, updated_at TEXT);
   CREATE TABLE workflow_requests (id INTEGER PRIMARY KEY, course_id INTEGER, status TEXT);
   CREATE TABLE course_review_assignees (id INTEGER PRIMARY KEY, course_id INTEGER, member TEXT);
   INSERT INTO workflow_requests VALUES (1, 1, 'Komisyon Onayı Bekliyor');
@@ -34,6 +36,10 @@ function fixture(t, role = "enstitu_yoneticisi") {
     requireDbpSession: () => ({ session: { role, username: "test-user" } }),
     readJsonBody: (request) => request.json(), jsonResponse: (data, init) => Response.json(data, init),
     displayLevel: (value) => value, repairText: (value) => value, courseCodeMatchesLevel: () => true,
+    repairObject: (value) => value,
+    normalizeScope: (value = "") => value.trim().toLocaleLowerCase("tr-TR"), levelKey: (value) => value,
+    courseCodeCandidates: (code) => [code], normalizeDbCourseForList: (course) => course,
+    dbCourseList: () => db.prepare("SELECT * FROM courses").all().map((row) => context.courseFromRow(row)),
     findExactCourseRow: (query) => db.prepare("SELECT * FROM courses WHERE code = ? AND department = ? AND program_name = ? AND level = ?")
       .get(query.code, query.department, query.programName, query.level),
     resolveInstructorIdentityFromName: async () => { resolutions++; return { instructorEmail: "new@example.test" }; },
@@ -42,7 +48,9 @@ function fixture(t, role = "enstitu_yoneticisi") {
     buildCourseAssignmentImportPreview: () => ({ rowsRead: 1 }),
     applyCourseAssignmentImport: () => ({ changed: 1 }),
   });
-  vm.runInContext(handler, context);
+  const declarations = new Map([...source.matchAll(/^(?:async )?function (\w+)\([^\n]*\) \{[\s\S]*?^\}/gm)].map((match) => [match[1], match[0]]));
+  vm.runInContext(["courseIdentityEdits", "courseIdentityEditFor", "courseRowsForIdentity", "updateManagedCourse", "courseFromRow", "getPublicVisibilityMap", "courseVisibilityKeyFor", "courseContentVisibilityKeyFor", "programLevelVisibilityKeyFromKey", "programVisibilityKeyFor", "visibilitySlug"]
+    .map((name) => declarations.get(name)).join("\n") + "\n" + declarations.get("normalizePublicRouteSegment") + "\n" + handler, context);
   const request = (body, path = "course-management", method = "POST") => context.handleDbpApi(new Request(`http://localhost/dbp/api/dbp/${path}`, {
     method, headers: { "Content-Type": "application/json" }, ...(method === "GET" ? {} : { body: JSON.stringify(body) }),
   }));
@@ -94,6 +102,8 @@ test("teacher-only legacy requests preserve term; combined requests update term 
   assert.equal(row().instructor, "Other Instructor");
   assert.equal(row().status, before.status);
   assert.equal(row().package_json, before.package_json);
+  assert.equal((await request({ ...identity, action: "assign", name: null, term: "Bahar" })).status, 200);
+  assert.equal(row().name, before.name, "old assignment forms send a null name and must preserve it");
 });
 
 test("invalid, empty or incorrectly scoped updates leave all stored fields unchanged", async (t) => {
@@ -115,4 +125,58 @@ test("course editing and bulk assignment APIs allow institute managers and keep 
     }
     if (!allowed) assert.deepEqual(row(), before);
   }
+});
+
+test("name and code edits preserve every other course field, both package revisions, assignments and approvals", async (t) => {
+  for (const status of ["Taslak", "Komisyon Onayı Bekliyor", "ABD Son Onayı Bekliyor", "Yayımlandı", "Public", "Düzeltme İstendi"]) {
+    const { db, request, row, resolutions } = fixture(t);
+    db.prepare("UPDATE courses SET status = ? WHERE id = 1").run(status);
+    db.exec("INSERT INTO courses(id, code, name, department, program_name, level) VALUES (2, 'MAT866', 'Unrelated', 'Matematik ABD', 'Matematik', 'Tezli Yüksek Lisans')");
+    const before = row();
+    const other = db.prepare("SELECT * FROM courses WHERE id = 2").get();
+    const approvals = db.prepare("SELECT * FROM workflow_requests").all();
+    const reviewers = db.prepare("SELECT * FROM course_review_assignees").all();
+    const response = await request({ ...identity, action: "assign", courseId: 1, newCode: "MAT868", name: "Yeni Ders Adı", expectedCode: before.code, expectedName: before.name });
+    assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+    const after = row();
+    assert.equal(after.code, "MAT868");
+    assert.equal(after.name, "Yeni Ders Adı");
+    assert.deepEqual({ ...after, code: before.code, name: before.name, updated_at: before.updated_at }, { ...before });
+    assert.deepEqual(db.prepare("SELECT * FROM courses WHERE id = 2").get(), other);
+    assert.deepEqual(db.prepare("SELECT * FROM workflow_requests").all(), approvals);
+    assert.deepEqual(db.prepare("SELECT * FROM course_review_assignees").all(), reviewers);
+    assert.equal(resolutions(), 0);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM courses").get().n, 2);
+  }
+});
+
+test("identity edits reject collisions, stale forms and empty fields atomically", async (t) => {
+  const { db, request, row, context } = fixture(t);
+  db.exec("INSERT INTO courses(id, code, name, department, program_name, level) VALUES (2, 'MAT868', 'Other', 'Matematik ABD', 'Matematik', 'Tezli Yüksek Lisans')");
+  const before = row();
+  for (const [fields, status] of [
+    [{ newCode: "MAT868" }, 409], [{ name: "" }, 422], [{ newCode: "" }, 422],
+    [{ expectedName: "Stale name", name: "Changed" }, 409], [{ expectedCode: "MAT899", name: "Changed" }, 409],
+    [{ courseId: 2, newCode: "MAT870" }, 404],
+  ]) {
+    const response = await request({ ...identity, action: "assign", term: "Bahar", ...fields });
+    assert.equal(response.status, status, JSON.stringify(await response.clone().json()));
+    assert.deepEqual(row(), before);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM metadata").get().n, 0);
+  }
+  context.courseCodeMatchesLevel = () => false;
+  assert.equal((await request({ ...identity, action: "assign", newCode: "MAT901", term: "Bahar" })).status, 422);
+  assert.deepEqual(row(), before);
+});
+
+test("combined identity, term and instructor edit commits once and keeps academic content and publication", async (t) => {
+  const { request, row } = fixture(t);
+  const before = row();
+  assert.equal((await request({ ...identity, action: "assign", newCode: "MAT868", name: "New name", term: "Bahar", instructor: "New Instructor" })).status, 200);
+  const after = row();
+  assert.equal(after.instructor, "New Instructor");
+  assert.equal(after.term, "Bahar");
+  assert.equal(after.package_json, before.package_json);
+  assert.equal(after.status, before.status);
+  assert.equal(after.created_at, before.created_at);
 });

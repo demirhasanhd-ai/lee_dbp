@@ -26,6 +26,7 @@ const seedUpdates = declarations.filter((item) => /^migrate.*FromSeed$/.test(ite
 );
 
 function schema(db) {
+  db.exec("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT)");
   db.exec("CREATE TABLE courses (id INTEGER PRIMARY KEY, name TEXT, credit REAL, ects REAL, theory REAL, practice REAL, term TEXT, instructor TEXT, status TEXT, package_json TEXT, updated_at TEXT)");
 }
 
@@ -67,7 +68,6 @@ test("startup package bootstrap preserves current drafts, approvals, assignments
   const db = new DatabaseSync(":memory:");
   schema(db);
   db.exec(`
-    CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT);
     CREATE TABLE workflow_requests (target TEXT, status TEXT, note TEXT);
     CREATE TABLE course_review_assignees (course_id INTEGER, member_name TEXT, stage TEXT);
     INSERT INTO workflow_requests VALUES ('ABC801', 'Komisyon Onayı Bekliyor', 'Teacher submitted revision');

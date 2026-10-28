@@ -138,12 +138,13 @@ export function DemoCoursePackage({
   programName = "",
   level = "",
 }: DemoCoursePackageProps) {
-  const displayCode = repairText(code);
+  const lookupCode = repairText(code);
   const staticPackage = useMemo(
-    () => getCoursePackage(displayCode, department, programName),
-    [department, displayCode, programName],
+    () => getCoursePackage(lookupCode, department, programName),
+    [department, lookupCode, programName],
   );
   const [saved, setSaved] = useState<PublicSavedPackage | null>(null);
+  const displayCode = repairText(saved?.package.code || lookupCode);
   const hasPublicIdentity = Boolean(department && programName && level);
   const [publicLookupComplete, setPublicLookupComplete] = useState(!hasPublicIdentity);
   useEffect(() => {
@@ -153,7 +154,7 @@ export function DemoCoursePackage({
       return;
     }
     setPublicLookupComplete(false);
-    const query = new URLSearchParams({ code: displayCode, department, programName, level, public: "1" });
+    const query = new URLSearchParams({ code: lookupCode, department, programName, level, public: "1" });
     const controller = new AbortController();
     fetch(`${dbpPath("/api/dbp/course-package")}?${query}`, { signal: controller.signal })
       .then(async (response) => response.ok ? response.json() : null)
@@ -172,7 +173,7 @@ export function DemoCoursePackage({
         setPublicLookupComplete(true);
       });
     return () => controller.abort();
-  }, [department, displayCode, hasPublicIdentity, level, name, programName, staticPackage]);
+  }, [department, lookupCode, hasPublicIdentity, level, name, programName, staticPackage]);
   const displayName = repairText(saved?.name ?? staticPackage?.name ?? name);
   const displayType = repairText(type);
   if (hasPublicIdentity && !saved) {

@@ -18,7 +18,6 @@ import {
   ShieldCheck,
   Trophy,
   UserCog,
-  Users,
 } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import {
@@ -29,7 +28,7 @@ import {
 import { DBP_ROLES, DBP_ROLE_KEYS, type DbpRole } from "../../lib/auth/roles";
 import { ProgramProfileEditor } from "./ProgramProfileEditor";
 import { CourseBolognaEditor } from "./CourseBolognaEditor";
-import { CourseCreateDialog } from "./CourseCreateDialog";
+import { CourseManagementPage } from "./CourseManagementPage";
 import { ProgramPublishControl } from "./ProgramPublishControl";
 import { QualityReports } from "./QualityReports";
 import { ReviewQueue } from "./ReviewQueue";
@@ -62,6 +61,7 @@ type Session = {
   proof?: string;
 };
 type Course = {
+  id?: number;
   code: string;
   name: string;
   status: string;
@@ -90,6 +90,11 @@ type CommitteeMembership = {
 };
 type RoleAccess = Record<DbpRole, DbpModule[]>;
 const moduleKeys = Object.keys(DBP_MODULES) as DbpModule[];
+// Keep the legacy key in saved payloads, but expose the shared screen only once.
+const visibleModuleKeys = moduleKeys.filter((module) => module !== "user_roles");
+const navigationModules = (modules: DbpModule[]) => [...new Set(modules.map((module) =>
+  module === "user_roles" ? "permission_matrix" as DbpModule : module,
+))];
 const courseEntryGuideHref = dbpPath("/ders-bilgi-girisi-kullanim-kilavuzu.pdf");
 const programEntryGuideHref = dbpPath("/program-bilgileri-girisi-kilavuzu.pdf");
 const cloneDefaultRoleAccess = (): RoleAccess =>
@@ -238,6 +243,7 @@ const panelLevel = (level: string): Course["level"] => {
   return levels[2];
 };
 const toPanelCourse = (course: DbpCourse): Course => ({
+  id: course.id,
   code: course.code,
   name: course.name,
   status: course.status,
@@ -332,7 +338,7 @@ export function RoleDashboard() {
   const [saveMessage, setSaveMessage] = useState("Değişiklikler kaydedildi.");
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedProgram, setSelectedProgram] = useState<LeeProgram | null>(null);
-  const [showCourseCreate, setShowCourseCreate] = useState(false);
+  const [showCourseManagement, setShowCourseManagement] = useState(false);
   const [showProgramCreate, setShowProgramCreate] = useState(false);
   const [assignCourse, setAssignCourse] = useState<Course | null>(null);
   const [assignmentMessage, setAssignmentMessage] = useState("");
@@ -381,7 +387,7 @@ export function RoleDashboard() {
       const fallbackAccess = cloneDefaultRoleAccess();
       setRoleAccess(fallbackAccess);
       setPermissionDraft(fallbackAccess);
-      setActive(fallbackAccess[normalizedValue.role][0] || "my_courses");
+      setActive(navigationModules(fallbackAccess[normalizedValue.role])[0] || "my_courses");
       const accessEndpoint =
         normalizedValue.role === "admin"
           ? "/api/dbp/admin/role-module-access"
@@ -403,10 +409,11 @@ export function RoleDashboard() {
             const normalizedAccess = normalizeRoleAccessPayload(data.access);
             setRoleAccess(normalizedAccess);
             setPermissionDraft(normalizedAccess);
+            const availableModules = navigationModules(normalizedAccess[normalizedValue.role]);
             setActive((current) =>
-              normalizedAccess[normalizedValue.role].includes(current)
+              availableModules.includes(current)
                 ? current
-                : normalizedAccess[normalizedValue.role][0] || current,
+                : availableModules[0] || "my_courses",
             );
             return;
           }
@@ -415,8 +422,9 @@ export function RoleDashboard() {
               typeof module === "string" && moduleKeys.includes(module as DbpModule),
             );
             setRoleAccess((current) => ({ ...current, [normalizedValue.role]: normalizedModules }));
+            const availableModules = navigationModules(normalizedModules);
             setActive((current) =>
-              normalizedModules.includes(current) ? current : normalizedModules[0] || current,
+              availableModules.includes(current) ? current : availableModules[0] || "my_courses",
             );
           }
         })
@@ -544,7 +552,8 @@ export function RoleDashboard() {
   const displayedCatalogCourses = catalogIsCurrent ? catalogCourses : [];
   const displayedCatalogPrograms = catalogIsCurrent ? catalogPrograms : [];
   const catalogBusy = catalogLoading || !catalogIsCurrent;
-  const baseModules = roleAccess[session.role] ?? DEFAULT_ROLE_ACCESS[session.role];
+  const baseModules = navigationModules(roleAccess[session.role] ?? DEFAULT_ROLE_ACCESS[session.role]);
+  const showingPermissionMatrix = !showCourseManagement && active === "permission_matrix";
   const modules = committeeMemberships.length > 0 && !baseModules.includes("commission_review")
     ? [...baseModules, "commission_review" as DbpModule]
     : baseModules;
@@ -559,6 +568,7 @@ export function RoleDashboard() {
       const modulesForRole = new Set(current[role]);
       if (checked) modulesForRole.add(module);
       else modulesForRole.delete(module);
+      if (module === "permission_matrix" && !checked) modulesForRole.delete("user_roles");
       return { ...current, [role]: moduleKeys.filter((item) => modulesForRole.has(item)) };
     });
   };
@@ -758,7 +768,12 @@ export function RoleDashboard() {
     ]);
     downloadXlsx([headers, ...rows], `${filenamePart("tum-programlar")}-ders-listesi.xlsx`);
   };
+  const openCourseManagement = () => {
+    setShowCourseManagement(true);
+    window.scrollTo({ top: 0 });
+  };
   const changeModule = (module: DbpModule) => {
+    setShowCourseManagement(false);
     setActive(module);
     setSelectedCourse(null);
     setSelectedProgram(null);
@@ -839,7 +854,7 @@ export function RoleDashboard() {
     </section>
   );
   return (
-    <main className="role-dashboard">
+    <main className={`role-dashboard${showCourseManagement ? " has-course-management" : ""}${showingPermissionMatrix ? " has-role-permissions" : ""}`}>
       <aside className="panel-sidebar">
         <a className="panel-brand" href={dbpPath("/")}>
           <img src={dbpPath("/oku-logo.png")} alt="OKÜ" />
@@ -852,7 +867,7 @@ export function RoleDashboard() {
           {modules.map((module) => (
             <Fragment key={module}>
               <button
-                className={active === module ? "active" : ""}
+                className={!showCourseManagement && active === module ? "active" : ""}
                 onClick={() => changeModule(module)}
               >
                 {module === "my_courses" ? (
@@ -865,8 +880,6 @@ export function RoleDashboard() {
                   <ClipboardList size={16} />
                 ) : module === "permission_matrix" ? (
                   <Settings size={16} />
-                ) : module === "user_roles" ? (
-                  <Users size={16} />
                 ) : module === "quality_reports" ? (
                   <ShieldCheck size={16} />
                 ) : module === "thesis_evaluations" ? (
@@ -884,17 +897,18 @@ export function RoleDashboard() {
               </button>
               {module === "my_courses" && canManageCourses && (
                 <button
-                  className="sidebar-course-create"
-                  onClick={() => setShowCourseCreate(true)}
+                  className={`sidebar-course-create${showCourseManagement ? " active" : ""}`}
+                  aria-current={showCourseManagement ? "page" : undefined}
+                  onClick={openCourseManagement}
                 >
-                  <Plus size={15} />
+                  <Plus size={16} />
                   <span>Ders Düzenleme</span>
                 </button>
               )}
             </Fragment>
           ))}
         </nav>
-        <a className="logout return-to-eenstitu" href={eEnstituDbpUrl} onClick={() => {
+        <a className="logout return-to-eenstitu" aria-label="e-Enstitüye Dön" href={eEnstituDbpUrl} onClick={() => {
           void fetch(dbpPath("/api/dbp/session/events"), {
             method: "POST", keepalive: true,
             headers: { "Content-Type": "application/json", "X-DBP-Session": dbpSessionHeader(session) },
@@ -905,12 +919,12 @@ export function RoleDashboard() {
           e-Enstitüye Dön
         </a>
       </aside>
-      <section className="panel-main">
+      <section className={`panel-main${showCourseManagement ? " has-course-management" : ""}${showingPermissionMatrix ? " has-role-permissions" : ""}`}>
         <header className="panel-header">
           <div>
             <small>{session.department}</small>
             <h1>
-              {selectedCourse
+              {showCourseManagement ? "Ders Düzenleme" : selectedCourse
                 ? `${selectedCourse.code} Ders Bilgi Girişi`
                 : selectedProgram
                   ? selectedProgram.programName
@@ -928,7 +942,7 @@ export function RoleDashboard() {
             </div>
           </div>
         </header>
-        {active === "program_profile" && (
+        {!showCourseManagement && active === "program_profile" && (
           <a
             className="course-entry-guide-download"
             href={programEntryGuideHref}
@@ -945,13 +959,14 @@ export function RoleDashboard() {
           </div>
         )}
         {catalogMessage && <div className="database-message">{catalogMessage}</div>}
-        <CourseCreateDialog
-          open={showCourseCreate}
-          onClose={() => setShowCourseCreate(false)}
-          onCreated={save}
+        <CourseManagementPage
+          active={showCourseManagement && canManageCourses}
+          onBack={() => changeModule("my_courses")}
+          onSaved={save}
           session={session}
           catalogCourses={displayedCatalogCourses}
         />
+        {!showCourseManagement && <>
         {showProgramCreate && (
           <div className="course-dialog-backdrop" role="presentation">
             <section className="course-create-dialog" role="dialog" aria-modal="true" aria-labelledby="program-create-title">
@@ -1066,7 +1081,7 @@ export function RoleDashboard() {
                 <button
                   className="primary-action"
                   type="button"
-                  onClick={() => setShowCourseCreate(true)}
+                  onClick={openCourseManagement}
                 >
                   <Plus size={15} />
                   Ders Düzenleme
@@ -1274,8 +1289,8 @@ export function RoleDashboard() {
         {active === "view_stats_admin" && <ViewStatsAdminPanel />}
         {active === "database_admin" && <DatabaseAdminPanel />}
         {active === "audit_logs" && session.role === "admin" && <AuditLogsPanel />}
-        {(active === "permission_matrix" || active === "user_roles") && (
-          <section>
+        {active === "permission_matrix" && (
+          <section className="role-permissions">
             <div className="panel-intro">
               <div>
                 <h2>Rol ve yetki dağılımı</h2>
@@ -1289,21 +1304,24 @@ export function RoleDashboard() {
               </button>
             </div>
             {permissionMessage && <div className="database-message">{permissionMessage}</div>}
-            <div className="permission-table">
-              <div className="permission-head">
-                <span>Rol</span>
-                {Object.values(DBP_MODULES).map((label) => (
-                  <small key={label}>{label}</small>
-                ))}
-              </div>
+            <p className="role-permissions-hint">Her sütun bir modülün erişim yetkisini gösterir. Diğer modülleri görmek için tabloyu yatay kaydırabilirsiniz.</p>
+            <div className="role-permissions-scroll" role="region" aria-label="Rol ve modül yetkileri" tabIndex={0}>
+              <table className="role-permissions-table" style={{ minWidth: 180 + visibleModuleKeys.length * 132 }}>
+                <colgroup><col className="role-permissions-role-column" /><col span={visibleModuleKeys.length} /></colgroup>
+                <thead><tr>
+                  <th scope="col">Rol</th>
+                  {visibleModuleKeys.map((module) => <th scope="col" key={module}>{DBP_MODULES[module]}</th>)}
+                </tr></thead>
+                <tbody>
               {DBP_ROLE_KEYS.map((role) => (
-                <div className="permission-row" key={role}>
-                  <b>{DBP_ROLES[role].label}</b>
-                  {moduleKeys.map((module) => (
-                    <label key={module}>
+                <tr key={role}>
+                  <th scope="row">{DBP_ROLES[role].label}</th>
+                  {visibleModuleKeys.map((module) => (
+                    <td key={module}><label>
                       <input
                         type="checkbox"
-                        checked={permissionDraft[role].includes(module)}
+                        aria-label={`${DBP_ROLES[role].label}: ${DBP_MODULES[module]}`}
+                        checked={permissionDraft[role].includes(module) || (module === "permission_matrix" && permissionDraft[role].includes("user_roles"))}
                         onChange={(event) => toggleRoleAccess(role, module, event.currentTarget.checked)}
                         disabled={
                           permissionsBusy ||
@@ -1311,14 +1329,16 @@ export function RoleDashboard() {
                           (module === "thesis_awards" && !["admin", "enstitu_yoneticisi"].includes(role))
                         }
                       />
-                      <span />
-                    </label>
+                    </label></td>
                   ))}
-                </div>
+                </tr>
               ))}
+                </tbody>
+              </table>
             </div>
           </section>
         )}
+        </>}
       </section>
     </main>
   );

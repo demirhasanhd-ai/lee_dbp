@@ -183,10 +183,15 @@ test("existing JSON backup roundtrip preserves new metadata and reset still clea
   context.ensureThesisModuleColumns();
   recordAudit(db, "sample.event", "system", { code: "MAT801", note: "Yedekle koru" });
   const original = db.prepare("SELECT * FROM audit_logs").all();
+  const identityEdits = { 1: { id: 1, department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans", code: "MAT868", name: "İdari Ders", workflowCode: "MAT864", aliases: ["MAT864", "MAT868"] } };
+  db.prepare("INSERT INTO metadata(key, value) VALUES (?, ?)").run("course_identity_edits_v1", JSON.stringify(identityEdits));
+  assert.equal(context.courseIdentityEdits()[1].code, "MAT868");
   const payload = JSON.parse(JSON.stringify(context.exportData()));
   context.resetDatabase("admin");
+  assert.equal(Object.keys(context.courseIdentityEdits()).length, 0);
   assert.equal(queryAudit(db, new URLSearchParams({ action: "sample.event" })).total, 0);
   assert.equal(queryAudit(db, new URLSearchParams()).total, 1);
   context.replaceFromExport(payload, "admin");
+  assert.equal(JSON.stringify(context.courseIdentityEdits()), JSON.stringify(identityEdits));
   assert.deepEqual(db.prepare("SELECT * FROM audit_logs WHERE action = 'sample.event'").all(), original);
 });

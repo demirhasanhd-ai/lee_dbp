@@ -340,7 +340,7 @@ export function CourseBolognaEditor({
     const applyStaticPackage = (value: CoursePackage) => {
       setIdentity({
         name: course.name,
-        code: value.code,
+        code: course.code,
         theory: String(value.theory ?? 0),
         practice: String(value.practice ?? 0),
         credit: String(value.credit ?? 0),
@@ -634,8 +634,8 @@ export function CourseBolognaEditor({
     const initialIdentity = defaultIdentity(course);
     const initialDetails = defaultDetailFields();
     setIdentity((current) => ({
-      name: shouldFill(current.name, initialIdentity.name, mode) ? obsDraft.name || current.name : current.name,
-      code: shouldFill(current.code, initialIdentity.code, mode) ? obsDraft.code || current.code : current.code,
+      name: current.name,
+      code: current.code,
       theory: shouldFill(current.theory, initialIdentity.theory, mode) ? String(obsDraft.theory || current.theory) : current.theory,
       practice: shouldFill(current.practice, initialIdentity.practice, mode) ? String(obsDraft.practice || current.practice) : current.practice,
       credit: shouldFill(current.credit, initialIdentity.credit, mode) ? String(obsDraft.credit || current.credit) : current.credit,
@@ -774,14 +774,15 @@ export function CourseBolognaEditor({
           </div>
         )}
         <h3>Ders Genel Bilgileri</h3>
+        <p>Ders adı ve kodu yetkili idari roller tarafından Ders Düzenleme ekranından güncellenir.</p>
         <div className="course-general-grid">
           <label className="name">
             <span>Dersin Adı</span>
-            <input name="Dersin Adı" value={identity.name} onChange={(event) => setIdentity((current) => ({ ...current, name: event.target.value }))} />
+            <input name="Dersin Adı" value={identity.name} readOnly />
           </label>
           <label>
             <span>Kodu</span>
-            <input name="Kodu" value={identity.code} onChange={(event) => setIdentity((current) => ({ ...current, code: event.target.value }))} />
+            <input name="Kodu" value={identity.code} readOnly />
           </label>
           <label>
             <span>Teorik saat</span>

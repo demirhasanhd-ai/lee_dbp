@@ -230,6 +230,7 @@ test("course saves, approvals, creation and assignments persist without starting
     repairObject: (value) => value,
     normalizeScope: (value) => value.toLocaleLowerCase("tr-TR"),
     courseCodeMatchesLevel: () => true,
+    normalizeDbCourseForList: (course) => course,
     courseRowsForIdentity: () => [db.prepare("SELECT * FROM courses WHERE id = 1").get()],
     canEditCoursePackage: () => true,
     canApproveCoursePackage: () => true,
@@ -254,7 +255,7 @@ test("course saves, approvals, creation and assignments persist without starting
     queueQualitySnapshotRefresh: trap, refreshQualitySnapshot: trap, refreshHomeInstructorCount: trap,
     setTimeout: trap,
   });
-  load(context, ["parseCoursePackageJson", "isVersionedCoursePackage", "compactCoursePackageEnvelope", "coursePackageRecords", "packageJsonForDraft", "handleDbpApi"]);
+  load(context, ["courseIdentityEdits", "courseIdentityEditFor", "updateManagedCourse", "courseFromRow", "packageWithCourseIdentity", "parseCoursePackageJson", "isVersionedCoursePackage", "compactCoursePackageEnvelope", "coursePackageRecords", "packageJsonForDraft", "handleDbpApi"]);
   const identity = { code: "ABC801", name: "Example", department: "Example ABD", programName: "Example", level: "Tezli Yüksek Lisans" };
   const operations = [
     ["course-package", { ...identity, status: "Taslak", package: { detailFields: { purpose: "Saved draft" } } }],

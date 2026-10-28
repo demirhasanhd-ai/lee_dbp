@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Plus, Save, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Download, FileSpreadsheet, Plus, Save, Upload } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
 import {
   LEE_PROGRAMS,
@@ -11,6 +11,7 @@ import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 
 type CatalogCourseOption = {
+  id?: number;
   department?: string;
   programName?: string;
   level: string;
@@ -172,16 +173,16 @@ const actionLabel = (action: ImportPreviewItem["action"]) => {
   return "Hoca seçimi gerekli";
 };
 
-export function CourseCreateDialog({
-  open,
-  onClose,
-  onCreated,
+export function CourseManagementPage({
+  active,
+  onBack,
+  onSaved,
   session,
   catalogCourses = [],
 }: {
-  open: boolean;
-  onClose: () => void;
-  onCreated: () => void;
+  active: boolean;
+  onBack: () => void;
+  onSaved: () => void;
   session: { username: string; name: string; role: string; department: string };
   catalogCourses?: CatalogCourseOption[];
 }) {
@@ -228,13 +229,14 @@ export function CourseCreateDialog({
       )
     : [];
   const selectedCourse = curriculumCourses.find((course) => course.code === selectedCourseCode);
+  const selectedCourseKey = `${selectedProgramKey}-${level}-${selectedCourseCode}-${selectedCourse ? "loaded" : "loading"}`;
 
   useEffect(() => {
-    if (!open) return;
+    if (!active) return;
     const controller = new AbortController();
-    let active = true;
+    let currentRequest = true;
     const loadingTimer = window.setTimeout(() => {
-      if (!active) return;
+      if (!currentRequest) return;
       setInstructorsBusy(true);
       setInstructorsMessage("");
     }, 0);
@@ -264,16 +266,16 @@ export function CourseCreateDialog({
         setInstructorsMessage(error instanceof Error ? error.message : "Akademisyen listesi alınamadı.");
       })
       .finally(() => {
-        active = false;
+        currentRequest = false;
         window.clearTimeout(loadingTimer);
         if (!controller.signal.aborted) setInstructorsBusy(false);
       });
     return () => {
-      active = false;
+      currentRequest = false;
       window.clearTimeout(loadingTimer);
       controller.abort();
     };
-  }, [open, selectedProgram?.department, selectedProgram?.programName, session]);
+  }, [active, selectedProgram?.department, selectedProgram?.programName, session]);
 
   const selectedImportRows = useMemo(() => {
     if (!importPreview) return [];
@@ -291,7 +293,7 @@ export function CourseCreateDialog({
     });
   }, [importMode, importPreview, importSelections]);
 
-  if (!open) return null;
+  if (!active) return null;
 
   const clearNewCoursePreview = () => { setNewCoursePreview(null); setNewCourseMessage(""); };
   const previewNewCourses = async () => {
@@ -329,7 +331,7 @@ export function CourseCreateDialog({
       if (!response.ok) throw new Error(data.message || "Dersler eklenemedi.");
       setNewCourseMessage(`${data.result.created} yeni ders eklendi. ${data.result.existing} mevcut ders ve ${data.result.invalid} hatalı satır atlandı. ${data.result.unassigned} ders atama bekliyor.`);
       setNewCoursePreview(null);
-      onCreated();
+      onSaved();
     } catch (error) {
       setNewCourseMessage(error instanceof Error ? error.message : "Dersler eklenemedi.");
     } finally { setBusy(false); }
@@ -385,7 +387,7 @@ export function CourseCreateDialog({
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || "Atamalar uygulanamadı.");
       setMessage(`${data.result?.changed || 0} ders için öğretim elemanı ataması güncellendi.`);
-      onCreated();
+      onSaved();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Atamalar uygulanamadı.");
     } finally {
@@ -421,24 +423,34 @@ export function CourseCreateDialog({
   };
 
   return (
-    <div className="course-dialog-backdrop" role="presentation">
-      <section className="course-create-dialog course-management-dialog" role="dialog" aria-modal="true" aria-labelledby="course-create-title">
-        <header>
+      <section className="course-management-page" aria-label="Ders düzenleme işlemleri">
+        <header className="course-management-heading">
           <div>
-            <small>ENSTİTÜ YETKİLİ İŞLEMİ</small>
-            <h2 id="course-create-title">Ders Düzenleme</h2>
+            <small>DERS YÖNETİMİ</small>
+            <h2>Ders ve öğretim elemanı işlemleri</h2>
+            <p>Yeni ders ekleyin, mevcut ders bilgilerini güncelleyin veya Excel ile öğretim elemanı atayın.</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Kapat">
-            <X size={17} />
+          <button type="button" className="course-management-back" onClick={onBack}>
+            <ArrowLeft size={15} /> Ders Listesine Dön
           </button>
         </header>
 
-        <div className="course-dialog-tabs" role="tablist" aria-label="Ders yönetimi">
-          <button type="button" disabled={busy} className={mode === "create" ? "active" : ""} onClick={() => { setMode("create"); setMessage(""); }}>Yeni Ders</button>
-          <button type="button" disabled={busy} className={mode === "assign" ? "active" : ""} onClick={() => { setMode("assign"); setMessage(""); }}>Mevcut Ders</button>
-          <button type="button" disabled={busy} className={mode === "bulk" ? "active" : ""} onClick={() => setMode("bulk")}>Liste ile Atama Yap</button>
+        <div className="course-management-tabs" role="tablist" aria-label="Ders yönetimi" onKeyDown={(event) => {
+          if (busy || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+          const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+          const index = tabs.indexOf(event.target as HTMLButtonElement);
+          if (index < 0) return;
+          event.preventDefault();
+          const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+          tabs[next].focus();
+          tabs[next].click();
+        }}>
+          <button id="course-tab-create" role="tab" aria-label="Yeni Ders" tabIndex={mode === "create" ? 0 : -1} aria-selected={mode === "create"} aria-controls="course-management-content" type="button" disabled={busy} onClick={() => { setMode("create"); setMessage(""); }}><Plus size={19} /><span><b>Yeni Ders</b><small>Tek tek veya Excel ile ekleyin</small></span></button>
+          <button id="course-tab-assign" role="tab" aria-label="Mevcut Ders" tabIndex={mode === "assign" ? 0 : -1} aria-selected={mode === "assign"} aria-controls="course-management-content" type="button" disabled={busy} onClick={() => { setMode("assign"); setMessage(""); }}><Save size={19} /><span><b>Mevcut Ders</b><small>Ders bilgilerini ve hocasını düzenleyin</small></span></button>
+          <button id="course-tab-bulk" role="tab" aria-label="Liste ile Atama Yap" tabIndex={mode === "bulk" ? 0 : -1} aria-selected={mode === "bulk"} aria-controls="course-management-content" type="button" disabled={busy} onClick={() => { setMode("bulk"); setMessage(""); }}><Upload size={19} /><span><b>Liste ile Atama Yap</b><small>Excel ile toplu hoca atayın</small></span></button>
         </div>
 
+        <div className="course-management-content" id="course-management-content" role="tabpanel" aria-labelledby={`course-tab-${mode}`}>
         {mode === "bulk" ? (
           <div className="bulk-assignment-panel">
             <div className="bulk-import-controls">
@@ -512,7 +524,7 @@ export function CourseCreateDialog({
                 </div>
 
                 <footer>
-                  <button type="button" onClick={onClose}>Vazgeç</button>
+                  <button type="button" onClick={onBack}>Vazgeç</button>
                   <button className="create" type="button" onClick={applyImport} disabled={busy || selectedImportRows.length === 0}>
                     <Upload size={15} />
                     {selectedImportRows.length} Atamayı Onayla
@@ -533,6 +545,13 @@ export function CourseCreateDialog({
               const form = new FormData(event.currentTarget);
               const instructor = String(form.get("instructor") || "").trim();
               const instructorChanged = form.has("instructor") && (mode === "create" || instructor !== (selectedCourse?.instructor || "").trim());
+              const codeChanged = mode === "assign" && String(form.get("newCode") || "").trim() !== selectedCourse?.code;
+              const nameChanged = mode === "assign" && String(form.get("name") || "").trim() !== selectedCourse?.name;
+              const termChanged = mode === "create" || String(form.get("term") || "") !== (selectedCourse?.term || "");
+              if (mode === "assign" && !codeChanged && !nameChanged && !termChanged && !instructorChanged) {
+                setMessage("Kaydedilecek değişiklik bulunamadı.");
+                return;
+              }
               const selectedInstructor = instructors.find((item) => normalizePersonName(item.name) === normalizePersonName(instructor));
               const response = await fetch(dbpPath("/api/dbp/course-management"), {
                 method: "POST",
@@ -543,13 +562,19 @@ export function CourseCreateDialog({
                   programName: selectedProgram.programName,
                   level,
                   code: form.get("code"),
-                  name: form.get("name"),
+                  ...(mode === "assign" ? {
+                    courseId: selectedCourse?.id,
+                    expectedCode: selectedCourse?.code,
+                    expectedName: selectedCourse?.name,
+                    ...(codeChanged ? { newCode: form.get("newCode") } : {}),
+                    ...(nameChanged ? { name: form.get("name") } : {}),
+                  } : { name: form.get("name") }),
                   type: form.get("type"),
                   theory: Number(form.get("theory") || 0),
                   practice: Number(form.get("practice") || 0),
                   credit: Number(form.get("credit") || 0),
                   ects: Number(form.get("ects") || 0),
-                  term: form.get("term"),
+                  ...(termChanged ? { term: form.get("term") } : {}),
                   ...(instructorChanged ? {
                     instructor: instructor === "unassigned" || instructor === unassignedInstructorLabel ? "" : instructor,
                     instructorTcKimlik: selectedInstructor && /^\d{11}$/.test(selectedInstructor.id) ? selectedInstructor.id : "",
@@ -561,8 +586,9 @@ export function CourseCreateDialog({
               });
               const data = await response.json().catch(() => ({}));
               if (!response.ok) throw new Error(data.message || "İşlem kaydedilemedi.");
-              onCreated();
-              onClose();
+              if (mode === "assign") setSelectedCourseCode(data.code || String(form.get("newCode") || form.get("code") || ""));
+              setMessage(mode === "assign" ? "Ders bilgileri kaydedildi." : "Yeni ders oluşturuldu.");
+              onSaved();
             } catch (error) {
               setMessage(error instanceof Error ? error.message : "İşlem kaydedilemedi.");
             } finally {
@@ -639,13 +665,15 @@ export function CourseCreateDialog({
               )}
 
               {mode === "assign" ? (
-                <label className="wide">
+                <><label className="wide">
                   <span>Müfredattaki ders</span>
                   <select required disabled={!selectedProgram} name="code" value={selectedCourseCode} onChange={(event) => setSelectedCourseCode(event.target.value)}>
                     <option value="">{selectedProgram ? "Dersi seçin" : "Önce program seçin"}</option>
                     {curriculumCourses.map((course) => <option key={course.code} value={course.code}>{course.code} — {course.name}</option>)}
                   </select>
                 </label>
+                <label key={`code-${selectedCourseKey}`}><span>Ders kodu</span><input required name="newCode" defaultValue={selectedCourse?.code || ""} disabled={!selectedCourse} /></label>
+                <label key={`name-${selectedCourseKey}`}><span>Ders adı</span><input required name="name" defaultValue={selectedCourse?.name || ""} disabled={!selectedCourse} /></label></>
               ) : (
                 <>
                   <label><span>Ders kodu</span><input required name="code" placeholder="Örn. BLM 505" /></label>
@@ -658,9 +686,9 @@ export function CourseCreateDialog({
                 </>
               )}
 
-              <label key={`term-${mode}-${selectedProgramKey}-${level}-${selectedCourseCode}`}>
+              <label key={`term-${mode}-${selectedCourseKey}`}>
                 <span>Dersin dönemi</span>
-                <select required name="term" defaultValue={mode === "assign" ? selectedCourse?.term || "" : ""} disabled={mode === "assign" && !selectedCourse}>
+                <select required={mode === "create"} name="term" defaultValue={mode === "assign" ? selectedCourse?.term || "" : ""} disabled={mode === "assign" && !selectedCourse}>
                   <option value="" disabled>Dönemi seçin</option>
                   <option>Güz</option>
                   <option>Bahar</option>
@@ -668,7 +696,7 @@ export function CourseCreateDialog({
                 </select>
               </label>
 
-              <label className="wide" key={`instructor-${mode}-${selectedProgramKey}-${level}-${selectedCourseCode}`}>
+              <label className="wide" key={`instructor-${mode}-${selectedCourseKey}`}>
                 <span>Dersi veren öğretim elemanı</span>
                 <input required={mode === "create"} name="instructor" defaultValue={mode === "assign" ? selectedCourse?.instructor || "" : ""} list={instructorListId} disabled={instructorsBusy || (mode === "assign" && !selectedCourse)} placeholder={instructorsBusy ? "Akademisyenler yükleniyor" : "İsim yazın veya listeden seçin"} autoComplete="off" />
                 <datalist id={instructorListId}>
@@ -681,10 +709,10 @@ export function CourseCreateDialog({
             {programs.length === 0 && <p className="no-program-warning">Seçilen ana ABD/ASD için bu düzeyde program bulunmuyor.</p>}
             {mode === "assign" && selectedProgram && curriculumCourses.length === 0 && <p className="no-program-warning">Bu programda henüz müfredat dersi bulunmuyor; önce Excel importu veya ders açma ekranından ders oluşturulmalı.</p>}
             {instructorsMessage && <p className="no-program-warning">{instructorsMessage}</p>}
-            {message && <p className="no-program-warning">{message}</p>}
+            {message && <p className="no-program-warning" role="status">{message}</p>}
 
             <footer>
-              <button type="button" onClick={onClose}>Vazgeç</button>
+              <button type="button" onClick={onBack}>Vazgeç</button>
               <button className="create" type="submit" disabled={busy || programs.length === 0 || (mode === "create" && instructorsBusy) || (mode === "assign" && !selectedCourse)}>
                 {mode === "assign" ? <Save size={15} /> : <Plus size={15} />}
                 {mode === "assign" ? "Değişiklikleri Kaydet" : "Dersi Oluştur"}
@@ -692,7 +720,7 @@ export function CourseCreateDialog({
             </footer>
           </form>
         )}
+        </div>
       </section>
-    </div>
   );
 }

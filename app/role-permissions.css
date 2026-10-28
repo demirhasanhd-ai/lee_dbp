@@ -1,0 +1,40 @@
+.role-permissions { min-width: 0; }
+.role-permissions .panel-intro { flex-wrap: wrap; gap: 16px; }
+.role-permissions-hint { margin: 0 0 14px; color: var(--muted-foreground); font-size: 12px; line-height: 1.6; }
+.role-permissions-scroll {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+.role-permissions-scroll:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 40%, transparent); outline-offset: 3px; }
+.role-permissions-table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+.role-permissions-role-column { width: 180px; }
+.role-permissions-table th { padding: 16px 10px; font-size: 12px; font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
+.role-permissions-table thead th { border-bottom: 1px solid var(--border); background: var(--muted); text-align: center; vertical-align: middle; }
+.role-permissions-table tr > th:first-child { position: sticky; left: 0; z-index: 1; padding-left: 16px; border-right: 1px solid var(--border); background: var(--card); text-align: left; }
+.role-permissions-table thead tr > th:first-child { z-index: 2; background: var(--muted); }
+.role-permissions-table tbody tr:not(:last-child) > :is(th, td) { border-bottom: 1px solid var(--border); }
+.role-permissions-table td { height: 57px; padding: 5px 10px; text-align: center; vertical-align: middle; }
+.role-permissions-table td label { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; cursor: pointer; }
+.role-permissions-table input[type="checkbox"] { display: block; width: 17px; height: 17px; margin: 0; accent-color: var(--primary); cursor: pointer; }
+.role-permissions-table input[type="checkbox"]:disabled { cursor: not-allowed; opacity: .5; }
+.role-permissions-table tbody tr:hover > :is(th, td) { background: color-mix(in srgb, var(--primary) 4%, var(--card)); }
+.role-permissions .primary-action { margin-top: 0; }
+
+@media (max-width: 850px) {
+  .role-dashboard.has-role-permissions .panel-brand { justify-content: center; padding: 0 0 25px; }
+  .role-dashboard.has-role-permissions .panel-brand > span { display: none; }
+  .role-dashboard.has-role-permissions .return-to-eenstitu { justify-content: center; gap: 0; font-size: 0; }
+  .role-dashboard.has-role-permissions .return-to-eenstitu svg { flex-shrink: 0; }
+}
+
+@media (max-width: 640px) {
+  .panel-main.has-role-permissions .panel-header { height: auto; min-height: 88px; flex-wrap: wrap; gap: 14px; padding: 16px 0; }
+  .panel-main.has-role-permissions .panel-header h1 { font-size: 22px; }
+  .role-permissions-role-column { width: 140px; }
+  .role-permissions-table th { font-size: 11px; }
+  .role-permissions-table tr > th:first-child { padding-left: 12px; }
+  .role-permissions .panel-intro { align-items: flex-start; }
+}

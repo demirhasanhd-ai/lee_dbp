@@ -31,6 +31,22 @@ test("preview classifies valid, existing, duplicate and invalid rows without cha
   assert.deepEqual(db.prepare("SELECT * FROM courses").all(), before);
 });
 
+test("new-course import cannot recreate an old code retained after an administrative rename", async (t) => {
+  const { db, excel, request } = fixture(t);
+  db.exec("CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+  db.prepare("UPDATE courses SET code = 'MAT870' WHERE id = 1").run();
+  db.prepare("INSERT INTO metadata VALUES (?, ?)").run("course_identity_edits_v1", JSON.stringify({ 1: {
+    id: 1, department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans", code: "MAT870", aliases: ["MAT 864", "MAT864", "MAT870"],
+  } }));
+  const before = db.prepare("SELECT * FROM courses").all();
+  const response = await request(excel([row("MAT864"), row("MAT870")]), "apply");
+  assert.equal(response.status, 200);
+  const { result } = await response.json();
+  assert.equal(result.created, 0);
+  assert.equal(result.existing, 2);
+  assert.deepEqual(db.prepare("SELECT * FROM courses").all(), before);
+});
+
 test("apply inserts new drafts only, preserves live content, reviewers, terms and identities, and is idempotent", async (t) => {
   const { db, excel, request, context } = fixture(t);
   const before = db.prepare("SELECT * FROM courses WHERE id = 1").get();

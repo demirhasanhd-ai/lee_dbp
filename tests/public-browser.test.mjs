@@ -14,6 +14,117 @@ const query = new URLSearchParams({
 const packagePath = `/dbp/katalog?${query}`;
 const programPath = "/dbp/programlar/yonetim-bilisim-sistemleri-abd-yonetim-bilisim-sistemleri?duzey=Doktora&sekme=courses";
 
+test("permission matrix has one menu and one aligned checkbox per cell, with preserved legacy grants", async () => {
+  const ts = await import("typescript");
+  const vm = await import("node:vm");
+  const accessModule = { exports: {} };
+  const rolesModule = { exports: {} };
+  for (const [file, module] of [["access", accessModule], ["roles", rolesModule]]) {
+    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(`../lib/auth/${file}.ts`, import.meta.url), "utf8"), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS },
+    }).outputText, { exports: module.exports });
+  }
+  const { DBP_MODULES, DEFAULT_ROLE_ACCESS } = accessModule.exports;
+  const { DBP_ROLES } = rolesModule.exports;
+  const visibleModules = Object.keys(DBP_MODULES).filter((key) => key !== "user_roles");
+  let stored = structuredClone(DEFAULT_ROLE_ACCESS);
+  stored.akademisyen = ["my_courses", "program_profile"];
+  stored.abd_sekreteri = ["review_queue", "user_roles"];
+  const original = structuredClone(stored);
+  const writes = [];
+  mkdirSync("local-volume/role-permissions", { recursive: true });
+  await withPublicPage("/dbp/panel", {
+    preparePage: async (page) => {
+      await page.setViewportSize({ width: 1910, height: 1000 });
+      await page.addInitScript(() => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Admin", username: "test.admin", role: "admin", department: "LEE" })));
+      await page.route("**/dbp/api/dbp/**", async (route) => {
+        const request = route.request();
+        const endpoint = new URL(request.url()).pathname.split("/").pop();
+        let payload;
+        if (endpoint === "role-module-access") {
+          if (request.method() === "PUT") {
+            stored = request.postDataJSON().access;
+            writes.push(structuredClone(stored));
+          } else assert.equal(request.method(), "GET");
+          payload = { access: stored };
+        } else {
+          const responses = { events: { ok: true }, courses: { courses: [], total: 0 }, programs: { programs: [] }, memberships: { memberships: [] } };
+          payload = responses[endpoint];
+          assert.ok(payload, `Unexpected permission API: ${endpoint}`);
+          assert.ok(request.method() === "GET" || endpoint === "events");
+        }
+        return route.fulfill({ contentType: "application/json", body: JSON.stringify(payload) });
+      });
+    },
+  }, async ({ page }) => {
+    const nav = page.locator(".panel-sidebar nav");
+    assert.equal(await nav.getByRole("button", { name: "Kullanıcı ve Rol Yönetimi", exact: true }).count(), 0);
+    const matrixMenu = nav.getByRole("button", { name: "Yetki Dağılımı", exact: true });
+    assert.equal(await matrixMenu.count(), 1);
+    await matrixMenu.click();
+    const scroll = page.getByRole("region", { name: "Rol ve modül yetkileri" });
+    const table = scroll.getByRole("table");
+    await table.waitFor();
+    assert.equal(await table.getByRole("columnheader").count(), visibleModules.length + 1);
+    assert.deepEqual(await table.getByRole("columnheader").allTextContents(), ["Rol", ...visibleModules.map((module) => DBP_MODULES[module])]);
+    assert.equal(await table.getByRole("rowheader").count(), Object.keys(DBP_ROLES).length);
+    assert.equal(await table.getByRole("checkbox").count(), visibleModules.length * Object.keys(DBP_ROLES).length);
+    const layout = await table.evaluate((element) => {
+      const headers = [...element.tHead.rows[0].cells].slice(1).map((cell) => cell.getBoundingClientRect().x);
+      return [...element.tBodies[0].rows].map((row) => ({
+        columns: [...row.cells].slice(1).map((cell) => cell.getBoundingClientRect().x),
+        tops: [...row.querySelectorAll('input[type="checkbox"]')].map((input) => input.getBoundingClientRect().top),
+        counts: [...row.cells].slice(1).map((cell) => cell.querySelectorAll('input[type="checkbox"]').length),
+        headers,
+      }));
+    });
+    for (const row of layout) {
+      assert.ok(row.counts.every((count) => count === 1));
+      assert.ok(Math.max(...row.tops) - Math.min(...row.tops) < 1, "all checkboxes must stay on one line");
+      assert.ok(row.columns.every((x, index) => Math.abs(x - row.headers[index]) < 1), "every checkbox column must align with its heading");
+    }
+    assert.equal(await table.getByRole("checkbox", { name: "Akademisyen: Denetim Kayıtları", exact: true }).isDisabled(), true);
+    const legacyCheckbox = table.getByRole("checkbox", { name: `${DBP_ROLES.abd_sekreteri.label}: Yetki Dağılımı`, exact: true });
+    assert.equal(await legacyCheckbox.isChecked(), true);
+    assert.equal(writes.length, 0);
+    await page.screenshot({ path: "local-volume/role-permissions/desktop.png", fullPage: true });
+    await page.locator(".panel-main .theme-toggle").click();
+    await page.screenshot({ path: "local-volume/role-permissions/desktop-dark.png", fullPage: true });
+    await page.locator(".panel-main .theme-toggle").click();
+    assert.equal(await scroll.evaluate((element) => element.scrollWidth > element.clientWidth), true);
+    const before = await table.getByRole("rowheader").first().boundingBox();
+    await scroll.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+    const after = await table.getByRole("rowheader").first().boundingBox();
+    assert.ok(Math.abs(before.x - after.x) < 1, "role labels must remain visible during horizontal scrolling");
+    await page.screenshot({ path: "local-volume/role-permissions/desktop-scrolled.png", fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await scroll.evaluate((element) => { element.scrollLeft = 0; });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "only the table should scroll horizontally on mobile");
+    await page.screenshot({ path: "local-volume/role-permissions/mobile.png", fullPage: true });
+    await page.setViewportSize({ width: 1910, height: 1000 });
+    await table.getByRole("checkbox", { name: "Akademisyen: Program Bilgileri", exact: true }).click();
+    const save = page.getByRole("button", { name: "Değişiklikleri Kaydet", exact: true });
+    await save.click();
+    await page.getByText("Yetki dagilimi veri tabanina kaydedildi.", { exact: true }).waitFor();
+    const expected = structuredClone(original);
+    expected.akademisyen = ["my_courses"];
+    assert.deepEqual(writes[0], expected, "an unrelated checkbox edit must preserve all other grants, including hidden legacy grants");
+    await legacyCheckbox.click();
+    await save.click();
+    await page.getByText("Yetki dagilimi veri tabanina kaydedildi.", { exact: true }).waitFor();
+    expected.abd_sekreteri = ["review_queue"];
+    assert.deepEqual(writes[1], expected, "explicitly revoking the shared screen must also revoke its old alias");
+    stored.admin = ["user_roles"];
+    await page.reload({ waitUntil: "networkidle" });
+    await page.getByRole("region", { name: "Rol ve modül yetkileri" }).waitFor();
+    assert.equal(await nav.getByRole("button", { name: "Yetki Dağılımı", exact: true }).count(), 1);
+    assert.equal(await nav.getByRole("button", { name: "Kullanıcı ve Rol Yönetimi", exact: true }).count(), 0);
+    assert.deepEqual(stored.admin, ["user_roles"], "opening an old configuration must not rewrite it");
+    assert.equal(writes.length, 2);
+  });
+});
+
 test("admin audit module filters and pages records, shows details and timeline, and downloads all filtered records", async (t) => {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
@@ -232,7 +343,7 @@ test("new-course Excel panel downloads the template, previews without writes and
     },
   }, async ({ page }) => {
     await page.locator(".sidebar-course-create").click();
-    const dialog = page.getByRole("dialog", { name: "Ders Düzenleme" });
+    const dialog = page.getByRole("region", { name: "Ders düzenleme işlemleri" });
     const panel = dialog.getByRole("region", { name: "Excel ile toplu yeni ders" });
     await panel.waitFor();
     assert.equal(await panel.getByRole("button", { name: "Önizle" }).isDisabled(), true);
@@ -253,7 +364,8 @@ test("new-course Excel panel downloads the template, previews without writes and
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "the import panel must fit mobile without page overflow");
     const box = await dialog.boundingBox();
-    assert.ok(box.y >= 0 && box.y + box.height <= 844);
+    assert.ok(box.x >= 0 && box.x + box.width <= 390, "the full page form stays within the content column");
+    assert.equal(await dialog.evaluate((element) => getComputedStyle(element).position), "static");
     await page.screenshot({ path: "local-volume/test-failure-audit/course-import-mobile.png" });
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.screenshot({ path: "local-volume/test-failure-audit/course-import-desktop.png" });
@@ -263,7 +375,7 @@ test("new-course Excel panel downloads the template, previews without writes and
     assert.equal(db.prepare("SELECT instructor FROM courses WHERE code = 'MAT866'").get().instructor, "");
     assert.equal(db.prepare("SELECT instructor_tc_kimlik FROM courses WHERE code = 'MAT868'").get().instructor_tc_kimlik, "01234567890");
     assert.deepEqual(db.prepare("SELECT * FROM courses WHERE id = 1").get(), original);
-    await dialog.getByRole("button", { name: "Liste ile Atama Yap", exact: true }).click();
+    await dialog.getByRole("tab", { name: "Liste ile Atama Yap", exact: true }).click();
     assert.equal(await dialog.getByRole("region", { name: "Excel ile toplu yeni ders" }).count(), 0);
   });
 });
@@ -272,7 +384,7 @@ test("institute manager creates courses with explicit terms and corrects existin
   const courses = [
     { code: "MAT864", name: "ANALİZDEN SEÇME KONULAR II", term: "", instructor: "Prof. Dr. Mevcut Hoca" },
     { code: "MAT866", name: "CEBİRSEL TOPOLOJİYE GİRİŞ", term: "Bahar", instructor: "Doç. Dr. Diğer Hoca" },
-  ].map((course) => ({ ...course, department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans", status: "Komisyon Onayı Bekliyor", type: "Seçmeli", theory: 3, practice: 0, ects: 6 }));
+  ].map((course, index) => ({ id: index + 1, ...course, department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans", status: "Komisyon Onayı Bekliyor", type: "Seçmeli", theory: 3, practice: 0, ects: 6 }));
   const writes = [];
   await withPublicPage("/dbp/panel", {
     preparePage: async (page) => {
@@ -299,7 +411,11 @@ test("institute manager creates courses with explicit terms and corrects existin
             assert.equal(request.method(), "POST");
             const body = request.postDataJSON();
             writes.push(body);
-            if (body.action === "assign") Object.assign(courses.find((course) => course.code === body.code), { term: body.term });
+            if (body.action === "assign") Object.assign(courses.find((course) => course.code === body.code), {
+              ...(body.term ? { term: body.term } : {}),
+              ...(body.newCode ? { code: body.newCode } : {}),
+              ...(body.name ? { name: body.name } : {}),
+            });
             payload = { ok: true };
             break;
           }
@@ -313,10 +429,10 @@ test("institute manager creates courses with explicit terms and corrects existin
     await page.locator(".sidebar-course-create").waitFor();
     assert.equal(await page.locator(".sidebar-course-create").innerText(), "Ders Düzenleme");
     await open();
-    const dialog = page.getByRole("dialog", { name: "Ders Düzenleme" });
+    const dialog = page.getByRole("region", { name: "Ders düzenleme işlemleri" });
     await dialog.getByLabel("Ana ABD / ASD Başkanlığı").selectOption({ label: "Matematik ABD" });
     await dialog.getByLabel("İlgili ABD / ASD ve program").selectOption("Matematik ABD||Matematik");
-    await dialog.getByRole("button", { name: "Mevcut Ders", exact: true }).click();
+    await dialog.getByRole("tab", { name: "Mevcut Ders", exact: true }).click();
     await dialog.getByLabel("Müfredattaki ders").selectOption("MAT864");
     assert.equal(await dialog.getByLabel("Dersin dönemi").inputValue(), "");
     assert.equal(await dialog.getByLabel("Dersi veren öğretim elemanı").inputValue(), "Prof. Dr. Mevcut Hoca");
@@ -328,12 +444,12 @@ test("institute manager creates courses with explicit terms and corrects existin
     await dialog.getByLabel("Müfredattaki ders").selectOption("MAT864");
     await dialog.getByLabel("Dersin dönemi").selectOption("Bahar");
     await dialog.getByRole("button", { name: "Değişiklikleri Kaydet" }).click();
-    await dialog.waitFor({ state: "hidden" });
+    await dialog.getByRole("status").getByText("Ders bilgileri kaydedildi.", { exact: true }).waitFor();
     assert.equal(writes[0].term, "Bahar");
     assert.equal(Object.hasOwn(writes[0], "instructor"), false, "term-only edits preserve the latest instructor and identity fields");
     await open();
     assert.equal(await dialog.getByLabel("Dersin dönemi").inputValue(), "Bahar");
-    await dialog.getByRole("button", { name: "Yeni Ders", exact: true }).click();
+    await dialog.getByRole("tab", { name: "Yeni Ders", exact: true }).click();
     assert.equal(await dialog.getByLabel("Dersin dönemi").inputValue(), "");
     await dialog.getByLabel("Ders kodu", { exact: true }).fill("MAT868");
     await dialog.getByLabel("Ders adı", { exact: true }).fill("REEL ANALİZ");
@@ -343,9 +459,149 @@ test("institute manager creates courses with explicit terms and corrects existin
     await dialog.getByLabel("Dersi veren öğretim elemanı").fill("Şimdilik boş / atama bekliyor");
     await dialog.getByLabel("Dersin dönemi").selectOption("Güz ve Bahar");
     await dialog.getByRole("button", { name: "Dersi Oluştur" }).click();
-    await dialog.waitFor({ state: "hidden" });
+    await dialog.getByRole("status").getByText("Yeni ders oluşturuldu.", { exact: true }).waitFor();
     assert.equal(writes[1].term, "Güz ve Bahar");
     assert.equal(writes[1].instructor, "");
+    await open();
+    await dialog.getByRole("tab", { name: "Mevcut Ders", exact: true }).click();
+    await dialog.getByLabel("Müfredattaki ders").selectOption("MAT866");
+    assert.equal(await dialog.getByLabel("Ders kodu", { exact: true }).inputValue(), "MAT866");
+    assert.equal(await dialog.getByLabel("Ders adı", { exact: true }).inputValue(), "CEBİRSEL TOPOLOJİYE GİRİŞ");
+    await dialog.getByLabel("Ders kodu", { exact: true }).fill("MAT870");
+    await dialog.getByLabel("Ders adı", { exact: true }).fill("Yeni İdari Ders Adı");
+    await dialog.getByRole("button", { name: "Değişiklikleri Kaydet" }).click();
+    await dialog.getByRole("status").getByText("Ders bilgileri kaydedildi.", { exact: true }).waitFor();
+    assert.equal(writes[2].courseId, 2);
+    assert.equal(writes[2].code, "MAT866");
+    assert.equal(writes[2].newCode, "MAT870");
+    assert.equal(writes[2].name, "Yeni İdari Ders Adı");
+    assert.equal(writes[2].expectedName, "CEBİRSEL TOPOLOJİYE GİRİŞ");
+    assert.equal(Object.hasOwn(writes[2], "instructor"), false);
+    assert.equal(Object.hasOwn(writes[2], "term"), false);
+    await open();
+    await dialog.getByLabel("Müfredattaki ders").selectOption("MAT870");
+    assert.equal(await dialog.getByLabel("Ders adı", { exact: true }).inputValue(), "Yeni İdari Ders Adı");
+    assert.equal(await dialog.getByLabel("Dersin dönemi").inputValue(), "Bahar");
+    assert.equal(await dialog.getByLabel("Dersi veren öğretim elemanı").inputValue(), "Doç. Dr. Diğer Hoca");
+  });
+});
+
+test("course management opens in the right panel for all authorized roles, with clear desktop and mobile tabs", async () => {
+  mkdirSync("local-volume/course-management", { recursive: true });
+  for (const role of ["admin", "enstitu_yoneticisi", "lee_ogrenci_isleri"]) {
+    const course = { id: 1, code: "MAT864", name: "ANALİZDEN SEÇME KONULAR II", term: "Bahar", department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans", instructor: "Prof. Dr. Mevcut Hoca", status: "Yayımlandı" };
+    const writes = [];
+    await withPublicPage("/dbp/panel", {
+      preparePage: async (page) => {
+        await page.setViewportSize({ width: 1440, height: 1000 });
+        await page.addInitScript((role) => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Yönetici", username: "test.manager", role, department: "LEE" })), role);
+        await page.route("**/dbp/api/dbp/**", async (route) => {
+          const request = route.request();
+          const endpoint = new URL(request.url()).pathname.split("/").pop();
+          if (request.method() !== "GET" && endpoint !== "events") writes.push(endpoint);
+          const modules = ["my_courses", "program_profile"];
+          const payload = {
+            "role-module-access": { access: { [role]: modules } },
+            access: { modules },
+            programs: { programs: [{ ...course, mainDepartment: course.department, levels: [course.level] }] },
+            courses: { courses: [course], total: 1, source: "database" },
+            memberships: { memberships: [] },
+            instructors: { instructors: [], source: "e_enstitu_api" },
+            events: { ok: true },
+          }[endpoint];
+          assert.ok(payload, `Unexpected course management API: ${endpoint}`);
+          return route.fulfill({ contentType: "application/json", body: JSON.stringify(payload) });
+        });
+      },
+    }, async ({ page }) => {
+      const menu = page.locator(".sidebar-course-create");
+      await menu.click();
+      const editor = page.getByRole("region", { name: "Ders düzenleme işlemleri" });
+      await editor.waitFor();
+      assert.equal(await page.getByRole("dialog").count(), 0);
+      assert.equal(await page.locator(".course-dialog-backdrop").count(), 0);
+      assert.equal(await page.locator(".panel-main").getByRole("heading", { level: 1 }).innerText(), "Ders Düzenleme");
+      assert.equal(await menu.getAttribute("aria-current"), "page");
+      assert.equal(await page.locator(".panel-main .publish-department-list").count(), 0);
+      const tabs = editor.getByRole("tablist", { name: "Ders yönetimi" });
+      assert.equal(await tabs.getByRole("tab").count(), 3);
+      await tabs.getByRole("tab", { name: "Yeni Ders", exact: true }).focus();
+      await page.keyboard.press("ArrowRight");
+      const existing = tabs.getByRole("tab", { name: "Mevcut Ders", exact: true });
+      assert.equal(await existing.getAttribute("aria-selected"), "true");
+      assert.equal(await existing.evaluate((button) => button === document.activeElement), true);
+      await editor.getByLabel("Ana ABD / ASD Başkanlığı").selectOption({ label: "Matematik ABD" });
+      await editor.getByLabel("İlgili ABD / ASD ve program").selectOption("Matematik ABD||Matematik");
+      await editor.getByLabel("Müfredattaki ders").selectOption(course.code);
+      assert.equal(await editor.getByLabel("Ders adı", { exact: true }).inputValue(), course.name);
+      const selectedBorder = await existing.evaluate((button) => getComputedStyle(button).borderColor);
+      const inactiveBorder = await tabs.getByRole("tab", { name: "Yeni Ders", exact: true }).evaluate((button) => getComputedStyle(button).borderColor);
+      assert.notEqual(selectedBorder, inactiveBorder, "selected tab must be visibly distinct");
+      if (role === "admin") {
+        await page.screenshot({ path: "local-volume/course-management/desktop.png", fullPage: true });
+        await page.locator(".panel-main .theme-toggle").click();
+        await page.screenshot({ path: "local-volume/course-management/desktop-dark.png", fullPage: true });
+        await page.locator(".panel-main .theme-toggle").click();
+      }
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "course management must fit the mobile viewport");
+      const boxes = await tabs.getByRole("tab").evaluateAll((buttons) => buttons.map((button) => { const box = button.getBoundingClientRect(); return { top: box.top, bottom: box.bottom, width: box.width }; }));
+      assert.ok(boxes.every((box) => box.width > 200));
+      assert.ok(boxes[1].top >= boxes[0].bottom && boxes[2].top >= boxes[1].bottom, "mobile tabs must have separate rows");
+      if (role === "admin") await page.screenshot({ path: "local-volume/course-management/mobile.png", fullPage: true });
+      await editor.getByRole("button", { name: "Ders Listesine Dön", exact: true }).click();
+      await editor.waitFor({ state: "hidden" });
+      assert.equal(await menu.getAttribute("aria-current"), null);
+      await menu.click();
+      await editor.waitFor();
+      await page.locator(".panel-sidebar").getByRole("button", { name: "Program Bilgileri", exact: true }).click();
+      await editor.waitFor({ state: "hidden" });
+      assert.equal(await page.locator(".panel-main").getByRole("heading", { level: 1 }).innerText(), "Program Bilgileri");
+      assert.deepEqual(writes, [], "opening, switching tabs and navigating must not write course data");
+    });
+  }
+});
+
+test("academic identity fields stay read-only after loading a package and importing OBS content", async () => {
+  const course = { id: 1, code: "MAT864", name: "İdari Ders Adı", department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans", instructor: "Test Akademisyen", status: "Taslak" };
+  await withPublicPage("/dbp/panel", {
+    preparePage: async (page) => {
+      await page.addInitScript(() => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Akademisyen", username: "test.teacher", role: "akademisyen", department: "Matematik ABD" })));
+      await page.route("**/dbp/api/dbp/**", async (route) => {
+        const endpoint = new URL(route.request().url()).pathname.split("/").pop();
+        let payload;
+        switch (endpoint) {
+          case "events": payload = { ok: true }; break;
+          case "access": payload = { modules: ["my_courses"] }; break;
+          case "programs": payload = { programs: [{ ...course, mainDepartment: course.department, levels: [course.level] }] }; break;
+          case "memberships": payload = { memberships: [] }; break;
+          case "my-courses": payload = { courses: [course], total: 1, source: "database" }; break;
+          case "course-package": payload = { package: { identity: { name: course.name, code: course.code, language: "Türkçe" }, detailFields: { purpose: "Saved purpose" } }, status: "Taslak" }; break;
+          case "obs-course-draft": payload = { draft: { code: "OTHER801", name: "OBS Başka Ders", details: { purpose: "OBS purpose" }, outcomes: [], assessments: [], workloads: {}, weeklyTopics: {}, structures: {}, contributionMatrix: [], sdgs: [] } }; break;
+          default: assert.fail(`Unexpected academic API: ${endpoint}`);
+        }
+        return route.fulfill({ contentType: "application/json", body: JSON.stringify(payload) });
+      });
+    },
+  }, async ({ page }) => {
+    await page.locator(".role-course-sections").getByRole("button", { name: "Görüntüle", exact: true }).first().click();
+    const form = page.locator(".course-bologna-form");
+    const name = form.getByLabel("Dersin Adı", { exact: true });
+    const code = form.getByLabel("Kodu", { exact: true });
+    await name.waitFor();
+    assert.equal(await name.inputValue(), course.name);
+    assert.equal(await code.inputValue(), course.code);
+    assert.equal(await name.isEditable(), false);
+    assert.equal(await code.isEditable(), false);
+    await form.getByRole("button", { name: /OBS.den Doldur/u }).click();
+    await page.getByLabel("OBS ders detay linki").fill("https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=1");
+    await page.getByRole("button", { name: "Dersi Getir", exact: true }).click();
+    await page.getByRole("button", { name: "Tümünü Değiştir", exact: true }).click();
+    assert.equal(await name.inputValue(), course.name);
+    assert.equal(await code.inputValue(), course.code);
+    assert.equal(await name.isEditable(), false);
+    assert.equal(await code.isEditable(), false);
   });
 });
 

@@ -50,7 +50,7 @@ export function newCourseImportFixture(t) {
     invalidateHomeStatsCache: trap, warmHomeStatsCache: trap, queueHomeStatsCacheRefresh: trap,
     queueQualitySnapshotRefresh: trap, refreshQualitySnapshot: trap, refreshHomeInstructorCount: trap, setTimeout: trap,
   });
-  for (const name of ["decodeXmlText", "xmlAttributes", "findZipEndOfCentralDirectory", "readXlsxZipEntries", "xmlTextRuns", "parseXlsxSharedStrings", "worksheetColumnIndex", "resolveXlsxPath", "firstWorksheetPath", "parseXlsxWorksheetRows", "readFirstXlsxSheetRows", "normalizeExcelHeader", "readNewCourseWorkbook", "newCourseImportScope", "buildNewCourseImportPreview", "applyNewCourseImport", "crc32", "zipEntryDate", "createZip", "xlsxColumnName", "xmlEscape", "createCourseAssignmentTemplateWorkbook", "readCourseAssignmentWorkbook", "handleDbpApi"]) {
+  for (const name of ["decodeXmlText", "xmlAttributes", "findZipEndOfCentralDirectory", "readXlsxZipEntries", "xmlTextRuns", "parseXlsxSharedStrings", "worksheetColumnIndex", "resolveXlsxPath", "firstWorksheetPath", "parseXlsxWorksheetRows", "readFirstXlsxSheetRows", "normalizeExcelHeader", "readNewCourseWorkbook", "newCourseImportScope", "courseIdentityEdits", "buildNewCourseImportPreview", "applyNewCourseImport", "crc32", "zipEntryDate", "createZip", "xlsxColumnName", "xmlEscape", "createCourseAssignmentTemplateWorkbook", "readCourseAssignmentWorkbook", "handleDbpApi"]) {
     assert.ok(declarations.has(name), name);
     vm.runInContext(declarations.get(name), context);
   }
