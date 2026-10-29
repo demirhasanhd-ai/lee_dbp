@@ -1,6 +1,8 @@
 "use client";
-import { DownloadCloud, ExternalLink, Link2, Plus, Save, Send, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { DownloadCloud, Plus, Save, Send, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ObsCourseImport } from "./ObsCourseImport";
+import type { ObsDraft, ObsImportSource } from "./obsCourseTypes";
 import { evaluateOutcomeQuality, OutcomeQualityHint } from "./outcomeQuality";
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
@@ -48,39 +50,6 @@ type WorkflowSummary = {
     createdAt?: string;
   } | null;
   latestCorrection?: CorrectionNote | null;
-};
-type ObsDraft = {
-  sourceUrl: string;
-  obsCourseId: string;
-  code: string;
-  name: string;
-  semester: number;
-  theory: number;
-  practice: number;
-  lab: number;
-  credit: number;
-  ects: number;
-  updatedAt: string;
-  details: {
-    language?: string;
-    level?: string;
-    type?: string;
-    teachingMode?: string;
-    purpose?: string;
-    content?: string;
-    methods?: string;
-    prerequisites?: string;
-    coordinator?: string;
-    instructors?: string;
-    assistants?: string;
-  };
-  resources?: string;
-  structures: Record<string, number>;
-  assessments: Assessment[];
-  workloads: Record<string, Workload>;
-  outcomes: string[];
-  weeklyTopics: Record<string, string>;
-  contributionMatrix: Record<string, number>[];
 };
 
 const weeks = Array.from({ length: 15 }, (_, index) => index + 1);
@@ -323,10 +292,8 @@ export function CourseBolognaEditor({
   const [contributionMatrix, setContributionMatrix] = useState<Record<string, number>[]>([]);
   const [sdgs, setSdgs] = useState(emptySdgs);
   const [obsOpen, setObsOpen] = useState(false);
-  const [obsUrl, setObsUrl] = useState("");
-  const [obsDraft, setObsDraft] = useState<ObsDraft | null>(null);
-  const [obsBusy, setObsBusy] = useState(false);
-  const [obsMessage, setObsMessage] = useState("");
+  const [obsSource, setObsSource] = useState<ObsImportSource | null>(null);
+  const closeObsImport = useCallback(() => setObsOpen(false), []);
   const [packageLoading, setPackageLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -337,6 +304,8 @@ export function CourseBolognaEditor({
     setPackageLoading(true);
     setLoadError("");
     setSaveError("");
+    setObsOpen(false);
+    setObsSource(null);
     const applyStaticPackage = (value: CoursePackage) => {
       setIdentity({
         name: course.name,
@@ -372,6 +341,8 @@ export function CourseBolognaEditor({
       setCommitteeSkipped(false);
     };
     const applySavedPackage = (stored: Record<string, unknown>, status: string, workflow?: WorkflowSummary | null) => {
+      if (stored.obsImportSource && typeof stored.obsImportSource === "object") setObsSource(stored.obsImportSource as ObsImportSource);
+      else if (typeof stored.obsSourceUrl === "string" && stored.obsSourceUrl) setObsSource({ url: stored.obsSourceUrl, obsCourseId: "", program: "", updatedAt: "", importedAt: "", matrixIncluded: false });
       const savedIdentity = stored.identity as typeof identity | undefined;
       const savedDetails = stored.detailFields as Record<string, string> | undefined;
       if (savedIdentity) setIdentity(savedIdentity);
@@ -606,39 +577,16 @@ export function CourseBolognaEditor({
     setAssessments((current) => rebalanceAssessmentWeights(current.filter((row) => row.id !== item.id)));
     setWorkloads((current) => redistributeRemovedWorkload(current, linkedWorkloadNames(current, item.name)));
   };
-  const fetchObsDraft = async () => {
-    setObsBusy(true);
-    setObsMessage("");
-    setObsDraft(null);
-    try {
-      const response = await fetch(dbpPath("/api/dbp/obs-course-draft"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-DBP-Session": sessionHeader(session),
-        },
-        body: JSON.stringify({ url: obsUrl }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.message || "OBS ders bilgisi alınamadı.");
-      setObsDraft(data.draft);
-      setObsMessage(`${data.draft.code} - ${data.draft.name} bulundu.`);
-    } catch (error) {
-      setObsMessage(error instanceof Error ? error.message : "OBS ders bilgisi alınamadı.");
-    } finally {
-      setObsBusy(false);
-    }
-  };
-  const applyObsDraft = (mode: "empty" | "overwrite") => {
-    if (!obsDraft) return;
+  const applyObsDraft = (obsDraft: ObsDraft, mode: "empty" | "overwrite", source: ObsImportSource) => {
+    if (readOnly || approvalLocked) return;
     const initialIdentity = defaultIdentity(course);
     const initialDetails = defaultDetailFields();
     setIdentity((current) => ({
       name: current.name,
       code: current.code,
-      theory: shouldFill(current.theory, initialIdentity.theory, mode) ? String(obsDraft.theory || current.theory) : current.theory,
-      practice: shouldFill(current.practice, initialIdentity.practice, mode) ? String(obsDraft.practice || current.practice) : current.practice,
-      credit: shouldFill(current.credit, initialIdentity.credit, mode) ? String(obsDraft.credit || current.credit) : current.credit,
+      theory: shouldFill(current.theory, initialIdentity.theory, mode) ? String(obsDraft.theory ?? current.theory) : current.theory,
+      practice: shouldFill(current.practice, initialIdentity.practice, mode) ? String(obsDraft.practice ?? current.practice) : current.practice,
+      credit: shouldFill(current.credit, initialIdentity.credit, mode) ? String(obsDraft.credit ?? current.credit) : current.credit,
       level: shouldFill(current.level, initialIdentity.level, mode) ? obsDraft.details.level || current.level : current.level,
       type: shouldFill(current.type, initialIdentity.type, mode) ? obsDraft.details.type || current.type : current.type,
       language: shouldFill(current.language, initialIdentity.language, mode) ? obsDraft.details.language || current.language : current.language,
@@ -678,9 +626,11 @@ export function CourseBolognaEditor({
     if (Object.keys(obsDraft.structures).length && (mode === "overwrite" || Object.values(structureValues).every((item) => Number(item) === 0))) {
       setStructureValues((current) => ({ ...current, ...obsDraft.structures }));
     }
-    if (obsDraft.contributionMatrix.length && (mode === "overwrite" || contributionMatrix.length === 0)) {
+    const matrixImported = source.matrixIncluded && obsDraft.contributionMatrix.length > 0 && (mode === "overwrite" || contributionMatrix.length === 0);
+    if (matrixImported) {
       setContributionMatrix(normalizeContributionRows(obsDraft.contributionMatrix));
     }
+    setObsSource({ ...source, matrixIncluded: matrixImported });
     setObsOpen(false);
   };
   const persistPackage = async (form: HTMLFormElement, status: string) => {
@@ -713,7 +663,8 @@ export function CourseBolognaEditor({
             contributionMatrix,
             sdgs,
             ects,
-            obsSourceUrl: obsDraft?.sourceUrl || "",
+            obsSourceUrl: obsSource?.url || "",
+            obsImportSource: obsSource,
             savedAt: new Date().toISOString(),
           },
         }),
@@ -758,7 +709,7 @@ export function CourseBolognaEditor({
             <h2>{identity.name}</h2>
           </div>
           <div className="course-header-actions">
-            <button type="button" className="obs-import-button" onClick={() => setObsOpen(true)}>
+            <button type="button" className="obs-import-button" disabled={readOnly || approvalLocked || packageLoading || Boolean(loadError)} onClick={() => setObsOpen(true)}>
               <DownloadCloud size={15} /> OBS&apos;den Doldur
             </button>
             <span>{workflowStatus}</span>
@@ -1073,47 +1024,7 @@ export function CourseBolognaEditor({
           <button type="submit" className="publish" disabled={approvalLocked || saving || publishIssues.length > 0} title={approvalLocked ? "Paket onay sürecinde." : publishIssues[0] ?? "Onay sürecine gönder"}><Send size={15} />Onaya gönder</button>
         </div>
       </div>}
-      {obsOpen && (
-        <div className="obs-import-backdrop" role="presentation">
-          <section className="obs-import-dialog" role="dialog" aria-modal="true" aria-labelledby="obs-import-title">
-            <header>
-              <div>
-                <small>CANLI OBS</small>
-                <h3 id="obs-import-title">OBS&apos;den Ders Bilgisi Al</h3>
-              </div>
-              <button type="button" onClick={() => setObsOpen(false)} aria-label="Kapat"><X size={16} /></button>
-            </header>
-            <div className="obs-guide">
-              <p>OBS&apos;den çağırılmak istenen ders seçildikten sonra açılan sayfanın en altında bulunan linki kopyalayın.</p>
-              <a className="obs-guide-link" href={dbpPath("/obs-link-guide.jpg")} target="_blank" rel="noopener noreferrer">
-                <ExternalLink size={15} />
-                Görsel için tıklayınız
-              </a>
-            </div>
-            <label>
-              <span>OBS ders detay linki</span>
-              <div className="obs-url-row">
-                <Link2 size={15} />
-                <input value={obsUrl} onChange={(event) => setObsUrl(event.target.value)} placeholder="https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=..." />
-              </div>
-            </label>
-            <button type="button" className="obs-fetch" disabled={obsBusy || !obsUrl.trim()} onClick={fetchObsDraft}>
-              {obsBusy ? "Getiriliyor..." : "Dersi Getir"}
-            </button>
-            {obsMessage && <p className={obsDraft ? "obs-success" : "obs-error"}>{obsMessage}</p>}
-            {obsDraft && (
-              <div className="obs-found">
-                <b>{obsDraft.code} - {obsDraft.name}</b>
-                <span>{obsDraft.details.level || "Ders bilgi paketi"} · {obsDraft.ects || "-"} AKTS · {obsDraft.updatedAt || "Güncelleme tarihi yok"}</span>
-                <footer>
-                  <button type="button" onClick={() => applyObsDraft("empty")}>Boş Alanları Doldur</button>
-                  <button type="button" className="primary" onClick={() => applyObsDraft("overwrite")}>Tümünü Değiştir</button>
-                </footer>
-              </div>
-            )}
-          </section>
-        </div>
-      )}
+      {obsOpen && <ObsCourseImport course={course} session={session} onClose={closeObsImport} onApply={applyObsDraft} />}
     </form>
   );
 }

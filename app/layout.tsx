@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./obs-browser.css";
 import { dbpPath } from "../lib/dbpPath";
 
 export const metadata: Metadata = {

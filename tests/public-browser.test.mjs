@@ -578,7 +578,8 @@ test("academic identity fields stay read-only after loading a package and import
           case "memberships": payload = { memberships: [] }; break;
           case "my-courses": payload = { courses: [course], total: 1, source: "database" }; break;
           case "course-package": payload = { package: { identity: { name: course.name, code: course.code, language: "Türkçe" }, detailFields: { purpose: "Saved purpose" } }, status: "Taslak" }; break;
-          case "obs-course-draft": payload = { draft: { code: "OTHER801", name: "OBS Başka Ders", details: { purpose: "OBS purpose" }, outcomes: [], assessments: [], workloads: {}, weeklyTopics: {}, structures: {}, contributionMatrix: [], sdgs: [] } }; break;
+          case "obs-programs": payload = { programs: [], suggestedProgramId: "" }; break;
+          case "obs-course-draft": payload = { draft: { sourceUrl: "https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=1&lang=tr", obsCourseId: "1", code: "OTHER801", name: "OBS Başka Ders", theory: 3, practice: 0, lab: 0, credit: 3, ects: 6, totalWorkload: 0, details: { purpose: "OBS purpose" }, outcomes: [], assessments: [], workloads: {}, weeklyTopics: {}, structures: {}, contributionMatrix: [] } }; break;
           default: assert.fail(`Unexpected academic API: ${endpoint}`);
         }
         return route.fulfill({ contentType: "application/json", body: JSON.stringify(payload) });
@@ -595,8 +596,10 @@ test("academic identity fields stay read-only after loading a package and import
     assert.equal(await name.isEditable(), false);
     assert.equal(await code.isEditable(), false);
     await form.getByRole("button", { name: /OBS.den Doldur/u }).click();
-    await page.getByLabel("OBS ders detay linki").fill("https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=1");
-    await page.getByRole("button", { name: "Dersi Getir", exact: true }).click();
+    await page.getByRole("tab", { name: "Bağlantıyla getir" }).click();
+    await page.getByLabel("ÖBS ders detay bağlantısı").fill("https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=1");
+    await page.getByRole("button", { name: "Dersi Getir ve Önizle", exact: true }).click();
+    await page.getByLabel("Aktarılan bölümlerde mevcut içeriğin değiştirilmesini onaylıyorum.").check();
     await page.getByRole("button", { name: "Tümünü Değiştir", exact: true }).click();
     assert.equal(await name.inputValue(), course.name);
     assert.equal(await code.inputValue(), course.code);

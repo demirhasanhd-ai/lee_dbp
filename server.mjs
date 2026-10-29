@@ -1,3 +1,4 @@
+import { fetchObsCourseDraft, obsSearchService } from "./lib/obsBologna.mjs";
 import { beginStartupStep, measureStartupAsync, measureStartupSync, observeStartupBackground } from "./lib/runtimeLogging.mjs";
 import { errorMonitor } from "node:events";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
@@ -11,7 +12,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
 import { deflateRawSync, inflateRawSync } from "node:zlib";
-import * as cheerio from "cheerio";
 import {
   displayDepartment,
   harvestTheses,
@@ -9238,210 +9238,6 @@ async function deleteBackup(fileName, actor) {
   audit("backup.delete", actor, { fileName });
 }
 
-const obsCourseHost = "obs.osmaniye.edu.tr";
-const obsCoursePath = "/oibs/bologna/progCourseDetails.aspx";
-const obsStructureLabels = [
-  "Matematik ve Temel Bilimler",
-  "Mühendislik Bilimleri",
-  "Mühendislik Tasarımı",
-  "Sosyal Bilimler",
-  "Eğitim Bilimleri",
-  "Fen Bilimleri",
-  "Sağlık Bilimleri",
-  "Alan Bilgisi",
-];
-
-function cleanObsText(value = "") {
-  return String(value).replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function normalizeObsText(value = "") {
-  return cleanObsText(value)
-    .toLocaleLowerCase("tr-TR")
-    .replace(/ı/g, "i")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9%]+/g, " ")
-    .trim();
-}
-
-function obsNumber(value) {
-  const match = cleanObsText(value).replace(",", ".").match(/-?\d+(\.\d+)?/);
-  return match ? Number(match[0]) : 0;
-}
-
-function obsPercent(value) {
-  return Math.max(0, Math.min(100, obsNumber(value)));
-}
-
-function normalizeObsUrl(rawUrl) {
-  let url;
-  try {
-    url = new URL(String(rawUrl || "").trim());
-  } catch {
-    throw new Error("Geçerli bir OBS ders linki girin.");
-  }
-  if (url.hostname !== obsCourseHost || url.pathname !== obsCoursePath || !url.searchParams.get("curCourse")) {
-    throw new Error("Yalnızca OBS ders detay linki kullanılabilir.");
-  }
-  url.protocol = "https:";
-  url.searchParams.set("lang", url.searchParams.get("lang") || "tr");
-  return url;
-}
-
-async function fetchObsHtml(rawUrl) {
-  const url = normalizeObsUrl(rawUrl);
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "LEE-DBP/1.0 (course-package draft import)",
-      "Accept-Language": "tr-TR,tr;q=0.9",
-    },
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!response.ok) throw new Error(`OBS sayfasına ulaşılamadı (${response.status}).`);
-  const buffer = Buffer.from(await response.arrayBuffer());
-  const charset = response.headers.get("content-type")?.match(/charset=([^;\s]+)/i)?.[1] || "utf-8";
-  try {
-    return { html: new TextDecoder(charset).decode(buffer), url: url.toString() };
-  } catch {
-    return { html: new TextDecoder("utf-8").decode(buffer), url: url.toString() };
-  }
-}
-
-function obsRowsFromTable($, table) {
-  return $(table)
-    .find("tr")
-    .get()
-    .map((row) => $(row).children("th,td").get().map((cell) => cleanObsText($(cell).text())))
-    .filter((row) => row.some(Boolean));
-}
-
-function obsTables(html) {
-  const $ = cheerio.load(html);
-  return $("table").get().map((table) => obsRowsFromTable($, table)).filter((rows) => rows.length);
-}
-
-function findObsTable(tables, predicate) {
-  return tables.find((rows) => rows.some(predicate)) || [];
-}
-
-function findObsValue(tables, label) {
-  const target = normalizeObsText(label);
-  for (const rows of tables) {
-    for (const row of rows) {
-      if (normalizeObsText(row[0]) === target) return row[1] || "";
-    }
-  }
-  return "";
-}
-
-function normalizeObsAssessmentName(value) {
-  const normalized = normalizeObsText(value);
-  if (normalized.includes("ara sinav")) return "Ara Sınav";
-  if (normalized.includes("yariyil sonu") || normalized.includes("final")) return "Yarıyıl Sonu Sınavı";
-  return cleanObsText(value);
-}
-
-function normalizeObsWorkloadName(value) {
-  const normalized = normalizeObsText(value);
-  if (normalized.includes("ders suresi")) return "Ders Süresi";
-  if (normalized.includes("sinif disi")) return "Sınıf Dışı Çalışma";
-  if (normalized.includes("ara sinav")) return "Ara Sınav";
-  if (normalized.includes("yariyil sonu") || normalized.includes("final")) return "Yarıyıl Sonu Sınavı";
-  return cleanObsText(value);
-}
-
-function parseObsCourseDraft(html, sourceUrl) {
-  const tables = obsTables(html);
-  const detailTable = findObsTable(tables, (row) =>
-    row.some((cell) => normalizeObsText(cell) === "kodu") &&
-    row.some((cell) => normalizeObsText(cell).includes("akts")),
-  );
-  const detailHeader = detailTable[0] || [];
-  const detailValues = detailTable.find((row, index) => index > 0 && row.some(Boolean)) || [];
-  const detail = Object.fromEntries(detailHeader.map((key, index) => [cleanObsText(key), detailValues[index] || ""]));
-  const [theory = 0, practice = 0, lab = 0] = cleanObsText(detail["T+U+L"]).split("+").map(obsNumber);
-  const details = {
-    language: findObsValue(tables, "Dersin Dili"),
-    level: findObsValue(tables, "Dersin Düzeyi"),
-    program: findObsValue(tables, "Bölümü / Programı"),
-    type: findObsValue(tables, "Dersin Türü"),
-    teachingMode: findObsValue(tables, "Dersin Öğretim Şekli"),
-    purpose: findObsValue(tables, "Dersin Amacı"),
-    content: findObsValue(tables, "Dersin İçeriği"),
-    methods: findObsValue(tables, "Dersin Yöntem ve Teknikleri"),
-    prerequisites: findObsValue(tables, "Ön Koşulları"),
-    coordinator: findObsValue(tables, "Dersin Koordinatörü"),
-    instructors: findObsValue(tables, "Dersi Verenler"),
-    assistants: findObsValue(tables, "Dersin Yardımcıları"),
-  };
-  const resourceParts = [findObsValue(tables, "Kaynaklar"), findObsValue(tables, "Ders Notları")].filter(Boolean);
-  const structures = {};
-  for (const rows of tables) {
-    for (const row of rows) {
-      const label = obsStructureLabels.find((item) => normalizeObsText(item) === normalizeObsText(row[0]));
-      if (label) structures[label] = obsPercent(row[1]);
-    }
-  }
-  const assessmentTable = findObsTable(tables, (row) => normalizeObsText(row[0]).includes("yariyil calismalari"));
-  const assessments = assessmentTable
-    .slice(1)
-    .filter((row) => row[0] && !normalizeObsText(row[0]).includes("toplam"))
-    .map((row, index) => {
-      const name = normalizeObsAssessmentName(row[0]);
-      return { id: index + 1, name, count: obsNumber(row[1]), weight: obsPercent(row[2]), fixed: ["Ara Sınav", "Yarıyıl Sonu Sınavı"].includes(name) };
-    });
-  const workloadTable = findObsTable(tables, (row) => normalizeObsText(row[0]) === "is yuku");
-  const workloads = {};
-  for (const row of workloadTable.slice(1)) {
-    if (!row[0] || normalizeObsText(row[0]).includes("toplam")) continue;
-    workloads[normalizeObsWorkloadName(row[0])] = { count: obsNumber(row[1]), hours: obsNumber(row[2]) };
-  }
-  const outcomesTable = findObsTable(tables, (row) =>
-    normalizeObsText(row[0]).includes("sira no") && normalizeObsText(row[1]).includes("aciklama"),
-  );
-  const outcomes = outcomesTable.slice(1).filter((row) => /^\d+$/.test(row[0] || "") && row[1]).map((row) => row[1]);
-  const weeklyTable = findObsTable(tables, (row) =>
-    normalizeObsText(row[0]) === "hafta" && normalizeObsText(row[1]) === "konu",
-  );
-  const weeklyTopics = {};
-  for (const row of weeklyTable.slice(1)) {
-    const week = obsNumber(row[0]);
-    if (!week) continue;
-    const extra = [row[2] ? `Ön Hazırlık: ${row[2]}` : "", row[3] ? `Dokümanlar: ${row[3]}` : ""].filter(Boolean);
-    weeklyTopics[week] = [row[1] || "", ...extra].filter(Boolean).join("\n");
-  }
-  const contributionTable = findObsTable(tables, (row) => row.some((cell) => /^P\d+$/i.test(cleanObsText(cell))));
-  const contributionHeaders = contributionTable[0] || [];
-  const contributionMatrix = contributionTable
-    .slice(1)
-    .filter((row) => /^Ö?\d+$/i.test(cleanObsText(row[0])) || /^O?\d+$/i.test(cleanObsText(row[0])))
-    .map((row) => Object.fromEntries(contributionHeaders.slice(1).map((header, index) => [header, obsNumber(row[index + 1])])));
-  const totalWorkload = Object.values(workloads).reduce((sum, row) => sum + row.count * row.hours, 0);
-  const url = new URL(sourceUrl);
-  return {
-    sourceUrl,
-    obsCourseId: url.searchParams.get("curCourse") || "",
-    code: detail["Kodu"] || "",
-    name: detail["Adı"] || "",
-    semester: obsNumber(detail["Yarıyıl"]),
-    theory,
-    practice,
-    lab,
-    credit: obsNumber(detail["Kredi"]),
-    ects: obsNumber(detail["AKTS"]),
-    updatedAt: detail["Son Güncelleme Tarihi"] || "",
-    details,
-    resources: resourceParts.join("\n\n"),
-    structures,
-    assessments,
-    workloads,
-    outcomes,
-    weeklyTopics,
-    contributionMatrix,
-    totalWorkload,
-  };
-}
 
 async function handleDbpApi(request) {
   const url = new URL(request.url);
@@ -9499,13 +9295,48 @@ async function handleDbpApi(request) {
       });
     }
 
+    if (pathname === "/api/dbp/obs-programs" && request.method === "GET") {
+      const auth = requireDbpSession(request);
+      if (auth.error) return auth.error;
+      const result = await obsSearchService.programs(url.searchParams.get("educationLevel") || "yls", {
+        programName: (url.searchParams.get("programName") || "").slice(0, 200),
+        department: (url.searchParams.get("department") || "").slice(0, 200),
+        level: (url.searchParams.get("level") || "").slice(0, 100),
+      });
+      return jsonResponse({ ok: true, ...result });
+    }
+
+    if (pathname === "/api/dbp/obs-course-search") {
+      const auth = requireDbpSession(request);
+      if (auth.error) return auth.error;
+      const owner = auth.session.username || auth.session.tcKimlik || auth.session.name;
+      if (!owner) return jsonResponse({ message: "ÖBS taraması için geçerli bir oturum gerekli." }, { status: 401 });
+      if (request.method === "GET" || request.method === "DELETE") {
+        const job = request.method === "DELETE"
+          ? obsSearchService.cancel(url.searchParams.get("id"), owner)
+          : obsSearchService.get(url.searchParams.get("id"), owner);
+        return job ? jsonResponse({ ok: true, job }) : jsonResponse({ message: "Tarama bulunamadı veya süresi doldu." }, { status: 404 });
+      }
+      if (request.method === "POST") {
+        const body = await readJsonBody(request);
+        const fields = ["code", "name", "programName", "department", "level", "programId", "educationLevel"];
+        const target = Object.fromEntries(fields.map((key) => [key, String(body[key] || "").trim().slice(0, 200)]));
+        try {
+          const job = await obsSearchService.start({ ...target, instructorName: auth.session.name || "", refresh: body.refresh === true }, owner);
+          audit("course.obs.search", owner, { code: target.code, programId: target.programId });
+          return jsonResponse({ ok: true, job }, { status: 202 });
+        } catch (error) {
+          return jsonResponse({ message: error.message || "ÖBS taraması başlatılamadı." }, { status: 422 });
+        }
+      }
+    }
+
     if (pathname === "/api/dbp/obs-course-draft" && request.method === "POST") {
       const auth = requireDbpSession(request);
       if (auth.error) return auth.error;
       upsertSessionUser(auth.session);
       const body = await readJsonBody(request);
-      const { html, url: sourceUrl } = await fetchObsHtml(body.url);
-      const draft = parseObsCourseDraft(html, sourceUrl);
+      const draft = await fetchObsCourseDraft(body.url);
       if (!draft.code || !draft.name) {
         return jsonResponse({ message: "OBS ders bilgileri okunamadı. Linkin ders detay sayfası olduğundan emin olun." }, { status: 422 });
       }
