@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { createReadStream, readFileSync } from "node:fs";
+import { mkdtemp, readFile, readdir, rmdir, stat, unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import vm from "node:vm";
@@ -32,6 +35,50 @@ function fixture(t) {
   const run = (req, handler = context.handleDbpApi, options = {}) => withAuditRequest(req, handler, { getDb: () => db, ...options });
   return { db, context, run };
 }
+
+test("selected backup downloads preserve the exact stored file and require a verified admin", async (t) => {
+  const { context, run, db } = fixture(t);
+  const backupDir = await mkdtemp(path.join(tmpdir(), "dbp-backup-download-"));
+  const fileName = "dbp-backup-2026-11-01T10-00-00-000Z.json";
+  const file = path.join(backupDir, fileName);
+  const bytes = Buffer.from('{\n  "exportedAt": "original-time", "tables": {"courses": [{"name": "Türkçe ders"}]}\n}\n');
+  await writeFile(file, bytes);
+  t.after(async () => { await unlink(file); await rmdir(backupDir); });
+  Object.assign(context, {
+    backupDir, path, stat, createReadStream,
+    exportData: () => assert.fail("downloading a stored backup must not regenerate it"),
+  });
+  const endpoint = `admin/backup/download?${new URLSearchParams({ fileName })}`;
+  for (const user of [undefined, session("teacher", "akademisyen"), unsigned("impostor", "admin")]) {
+    assert.equal((await run(request(endpoint, user))).status, 403);
+  }
+  const response = await run(request(endpoint, session("admin", "admin")));
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Content-Length"), String(bytes.length));
+  assert.match(response.headers.get("Content-Disposition"), new RegExp(`filename="${fileName.replaceAll(".", "\\.")}"`));
+  assert.match(response.headers.get("Cache-Control"), /no-store/);
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
+  assert.deepEqual(await readFile(file), bytes);
+  assert.deepEqual(await readdir(backupDir), [fileName]);
+  const logs = queryAudit(db, new URLSearchParams({ action: "backup.download" })).rows;
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].details.fileName, fileName);
+});
+
+test("backup downloads reject invalid paths and report missing files without a success audit", async (t) => {
+  const { context, run, db } = fixture(t);
+  const backupDir = await mkdtemp(path.join(tmpdir(), "dbp-backup-missing-"));
+  t.after(() => rmdir(backupDir));
+  Object.assign(context, { backupDir, path, stat, createReadStream });
+  for (const fileName of ["", "../outside.json", "nested/backup.json", "dbp.sqlite"]) {
+    const endpoint = `admin/backup/download?${new URLSearchParams({ fileName })}`;
+    assert.equal((await run(request(endpoint, session("admin", "admin")))).status, 400);
+  }
+  assert.equal((await run(request("admin/backup/download", session("admin", "admin")))).status, 400);
+  const missing = await run(request("admin/backup/download?fileName=missing.json", session("admin", "admin")));
+  assert.equal(missing.status, 404);
+  assert.equal(queryAudit(db, new URLSearchParams({ action: "backup.download" })).total, 0);
+});
 
 test("signed sessions reject role/name tampering, expiry and unsigned production claims", () => {
   const user = session("chair", "abd_asd_baskani");

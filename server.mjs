@@ -9232,6 +9232,35 @@ async function restoreBackup(fileName, actor) {
   audit("backup.restore", actor, { fileName });
 }
 
+async function downloadBackup(fileName) {
+  let file;
+  try {
+    file = backupFilePath(fileName);
+  } catch {
+    return jsonResponse({ message: "Geçersiz yedek dosyası adı." }, { status: 400 });
+  }
+  let info;
+  try {
+    info = await stat(file);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return jsonResponse({ message: "Yedek dosyası bulunamadı." }, { status: 404 });
+    }
+    throw error;
+  }
+  if (!info.isFile()) return jsonResponse({ message: "Yedek dosyası bulunamadı." }, { status: 404 });
+  const encodedName = encodeURIComponent(fileName).replace(/['()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+  return new Response(createReadStream(file), {
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "Content-Length": String(info.size),
+      "Content-Disposition": `attachment; filename="${fileName.replace(/[^a-zA-Z0-9._-]/g, "_")}"; filename*=UTF-8''${encodedName}`,
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
 async function deleteBackup(fileName, actor) {
   const file = backupFilePath(fileName);
   await unlink(file);
@@ -10089,6 +10118,13 @@ async function handleDbpApi(request) {
 
     if (pathname === "/api/dbp/admin/backups" && request.method === "GET") {
       return jsonResponse({ backups: await listBackups() });
+    }
+
+    if (pathname === "/api/dbp/admin/backup/download" && request.method === "GET") {
+      const fileName = url.searchParams.get("fileName");
+      const response = await downloadBackup(fileName);
+      if (response.ok) audit("backup.download", actor, { fileName });
+      return response;
     }
 
     if (pathname === "/api/dbp/admin/backup" && request.method === "POST") {

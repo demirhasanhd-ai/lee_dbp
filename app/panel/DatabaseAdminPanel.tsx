@@ -151,6 +151,27 @@ export function DatabaseAdminPanel() {
       if (!response.ok) throw new Error("Yedekten geri donulemedi.");
     });
 
+  const downloadSelectedBackup = () =>
+    runAction("Seçili yedek için indirme başlatıldı.", async () => {
+      if (!selectedBackup) throw new Error("Önce bir yedek seçin.");
+      const fileName = selectedBackup;
+      setMessage("Seçili yedek indiriliyor...");
+      const params = new URLSearchParams({ fileName });
+      const response = await fetch(dbpPath(`/api/dbp/admin/backup/download?${params}`), {
+        headers: { "X-DBP-Session": sessionHeader() },
+      });
+      if (!response.ok) {
+        throw new Error(response.status === 404 ? "Seçili yedek dosyası bulunamadı. Listeyi yenileyin." : "Seçili yedek indirilemedi.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+
   const deleteSelectedBackup = () => {
     if (!selectedBackup) {
       setMessage("Once bir yedek secin.");
@@ -271,7 +292,7 @@ export function DatabaseAdminPanel() {
                 </label>
               </div>
               <div className="database-restore-row">
-                <select value={selectedBackup} onChange={(event) => setSelectedBackup(event.target.value)}>
+                <select value={selectedBackup} onChange={(event) => setSelectedBackup(event.target.value)} disabled={busy}>
                   <option value="">Yedek seçiniz</option>
                   {summary.backups.map((backup) => (
                     <option key={backup.fileName} value={backup.fileName}>
@@ -279,6 +300,7 @@ export function DatabaseAdminPanel() {
                     </option>
                   ))}
                 </select>
+                <button onClick={downloadSelectedBackup} disabled={busy || !selectedBackup}><Download size={15} /> Yedeği İndir</button>
                 <button onClick={restoreSelected} disabled={busy || !selectedBackup}><RotateCcw size={15} /> Geri Yükle</button>
                 <button className="danger-action" onClick={deleteSelectedBackup} disabled={busy || !selectedBackup}><Trash2 size={15} /> Yedeği Sil</button>
               </div>
