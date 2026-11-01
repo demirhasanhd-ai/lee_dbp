@@ -680,13 +680,48 @@ test("Matematik public list uses the saved term on the next request, including c
   });
 });
 
-test("the same BES801 code keeps its department-specific group and term", async () => {
+test("common process courses show the saved term after reload and in the downloaded Excel list", async (t) => {
+  const { context } = newCourseImportFixture(t);
+  const codes = ["HRM809", "DAN8XX"];
+  let term = "Güz";
+  await withPublicPage("/dbp/hrt/tezli?sekme=courses", {
+    courseTransform: (course) => codes.includes(course.code) ? { ...course, term } : course,
+  }, async ({ page }) => {
+    for (const savedTerm of ["Güz", "Bahar", "Güz ve Bahar"]) {
+      term = savedTerm;
+      await page.reload({ waitUntil: "networkidle" });
+      for (const code of codes) {
+        const row = page.locator(".public-course-table tbody tr").filter({ has: page.getByText(code, { exact: true }) });
+        await row.waitFor();
+        assert.equal(await row.count(), 1);
+        assert.equal(await row.locator("td").nth(2).innerText(), savedTerm);
+        assert.equal(await row.locator("xpath=ancestor::section[1]").getByRole("heading", { level: 3 }).innerText(), "Ortak / Süreç Dersleri");
+      }
+      const downloaded = page.waitForEvent("download");
+      await page.getByRole("button", { name: "Ders listesini indir", exact: true }).click();
+      const download = await downloaded;
+      assert.match(download.suggestedFilename(), /\.xlsx$/u);
+      const chunks = [];
+      for await (const chunk of await download.createReadStream()) chunks.push(chunk);
+      const rows = context.readFirstXlsxSheetRows(Buffer.concat(chunks));
+      for (const code of codes) {
+        const exported = rows.filter((row) => row[0] === code);
+        assert.equal(exported.length, 1);
+        assert.equal(exported[0][2], savedTerm);
+      }
+    }
+  });
+});
+
+test("the same BES801 code keeps its department-specific group while respecting the saved term", async () => {
   for (const [slug, section, term] of [
     ["arkeoloji-abd-arkeoloji", "Güz Yarıyılı", "Güz"],
-    ["tarih-abd-tarih", "Ortak / Süreç Dersleri", "Güz ve Bahar"],
+    ["tarih-abd-tarih", "Ortak / Süreç Dersleri", "Bahar"],
   ]) {
     const params = new URLSearchParams({ duzey: "Tezli Yüksek Lisans", sekme: "courses" });
-    await withPublicPage(`/dbp/programlar/${slug}?${params}`, {}, async ({ page }) => {
+    await withPublicPage(`/dbp/programlar/${slug}?${params}`, {
+      courseTransform: (course) => course.code === "BES801" ? { ...course, term } : course,
+    }, async ({ page }) => {
       const row = page.locator(".public-course-table tbody tr").filter({ has: page.getByText("BES801", { exact: true }) });
       await row.waitFor();
       assert.equal(await row.count(), 1);

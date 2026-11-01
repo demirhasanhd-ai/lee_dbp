@@ -8,7 +8,7 @@ const source = readFileSync(new URL("../server.mjs", import.meta.url), "utf8");
 const handler = source.match(/^async function handleDbpApi\([^\n]*\) \{[\s\S]*?^\}/m)[0];
 const identity = { code: "MAT864", department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans" };
 
-function fixture(t, role = "enstitu_yoneticisi") {
+function fixture(t, role = "enstitu_yoneticisi", courseIdentity = identity) {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
   db.exec(`CREATE TABLE courses (
@@ -28,7 +28,7 @@ function fixture(t, role = "enstitu_yoneticisi") {
     instructor, instructor_tc_kimlik, instructor_email, instructor_title, instructor_source, instructor_assigned_at,
     package_json, created_at, updated_at) VALUES (1, ?, ?, ?, ?, 'ANALİZDEN SEÇME KONULAR II', '', ?,
     'Existing Instructor', '11111111111', 'existing@example.test', 'Prof. Dr.', 'e_enstitu_api', 'assignment-time', ?, 'created-time', 'old-time')`)
-    .run(identity.department, identity.programName, identity.level, identity.code, "Komisyon Onayı Bekliyor", envelope);
+    .run(courseIdentity.department, courseIdentity.programName, courseIdentity.level, courseIdentity.code, "Komisyon Onayı Bekliyor", envelope);
   let resolutions = 0;
   const context = vm.createContext({
     URL, Response, db, console: { error: (...args) => assert.fail(args.join(" ")) },
@@ -76,6 +76,64 @@ test("term-only correction preserves instructor identity, both package revisions
   assert.deepEqual(db.prepare("SELECT * FROM course_review_assignees").all(), reviewers);
   assert.equal(resolutions(), 0);
   assert.equal(context.publicCourseRouteIndexCache, undefined);
+});
+
+test("authorized roles persist all supported terms for a common process course without changing its package or approval", async (t) => {
+  const courseIdentity = { department: "Harita Mühendisliği ABD", programName: "Harita Mühendisliği", level: "Tezli Yüksek Lisans", code: "HRM809" };
+  for (const role of ["admin", "enstitu_yoneticisi", "lee_ogrenci_isleri"]) {
+    const { request, row } = fixture(t, role, courseIdentity);
+    const before = row();
+    for (const term of ["Güz", "Bahar", "Güz ve Bahar"]) {
+      assert.equal((await request({ ...courseIdentity, action: "assign", term })).status, 200);
+      const after = row();
+      assert.equal(after.term, term);
+      assert.deepEqual({ ...after, term: before.term, updated_at: before.updated_at }, { ...before });
+    }
+  }
+});
+
+test("legacy process course normalization preserves saved terms", () => {
+  const declarations = new Map([...source.matchAll(/^(?:async )?function (\w+)\([^\n]*\) \{[\s\S]*?^\}/gm)].map((match) => [match[1], match[0]]));
+  const context = vm.createContext({
+    normalizeScope: (value = "") => value.trim().toLocaleLowerCase("tr-TR"),
+    levelKey: (value) => value,
+    repairText: (value) => value,
+  });
+  vm.runInContext([...source.matchAll(/^const (?:ybsTezsiz\w+Codes|yonetimOrganizasyonTezsiz\w+Codes|makineDr\w+Codes) = new Set\([^\n]+/gm)]
+    .map((match) => match[0]).join("\n") + "\n" + ["normalizeYbsTezsizCourse", "normalizeYonetimOrganizasyonTezsizCourse", "normalizeMakineDoktoraCourse"].map((name) => declarations.get(name)).join("\n"), context);
+  for (const [normalizer, department, programName, level, codes] of [
+    ["normalizeYbsTezsizCourse", "Yönetim Bilişim Sistemleri ABD", "Yönetim Bilişim Sistemleri", "tezsiz yl", ["YBS701", "YBS703"]],
+    ["normalizeYonetimOrganizasyonTezsizCourse", "Yönetim Organizasyon", "Yönetim Organizasyon", "tezsiz yl", ["YON701", "YON703"]],
+    ["normalizeMakineDoktoraCourse", "Makine Mühendisliği ABD", "Makine Mühendisliği", "doktora", ["MMB951"]],
+  ]) {
+    for (const code of codes) {
+      for (const term of ["Güz", "Bahar", "Güz ve Bahar", ""]) {
+        assert.equal(context[normalizer]({ department, programName, level, code, term }).term, term || "Güz ve Bahar", code);
+      }
+    }
+  }
+});
+
+test("legacy package migrations retain saved terms instead of resetting them to both semesters", async (t) => {
+  for (const [department, programName, code, migration] of [
+    ["Yönetim Bilişim Sistemleri ABD", "Yönetim Bilişim Sistemleri", "YBS703", "migrateYbsTezsizPackagesFromSeed"],
+    ["Yönetim Organizasyon", "Yönetim Organizasyon", "YON703", "migrateYonetimOrganizasyonTezsizPackagesFromSeed"],
+  ]) {
+    const courseIdentity = { department, programName, code, level: "tezsiz yl" };
+    const { db, context, request, row } = fixture(t, "admin", courseIdentity);
+    context.readCoursePackageSeeds = () => [{ ...courseIdentity, name: "Seed name" }];
+    context.storedPackageFromSeed = () => ({ staticSeed: true });
+    for (const name of ["seedPackageReplacementCondition", migration]) {
+      vm.runInContext(source.match(new RegExp(`^function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?^\\}`, "m"))[0], context);
+    }
+    for (const term of ["Güz", "Bahar", "Güz ve Bahar", ""]) {
+      db.exec("DELETE FROM metadata");
+      db.prepare("UPDATE courses SET term = '', package_json = ? WHERE id = 1").run(JSON.stringify({ staticSeed: true }));
+      if (term) assert.equal((await request({ ...courseIdentity, action: "assign", term })).status, 200);
+      context[migration]();
+      assert.equal(row().term, term || "Güz ve Bahar", code);
+    }
+  }
 });
 
 test("new courses persist each explicitly chosen term and reject missing or invalid terms", async (t) => {

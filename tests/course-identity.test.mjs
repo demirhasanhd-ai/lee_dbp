@@ -103,6 +103,28 @@ test("administrative edits and aliases survive reopening; catalog sync and seed 
   db.close();
 });
 
+test("term-only edits survive database reopening and startup catalog sync without identity edits", (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "dbp-course-term-"));
+  const file = path.join(dir, "isolated.sqlite");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  let current = fixture(t, file);
+  const courseIdentity = { ...scope, department: "Harita Mühendisliği ABD", programName: "Harita Mühendisliği", code: "HRM809" };
+  current.db.prepare("UPDATE courses SET department = ?, program_name = ?, code = ? WHERE id = 1")
+    .run(courseIdentity.department, courseIdentity.programName, courseIdentity.code);
+  for (const term of ["Güz", "Bahar", "Güz ve Bahar"]) {
+    assert.equal(current.context.updateManagedCourse({ ...courseIdentity, term }, "test-admin", "changed-time").ok, true);
+    const before = current.row();
+    current.db.close();
+    current = fixture(t, file);
+    current.context.readInitialSeedData = () => ({ officialCourses: [{ ...courseIdentity, term: "Güz ve Bahar" }] });
+    current.context.syncCourseCatalogFromSeed();
+    assert.equal(current.row().term, term);
+    assert.deepEqual(current.row(), before);
+    assert.equal(Object.keys(current.context.courseIdentityEdits()).length, 0);
+  }
+  current.db.close();
+});
+
 test("reading old package identities uses the administrative values without rewriting stored revisions", (t) => {
   const { context, row, rename } = fixture(t);
   const before = row().package_json;

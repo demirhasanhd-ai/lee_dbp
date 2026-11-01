@@ -433,7 +433,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       section.courses.map((course) => [
         course.code,
         repairText(course.name),
-        isMergedProcessCourse(course, department) ? "Güz ve Bahar" : repairText(course.term),
+        repairText(course.term),
         repairText(course.type),
         formatInstructor(course.instructor),
         course.theory,
@@ -505,7 +505,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
                       {section.courses.map((course) => (
                         <tr key={course.code}>
                           <td><b>{course.code}</b></td><td>{repairText(course.name)}</td>
-                          <td>{isMergedProcessCourse(course, department) ? "Güz ve Bahar" : repairText(course.term)}</td>
+                          <td>{repairText(course.term)}</td>
                           <td><span className={`course-type ${repairText(course.type) === "Zorunlu" ? "required" : "elective"}`}>{repairText(course.type)}</span></td>
                           <td>{formatInstructor(course.instructor)}</td>
                           <td>{course.theory}</td><td>{course.practice}</td><td><b>{course.ects}</b></td>
