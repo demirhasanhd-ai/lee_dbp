@@ -15,6 +15,7 @@ export type DbpCourse = {
   theory: number;
   practice: number;
   term?: string;
+  isProcessCourse?: boolean | null;
   status: string;
   instructor?: string;
   instructorTcKimlik?: string;

@@ -70,6 +70,7 @@ type Course = {
   department?: string;
   programName?: string;
   term?: string;
+  isProcessCourse?: boolean | null;
   type?: string;
   theory?: number;
   practice?: number;
@@ -252,6 +253,7 @@ const toPanelCourse = (course: DbpCourse): Course => ({
   department: course.department,
   programName: course.programName,
   term: course.term,
+  isProcessCourse: course.isProcessCourse,
   type: course.type,
   theory: Number(course.theory || 0),
   practice: Number(course.practice || 0),

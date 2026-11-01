@@ -63,6 +63,7 @@ test("apply inserts new drafts only, preserves live content, reviewers, terms an
   assert.deepEqual(db.prepare("SELECT * FROM course_review_assignees").all(), reviewers);
   const added = db.prepare("SELECT * FROM courses WHERE code = 'MAT866'").get();
   assert.equal(added.term, "Bahar");
+  assert.equal(added.is_process_course, 0);
   assert.equal(added.status, "Taslak");
   assert.equal(added.instructor, "");
   assert.equal(added.instructor_assigned_at, "");

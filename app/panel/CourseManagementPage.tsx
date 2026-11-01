@@ -9,6 +9,7 @@ import {
 } from "../../lib/data/programs";
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
+import { isProcessCourse } from "../../lib/courseProcess.mjs";
 
 type CatalogCourseOption = {
   id?: number;
@@ -18,6 +19,7 @@ type CatalogCourseOption = {
   code: string;
   name: string;
   term?: string;
+  isProcessCourse?: boolean | null;
   instructor?: string;
 };
 
@@ -548,7 +550,9 @@ export function CourseManagementPage({
               const codeChanged = mode === "assign" && String(form.get("newCode") || "").trim() !== selectedCourse?.code;
               const nameChanged = mode === "assign" && String(form.get("name") || "").trim() !== selectedCourse?.name;
               const termChanged = mode === "create" || String(form.get("term") || "") !== (selectedCourse?.term || "");
-              if (mode === "assign" && !codeChanged && !nameChanged && !termChanged && !instructorChanged) {
+              const processCourse = form.get("isProcessCourse") === "true";
+              const processChanged = mode === "create" || processCourse !== isProcessCourse({ ...selectedCourse, department: selectedProgram.department });
+              if (mode === "assign" && !codeChanged && !nameChanged && !termChanged && !instructorChanged && !processChanged) {
                 setMessage("Kaydedilecek değişiklik bulunamadı.");
                 return;
               }
@@ -575,6 +579,7 @@ export function CourseManagementPage({
                   credit: Number(form.get("credit") || 0),
                   ects: Number(form.get("ects") || 0),
                   ...(termChanged ? { term: form.get("term") } : {}),
+                  ...(processChanged ? { isProcessCourse: processCourse } : {}),
                   ...(instructorChanged ? {
                     instructor: instructor === "unassigned" || instructor === unassignedInstructorLabel ? "" : instructor,
                     instructorTcKimlik: selectedInstructor && /^\d{11}$/.test(selectedInstructor.id) ? selectedInstructor.id : "",
@@ -693,6 +698,14 @@ export function CourseManagementPage({
                   <option>Güz</option>
                   <option>Bahar</option>
                   <option>Güz ve Bahar</option>
+                </select>
+              </label>
+
+              <label key={`group-${mode}-${selectedCourseKey}`}>
+                <span>Ders grubu</span>
+                <select name="isProcessCourse" defaultValue={String(mode === "assign" && isProcessCourse({ ...selectedCourse, department: selectedProgram?.department }))} disabled={busy || (mode === "assign" && !selectedCourse)}>
+                  <option value="false">Yarıyıl dersleri</option>
+                  <option value="true">Ortak / Süreç Dersleri</option>
                 </select>
               </label>
 

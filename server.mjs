@@ -11,6 +11,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
+import { ensureCourseProcessColumn, backfillCourseProcessFlags } from "./lib/courseProcessMigration.mjs";
 import { deflateRawSync, inflateRawSync } from "node:zlib";
 import {
   displayDepartment,
@@ -1750,8 +1751,8 @@ function applyNewCourseImport(rows, scope, actor) {
     const preview = buildNewCourseImportPreview(rows, scope);
     const insert = db.prepare(`INSERT INTO courses(academic_year, program_code, department, program_name, level, code, name, type,
       credit, ects, theory, practice, term, status, instructor, instructor_tc_kimlik, instructor_email, instructor_title,
-      instructor_source, instructor_assigned_at, source, package_json, created_at, updated_at)
-      VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Taslak', ?, ?, ?, ?, ?, ?, 'excel_import', '{}', ?, ?)`);
+      instructor_source, instructor_assigned_at, source, package_json, is_process_course, created_at, updated_at)
+      VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Taslak', ?, ?, ?, ?, ?, ?, 'excel_import', '{}', 0, ?, ?)`);
     for (const item of preview.items.filter((item) => item.action === "create")) {
       insert.run("2026-2027", scope.department, scope.programName, scope.level, item.code, item.name, item.type,
         item.credit, item.ects, item.theory, item.practice, item.term, item.instructor, item.instructorTcKimlik,
@@ -4361,6 +4362,7 @@ function updateManagedCourse(body, actor, now, instructorFields = {}) {
     }
     const changes = { ...instructorFields };
     if (Object.hasOwn(body, "term")) changes.term = body.term;
+    if (Object.hasOwn(body, "isProcessCourse")) changes.is_process_course = Number(body.isProcessCourse);
     if (name !== current.name) changes.name = name;
     if (code !== current.code) changes.code = code;
     if (!Object.keys(changes).length) return fail("Kaydedilecek değişiklik bulunamadı.", 400);
@@ -4390,10 +4392,11 @@ function updateManagedCourse(body, actor, now, instructorFields = {}) {
     const columns = Object.keys(changes);
     db.prepare(`UPDATE courses SET ${columns.map((column) => `${column} = ?`).join(", ")}, updated_at = ? WHERE id = ?`)
       .run(...Object.values(changes), now, existing.id);
-    audit(identityChanged ? "course.identity.update" : Object.hasOwn(body, "instructor") ? "course.assignment.update" : "course.term.update", actor, {
+    audit(identityChanged ? "course.identity.update" : Object.hasOwn(body, "instructor") ? "course.assignment.update" : Object.hasOwn(body, "isProcessCourse") ? "course.group.update" : "course.term.update", actor, {
       courseId: existing.id, department: body.department, programName: body.programName, level: body.level,
       code, ...(identityChanged ? { previousCode: current.code, previousName: current.name, name } : {}),
       ...(Object.hasOwn(body, "term") ? { term: body.term } : {}),
+      ...(Object.hasOwn(body, "isProcessCourse") ? { isProcessCourse: body.isProcessCourse } : {}),
     });
     db.exec("COMMIT");
     courseIdentityEdits.cache = undefined;
@@ -5161,6 +5164,7 @@ async function ensureDb() {
       theory REAL,
       practice REAL,
       term TEXT,
+      is_process_course INTEGER CHECK (is_process_course IN (0, 1)),
       status TEXT,
       instructor TEXT,
       source TEXT,
@@ -5329,6 +5333,7 @@ async function ensureDb() {
     );
   }
   ensureCourseInstructorIdentityColumns();
+  ensureCourseProcessColumn(db);
   ensureThesisModuleColumns();
   schemaStep.end();
   measureStartupSync("İlk verilerin kontrolü", () => seedInitialData());
@@ -5387,6 +5392,7 @@ async function ensureDb() {
     migratePublicCoursePackagesToApprovalDrafts();
     seedDefaultRoleAccess();
   });
+  measureStartupSync("Ders gruplarının aktarılması", () => backfillCourseProcessFlags(db, (row) => normalizeDbCourseForList(courseFromRow(row))));
   return db;
 }
 
@@ -6118,6 +6124,7 @@ function courseFromRow(row) {
     theory: Number(row.theory || 0),
     practice: Number(row.practice || 0),
     term: row.term || "",
+    isProcessCourse: row.is_process_course == null ? null : Boolean(row.is_process_course),
     status: row.status || "",
     instructor: row.instructor || "",
     instructorTcKimlik: row.instructor_tc_kimlik || "",
@@ -6379,6 +6386,7 @@ const courseListSelect = `
       theory,
       practice,
       term,
+      is_process_course,
       status,
       instructor,
       instructor_tc_kimlik,
@@ -9047,8 +9055,8 @@ function replaceFromExport(payload, actor = "admin") {
       insertProgramProfile.run(row.id || null, row.program_name, normalizeProfileLevel(row.level), row.degree || "", row.manager || "", row.language || "Türkçe", row.qualification_rules || "", row.sections_json || "[]", row.outcomes_json || "[]", row.tyyc_rows_json || "[]", row.created_at || now, row.updated_at || now, row.updated_by || "import");
     }
     const insertCourse = db.prepare(`
-      INSERT INTO courses(id, academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, instructor_tc_kimlik, instructor_email, instructor_title, instructor_source, instructor_assigned_at, source, package_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO courses(id, academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, instructor_tc_kimlik, instructor_email, instructor_title, instructor_source, instructor_assigned_at, source, package_json, created_at, updated_at, is_process_course)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const row of payload.tables.courses) {
       insertCourse.run(
@@ -9077,6 +9085,7 @@ function replaceFromExport(payload, actor = "admin") {
         row.package_json || "{}",
         row.created_at || now,
         row.updated_at || now,
+        row.is_process_course ?? null,
       );
     }
     const insertVisibility = db.prepare("INSERT INTO public_visibility(key, visible, updated_at) VALUES (?, ?, ?)");
@@ -9750,6 +9759,9 @@ async function handleDbpApi(request) {
         return jsonResponse({ message: "Ders kodu program düzeyiyle uyumlu değil: 700 Tezsiz YL, 800 Tezli YL, 900 Doktora olmalıdır." }, { status: 422 });
       }
       const hasTerm = Object.hasOwn(body, "term");
+      if (Object.hasOwn(body, "isProcessCourse") && typeof body.isProcessCourse !== "boolean") {
+        return jsonResponse({ message: "Ders grubu geçerli bir seçim olmalıdır." }, { status: 422 });
+      }
       const term = hasTerm ? String(body.term || "").trim() : undefined;
       if ((hasTerm || body.action !== "assign") && !["Güz", "Bahar", "Güz ve Bahar"].includes(term)) {
         return jsonResponse({ message: "Dersin dönemi Güz, Bahar veya Güz ve Bahar olarak seçilmelidir." }, { status: 422 });
@@ -9775,8 +9787,8 @@ async function handleDbpApi(request) {
         ? await resolveInstructorIdentityFromName(body.instructor, { department: body.department, programName: body.programName })
         : {};
       db.prepare(`
-        INSERT INTO courses(academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, status, instructor, instructor_tc_kimlik, instructor_email, instructor_title, instructor_source, instructor_assigned_at, source, package_json, created_at, updated_at)
-        VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Taslak', ?, ?, ?, ?, ?, ?, 'lee_ogrenci_isleri', '{}', ?, ?)
+        INSERT INTO courses(academic_year, program_code, department, program_name, level, code, name, type, credit, ects, theory, practice, term, is_process_course, status, instructor, instructor_tc_kimlik, instructor_email, instructor_title, instructor_source, instructor_assigned_at, source, package_json, created_at, updated_at)
+        VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Taslak', ?, ?, ?, ?, ?, ?, 'lee_ogrenci_isleri', '{}', ?, ?)
       `).run(
         body.academicYear || "2026-2027",
         body.department,
@@ -9790,6 +9802,7 @@ async function handleDbpApi(request) {
         Number(body.theory || 0),
         Number(body.practice || 0),
         term,
+        Number(body.isProcessCourse ?? false),
         body.instructor || "",
         body.instructorTcKimlik || resolvedInstructor.instructorTcKimlik || "",
         body.instructorEmail || resolvedInstructor.instructorEmail || "",
@@ -9799,7 +9812,7 @@ async function handleDbpApi(request) {
         now,
         now,
       );
-      audit("course.create", actor, { code, department: body.department, programName: body.programName, level, term });
+      audit("course.create", actor, { code, department: body.department, programName: body.programName, level, term, isProcessCourse: body.isProcessCourse ?? false });
       publicCourseRouteIndexCache = undefined;
       return jsonResponse({ ok: true });
     }

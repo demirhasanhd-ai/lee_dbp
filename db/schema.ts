@@ -60,6 +60,7 @@ export const courses = sqliteTable("courses", {
   code: text("code").notNull(),
   nameTr: text("name_tr").notNull(),
   nameEn: text("name_en"),
+  isProcessCourse: integer("is_process_course", { mode: "boolean" }),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("courses_external_id_idx").on(table.externalId)]);
 

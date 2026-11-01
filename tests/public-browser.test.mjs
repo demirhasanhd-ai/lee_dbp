@@ -383,7 +383,7 @@ test("new-course Excel panel downloads the template, previews without writes and
 test("institute manager creates courses with explicit terms and corrects existing terms without resending the instructor", async () => {
   const courses = [
     { code: "MAT864", name: "ANALİZDEN SEÇME KONULAR II", term: "", instructor: "Prof. Dr. Mevcut Hoca" },
-    { code: "MAT866", name: "CEBİRSEL TOPOLOJİYE GİRİŞ", term: "Bahar", instructor: "Doç. Dr. Diğer Hoca" },
+    { code: "MAT866", name: "CEBİRSEL TOPOLOJİYE GİRİŞ", term: "Bahar", instructor: "Doç. Dr. Diğer Hoca", isProcessCourse: true },
   ].map((course, index) => ({ id: index + 1, ...course, department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans", status: "Komisyon Onayı Bekliyor", type: "Seçmeli", theory: 3, practice: 0, ects: 6 }));
   const writes = [];
   await withPublicPage("/dbp/panel", {
@@ -415,6 +415,7 @@ test("institute manager creates courses with explicit terms and corrects existin
               ...(body.term ? { term: body.term } : {}),
               ...(body.newCode ? { code: body.newCode } : {}),
               ...(body.name ? { name: body.name } : {}),
+              ...(Object.hasOwn(body, "isProcessCourse") ? { isProcessCourse: body.isProcessCourse } : {}),
             });
             payload = { ok: true };
             break;
@@ -434,11 +435,13 @@ test("institute manager creates courses with explicit terms and corrects existin
     await dialog.getByLabel("İlgili ABD / ASD ve program").selectOption("Matematik ABD||Matematik");
     await dialog.getByRole("tab", { name: "Mevcut Ders", exact: true }).click();
     await dialog.getByLabel("Müfredattaki ders").selectOption("MAT864");
+    assert.equal(await dialog.getByLabel("Ders grubu").inputValue(), "false");
     assert.equal(await dialog.getByLabel("Dersin dönemi").inputValue(), "");
     assert.equal(await dialog.getByLabel("Dersi veren öğretim elemanı").inputValue(), "Prof. Dr. Mevcut Hoca");
     await dialog.getByRole("button", { name: "Değişiklikleri Kaydet" }).click();
     assert.equal(writes.length, 0, "a missing term must not silently become fall");
     await dialog.getByLabel("Müfredattaki ders").selectOption("MAT866");
+    assert.equal(await dialog.getByLabel("Ders grubu").inputValue(), "true");
     assert.equal(await dialog.getByLabel("Dersin dönemi").inputValue(), "Bahar");
     assert.equal(await dialog.getByLabel("Dersi veren öğretim elemanı").inputValue(), "Doç. Dr. Diğer Hoca");
     await dialog.getByLabel("Müfredattaki ders").selectOption("MAT864");
@@ -447,6 +450,7 @@ test("institute manager creates courses with explicit terms and corrects existin
     await dialog.getByRole("status").getByText("Ders bilgileri kaydedildi.", { exact: true }).waitFor();
     assert.equal(writes[0].term, "Bahar");
     assert.equal(Object.hasOwn(writes[0], "instructor"), false, "term-only edits preserve the latest instructor and identity fields");
+    assert.equal(Object.hasOwn(writes[0], "isProcessCourse"), false, "unrelated edits preserve the latest group");
     await open();
     assert.equal(await dialog.getByLabel("Dersin dönemi").inputValue(), "Bahar");
     await dialog.getByRole("tab", { name: "Yeni Ders", exact: true }).click();
@@ -458,10 +462,12 @@ test("institute manager creates courses with explicit terms and corrects existin
     await dialog.getByLabel("AKTS", { exact: true }).fill("6");
     await dialog.getByLabel("Dersi veren öğretim elemanı").fill("Şimdilik boş / atama bekliyor");
     await dialog.getByLabel("Dersin dönemi").selectOption("Güz ve Bahar");
+    await dialog.getByLabel("Ders grubu").selectOption("true");
     await dialog.getByRole("button", { name: "Dersi Oluştur" }).click();
     await dialog.getByRole("status").getByText("Yeni ders oluşturuldu.", { exact: true }).waitFor();
     assert.equal(writes[1].term, "Güz ve Bahar");
     assert.equal(writes[1].instructor, "");
+    assert.equal(writes[1].isProcessCourse, true);
     await open();
     await dialog.getByRole("tab", { name: "Mevcut Ders", exact: true }).click();
     await dialog.getByLabel("Müfredattaki ders").selectOption("MAT866");
@@ -483,6 +489,43 @@ test("institute manager creates courses with explicit terms and corrects existin
     assert.equal(await dialog.getByLabel("Ders adı", { exact: true }).inputValue(), "Yeni İdari Ders Adı");
     assert.equal(await dialog.getByLabel("Dersin dönemi").inputValue(), "Bahar");
     assert.equal(await dialog.getByLabel("Dersi veren öğretim elemanı").inputValue(), "Doç. Dr. Diğer Hoca");
+    assert.equal(await dialog.getByLabel("Ders grubu").inputValue(), "true");
+    await dialog.getByLabel("Ders grubu").selectOption("false");
+    await dialog.getByRole("button", { name: "Değişiklikleri Kaydet" }).click();
+    await dialog.getByRole("status").getByText("Ders bilgileri kaydedildi.", { exact: true }).waitFor();
+    assert.equal(writes[3].isProcessCourse, false);
+    assert.equal(Object.hasOwn(writes[3], "term"), false);
+    assert.equal(Object.hasOwn(writes[3], "instructor"), false);
+    await open();
+    assert.equal(await dialog.getByLabel("Ders grubu").inputValue(), "false");
+    assert.equal(await dialog.getByLabel("Dersin dönemi").inputValue(), "Bahar");
+    await dialog.getByLabel("Ders grubu").selectOption("true");
+    await dialog.getByRole("button", { name: "Değişiklikleri Kaydet" }).click();
+    await dialog.getByRole("status").getByText("Ders bilgileri kaydedildi.", { exact: true }).waitFor();
+    assert.equal(writes[4].isProcessCourse, true);
+    await open();
+    assert.equal(await dialog.getByLabel("Ders grubu").inputValue(), "true");
+  });
+});
+
+test("persisted course groups override legacy codes while keeping saved terms on public pages", async () => {
+  await withPublicPage(programPath, {
+    courseTransform: (course) => course.level !== "Doktora" ? course
+      : course.code === "YBS921" ? { ...course, isProcessCourse: true, term: "Bahar" }
+      : course.code === "YBS917" ? { ...course, isProcessCourse: false, term: "Güz ve Bahar" }
+      : course,
+  }, async ({ page }) => {
+    const common = page.locator(".public-course-group").filter({ has: page.getByRole("heading", { name: "Ortak / Süreç Dersleri", exact: true }) });
+    await common.getByText("YBS921", { exact: true }).waitFor();
+    assert.equal(await page.locator(".public-course-table tbody tr").filter({ has: page.getByText("YBS921", { exact: true }) }).count(), 1);
+    assert.equal(await common.getByText("YBS917", { exact: true }).count(), 0);
+    assert.equal(await common.getByText("YBS9XX", { exact: true }).count(), 1, "missing flags retain the legacy common group");
+    for (const title of ["Güz Yarıyılı", "Bahar Yarıyılı"]) {
+      const group = page.locator(".public-course-group").filter({ has: page.getByRole("heading", { name: title, exact: true }) });
+      const row = group.locator("tbody tr").filter({ has: page.getByText("YBS917", { exact: true }) });
+      assert.equal(await row.count(), 1);
+      assert.equal(await row.locator("td").nth(2).innerText(), "Güz ve Bahar");
+    }
   });
 });
 

@@ -228,6 +228,10 @@ test("existing JSON backup roundtrip preserves new metadata and reset still clea
   const { db, context } = fixture(t);
   context.ensureCourseInstructorIdentityColumns();
   context.ensureThesisModuleColumns();
+  db.exec(`INSERT INTO courses(id, department, program_name, level, code, name, is_process_course, created_at, updated_at) VALUES
+    (1, 'Matematik ABD', 'Matematik', 'Tezli Yüksek Lisans', 'MAT868', 'İdari Ders', 1, 'created', 'saved'),
+    (2, 'Makine Mühendisliği ABD', 'Makine Mühendisliği', 'Doktora', 'MMB909', 'Seminer', 0, 'created', 'saved')`);
+  const savedCourseGroups = db.prepare("SELECT id, is_process_course FROM courses ORDER BY id").all();
   recordAudit(db, "sample.event", "system", { code: "MAT801", note: "Yedekle koru" });
   const original = db.prepare("SELECT * FROM audit_logs").all();
   const identityEdits = { 1: { id: 1, department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans", code: "MAT868", name: "İdari Ders", workflowCode: "MAT864", aliases: ["MAT864", "MAT868"] } };
@@ -239,6 +243,7 @@ test("existing JSON backup roundtrip preserves new metadata and reset still clea
   assert.equal(queryAudit(db, new URLSearchParams({ action: "sample.event" })).total, 0);
   assert.equal(queryAudit(db, new URLSearchParams()).total, 1);
   context.replaceFromExport(payload, "admin");
+  assert.deepEqual(db.prepare("SELECT id, is_process_course FROM courses ORDER BY id").all(), savedCourseGroups);
   assert.equal(JSON.stringify(context.courseIdentityEdits()), JSON.stringify(identityEdits));
   assert.deepEqual(db.prepare("SELECT * FROM audit_logs WHERE action = 'sample.event'").all(), original);
 });

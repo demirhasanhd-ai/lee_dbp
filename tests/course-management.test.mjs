@@ -13,7 +13,7 @@ function fixture(t, role = "enstitu_yoneticisi", courseIdentity = identity) {
   t.after(() => db.close());
   db.exec(`CREATE TABLE courses (
     id INTEGER PRIMARY KEY, academic_year TEXT, program_code TEXT, department TEXT, program_name TEXT,
-    level TEXT, code TEXT, name TEXT, type TEXT, credit REAL, ects REAL, theory REAL, practice REAL, term TEXT,
+    level TEXT, code TEXT, name TEXT, type TEXT, credit REAL, ects REAL, theory REAL, practice REAL, term TEXT, is_process_course INTEGER,
     status TEXT, instructor TEXT, instructor_tc_kimlik TEXT, instructor_email TEXT, instructor_title TEXT,
     instructor_source TEXT, instructor_assigned_at TEXT, source TEXT, package_json TEXT, created_at TEXT, updated_at TEXT
   );
@@ -76,6 +76,47 @@ test("term-only correction preserves instructor identity, both package revisions
   assert.deepEqual(db.prepare("SELECT * FROM course_review_assignees").all(), reviewers);
   assert.equal(resolutions(), 0);
   assert.equal(context.publicCourseRouteIndexCache, undefined);
+});
+
+test("course group changes persist independently for authorized roles and preserve academic data", async (t) => {
+  for (const role of ["admin", "enstitu_yoneticisi", "lee_ogrenci_isleri"]) {
+    const { db, request, row, resolutions } = fixture(t, role);
+    const before = row();
+    const approvals = db.prepare("SELECT * FROM workflow_requests").all();
+    const reviewers = db.prepare("SELECT * FROM course_review_assignees").all();
+    for (const value of [true, false]) {
+      const response = await request({ ...identity, action: "assign", isProcessCourse: value });
+      assert.equal(response.status, 200);
+      assert.equal(row().is_process_course, Number(value));
+      assert.deepEqual({ ...row(), is_process_course: before.is_process_course, updated_at: before.updated_at }, { ...before });
+      assert.deepEqual(db.prepare("SELECT * FROM workflow_requests").all(), approvals);
+      assert.deepEqual(db.prepare("SELECT * FROM course_review_assignees").all(), reviewers);
+      assert.equal(resolutions(), 0);
+    }
+    for (const value of [null, "true", "false", 0, 1, {}]) {
+      const saved = row();
+      assert.equal((await request({ ...identity, action: "assign", isProcessCourse: value })).status, 422);
+      assert.deepEqual(row(), saved);
+    }
+    assert.equal((await request({ ...identity, programName: "Other program", action: "assign", isProcessCourse: true })).status, 404);
+  }
+  for (const role of ["akademisyen", "abd_asd_baskani", "enstitu_sekreteri"]) {
+    const { request, row } = fixture(t, role);
+    const before = row();
+    assert.equal((await request({ ...identity, action: "assign", isProcessCourse: true })).status, 403);
+    assert.deepEqual(row(), before);
+  }
+});
+
+test("new course groups are explicit booleans and default to semester courses", async (t) => {
+  const { db, request } = fixture(t);
+  for (const [index, value] of [true, false, undefined].entries()) {
+    const code = `MAT88${index}`;
+    assert.equal((await request({ ...identity, action: "create", name: "New course", code, term: "Bahar", ...(value === undefined ? {} : { isProcessCourse: value }) })).status, 200);
+    assert.equal(db.prepare("SELECT is_process_course FROM courses WHERE code = ?").get(code).is_process_course, Number(value ?? false));
+  }
+  assert.equal((await request({ ...identity, action: "create", name: "New", code: "MAT899", term: "Güz", isProcessCourse: "false" })).status, 422);
+  assert.equal(db.prepare("SELECT * FROM courses WHERE code = 'MAT899'").get(), undefined);
 });
 
 test("authorized roles persist all supported terms for a common process course without changing its package or approval", async (t) => {

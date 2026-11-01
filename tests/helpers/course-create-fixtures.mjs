@@ -15,7 +15,7 @@ export function newCourseImportFixture(t) {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
   db.exec(`CREATE TABLE courses (id INTEGER PRIMARY KEY, academic_year TEXT, program_code TEXT, department TEXT, program_name TEXT,
-    level TEXT, code TEXT, name TEXT, type TEXT, credit REAL, ects REAL, theory REAL, practice REAL, term TEXT,
+    level TEXT, code TEXT, name TEXT, type TEXT, credit REAL, ects REAL, theory REAL, practice REAL, term TEXT, is_process_course INTEGER,
     status TEXT, instructor TEXT, instructor_tc_kimlik TEXT, instructor_email TEXT, instructor_title TEXT,
     instructor_source TEXT, instructor_assigned_at TEXT, source TEXT, package_json TEXT, created_at TEXT, updated_at TEXT);
     CREATE TABLE workflow_requests (id INTEGER PRIMARY KEY, course_id INTEGER, status TEXT);

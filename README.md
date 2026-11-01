@@ -79,6 +79,10 @@ Yükleme en fazla 1000 ders satırı ve 5 MB dosya içindir. **Önizle** kayıt 
 
 Bu özellik şema/migration, veritabanı sıfırlama veya seed yüklemesi gerektirmez. Şablon `public/yeni-ders-sablonu.xlsx` dosyasından build çıktısına dahil edilir; üretimde ek Excel kütüphanesi gerekmez.
 
+Ders Düzenleme ekranındaki Yeni Ders ve Mevcut Ders sekmelerinde **Ders grubu** seçilebilir: Yarıyıl dersleri veya Ortak / Süreç Dersleri. Dönem bilgisi ayrıca korunur. Yetki mevcut ders düzenleme rolleriyle aynıdır (LEE Öğrenci İşleri, Enstitü Yöneticisi, Admin).
+
+Başlangıçta `courses.is_process_course` alanı otomatik eklenir; yalnızca bu alanı boş olan kayıtlar, kamuya açık listedeki mevcut kod ve ABD kuralına göre doldurulur. Eski kodların kanonik karşılıkları ve BES801'in Tarih / Türk Dili ve Edebiyatı istisnası korunur. Kaydedilmiş 0/1 seçimleri tekrar başlatmada değiştirilmez. Geçiş sırasında alanı bulunmayan/boş veriler için eski liste yedek kural olarak kullanılır. Yeni dersler (Excel dahil), aksi seçilmedikçe yarıyıl dersi olarak oluşturulur. Veritabanını sıfırlamak veya yeniden seed yüklemek gerekmez; uygulama yeni sürümle yeniden başladığında geçiş uygulanır.
+
 ## Canlı Scopus ortam değişkenleri
 
 Bibliyometrik Göstergeler sayfasının canlı sunucuda veri çekebilmesi için dağıtım ortamında aşağıdaki sunucu değişkenleri tanımlanır. API anahtarı repoya veya istemci koduna yazılmaz.
