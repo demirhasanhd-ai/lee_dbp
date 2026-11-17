@@ -1247,6 +1247,7 @@ export function RoleDashboard() {
             )}
             {selectedProgram || scopedDefaultProgram ? (
               <ProgramProfileEditor
+                key={(selectedProgram ?? scopedDefaultProgram)!.programName}
                 department={`${(selectedProgram ?? scopedDefaultProgram)!.department} / ${(selectedProgram ?? scopedDefaultProgram)!.programName}`}
                 programName={(selectedProgram ?? scopedDefaultProgram)!.programName}
                 initialLevel={(selectedProgram ?? scopedDefaultProgram)!.levels[0]}

@@ -8,6 +8,7 @@ import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import type { ObsCandidate, ObsDraft, ObsImportSource, ObsProgram, ObsSearchJob } from "./obsCourseTypes";
 
 type Props = {
+  programOutcomeCount: number;
   course: { code: string; name: string; level: string; department?: string; programName?: string };
   session: { username: string; name: string; role: string };
   onClose: () => void;
@@ -31,7 +32,7 @@ function PreviewText({ value }: { value?: string }) {
   return <p className={value?.trim() ? "obs-preview-text" : "obs-preview-empty"}>{value?.trim() || "ÖBS’de bu alan doldurulmamış."}</p>;
 }
 
-export function ObsCourseImport({ course, session, onClose, onApply }: Props) {
+export function ObsCourseImport({ course, session, programOutcomeCount, onClose, onApply }: Props) {
   const [tab, setTab] = useState<"search" | "link">("search");
   const [level, setLevel] = useState(educationLevel(course.level));
   const [programs, setPrograms] = useState<ObsProgram[]>([]);
@@ -182,7 +183,7 @@ export function ObsCourseImport({ course, session, onClose, onApply }: Props) {
   };
 
   const matrixHeaders = draft ? [...new Set(draft.contributionMatrix.flatMap((row) => Object.keys(row)))].filter((key) => /^P\d+$/.test(key)).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1))) : [];
-  const matrixFits = Boolean(draft && matrixHeaders.length === 11 && matrixHeaders.every((key, index) => key === `P${index + 1}`) && draft.contributionMatrix.length === draft.outcomes.length);
+  const matrixFits = Boolean(draft && programOutcomeCount > 0 && matrixHeaders.length === programOutcomeCount && matrixHeaders.every((key, index) => key === `P${index + 1}`) && draft.contributionMatrix.length === draft.outcomes.length);
   const sourceMismatch = Boolean(draft && (draft.code.replace(/\s/g, "").toLocaleUpperCase("tr-TR") !== course.code.replace(/\s/g, "").toLocaleUpperCase("tr-TR") || draft.name.toLocaleLowerCase("tr-TR").trim() !== course.name.toLocaleLowerCase("tr-TR").trim()));
   const progress = job && job.progress.total ? Math.round(job.progress.completed / job.progress.total * 100) : undefined;
   const waiting = busy || job?.status === "running";
@@ -245,7 +246,7 @@ export function ObsCourseImport({ course, session, onClose, onApply }: Props) {
             <PreviewSection id="obs-workload" title="AKTS ve iş yükü">{Object.keys(draft.workloads).length ? <div className="obs-preview-table"><table><thead><tr><th>Etkinlik</th><th>Sayı</th><th>Süre (saat)</th><th>Toplam (saat)</th></tr></thead><tbody>{Object.entries(draft.workloads).map(([label, item]) => <tr key={label}><td>{label}</td><td>{item.count}</td><td>{item.hours}</td><td>{item.count * item.hours}</td></tr>)}</tbody><tfoot><tr><th colSpan={3}>Toplam iş yükü</th><td>{draft.totalWorkload}</td></tr></tfoot></table></div> : <PreviewText />}<p className="obs-browser-note">ÖBS’de belirtilen AKTS: {draft.ects}. Ders formunda AKTS mevcut iş yükü hesaplama kuralına göre hesaplanır.</p></PreviewSection>
             <PreviewSection id="obs-resources" title="Kaynaklar ve ders notları"><PreviewText value={draft.resources} /></PreviewSection>
             <PreviewSection id="obs-structure" title="Dersin yapısı">{Object.keys(draft.structures).length ? <dl className="obs-preview-facts">{Object.entries(draft.structures).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>%{value}</dd></div>)}</dl> : <PreviewText />}</PreviewSection>
-            <PreviewSection id="obs-matrix" title="Öğrenme çıktıları – program çıktıları katkı matrisi">{draft.contributionMatrix.length ? <><div className="obs-preview-table"><table><thead><tr><th>ÖÇ / PÇ</th>{matrixHeaders.map((key) => <th key={key}>{key}</th>)}</tr></thead><tbody>{draft.contributionMatrix.map((row, index) => <tr key={index}><th scope="row">ÖÇ{index + 1}</th>{matrixHeaders.map((key) => <td key={key}>{row[key] || "—"}</td>)}</tr>)}</tbody></table></div><p className="obs-browser-warning">Kaynak programdaki P1, P2… tanımları mevcut programınızın çıktılarıyla aynı olmayabilir. Katkı matrisi varsayılan olarak aktarılmaz.</p>{matrixFits ? <label className="obs-matrix-consent"><input type="checkbox" checked={includeMatrix} onChange={(event) => setIncludeMatrix(event.target.checked)} /><span>Kaynak ve hedef programın PÇ metinlerini karşılaştırdım; bu katkı matrisini de aktar.</span></label> : <p className="obs-browser-note">Matris boyutu mevcut formdaki 11 program çıktısı veya kaynak öğrenme çıktılarıyla uyuşmuyor. Katkı matrisini ders formunda düzenleyin.</p>}</> : <PreviewText />}</PreviewSection>
+            <PreviewSection id="obs-matrix" title="Öğrenme çıktıları – program çıktıları katkı matrisi">{draft.contributionMatrix.length ? <><div className="obs-preview-table"><table><thead><tr><th>ÖÇ / PÇ</th>{matrixHeaders.map((key) => <th key={key}>{key}</th>)}</tr></thead><tbody>{draft.contributionMatrix.map((row, index) => <tr key={index}><th scope="row">ÖÇ{index + 1}</th>{matrixHeaders.map((key) => <td key={key}>{row[key] || "—"}</td>)}</tr>)}</tbody></table></div><p className="obs-browser-warning">Kaynak programdaki P1, P2… tanımları mevcut programınızın çıktılarıyla aynı olmayabilir. Katkı matrisi varsayılan olarak aktarılmaz.</p>{matrixFits ? <label className="obs-matrix-consent"><input type="checkbox" checked={includeMatrix} onChange={(event) => setIncludeMatrix(event.target.checked)} /><span>Kaynak ve hedef programın PÇ metinlerini karşılaştırdım; bu katkı matrisini de aktar.</span></label> : <p className="obs-browser-note">Matris boyutu hedef program çıktıları veya kaynak öğrenme çıktılarıyla uyuşmuyor. Katkı matrisini ders formunda düzenleyin.</p>}</> : <PreviewText />}</PreviewSection>
             <p className="obs-browser-note">Onayladığınız içerik ders formuna aktarılır. Kalıcı kayıt ve onaya gönderme işlemleri ders formundan yapılır.</p>
           </div>
           <footer className="obs-browser-footer obs-preview-footer"><div><strong>İçeriği inceledikten sonra aktarın</strong><label className="obs-overwrite-consent"><input type="checkbox" checked={overwriteConfirmed} onChange={(event) => setOverwriteConfirmed(event.target.checked)} /><span>Aktarılan bölümlerde mevcut içeriğin değiştirilmesini onaylıyorum.</span></label></div><div className="obs-preview-apply"><button type="button" className="obs-secondary" onClick={() => apply("empty")}>Boş Alanları Doldur</button><button type="button" className="obs-primary" disabled={!overwriteConfirmed} onClick={() => apply("overwrite")}><Check size={16} />Tümünü Değiştir</button></div></footer>

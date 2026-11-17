@@ -5,6 +5,7 @@ import { dbpPath } from "../../lib/dbpPath";
 import { SDG_LOGO_SRC, formatSdgGoal, resolveSdgGoals } from "../../lib/sdgGoals";
 import { getCoursePackage, type CoursePackage } from "../../lib/data/coursePackages";
 import { PrintCourseButton } from "./PrintCourseButton";
+import { legacyProgramOutcomes, type ProgramOutcome } from "../../lib/programOutcomes";
 
 type DemoCoursePackageProps = {
   code: string;
@@ -211,6 +212,7 @@ export function DemoCoursePackage({
     );
   }
   const coursePackage = saved?.package ?? staticPackage ?? createDefaultCoursePackage({ code: displayCode, name: displayName, theory, practice, credit, ects, instructor, sdgs, level });
+  const programOutcomes = coursePackage.programOutcomes ?? legacyProgramOutcomes;
   const approvalDateLabel = formatApprovalDate(saved?.approvedAt);
   const displayInstructor = resolveDisplayInstructor(instructor, coursePackage?.instructor);
   const showInstructor = shouldShowInstructor(displayName, displayInstructor);
@@ -271,7 +273,17 @@ export function DemoCoursePackage({
         <section className="package-card"><h2>Haftalık Ders Planı</h2><div className="week-grid">{packageWeeks.map((week, index) => <div key={`${week}-${index}`}><b>{index + 1}. Hafta</b><span>{week}</span></div>)}</div></section>
         <section className="package-card"><h2>Değerlendirme Sistemi</h2><table className="package-table"><thead><tr><th>Değerlendirme</th><th>Adet</th><th>Katkı</th></tr></thead><tbody>{(coursePackage?.assessments ?? [{ name: "Ara Sınav", count: 1, weight: 40 }, { name: "Yarıyıl Sonu Sınavı", count: 1, weight: 60 }]).map((item) => <tr key={item.name}><td>{item.name}</td><td>{item.count}</td><td>%{item.weight}</td></tr>)}</tbody></table></section>
         <section className="package-card"><h2>AKTS İş Yükü</h2><table className="package-table"><thead><tr><th>Etkinlik</th><th>Adet</th><th>Süre (Saat)</th><th>Toplam (Saat)</th></tr></thead><tbody>{packageWorkloads.map((item) => <tr key={item.name}><td>{item.name}</td><td>{item.count}</td><td>{formatWorkloadNumber(item.hours)}</td><td>{formatWorkloadNumber(item.total)}</td></tr>)}</tbody><tfoot><tr><th colSpan={3}>Toplam İş Yükü (Saat)</th><th>{formatWorkloadNumber(totalWorkload)}</th></tr><tr><th colSpan={3}>AKTS</th><th>{displayedEcts}</th></tr></tfoot></table></section>
-        {coursePackage && <section className="package-card"><h2>DÖÇ–PÇ Katkı Matrisi</h2><div className="package-table-scroll"><table className="package-table contribution-table"><thead><tr><th>DÖÇ</th>{Array.from({ length: 11 }, (_, index) => <th key={index}>PÇ{index + 1}</th>)}</tr></thead><tbody>{coursePackage.contributionMatrix.map((row) => <tr key={row.outcome}><th>{row.outcome}</th>{row.values.map((value, index) => <td key={index}>{value}</td>)}</tr>)}</tbody></table></div><small>Ölçek: 1 = Çok Düşük, 2 = Düşük, 3 = Orta, 4 = Yüksek, 5 = Çok Yüksek</small></section>}
+        {programOutcomes.length > 0 && <section className="package-card">
+          <h2>DÖÇ–PÇ Katkı Matrisi</h2>
+          {coursePackage.programOutcomes && <ol>{programOutcomes.map(({ id, text }, index) =>
+            <li key={id}><b>PÇ{index + 1}</b> {text}</li>)}</ol>}
+          <div className="package-table-scroll"><table className="package-table contribution-table">
+            <thead><tr><th>DÖÇ</th>{programOutcomes.map(({ id, text }, index) => <th key={id} title={text}>PÇ{index + 1}</th>)}</tr></thead>
+            <tbody>{coursePackage.contributionMatrix.map((row) => <tr key={row.outcome}><th>{row.outcome}</th>
+              {programOutcomes.map(({ id }, index) => <td key={id}>{row.values[index] || "—"}</td>)}</tr>)}</tbody>
+          </table></div>
+          <small>Ölçek: 1 = Çok Düşük, 2 = Düşük, 3 = Orta, 4 = Yüksek, 5 = Çok Yüksek</small>
+        </section>}
         {selectedSdgs.length > 0 && <section className="package-card">
           <div className="sdg-heading">
             <img src={dbpPath(SDG_LOGO_SRC)} alt="" />
@@ -299,6 +311,7 @@ function toPublicCoursePackage(stored: Record<string, unknown>, fallback: Course
   const weeklyRecord = stored.weeklyTopics && typeof stored.weeklyTopics === "object" ? stored.weeklyTopics as Record<string, string> : {};
   const matrixRecord = Array.isArray(stored.contributionMatrix) ? stored.contributionMatrix as Record<string, number>[] : [];
   const outcomes = Array.isArray(stored.outcomes) ? stored.outcomes as string[] : fallback?.outcomes ?? [];
+  const programOutcomes = Array.isArray(stored.programOutcomes) ? stored.programOutcomes as ProgramOutcome[] : undefined;
   const coursePackage: CoursePackage = {
     code: identity?.code || fallback?.code || "",
     language: identity?.language || fallback?.language || "Türkçe",
@@ -319,7 +332,11 @@ function toPublicCoursePackage(stored: Record<string, unknown>, fallback: Course
     weeklyTopics: Object.keys(weeklyRecord).length ? Object.entries(weeklyRecord).sort(([a], [b]) => Number(a) - Number(b)).map(([, value]) => value) : fallback?.weeklyTopics ?? [],
     assessments,
     workloads: Object.keys(workloadRecord).length ? Object.entries(workloadRecord).map(([workloadName, row]) => ({ name: workloadName, count: Number(row.count), hours: Number(row.hours), total: Number(row.count) * Number(row.hours) })) : fallback?.workloads ?? [],
-    contributionMatrix: matrixRecord.length ? matrixRecord.slice(0, outcomes.length).map((row, index) => ({ outcome: `DÖÇ${index + 1}`, values: Array.from({ length: 11 }, (_, pc) => Number(row[`P${pc + 1}`] ?? 0)) })) : fallback?.contributionMatrix ?? [],
+    programOutcomes,
+    contributionMatrix: programOutcomes || matrixRecord.length ? outcomes.flatMap((text, index) => text.trim() ? [{
+      outcome: `DÖÇ${index + 1}`,
+      values: (programOutcomes ?? legacyProgramOutcomes).map(({ id }) => Number(matrixRecord[index]?.[id] ?? 0)),
+    }] : []) : fallback?.contributionMatrix ?? [],
     qualityChecks: Array.isArray(stored.qualityChecks) ? stored.qualityChecks as CoursePackage["qualityChecks"] : fallback?.qualityChecks,
     publicQualityChecklist: Boolean(stored.publicQualityChecklist ?? fallback?.publicQualityChecklist),
   };

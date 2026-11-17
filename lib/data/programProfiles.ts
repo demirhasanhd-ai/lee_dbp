@@ -21,8 +21,9 @@ export type ProgramProfile = {
   qualificationRules: string;
   sections: ProgramProfileSection[];
   outcomes: string[];
+  outcomeIds?: (string | null)[];
   tyycRows: ProgramTyycRow[];
-  updatedAt?: string;
+  updatedAt?: string | null;
   updatedBy?: string;
 };
 
@@ -2761,14 +2762,15 @@ export const getDefaultProgramProfile = (programName: string, level: string) =>
 
 export const getProgramProfile = getDefaultProgramProfile;
 
-export const fetchProgramProfile = async (programName: string, level: string) => {
+export const fetchProgramProfile = async (programName: string, level: string, requireDatabase = false) => {
   const params = new URLSearchParams({ programName, level });
   try {
-    const response = await fetch(dbpPath(`/api/dbp/program-profile?${params.toString()}`));
+    const response = await fetch(dbpPath(`/api/dbp/program-profile?${params.toString()}`), { cache: "no-store" });
     if (!response.ok) throw new Error("Program profili alinamadi.");
     const data = await response.json() as { profile?: ProgramProfile | null };
-    return data.profile ?? getDefaultProgramProfile(programName, level);
-  } catch {
+    return data.profile ?? (requireDatabase ? undefined : getDefaultProgramProfile(programName, level));
+  } catch (error) {
+    if (requireDatabase) throw error;
     return getDefaultProgramProfile(programName, level);
   }
 };

@@ -483,15 +483,16 @@ def package_workload_rows(package_data: dict) -> tuple[list[list[object]], float
     return rows, total
 
 
-def package_matrix_rows(package_data: dict, outcome_count: int) -> list[list[object]]:
+def package_matrix_rows(package_data: dict, outcomes: list[str], columns: list[str]) -> list[list[object]]:
     matrix = package_data.get("contributionMatrix")
     if not isinstance(matrix, list):
         return []
     rows = []
-    for index, item in enumerate(matrix[:outcome_count]):
-        if not isinstance(item, dict):
+    for index, outcome in enumerate(outcomes):
+        if not outcome.strip():
             continue
-        rows.append([f"ÖÇ{index + 1}"] + [str(int(number(item.get(f"P{pc}")))) for pc in range(1, 12)])
+        item = matrix[index] if index < len(matrix) and isinstance(matrix[index], dict) else {}
+        rows.append([f"ÖÇ{index + 1}"] + [str(item.get(key) or "—") for key in columns])
     return rows
 
 
@@ -671,12 +672,23 @@ def story(course: Course, package_data: dict | None = None):
         )
     )
     body += section("ÖÇ / PÇ Katkı Matrisi")
-    matrix = [["ÖÇ/PÇ"] + [f"PÇ{i}" for i in range(1, 12)]]
-    matrix_rows = package_matrix_rows(package_data, len(outcomes)) if isinstance(package_data, dict) else []
-    if not matrix_rows:
-        matrix_rows = [[f"ÖÇ{i + 1}"] + [str((i + j) % 5) for j in range(11)] for i in range(5)]
-    matrix += matrix_rows
-    body.append(table(matrix, [19 * mm] + [14.18 * mm] * 11, alignments={i: "CENTER" for i in range(12)}))
+    program_outcomes = package_data.get("programOutcomes") if isinstance(package_data, dict) else None
+    if isinstance(program_outcomes, list):
+        for index, outcome in enumerate(program_outcomes, 1):
+            body.append(para(f"PÇ{index} · {outcome['text']}", "BodyTR"))
+        # Keep columns legible when the approved profile has more than 11 outcomes.
+        for start in range(0, len(program_outcomes), 11):
+            columns = [outcome["id"] for outcome in program_outcomes[start:start + 11]]
+            matrix = [["ÖÇ/PÇ"] + [f"PÇ{start + index + 1}" for index in range(len(columns))]]
+            matrix += package_matrix_rows(package_data, package_data.get("outcomes", []), columns)
+            body.append(table(matrix, [19 * mm] + [14.18 * mm] * len(columns), alignments={i: "CENTER" for i in range(len(columns) + 1)}))
+    else:
+        matrix = [["ÖÇ/PÇ"] + [f"PÇ{i}" for i in range(1, 12)]]
+        columns = [f"P{i}" for i in range(1, 12)]
+        matrix_rows = package_matrix_rows(package_data, outcomes, columns) if isinstance(package_data, dict) else []
+        if not matrix_rows:
+            matrix_rows = [[f"ÖÇ{i + 1}"] + [str((i + j) % 5) for j in range(11)] for i in range(5)]
+        body.append(table(matrix + matrix_rows, [19 * mm] + [14.18 * mm] * 11, alignments={i: "CENTER" for i in range(12)}))
     body += sdg_title()
     sdg_ids = clean_items(package_data.get("sdgs")) if isinstance(package_data, dict) else []
     if not sdg_ids:

@@ -1,4 +1,6 @@
 "use client";
+
+import { legacyProgramOutcomes, type ProgramOutcome } from "../../lib/programOutcomes";
 import { CheckCircle2, Eye, Filter, MessageSquareWarning, Search, Settings, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { DbpRole } from "../../lib/auth/roles";
@@ -36,6 +38,7 @@ type StoredCoursePackage = {
   weeklyTopics?: Record<string, string> | string[];
   structureValues?: Record<string, number>;
   contributionMatrix?: Record<string, number>[];
+  programOutcomes?: ProgramOutcome[];
   sdgs?: string[];
   ects?: string | number;
   savedAt?: string;
@@ -134,7 +137,6 @@ const detailLabels: Array<[string, string]> = [
   ["assistants", "Dersin Yardımcıları"],
   ["resources", "Ders Kaynakları"],
 ];
-const contributionColumns = Array.from({ length: 11 }, (_, index) => `P${index + 1}`);
 
 function workloadEntries(workloads: StoredCoursePackage["workloads"]) {
   if (!workloads) return [];
@@ -212,6 +214,8 @@ function StoredPackagePreview({
   const assessments = packageData?.assessments || [];
   const structureRows = Object.entries(packageData?.structureValues || {}).filter(([, value]) => Number(value) > 0);
   const matrix = packageData?.contributionMatrix || [];
+  const outcomes = packageData?.outcomes || [];
+  const contributionColumns = packageData?.programOutcomes ?? legacyProgramOutcomes;
   const sdgs = (packageData?.sdgs || []).filter(Boolean);
   if (loading) return <div className="review-empty-state">Kayıtlı ders bilgi paketi yükleniyor...</div>;
   if (message) return <div className="database-message">{message}</div>;
@@ -275,9 +279,11 @@ function StoredPackagePreview({
       </article>
       <article className="wide">
         <span>DÖÇ-PÇ katkı matrisi</span>
+        {packageData?.programOutcomes?.length ? <ol>{contributionColumns.map(({ id, text }, index) =>
+          <li key={id}><b>PÇ{index + 1}</b> {text}</li>)}</ol> : null}
         {matrix.length ? (
-          <table className="preview-data-table contribution-preview-table"><thead><tr><th>DÖÇ / PÇ</th>{contributionColumns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>
-            {matrix.map((row, index) => <tr key={index}><td>DÖÇ{index + 1}</td>{contributionColumns.map((column) => <td key={column}>{row[column] || "-"}</td>)}</tr>)}
+          <table className="preview-data-table contribution-preview-table"><thead><tr><th>DÖÇ / PÇ</th>{contributionColumns.map(({ id, text }, index) => <th key={id} title={text}>PÇ{index + 1}</th>)}</tr></thead><tbody>
+            {outcomes.map((text, index) => text.trim() && <tr key={index}><td title={text}>DÖÇ{index + 1}</td>{contributionColumns.map(({ id }) => <td key={id}>{matrix[index]?.[id] || "-"}</td>)}</tr>)}
           </tbody></table>
         ) : <p>-</p>}
       </article>

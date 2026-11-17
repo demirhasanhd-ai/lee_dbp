@@ -5,7 +5,7 @@ import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { recordAudit, withAuditRequest, auditNavigation, queryAudit, auditCsv, auditExportHeaders, auditExportRows } from "./lib/auditTrail.mjs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -1952,10 +1952,11 @@ function cacheSlug(value, fallback = "ders") {
 
 const pdfCacheVersion = "v4";
 
-function pdfCacheFile({ code, program, name }) {
+function pdfCacheFile({ code, program, name, revision }) {
   const parts = [pdfCacheVersion, cacheSlug(code, "kod")];
   if (program) parts.push(cacheSlug(program, "program"));
   parts.push(cacheSlug(name, "ders"));
+  if (revision) parts.push(revision);
   return path.join(pdfCacheDir, `${parts.join("-")}.pdf`);
 }
 
@@ -2157,8 +2158,11 @@ async function coursePdfResponse(request, url) {
   }
 
   await mkdir(pdfCacheDir, { recursive: true });
-  const target = pdfCacheFile({ code, program, name });
   const packagePayload = coursePackagePdfPayload({ code, name, department, programName: program, level, publicOnly });
+  const revision = Array.isArray(packagePayload?.package?.programOutcomes)
+    ? createHash("sha256").update(JSON.stringify(packagePayload)).digest("hex").slice(0, 16)
+    : "";
+  const target = pdfCacheFile({ code, program, name, revision });
   const packageJsonPath = packagePayload ? `${target}.json` : "";
   let info = null;
   if (!packagePayload) {
@@ -7324,8 +7328,12 @@ function qualityStats(filters = {}, options = {}) {
     const workloads = packageData.workloads && typeof packageData.workloads === "object" ? Object.values(packageData.workloads) : [];
     const workloadTotal = workloads.reduce((sum, item) => sum + Number(item?.count || 0) * Number(item?.hours || 0), 0);
     const ects = Number(packageData.ects ?? course.ects ?? 0);
-    const matrixOk = outcomes.length > 0 && matrix.length >= outcomes.length && matrix.slice(0, outcomes.length).every((matrixRow) =>
-      Array.from({ length: 11 }, (_, index) => Number(matrixRow?.[`P${index + 1}`])).every((value) => value >= 1 && value <= 5)
+    const scoredOutcomes = outcomes.map((text, index) => ({ text, index })).filter(({ text }) => String(text || "").trim());
+    const matrixColumns = Array.isArray(packageData.programOutcomes)
+      ? packageData.programOutcomes.map(({ id }) => id)
+      : Array.from({ length: 11 }, (_, index) => `P${index + 1}`);
+    const matrixOk = scoredOutcomes.length > 0 && matrixColumns.length > 0 && scoredOutcomes.every(({ index }) =>
+      matrixColumns.every((id) => Number(matrix[index]?.[id]) >= 1 && Number(matrix[index]?.[id]) <= 5)
     );
     const workloadOk = workloadMatchesEcts(workloadTotal, ects);
     const packageOk = Boolean(
@@ -8714,6 +8722,26 @@ function normalizeProgramProfilePayload(profile = {}) {
 
 function programProfileFromRow(row) {
   if (!row) return null;
+  const storedOutcomes = parseJsonField(row.outcomes_json, []);
+  let baseline = [];
+  if (row.updated_by !== "seed" && storedOutcomes.some((outcome) => typeof outcome === "string")) {
+    try {
+      const seed = JSON.parse(readFileSync(programProfilesSeedFile, "utf8")).find((item) =>
+        item.programName === row.program_name && normalizeProfileLevel(item.level) === normalizeProfileLevel(row.level)
+      );
+      baseline = seed?.outcomes ?? [];
+    } catch {
+      // Without a stored identity or a matching seed outcome, an old score cannot be assigned safely.
+    }
+  }
+  const outcomeRecords = storedOutcomes.map((outcome, index) => {
+    if (typeof outcome !== "string") return outcome;
+    const position = baseline.indexOf(outcome);
+    const matchesSeed = position >= 0 && baseline.lastIndexOf(outcome) === position &&
+      storedOutcomes.indexOf(outcome) === storedOutcomes.lastIndexOf(outcome);
+    const id = row.updated_by === "seed" ? `P${index + 1}` : matchesSeed ? `P${position + 1}` : `legacy-pc-${index + 1}`;
+    return { id, text: outcome };
+  });
   return {
     programName: repairText(row.program_name),
     level: normalizeProfileLevel(row.level),
@@ -8722,7 +8750,8 @@ function programProfileFromRow(row) {
     language: repairText(row.language || "Türkçe"),
     qualificationRules: repairText(row.qualification_rules),
     sections: parseJsonField(row.sections_json, []),
-    outcomes: parseJsonField(row.outcomes_json, []),
+    outcomes: outcomeRecords.map(({ text }) => text),
+    outcomeIds: outcomeRecords.map(({ id }) => id),
     tyycRows: parseJsonField(row.tyyc_rows_json, []),
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,
@@ -8873,6 +8902,18 @@ function upsertProgramProfile(profile, actor) {
     throw new Error("Program adı ve düzeyi zorunludur.");
   }
   const now = new Date().toISOString();
+  const current = getProgramProfile(normalized.programName, normalized.level);
+  const existingIds = new Set(current?.outcomeIds || []);
+  const usedIds = new Set();
+  const outcomeRecords = normalized.outcomes.map((text, index) => {
+    const matchingIndexes = current?.outcomes.flatMap((previous, position) => previous === text ? [position] : []) ?? [];
+    const requestedId = Array.isArray(profile.outcomeIds)
+      ? profile.outcomeIds[index]
+      : matchingIndexes.length === 1 ? current.outcomeIds[matchingIndexes[0]] : null;
+    const id = existingIds.has(requestedId) && !usedIds.has(requestedId) ? requestedId : `pc-${randomUUID()}`;
+    usedIds.add(id);
+    return { id, text };
+  });
   db.prepare(`
     INSERT INTO program_profiles(program_name, level, degree, manager, language, qualification_rules, sections_json, outcomes_json, tyyc_rows_json, created_at, updated_at, updated_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -8894,7 +8935,7 @@ function upsertProgramProfile(profile, actor) {
     normalized.language,
     normalized.qualificationRules,
     JSON.stringify(normalized.sections),
-    JSON.stringify(normalized.outcomes),
+    JSON.stringify(outcomeRecords),
     JSON.stringify(normalized.tyycRows),
     now,
     now,
@@ -8902,6 +8943,21 @@ function upsertProgramProfile(profile, actor) {
   );
   audit("program_profile.save", actor, { programName: normalized.programName, level: normalized.level });
   return getProgramProfile(normalized.programName, normalized.level);
+}
+
+function courseProgramOutcomes(course) {
+  const profile = getProgramProfile(course.programName, course.level);
+  return profile?.outcomes.map((text, index) => ({ id: profile.outcomeIds[index], text }))
+    .filter(({ text }) => text.trim()) ?? [];
+}
+
+function matrixForProgramOutcomes(matrix, programOutcomes) {
+  return (Array.isArray(matrix) ? matrix : []).map((row) => Object.fromEntries(
+    programOutcomes.flatMap(({ id }) => {
+      const score = Number(row?.[id]);
+      return Number.isInteger(score) && score >= 1 && score <= 5 ? [[id, score]] : [];
+    }),
+  ));
 }
 
 async function listBackups() {
@@ -9869,10 +9925,13 @@ async function handleDbpApi(request) {
         }
       }
       const row = rows.find((item) => publicOnly ? hasPublicReadableCoursePackage(item) : hasAnyCoursePackage(item));
+      const profileCourse = rows[0] ? courseFromRow(row || rows[0]) : query;
+      const programOutcomes = publicOnly ? undefined : courseProgramOutcomes(profileCourse);
       if (!row) {
         const latest = rows[0];
         return jsonResponse({
           package: null,
+          programOutcomes,
           status: repairText(latest?.status || ""),
           packagePending: Boolean(publicOnly && latest),
         }, { headers: { "Cache-Control": "no-store" } });
@@ -9881,6 +9940,7 @@ async function handleDbpApi(request) {
       const course = normalizeDbCourseForList(courseFromRow(row)) || courseFromRow(row);
       return jsonResponse({
         package: packageRecord?.package ? packageWithCourseInstructor(packageRecord.package, course) : null,
+        programOutcomes,
         status: repairText(row.status || ""),
         updatedAt: row.updated_at,
         approvedAt: packageRecord?.approvedAt || "",
@@ -9918,6 +9978,22 @@ async function handleDbpApi(request) {
       const actualStatus = submittedForCommittee && !committeeExists ? "ABD Son Onayı Bekliyor" : body.status || "Taslak";
 
       if (!matchingRows.length) return jsonResponse({ message: "Düzenlenecek ders kaydı bulunamadı." }, { status: 404 });
+      const incomingPackage = body.package || {};
+      if (Array.isArray(incomingPackage.programOutcomes)) {
+        const programOutcomes = courseProgramOutcomes(courseFromRow(matchingRows[0]));
+        if (JSON.stringify(incomingPackage.programOutcomes.map((outcome) => ({ id: outcome?.id, text: outcome?.text }))) !== JSON.stringify(programOutcomes)) {
+          return jsonResponse({ message: "Program çıktıları değişti. Sayfayı yeniden yükleyip katkı matrisini kontrol edin." }, { status: 409 });
+        }
+        incomingPackage.programOutcomes = programOutcomes;
+        incomingPackage.contributionMatrix = matrixForProgramOutcomes(incomingPackage.contributionMatrix, programOutcomes);
+        const outcomes = Array.isArray(incomingPackage.outcomes) ? incomingPackage.outcomes : [];
+        const scoredOutcomes = outcomes.map((text, index) => ({ text, scores: incomingPackage.contributionMatrix[index] }))
+          .filter(({ text }) => typeof text === "string" && text.trim());
+        if (submittedForCommittee && (!programOutcomes.length || !scoredOutcomes.length ||
+          scoredOutcomes.some(({ scores }) => !Object.keys(scores || {}).length))) {
+          return jsonResponse({ message: "Her ders öğrenme çıktısına en az bir program çıktısı için katkı puanı verin." }, { status: 422 });
+        }
+      }
       const updateById = db.prepare(`
         UPDATE courses SET status = ?, package_json = ?, updated_at = ? WHERE id = ?
       `);
@@ -10000,7 +10076,7 @@ async function handleDbpApi(request) {
     if (pathname === "/api/dbp/program-profile" && request.method === "GET") {
       const programName = url.searchParams.get("programName") || "";
       const level = url.searchParams.get("level") || "";
-      return jsonResponse({ profile: getProgramProfile(programName, level) });
+      return jsonResponse({ profile: getProgramProfile(programName, level) }, { headers: { "Cache-Control": "no-store" } });
     }
 
     if (pathname === "/api/dbp/public-visibility" && request.method === "GET") {
@@ -10029,8 +10105,20 @@ async function handleDbpApi(request) {
       }
       upsertSessionUser(auth.session);
       const body = await readJsonBody(request);
+      const profile = body.profile || body;
+      if (auth.session.role === "abd_asd_baskani" && !databaseProgramCatalog().some((program) =>
+        normalizeScope(program.programName) === normalizeScope(profile.programName || "") &&
+        program.levels.includes(normalizeProfileLevel(profile.level)) &&
+        departmentScopeIncludes(auth.session.department, program.department)
+      )) {
+        return jsonResponse({ message: "Bu program ve düzey için düzenleme yetkiniz yok." }, { status: 403 });
+      }
+      if (Object.hasOwn(profile, "updatedAt") &&
+          (getProgramProfile(profile.programName, profile.level)?.updatedAt ?? null) !== profile.updatedAt) {
+        return jsonResponse({ message: "Program profili değişti. Sayfayı yeniden yükleyip tekrar deneyin." }, { status: 409 });
+      }
       const actor = auth.session?.username || auth.session?.name || "dbp-user";
-      return jsonResponse({ ok: true, profile: upsertProgramProfile(body.profile || body, actor) });
+      return jsonResponse({ ok: true, profile: upsertProgramProfile(profile, actor) });
     }
 
     if (pathname === "/api/dbp/admin/thesis-awards/pdf" && (request.method === "GET" || request.method === "HEAD")) {

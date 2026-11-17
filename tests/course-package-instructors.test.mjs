@@ -29,6 +29,7 @@ function fixture(t) {
     canEditCoursePackage: () => true, canApproveCoursePackage: () => true,
     committeeMembersForDepartment: () => [], replaceCourseReviewAssignees() {}, deactivateCourseReviewAssignees() {}, recordWorkflowRequest() {},
     courseRowsForIdentity: rows, countRows: () => 1,
+    courseProgramOutcomes: () => [],
     courseWorkflowSummary: () => ({}), latestWorkflowCorrection: () => null,
     getPublicVisibilityMap: () => ({}), normalizeDbCourseForList: (course) => course, isCoursePubliclyVisible: () => true,
     isPublicCourseStatus: (status) => ["Public", "Yayımlandı"].includes(status),

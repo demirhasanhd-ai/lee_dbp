@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import vm from "node:vm";
+import { randomUUID } from "node:crypto";
 import ts from "typescript";
 
 const source = readFileSync(new URL("../server.mjs", import.meta.url), "utf8");
@@ -19,7 +20,7 @@ const instructor = { username: "teacher", name: "Ders Hocası", role: "akademisy
 function fixture(t, department = chair.department) {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
-  for (const table of ["metadata", "programs", "courses", "committee_members", "course_review_assignees", "workflow_requests", "public_visibility"]) {
+  for (const table of ["metadata", "programs", "program_profiles", "courses", "committee_members", "course_review_assignees", "workflow_requests", "public_visibility"]) {
     const schema = source.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n    \\);`));
     assert.ok(schema, table);
     db.exec(schema[0]);
@@ -32,7 +33,7 @@ function fixture(t, department = chair.department) {
       .run(program.mainDepartment, program.department, program.programName, JSON.stringify(program.levels));
   }
   let session = instructor;
-  const context = vm.createContext({ db, URL, Request, Response, console });
+  const context = vm.createContext({ db, URL, Request, Response, console, randomUUID });
   vm.runInContext('const coursePackagePublicationModel = "published-draft-v1";\n' +
     source.match(/const courseListSelect = `[\s\S]*?`;/)[0] + "\n" +
     declarations.map(([declaration]) => declaration).join("\n"), context);
@@ -66,14 +67,72 @@ function fixture(t, department = chair.department) {
     }
   }
   context.replaceCommitteeMembers({ department, members: [member] }, "chair");
-  const request = async (user, endpoint, body) => {
+  const request = async (user, endpoint, body, method = body === undefined ? "GET" : "POST") => {
     session = user;
     return context.handleDbpApi(new Request(`http://localhost/dbp/api/dbp/${endpoint}`, {
-      method: body === undefined ? "GET" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     }));
   };
   return { db, context, identities, request };
 }
+
+test("İşletme profile revisions preserve course scores by outcome and freeze the approved matrix", async (t) => {
+  const { db, identities, request } = fixture(t);
+  const [course, otherLevel] = identities.filter(({ programName }) => programName === "İşletme");
+  const initial = Array.from({ length: 11 }, (_, i) => `Başlangıç çıktısı ${i + 1}`);
+  for (const identity of [course, otherLevel]) {
+    db.prepare("INSERT INTO program_profiles(program_name, level, outcomes_json, created_at, updated_at, updated_by) VALUES (?, ?, ?, 'seed', 'seed', 'seed')")
+      .run(identity.programName, identity.level, JSON.stringify(initial));
+  }
+  const params = (value) => new URLSearchParams(value).toString();
+  const readCourse = async (identity = course, user = instructor) =>
+    (await request(user, `course-package?${params(identity)}`)).json();
+  const readProfile = async () =>
+    (await (await request(chair, `program-profile?${params(course)}`)).json()).profile;
+  const saveProfile = async (profile, user = chair) => request(user, "program-profile", { profile }, "PUT");
+  const savePackage = (packageData, status = "Taslak") =>
+    request(instructor, "course-package", { ...course, status, package: packageData });
+
+  assert.equal((await savePackage({ outcomes: ["Ders çıktısı"], contributionMatrix: [{ P1: 3, P2: 5 }] })).status, 200);
+  const profile = await readProfile();
+  assert.equal((await saveProfile(profile, { ...chair, department: "Matematik ABD" })).status, 403);
+  const savedResponse = await saveProfile({
+    ...profile, outcomes: [...initial, "Yeni çıktı"], outcomeIds: [...profile.outcomeIds, null],
+  });
+  assert.equal(savedResponse.status, 200);
+  const added = (await savedResponse.json()).profile;
+  const editing = await readCourse();
+  assert.equal(editing.programOutcomes.length, 12);
+  const newId = editing.programOutcomes[11].id;
+  assert.equal(editing.programOutcomes[11].text, "Yeni çıktı");
+  assert.equal(editing.package.contributionMatrix[0][newId], undefined);
+  assert.equal((await readCourse(otherLevel)).programOutcomes.length, 11);
+
+  const revised = await saveProfile({
+    ...added, outcomes: ["Revize edilen ikinci çıktı", ...added.outcomes.slice(2)], outcomeIds: added.outcomeIds.slice(1),
+  });
+  assert.equal(revised.status, 200);
+  assert.equal((await savePackage({ ...editing.package, programOutcomes: editing.programOutcomes })).status, 409);
+  const refreshed = await readCourse();
+  assert.deepEqual(refreshed.programOutcomes[0], { id: "P2", text: "Revize edilen ikinci çıktı" });
+  assert.equal(refreshed.programOutcomes.some(({ id }) => id === "P1"), false);
+  assert.equal(refreshed.package.contributionMatrix[0].P2, 5);
+  const submission = {
+    ...refreshed.package, programOutcomes: refreshed.programOutcomes,
+    contributionMatrix: [{ ...refreshed.package.contributionMatrix[0], [newId]: 4 }],
+  };
+  assert.equal((await savePackage(submission, "Komisyon Onayı Bekliyor")).status, 200);
+  const review = (await readCourse(course, member)).package;
+  assert.deepEqual(review.programOutcomes, refreshed.programOutcomes);
+  assert.deepEqual(review.contributionMatrix, [{ P2: 5, [newId]: 4 }]);
+  assert.equal((await request(member, "course-package/status", { ...course, status: "ABD Son Onayı Bekliyor" })).status, 200);
+  assert.equal((await request(chair, "course-package/status", { ...course, status: "Yayımlandı" })).status, 200);
+  const latest = await readProfile();
+  assert.equal((await saveProfile({ ...latest, outcomes: latest.outcomes.map((text, index) => index ? text : "Sonraki revizyon") })).status, 200);
+  const published = JSON.parse(db.prepare("SELECT package_json FROM courses WHERE code = ?").get(course.code).package_json).published.package;
+  assert.deepEqual(published.programOutcomes, review.programOutcomes);
+  assert.deepEqual(published.contributionMatrix, review.contributionMatrix);
+});
 
 test("all seven levels route from instructor to the shared İşletme committee and then to its chair for publication", async (t) => {
   const { context, identities, request, db } = fixture(t);

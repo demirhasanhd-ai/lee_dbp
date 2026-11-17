@@ -9,6 +9,7 @@ export type CourseQualityCheck = {
 };
 
 export type CoursePackage = {
+  programOutcomes?: import("../programOutcomes").ProgramOutcome[];
   code: string;
   name?: string;
   aliases?: string[];

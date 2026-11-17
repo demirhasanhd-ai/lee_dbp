@@ -26,6 +26,7 @@ test("OBS search previews full content without writes, imports only after approv
     outcomes: ["", ""], contributionMatrix: originalMatrix };
   const writes = [];
   let polls = 0;
+  let programOutcomeCount = 11;
   await withPublicPage("/dbp/panel", { preparePage: async (page) => {
     await page.addInitScript(() => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Akademisyen", username: "test.teacher", role: "akademisyen", department: "Matematik ABD" })));
     await page.route("**/dbp/api/dbp/**", async (route) => {
@@ -39,7 +40,10 @@ test("OBS search previews full content without writes, imports only after approv
         case "my-courses": payload = { courses: [course], total: 1, source: "database" }; break;
         case "course-package":
           if (request.method() === "POST") { const body = request.postDataJSON(); writes.push(body); stored = body.package; payload = { ok: true, status: "Taslak" }; }
-          else payload = { package: stored, status: "Taslak" };
+          else payload = {
+            package: stored, status: "Taslak",
+            programOutcomes: Array.from({ length: programOutcomeCount }, (_, i) => ({ id: `P${i + 1}`, text: `Program çıktısı ${i + 1}` })),
+          };
           break;
         case "obs-programs": payload = { programs: [program], suggestedProgramId: program.id }; break;
         case "obs-course-search":
@@ -118,5 +122,17 @@ test("OBS search previews full content without writes, imports only after approv
     await page.waitForFunction(() => !document.querySelector('.course-submit-actions button.draft')?.disabled);
     assert.equal(writes[2].package.contributionMatrix[0].P1, 5);
     assert.equal(writes[2].package.obsImportSource.matrixIncluded, true);
+
+    programOutcomeCount = 12;
+    await page.reload();
+    await page.locator(".role-course-sections").getByRole("button", { name: "Görüntüle", exact: true }).first().click();
+    const added = form.getByLabel("ÖÇ1 P12 katkısı", { exact: true });
+    assert.equal(await added.inputValue(), "");
+    assert.equal(await form.getByLabel("ÖÇ1 P1 katkısı", { exact: true }).inputValue(), "5");
+    assert.equal(await form.getByRole("columnheader", { name: "PÇ12", exact: true }).getAttribute("title"), "Program çıktısı 12");
+    await added.selectOption("4");
+    await form.getByRole("button", { name: "Taslağı Kaydet", exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('.course-submit-actions button.draft')?.disabled);
+    assert.equal(writes[3].package.contributionMatrix[0].P12, 4);
   });
 });

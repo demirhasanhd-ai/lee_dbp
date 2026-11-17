@@ -8,6 +8,7 @@ import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { SDG_GOALS, findSdgGoal, formatSdgGoal } from "../../lib/sdgGoals";
 import { getCoursePackage, type CoursePackage } from "../../lib/data/coursePackages";
+import type { ProgramOutcome } from "../../lib/programOutcomes";
 import {
   assessmentWorkloadName,
   linkedWorkloadNames,
@@ -156,7 +157,7 @@ const emptyOutcomes = () => Array.from({ length: fixedOutcomeCount }, () => "");
 const emptyWeeklyTopics = () => Object.fromEntries(weeks.map((week) => [week, ""])) as Record<number, string>;
 const normalizeContributionRows = (rows: Record<string, number>[]) =>
   rows.map((row) => Object.fromEntries(
-    Object.entries(row).map(([key, score]) => [key, Math.min(5, Math.max(1, Number(score) || 1))]),
+    Object.entries(row).filter(([, score]) => Number.isInteger(score) && score >= 1 && score <= 5),
   ));
 const emptyStructures = () => Object.fromEntries(structures.map((item) => [item, 0])) as Record<string, number>;
 const structuresForCourse = (course: CourseIdentity) => {
@@ -290,6 +291,7 @@ export function CourseBolognaEditor({
   const [weeklyTopics, setWeeklyTopics] = useState<Record<number, string>>(emptyWeeklyTopics);
   const [structureValues, setStructureValues] = useState<Record<string, number>>(emptyStructures);
   const [contributionMatrix, setContributionMatrix] = useState<Record<string, number>[]>([]);
+  const [programOutcomes, setProgramOutcomes] = useState<ProgramOutcome[]>([]);
   const [sdgs, setSdgs] = useState(emptySdgs);
   const [obsOpen, setObsOpen] = useState(false);
   const [obsSource, setObsSource] = useState<ObsImportSource | null>(null);
@@ -399,7 +401,11 @@ export function CourseBolognaEditor({
         if (!response.ok) throw new Error(data.message || "Kayıtlı ders paketi yüklenemedi.");
         return data;
       })
-      .then((data) => { if (!controller.signal.aborted && data?.package) applySavedPackage(data.package, data.status, data.workflow || null); })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setProgramOutcomes(data.programOutcomes ?? []);
+        if (data.package) applySavedPackage(data.package, data.status, data.workflow || null);
+      })
       .catch((error) => {
         if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : "Kayıtlı ders paketi yüklenemedi.");
       })
@@ -463,8 +469,8 @@ export function CourseBolognaEditor({
     }
 
     if (
-      requiredOutcomes.some((_, outcomeIndex) =>
-        !Object.values(contributionMatrix[outcomeIndex] ?? {}).some((value) => Number(value) > 0),
+      !programOutcomes.length || outcomes.some((text, outcomeIndex) =>
+        text.trim() && !programOutcomes.some(({ id }) => Boolean(contributionMatrix[outcomeIndex]?.[id])),
       )
     ) {
       issues.push("Her öğrenme çıktısı en az bir program çıktısıyla 1–5 düzeyinde eşleştirilmelidir.");
@@ -480,6 +486,7 @@ export function CourseBolognaEditor({
   }, [
     assessments,
     contributionMatrix,
+    programOutcomes,
     detailFields,
     ects,
     identity.code,
@@ -626,9 +633,13 @@ export function CourseBolognaEditor({
     if (Object.keys(obsDraft.structures).length && (mode === "overwrite" || Object.values(structureValues).every((item) => Number(item) === 0))) {
       setStructureValues((current) => ({ ...current, ...obsDraft.structures }));
     }
-    const matrixImported = source.matrixIncluded && obsDraft.contributionMatrix.length > 0 && (mode === "overwrite" || contributionMatrix.length === 0);
+    const matrixImported = source.matrixIncluded && obsDraft.contributionMatrix.length > 0 && (mode === "overwrite" || !outcomes.some((text) => text.trim()));
     if (matrixImported) {
-      setContributionMatrix(normalizeContributionRows(obsDraft.contributionMatrix));
+      setContributionMatrix(normalizeContributionRows(obsDraft.contributionMatrix.map((row) =>
+        Object.fromEntries(programOutcomes.map(({ id }, index) => [id, row[`P${index + 1}`]])),
+      )));
+    } else if (mode === "overwrite") {
+      setContributionMatrix([]);
     }
     setObsSource({ ...source, matrixIncluded: matrixImported });
     setObsOpen(false);
@@ -661,6 +672,7 @@ export function CourseBolognaEditor({
             weeklyTopics,
             structureValues,
             contributionMatrix,
+            programOutcomes,
             sdgs,
             ects,
             obsSourceUrl: obsSource?.url || "",
@@ -811,7 +823,10 @@ export function CourseBolognaEditor({
                 aria-label={`ÖÇ ${index + 1} sil`}
                 disabled={outcomes.length <= fixedOutcomeCount}
                 title="LEE DBP standardında ders öğrenme çıktısı en az 5 maddede tutulur."
-                onClick={() => setOutcomes((current) => current.length <= fixedOutcomeCount ? current : current.filter((_, i) => i !== index))}
+                onClick={() => {
+                  setOutcomes((current) => current.filter((_, i) => i !== index));
+                  setContributionMatrix((current) => current.filter((_, i) => i !== index));
+                }}
               >
                 <Trash2 size={14} />
               </button>
@@ -931,32 +946,37 @@ export function CourseBolognaEditor({
       </section>
       <section className="course-form-card">
         <h3>Dersin Program Çıktılarına Katkısı</h3>
-        <p className="form-help">Her öğrenme çıktısının PÇ1-PÇ11 program çıktılarına katkısını 1-5 arasında belirtin.</p>
+        <p className="form-help">{programOutcomes.length ? "Her ders öğrenme çıktısının program çıktılarına katkısını 1–5 arasında belirtin." : "Bu program ve düzey için kayıtlı program çıktısı bulunamadı. Program çıktıları kaydedildikten sonra matrisi doldurabilirsiniz."}</p>
+        {programOutcomes.length > 0 && <><ol>{programOutcomes.map(({ id, text }, index) => <li key={id}><b>PÇ{index + 1}</b> {text}</li>)}</ol>
         <div className="contribution-wrap">
           <table>
             <thead>
               <tr>
                 <th>ÖÇ / PÇ</th>
-                {Array.from({ length: 11 }, (_, i) => <th key={i}>PÇ{i + 1}</th>)}
+                {programOutcomes.map(({ id, text }, i) => <th key={id} title={text}>PÇ{i + 1}</th>)}
               </tr>
             </thead>
             <tbody>
-              {outcomes.map((_, outcome) => (
+              {outcomes.map((text, outcome) => text.trim() && (
                 <tr key={outcome}>
-                  <th>ÖÇ{outcome + 1}</th>
-                  {Array.from({ length: 11 }, (_, i) => {
-                    const key = `P${i + 1}`;
+                  <th title={text}>ÖÇ{outcome + 1}</th>
+                  {programOutcomes.map(({ id: key }, i) => {
                     return (
                       <td key={i}>
                         <select
                           aria-label={`ÖÇ${outcome + 1} P${i + 1} katkısı`}
-                          value={String(contributionMatrix[outcome]?.[key] ?? 1)}
+                          value={String(contributionMatrix[outcome]?.[key] ?? "")}
+                          disabled={readOnly || approvalLocked}
                           onChange={(event) => setContributionMatrix((current) => {
-                            const next = [...current];
-                            next[outcome] = { ...(next[outcome] || {}), [key]: Number(event.target.value) };
+                            const next = Array.from({ length: Math.max(current.length, outcome + 1) }, (_, index) => current[index] || {});
+                            const row = { ...next[outcome] };
+                            if (event.target.value) row[key] = Number(event.target.value);
+                            else delete row[key];
+                            next[outcome] = row;
                             return next;
                           })}
                         >
+                          <option value="">—</option>
                           <option>1</option>
                           <option>2</option>
                           <option>3</option>
@@ -970,7 +990,7 @@ export function CourseBolognaEditor({
               ))}
             </tbody>
           </table>
-        </div>
+        </div></>}
       </section>
       <section className="course-form-card">
         <div className="section-title">
@@ -1024,7 +1044,7 @@ export function CourseBolognaEditor({
           <button type="submit" className="publish" disabled={approvalLocked || saving || publishIssues.length > 0} title={approvalLocked ? "Paket onay sürecinde." : publishIssues[0] ?? "Onay sürecine gönder"}><Send size={15} />Onaya gönder</button>
         </div>
       </div>}
-      {obsOpen && <ObsCourseImport course={course} session={session} onClose={closeObsImport} onApply={applyObsDraft} />}
+      {obsOpen && <ObsCourseImport course={course} session={session} programOutcomeCount={programOutcomes.length} onClose={closeObsImport} onApply={applyObsDraft} />}
     </form>
   );
 }
