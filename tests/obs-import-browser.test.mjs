@@ -2,16 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdirSync } from "node:fs";
 import { withPublicPage } from "./helpers/hydrated-public-page.mjs";
+import { COURSE_STRUCTURE_LABELS } from "../lib/courseStructures.mjs";
 
 test("OBS search previews full content without writes, imports only after approval and preserves provenance", async () => {
-  const course = { id: 1, code: "MAT864", name: "Araştırma Yöntemleri", department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans", instructor: "Test Akademisyen", status: "Taslak" };
-  const program = { id: "1", name: "Matematik Tezli Yüksek Lisans", faculty: "Lisansüstü Eğitim Enstitüsü", facultyId: "04" };
+  const course = { id: 1, code: "GTB811", name: "Gıdalardaki Pestisit Kalıntıları ve Risk Değerlendirmesi", department: "Gıda Teknolojisi ABD", programName: "Gıda Teknolojisi", level: "Tezli Yüksek Lisans", instructor: "Test Akademisyen", status: "Taslak" };
+  const program = { id: "1", name: "Gıda Teknolojisi Tezli Yüksek Lisans", faculty: "Lisansüstü Eğitim Enstitüsü", facultyId: "04" };
   const draft = { sourceUrl: "https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=123&lang=tr", obsCourseId: "123", code: course.code, name: course.name,
     semester: 1, theory: 3, practice: 0, lab: 0, credit: 3, ects: 6, updatedAt: "29.10.2026", totalWorkload: 180,
     details: { program: program.name, language: "Türkçe", level: "Yüksek Lisans", type: "Seçmeli", teachingMode: "Yüz Yüze", purpose: "ÖBS araştırma amacı", content: "Bilimsel yöntem ve araştırma etiği", methods: "Anlatım ve uygulama", prerequisites: "Yok", instructors: "Dr. Öğr. Üyesi Test Akademisyen", coordinator: "Test Akademisyen", assistants: "Yok" },
     outcomes: ["Araştırma tasarlar.", "Etik ilkeleri uygular."], assessments: [{ id: 1, name: "Ara Sınav", count: 1, weight: 40, fixed: true }, { id: 2, name: "Yarıyıl Sonu Sınavı", count: 1, weight: 60, fixed: true }],
     workloads: { "Ders Süresi": { count: 15, hours: 3 }, "Sınıf Dışı Çalışma": { count: 15, hours: 9 } },
-    weeklyTopics: { 1: "ÖBS birinci hafta\nÖn Hazırlık: Makale okuma", 2: "Araştırma etiği" }, structures: { "Alan Bilgisi": 100 }, resources: "ÖBS kaynak kitabı",
+    weeklyTopics: { 1: "ÖBS birinci hafta\nÖn Hazırlık: Makale okuma", 2: "Araştırma etiği" }, structures: Object.fromEntries(COURSE_STRUCTURE_LABELS.map((label) => [label, label === "Alan Bilgisi" ? 100 : 0])), resources: "ÖBS kaynak kitabı",
     contributionMatrix: [Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`P${i + 1}`, 5])), Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`P${i + 1}`, 4]))],
   };
   const candidate = { id: "1:2026:123", sourceUrl: draft.sourceUrl, obsCourseId: "123", code: course.code, name: course.name, program,
@@ -23,12 +24,13 @@ test("OBS search previews full content without writes, imports only after approv
   const originalMatrix = [{ P1: 2, P2: 3 }];
   let stored = { identity: { code: course.code, name: course.name, theory: "3", practice: "0", credit: "3", level: course.level, type: "Seçmeli", language: "Türkçe" },
     detailFields: { purpose: "Önceden yazılmış amaç", content: "", methods: "", prerequisites: "", instructors: "", coordinator: "", assistants: "", resources: "" },
-    outcomes: ["", ""], contributionMatrix: originalMatrix };
+    outcomes: ["", ""], contributionMatrix: originalMatrix,
+    structureValues: { "Fen Bilimleri": 15, "Alan Bilgisi": 60, "Laboratuvar / Araştırma": 25 } };
   const writes = [];
   let polls = 0;
   let programOutcomeCount = 11;
   await withPublicPage("/dbp/panel", { preparePage: async (page) => {
-    await page.addInitScript(() => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Akademisyen", username: "test.teacher", role: "akademisyen", department: "Matematik ABD" })));
+    await page.addInitScript((department) => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Akademisyen", username: "test.teacher", role: "akademisyen", department })), course.department);
     await page.route("**/dbp/api/dbp/**", async (route) => {
       const request = route.request(); const url = new URL(request.url()); const endpoint = url.pathname.split("/").pop();
       let payload;
@@ -60,6 +62,17 @@ test("OBS search previews full content without writes, imports only after approv
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.locator(".role-course-sections").getByRole("button", { name: "Görüntüle", exact: true }).first().click();
     const form = page.locator(".course-bologna-form");
+    const structureIssue = form.getByText("Ders yapısı oranlarının toplamı %100 olmalıdır (mevcut: %75).", { exact: true });
+    await structureIssue.waitFor({ state: "attached" });
+    assert.equal(await form.locator('.structure-grid input').count(), 8);
+    assert.equal(await form.locator('input[name="Fen Bilimleri"]').inputValue(), "15");
+    assert.equal(await form.locator('input[name="Alan Bilgisi"]').inputValue(), "60");
+    assert.equal(await form.getByRole("button", { name: "Onaya gönder", exact: true }).isDisabled(), true);
+    assert.equal(writes.length, 0, "opening an existing package must not save it");
+    await form.locator('input[name="Matematik ve Temel Bilimler"]').fill("25");
+    assert.equal(await form.getByText(/Ders yapısı oranlarının toplamı/).count(), 0);
+    await form.locator('input[name="Matematik ve Temel Bilimler"]').fill("0");
+    await structureIssue.waitFor({ state: "attached" });
     const open = form.getByRole("button", { name: /OBS.den Doldur/u });
     await open.click();
     const dialog = page.getByRole("dialog");
@@ -96,6 +109,10 @@ test("OBS search previews full content without writes, imports only after approv
     await form.getByRole("button", { name: "Taslağı Kaydet", exact: true }).click();
     await page.waitForFunction(() => !document.querySelector('.course-submit-actions button.draft')?.disabled);
     assert.equal(writes.length, 1);
+    assert.deepEqual(Object.keys(writes[0].package.structureValues), COURSE_STRUCTURE_LABELS);
+    assert.equal(writes[0].package.structureValues["Fen Bilimleri"], 15);
+    assert.equal(writes[0].package.structureValues["Alan Bilgisi"], 60);
+    assert.equal(Object.values(writes[0].package.structureValues).reduce((sum, value) => sum + value, 0), 75);
     assert.equal(writes[0].package.obsSourceUrl, draft.sourceUrl);
     assert.equal(writes[0].package.obsImportSource.curriculum, candidate.curriculum.name);
     assert.equal(writes[0].package.contributionMatrix[0].P1, 2);
@@ -116,12 +133,15 @@ test("OBS search previews full content without writes, imports only after approv
     await matrix.check();
     await page.getByLabel("Aktarılan bölümlerde mevcut içeriğin değiştirilmesini onaylıyorum.").check();
     await page.getByRole("button", { name: "Tümünü Değiştir", exact: true }).click();
+    assert.equal(await form.getByText(/Ders yapısı oranlarının toplamı/).count(), 0);
     assert.equal(await form.locator('textarea[name="Dersin Amacı"]').inputValue(), draft.details.purpose);
     assert.equal(await form.getByLabel("Kodu", { exact: true }).inputValue(), course.code);
     await form.getByRole("button", { name: "Taslağı Kaydet", exact: true }).click();
     await page.waitForFunction(() => !document.querySelector('.course-submit-actions button.draft')?.disabled);
     assert.equal(writes[2].package.contributionMatrix[0].P1, 5);
     assert.equal(writes[2].package.obsImportSource.matrixIncluded, true);
+    assert.equal(writes[2].package.structureValues["Laboratuvar / Araştırma"], undefined);
+    assert.equal(Object.values(writes[2].package.structureValues).reduce((sum, value) => sum + value, 0), 100);
 
     programOutcomeCount = 12;
     await page.reload();

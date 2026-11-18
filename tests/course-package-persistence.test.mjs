@@ -5,6 +5,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import vm from "node:vm";
 import test from "node:test";
+import { normalizeCourseStructures } from "../lib/courseStructures.mjs";
 
 const source = readFileSync(new URL("../server.mjs", import.meta.url), "utf8");
 const declarations = [...source.matchAll(/^function (\w+)\([^\n]*\) \{[\s\S]*?^\}/gm)];
@@ -106,8 +107,8 @@ test("draft save survives database close/reopen and public package stays unchang
   try {
     db = new DatabaseSync(file);
     schema(db);
-    const published = { detailFields: { purpose: "approved content" } };
-    const draft = { detailFields: { purpose: "teacher's saved content" }, savedAt: "2026-10-15T12:00:00Z" };
+    const published = { detailFields: { purpose: "approved content" }, structureValues: { "Fen Bilimleri": 15, "Alan Bilgisi": 60, "Laboratuvar / Araştırma": 25 } };
+    const draft = { detailFields: { purpose: "teacher's saved content" }, structureValues: normalizeCourseStructures(published.structureValues), savedAt: "2026-10-15T12:00:00Z" };
     const savedJson = context.packageJsonForDraft(JSON.stringify(published), draft, "Taslak", "teacher", "2026-10-15T12:00:00Z", "Public");
     db.prepare("INSERT INTO courses(id, status, package_json) VALUES (1, 'Taslak', ?)").run(savedJson);
     db.close();

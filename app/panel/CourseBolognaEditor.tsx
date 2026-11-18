@@ -9,6 +9,7 @@ import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { SDG_GOALS, findSdgGoal, formatSdgGoal } from "../../lib/sdgGoals";
 import { getCoursePackage, type CoursePackage } from "../../lib/data/coursePackages";
 import type { ProgramOutcome } from "../../lib/programOutcomes";
+import { COURSE_STRUCTURE_LABELS as structures, courseStructureTotal, normalizeCourseStructures } from "../../lib/courseStructures.mjs";
 import {
   assessmentWorkloadName,
   linkedWorkloadNames,
@@ -65,16 +66,6 @@ const defaultWorkloads: Record<string, Workload> = {
   "Ara Sınav Hazırlığı": { count: 1, hours: 2 },
   "Yarıyıl Sonu Sınavı Hazırlığı": { count: 1, hours: 2 },
 };
-const structures = [
-  "Matematik ve Temel Bilimler",
-  "Mühendislik Bilimleri",
-  "Mühendislik Tasarımı",
-  "Sosyal Bilimler",
-  "Eğitim Bilimleri",
-  "Fen Bilimleri",
-  "Sağlık Bilimleri",
-  "Alan Bilgisi",
-];
 const longFields = [
   ["purpose", "Dersin Amacı", "Bilimsel araştırma sürecinin temel kavramlarını kazandırmak."],
   ["content", "Dersin İçeriği", "Araştırma problemi, literatür taraması, yöntem, analiz ve etik."],
@@ -159,7 +150,7 @@ const normalizeContributionRows = (rows: Record<string, number>[]) =>
   rows.map((row) => Object.fromEntries(
     Object.entries(row).filter(([, score]) => Number.isInteger(score) && score >= 1 && score <= 5),
   ));
-const emptyStructures = () => Object.fromEntries(structures.map((item) => [item, 0])) as Record<string, number>;
+const emptyStructures = () => normalizeCourseStructures();
 const structuresForCourse = (course: CourseIdentity) => {
   const values = emptyStructures();
   if ((course.department || "").toLocaleLowerCase("tr-TR").includes("batarya sistemleri")) {
@@ -174,7 +165,6 @@ const structuresForCourse = (course: CourseIdentity) => {
   }
   if ((course.department || "").toLocaleLowerCase("tr-TR").includes("biyoloji")) {
     values["Fen Bilimleri"] = 40;
-    values["Laboratuvar / Araştırma"] = 30;
     values["Alan Bilgisi"] = 30;
   }
   if ((course.department || "").toLocaleLowerCase("tr-TR").includes("ebelik")) {
@@ -208,33 +198,28 @@ const structuresForCourse = (course: CourseIdentity) => {
   if ((course.department || "").toLocaleLowerCase("tr-TR").includes("gastronomi ve mutfak sanatları")) {
     values["Sosyal Bilimler"] = 20;
     values["Sağlık Bilimleri"] = 20;
-    values["Laboratuvar / Araştırma"] = 20;
     values["Alan Bilgisi"] = 40;
   }
   if ((course.department || "").toLocaleLowerCase("tr-TR").includes("gıda mühendisliği")) {
     values["Matematik ve Temel Bilimler"] = 20;
     values["Mühendislik Bilimleri"] = 35;
     values["Mühendislik Tasarımı"] = 20;
-    values["Laboratuvar / Araştırma"] = 15;
     values["Alan Bilgisi"] = 10;
   }
   if ((course.department || "").toLocaleLowerCase("tr-TR").includes("gıda teknolojisi")) {
     values["Fen Bilimleri"] = 25;
     values["Sağlık Bilimleri"] = 10;
-    values["Laboratuvar / Araştırma"] = 25;
     values["Alan Bilgisi"] = 40;
   }
   if ((course.department || "").toLocaleLowerCase("tr-TR").includes("harita mühendisliği")) {
     values["Matematik ve Temel Bilimler"] = 20;
     values["Mühendislik Bilimleri"] = 30;
     values["Mühendislik Tasarımı"] = 20;
-    values["Laboratuvar / Araştırma"] = 10;
     values["Alan Bilgisi"] = 20;
   }
   if ((course.programName || "").toLocaleLowerCase("tr-TR").includes("iç hastalıkları hemşireliği")) {
     values["Sağlık Bilimleri"] = 45;
     values["Sosyal Bilimler"] = 10;
-    values["Laboratuvar / Araştırma"] = 15;
     values["Alan Bilgisi"] = 30;
   }
   return values;
@@ -357,7 +342,7 @@ export function CourseBolognaEditor({
       }
       if (stored.workloads && typeof stored.workloads === "object") setWorkloads(stored.workloads as Record<string, Workload>);
       if (stored.weeklyTopics && typeof stored.weeklyTopics === "object") setWeeklyTopics(stored.weeklyTopics as Record<number, string>);
-      if (stored.structureValues && typeof stored.structureValues === "object" && Object.keys(stored.structureValues).length > 0) setStructureValues(stored.structureValues as Record<string, number>);
+      if (stored.structureValues && typeof stored.structureValues === "object" && Object.keys(stored.structureValues).length > 0) setStructureValues(normalizeCourseStructures(stored.structureValues as Record<string, number>));
       if (Array.isArray(stored.contributionMatrix)) setContributionMatrix(normalizeContributionRows(stored.contributionMatrix as Record<string, number>[]));
       if (Array.isArray(stored.sdgs)) setSdgs(stored.sdgs as string[]);
       setWorkflowStatus(status || "Taslak");
@@ -463,7 +448,7 @@ export function CourseBolognaEditor({
       issues.push(`Değerlendirme katkılarının toplamı %100 olmalıdır (mevcut: %${assessmentTotal}).`);
     }
 
-    const structureTotal = Object.values(structureValues).reduce((sum, value) => sum + Number(value || 0), 0);
+    const structureTotal = courseStructureTotal(structureValues);
     if (structureTotal !== 100) {
       issues.push(`Ders yapısı oranlarının toplamı %100 olmalıdır (mevcut: %${structureTotal}).`);
     }
@@ -631,7 +616,7 @@ export function CourseBolognaEditor({
       setWeeklyTopics((current) => ({ ...current, ...obsDraft.weeklyTopics }));
     }
     if (Object.keys(obsDraft.structures).length && (mode === "overwrite" || Object.values(structureValues).every((item) => Number(item) === 0))) {
-      setStructureValues((current) => ({ ...current, ...obsDraft.structures }));
+      setStructureValues((current) => normalizeCourseStructures({ ...current, ...obsDraft.structures }));
     }
     const matrixImported = source.matrixIncluded && obsDraft.contributionMatrix.length > 0 && (mode === "overwrite" || !outcomes.some((text) => text.trim()));
     if (matrixImported) {
@@ -670,7 +655,7 @@ export function CourseBolognaEditor({
             assessments,
             workloads,
             weeklyTopics,
-            structureValues,
+            structureValues: normalizeCourseStructures(structureValues),
             contributionMatrix,
             programOutcomes,
             sdgs,
