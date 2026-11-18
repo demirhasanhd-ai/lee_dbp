@@ -9,6 +9,7 @@ import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { SDG_GOALS, findSdgGoal, formatSdgGoal } from "../../lib/sdgGoals";
 import { getCoursePackage, type CoursePackage } from "../../lib/data/coursePackages";
 import type { ProgramOutcome } from "../../lib/programOutcomes";
+import { initialContributionMatrix } from "../../lib/courseContributionDefaults.mjs";
 import { COURSE_STRUCTURE_LABELS as structures, courseStructureTotal, normalizeCourseStructures } from "../../lib/courseStructures.mjs";
 import {
   assessmentWorkloadName,
@@ -148,7 +149,7 @@ const emptyOutcomes = () => Array.from({ length: fixedOutcomeCount }, () => "");
 const emptyWeeklyTopics = () => Object.fromEntries(weeks.map((week) => [week, ""])) as Record<number, string>;
 const normalizeContributionRows = (rows: Record<string, number>[]) =>
   rows.map((row) => Object.fromEntries(
-    Object.entries(row).filter(([, score]) => Number.isInteger(score) && score >= 1 && score <= 5),
+    Object.entries(row || {}).filter(([, score]) => Number.isInteger(score) && score >= 1 && score <= 5),
   ));
 const emptyStructures = () => normalizeCourseStructures();
 const structuresForCourse = (course: CourseIdentity) => {
@@ -390,13 +391,20 @@ export function CourseBolognaEditor({
         if (controller.signal.aborted) return;
         setProgramOutcomes(data.programOutcomes ?? []);
         if (data.package) applySavedPackage(data.package, data.status, data.workflow || null);
+        const defaultRows = staticPackage?.contributionMatrix.map((row) =>
+          Object.fromEntries(row.values.map((score, index) => [`P${index + 1}`, score])),
+        ) ?? [];
+        const matrixPackage = data.package ?? { contributionMatrix: defaultRows };
+        setContributionMatrix(normalizeContributionRows(initialContributionMatrix(
+          matrixPackage, data.programOutcomes ?? [], data.status || course.status, defaultRows,
+        )));
       })
       .catch((error) => {
         if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : "Kayıtlı ders paketi yüklenemedi.");
       })
       .finally(() => { if (!controller.signal.aborted) setPackageLoading(false); });
     return () => controller.abort();
-  }, [course.code, course.department, course.level, course.name, course.programName, session]);
+  }, [course.code, course.department, course.level, course.name, course.programName, course.status, session]);
 
   const workloadNames = useMemo(() => Object.keys(workloads), [workloads]);
   const totalWorkload = workloadTotalHours(workloads);

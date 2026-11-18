@@ -15,8 +15,8 @@ import { dbpPath } from "../../../lib/dbpPath";
 import { coursePdfHref } from "../../../lib/coursePdf";
 import { DEFAULT_COURSE_SDG_IDS } from "../../../lib/sdgGoals";
 import { fetchDbpCourses, type DbpCourse } from "../../../lib/data/dbpCourses";
-import { fetchProgramProfile, getProgramProfile } from "../../../lib/data/programProfiles";
-import type { ProgramTyycRow } from "../../../lib/data/programProfiles";
+import { fetchProgramProfile } from "../../../lib/data/programProfiles";
+import type { ProgramProfile as StoredProgramProfile, ProgramTyycRow } from "../../../lib/data/programProfiles";
 import { publicCourseHref } from "../../../lib/data/publicRoutes";
 import { programViewHref } from "../../../lib/data/programNavigation";
 import { isProcessCourse } from "../../../lib/courseProcess.mjs";
@@ -76,27 +76,6 @@ function toPublicCourse(course: DbpCourse): PublicCourse {
 }
 
 const columns = ["9%", "21%", "9%", "10%", "16%", "4%", "4%", "5%", "6%", "9%", "7%"];
-const defaultOutcomes = [
-  "Alanındaki ileri düzey bilgileri bilimsel araştırma süreçlerinde kullanır.",
-  "Disiplinler arası yaklaşımla problem tanımlar ve çözüm önerileri geliştirir.",
-  "Araştırma sonuçlarını etik ilkeler doğrultusunda değerlendirir ve raporlar.",
-  "Alanındaki güncel gelişmeleri izler, yorumlar ve uygulamaya aktarır.",
-  "Akademik ve mesleki ortamlarda etkili iletişim kurar.",
-  "Yaşam boyu öğrenme yaklaşımıyla mesleki gelişimini sürdürür.",
-];
-
-const defaultProfileSections = [
-  ["Program Tarihçesi", "Program, Osmaniye Korkut Ata Üniversitesi Lisansüstü Eğitim Enstitüsü bünyesinde alanında uzman araştırmacılar yetiştirmek amacıyla yapılandırılmıştır. Eğitim-öğretim, bilimsel araştırma ve toplumsal katkı faaliyetleri enstitü kalite süreçleriyle uyumlu biçimde yürütülür."],
-  ["Program Profili", "Program; kuramsal bilgi, araştırma yöntemi, uygulama becerisi ve etik sorumlulukları birlikte ele alan lisansüstü bir akademik yapı sunar. Öğrencilerin alanlarında derinleşmeleri, özgün araştırma yapmaları ve bilimsel üretime katkı sağlamaları hedeflenir."],
-  ["Ders Yapısı ve Kredileri", "Programda zorunlu ve seçmeli dersler, seminer/uzmanlık alan dersleri ve ilgili düzeye göre proje ya da tez çalışmaları yer alır. Dersler güz ve bahar yarıyıllarında yürütülür; AKTS yükleri öğrenci iş yükü esas alınarak tanımlanır."],
-  ["Mezuniyet Koşulları", "Öğrencinin programda tanımlı dersleri, AKTS yükünü, seminer/proje/tez yükümlülüklerini ve enstitü yönetmeliğinde belirtilen başarı koşullarını tamamlaması gerekir."],
-  ["Ölçme ve Değerlendirme", "Her ders için ölçme ve değerlendirme yöntemleri ders bilgi paketinde belirtilir. Ara sınav, yarıyıl sonu sınavı, ödev, proje, sunum ve uygulama çalışmaları ilgili öğretim elemanı tarafından tanımlanır."],
-  ["Üst Derece Programlarına Geçiş", "Programı başarıyla tamamlayan mezunlar, ilgili mevzuat ve başvuru koşullarını sağlamaları halinde üst derece programlara başvurabilir."],
-  ["Önceki Öğrenmenin Tanınması", "Muafiyet, intibak ve önceki öğrenmenin tanınmasına ilişkin işlemler enstitü mevzuatı, ilgili kurul kararları ve akademik birim değerlendirmeleri doğrultusunda yürütülür."],
-  ["Mezunların Mesleki Profilleri", "Mezunlar; akademi, kamu kurumları, özel sektör, araştırma merkezleri ve alanlarıyla ilişkili uzmanlık gerektiren görevlerde çalışabilir."],
-  ["Kabul ve Kayıt Koşulları", "Programa kabul; diploma, ALES, yabancı dil, bilim sınavı veya mülakat gibi enstitü tarafından ilan edilen koşullar çerçevesinde yapılır. Kesin kayıt işlemleri ilgili mevzuata göre tamamlanır."],
-] as const;
-
 const repairText = (value: string) =>
   value
     .replaceAll("Ä°", "İ")
@@ -187,21 +166,27 @@ function PublicTyycMatrix({ rows, outcomeCount, level }: { rows: ProgramTyycRow[
 }
 
 function ProgramProfile({ department, programName, activeLevel }: { department: string; programName: string; activeLevel: string }) {
-  const isDoctorate = activeLevel === "Doktora";
   const repairedProgramName = repairText(programName);
   const repairedLevel = repairText(activeLevel);
-  const [profile, setProfile] = useState(() => getProgramProfile(repairedProgramName, repairedLevel));
+  const scope = JSON.stringify([repairedProgramName, repairedLevel]);
+  const [loaded, setLoaded] = useState<{ scope: string; profile?: StoredProgramProfile; error?: string }>();
   useEffect(() => {
     let cancelled = false;
-    fetchProgramProfile(repairedProgramName, repairedLevel).then((nextProfile) => {
-      if (!cancelled) setProfile(nextProfile);
+    fetchProgramProfile(repairedProgramName, repairedLevel, true).then((profile) => {
+      if (!cancelled) setLoaded({ scope, profile });
+    }).catch(() => {
+      if (!cancelled) setLoaded({ scope, error: "Kayıtlı program bilgileri yüklenemedi." });
     });
     return () => {
       cancelled = true;
     };
-  }, [repairedProgramName, repairedLevel]);
-  const outcomes = profile?.outcomes ?? defaultOutcomes;
-  const profileSections = profile?.sections ?? defaultProfileSections.map(([title, text]) => ({ title, text }));
+  }, [repairedProgramName, repairedLevel, scope]);
+  if (loaded?.scope !== scope) return <p role="status">Kayıtlı program bilgileri yükleniyor…</p>;
+  if (loaded.error) return <div role="alert"><p>{loaded.error}</p><button type="button" onClick={() => window.location.reload()}>Yeniden yükle</button></div>;
+  const profile = loaded.profile;
+  if (!profile) return <p>Bu program ve düzey için kayıtlı program bilgisi bulunamadı.</p>;
+  const outcomes = profile.outcomes;
+  const profileSections = profile.sections;
   return (
     <section className="public-program-profile" aria-label="Program genel bilgileri">
       <div className="public-profile-title">
@@ -211,10 +196,10 @@ function ProgramProfile({ department, programName, activeLevel }: { department: 
       </div>
       <div className="public-profile-summary">
         <div><span>Program Düzeyi</span><b>{activeLevel}</b></div>
-        <div><span>Kazanılan Derece</span><b>{profile?.degree ?? `${programName} ${isDoctorate ? "Doktora" : "Yüksek Lisans"} Derecesi`}</b></div>
-        <div><span>Program Yöneticisi</span><b>{profile?.manager || "—"}</b></div>
-        <div><span>Öğrenim Dili</span><b>{profile?.language ?? "Türkçe"}</b></div>
-        <div className="wide qualification"><span>Yeterlilik Koşulları ve Kuralları</span><p>{profile?.qualificationRules ?? (isDoctorate ? "4 yıl, 8 yarıyıl ve ilgili doktora yeterlilik/tez süreçleri" : "2 yıl, 4 yarıyıl ve toplam 120 AKTS")}</p></div>
+        <div><span>Kazanılan Derece</span><b>{profile.degree || "—"}</b></div>
+        <div><span>Program Yöneticisi</span><b>{profile.manager || "—"}</b></div>
+        <div><span>Öğrenim Dili</span><b>{profile.language || "—"}</b></div>
+        <div className="wide qualification"><span>Yeterlilik Koşulları ve Kuralları</span><p>{profile.qualificationRules || "—"}</p></div>
       </div>
       <div className="public-profile-grid">
         {profileSections.slice(0, 2).map(({ title, text }) => <article className="wide" key={title}><h3>{title}</h3><ProfileText text={text}/></article>)}

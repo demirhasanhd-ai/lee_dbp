@@ -817,6 +817,97 @@ test("short program URLs preserve the selected level after the API response", as
   }
 });
 
+test("public profiles wait for the database and never display defaults on missing records or request failures", async () => {
+  let releaseProfile;
+  const profileGate = new Promise((resolve) => { releaseProfile = resolve; });
+  let mode = "saved";
+  const outcomes = Array.from({ length: 12 }, (_, index) => `Başkanın kayıtlı çıktısı ${index + 1}`);
+  await withPublicPage("/dbp/isl/dr", {
+    waitUntil: "domcontentloaded",
+    preparePage: async (page) => {
+      await page.route("**/dbp/api/dbp/program-profile?**", async (route) => {
+        await profileGate;
+        return route.fulfill({ status: mode === "error" ? 503 : 200, contentType: "application/json", body: JSON.stringify({
+          profile: mode === "saved" ? { programName: "İşletme", level: "Doktora", degree: "Kayıtlı doktora derecesi", manager: "", language: "", qualificationRules: "", sections: [], outcomes, tyycRows: [] } : null,
+        }) });
+      });
+    },
+  }, async ({ page }) => {
+    try {
+      await page.getByText("Kayıtlı program bilgileri yükleniyor…", { exact: true }).waitFor();
+      assert.equal(await page.locator(".public-outcomes li").count(), 0, "the static 11-outcome profile must not flash before the request completes");
+    } finally { releaseProfile(); }
+    await page.getByText("Kayıtlı doktora derecesi", { exact: true }).waitFor();
+    assert.deepEqual(await page.locator(".public-outcomes li span").allTextContents(), outcomes);
+    assert.equal(await page.locator(".public-profile-summary .qualification p").innerText(), "—", "intentionally empty database fields must not be replaced by defaults");
+    mode = "missing";
+    await page.reload({ waitUntil: "networkidle" });
+    await page.getByText("Bu program ve düzey için kayıtlı program bilgisi bulunamadı.", { exact: true }).waitFor();
+    assert.equal(await page.locator(".public-outcomes li").count(), 0);
+    mode = "error";
+    await page.reload({ waitUntil: "networkidle" });
+    await page.getByRole("alert").getByText("Kayıtlı program bilgileri yüklenemedi.", { exact: true }).waitFor();
+    assert.equal(await page.locator(".public-outcomes li").count(), 0);
+  });
+});
+
+test("legacy draft matrix suggestions use current columns once and preserve the teacher's saved blanks", async () => {
+  const course = { id: 1, code: "ISL901", name: "Taslak Matris Dersi", department: "İşletme", programName: "İşletme", level: "Doktora", instructor: "Test Akademisyen", status: "Taslak" };
+  const originalMatrix = [Object.fromEntries(Array.from({ length: 11 }, (_, index) => [`P${index + 1}`, index % 5 + 1]))];
+  let stored = { outcomes: ["Dersin öğrenme çıktısını bilimsel araştırmalarda uygular."], contributionMatrix: originalMatrix };
+  let count = 12;
+  const writes = [];
+  await withPublicPage("/dbp/panel", { preparePage: async (page) => {
+    await page.addInitScript((department) => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Akademisyen", username: "test.teacher", role: "akademisyen", department })), course.department);
+    await page.route("**/dbp/api/dbp/**", async (route) => {
+      const request = route.request();
+      const endpoint = new URL(request.url()).pathname.split("/").pop();
+      let payload;
+      if (endpoint === "course-package") {
+        if (request.method() === "POST") {
+          const body = request.postDataJSON();
+          writes.push(body);
+          stored = body.package;
+          payload = { ok: true, status: "Taslak" };
+        } else payload = { package: stored, status: "Taslak", programOutcomes: Array.from({ length: count }, (_, index) => ({ id: `legacy-pc-${index + 1}`, text: `Başkanın çıktısı ${index + 1}` })) };
+      } else payload = {
+        events: { ok: true }, access: { modules: ["my_courses"] }, memberships: { memberships: [] },
+        programs: { programs: [{ ...course, mainDepartment: "İşletme ABD", levels: [course.level] }] },
+        "my-courses": { courses: [course], total: 1, source: "database" },
+      }[endpoint];
+      assert.ok(payload, `Unexpected matrix API: ${endpoint}`);
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify(payload) });
+    });
+  } }, async ({ page }) => {
+    const open = async () => {
+      await page.locator(".role-course-sections").getByRole("button", { name: "Görüntüle", exact: true }).first().click();
+      await page.locator(".contribution-wrap select").first().waitFor();
+    };
+    await open();
+    assert.deepEqual(await page.locator(".contribution-wrap select").evaluateAll((elements) => elements.map((element) => element.value)), [...Object.values(originalMatrix[0]).map(String), ""]);
+    assert.equal(writes.length, 0, "loading suggestions must not write to the database");
+    await page.getByLabel("ÖÇ1 P1 katkısı", { exact: true }).selectOption("");
+    await page.getByLabel("ÖÇ1 P2 katkısı", { exact: true }).selectOption("5");
+    const savedResponse = page.waitForResponse((response) => response.url().includes("/course-package") && response.request().method() === "POST");
+    await page.getByRole("button", { name: "Taslağı Kaydet", exact: true }).click();
+    await savedResponse;
+    assert.equal(writes[0].package.programOutcomes.length, 12);
+    assert.equal(writes[0].package.contributionMatrix[0]["legacy-pc-1"], undefined);
+    assert.equal(writes[0].package.contributionMatrix[0]["legacy-pc-2"], 5);
+    await page.reload({ waitUntil: "networkidle" });
+    await open();
+    assert.equal(await page.getByLabel("ÖÇ1 P1 katkısı", { exact: true }).inputValue(), "");
+    assert.equal(await page.getByLabel("ÖÇ1 P2 katkısı", { exact: true }).inputValue(), "5");
+    assert.equal(await page.getByLabel("ÖÇ1 P12 katkısı", { exact: true }).inputValue(), "");
+    // A different old draft with seven current outcomes gets only seven suggestions.
+    stored = { outcomes: ["Dersin öğrenme çıktısını bilimsel araştırmalarda uygular."], contributionMatrix: originalMatrix };
+    count = 7;
+    await page.reload({ waitUntil: "networkidle" });
+    await open();
+    assert.deepEqual(await page.locator(".contribution-wrap select").evaluateAll((elements) => elements.map((element) => element.value)), Object.values(originalMatrix[0]).slice(0, 7).map(String));
+  });
+});
+
 test("switching program levels loads the matching saved public profile", async () => {
   await withPublicPage("/dbp/ybs/dr", {
     profileFor: (url) => ({

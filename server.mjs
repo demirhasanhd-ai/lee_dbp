@@ -12,6 +12,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
 import { ensureCourseProcessColumn, backfillCourseProcessFlags } from "./lib/courseProcessMigration.mjs";
+import { defaultProgramProfile } from "./lib/programProfileDefaults.mjs";
 import { deflateRawSync, inflateRawSync } from "node:zlib";
 import {
   displayDepartment,
@@ -8881,6 +8882,22 @@ function seedProgramProfiles(force = false) {
     profiles = JSON.parse(readFileSync(programProfilesSeedFile, "utf8"));
   } catch {
     return;
+  }
+  // Specific seed profiles take precedence; catalog scopes without one retain
+  // the original generic profile as a real, editable database record.
+  const seededScopes = new Set(profiles.map((profile) => JSON.stringify([
+    repairText(profile.programName || "").trim(), normalizeProfileLevel(profile.level),
+  ])));
+  for (const row of db.prepare("SELECT program_name, levels_json FROM programs").all()) {
+    const programName = repairText(row.program_name || "").trim();
+    if (!programName) continue;
+    for (const value of parseJsonField(row.levels_json, [])) {
+      const level = normalizeProfileLevel(value);
+      const key = JSON.stringify([programName, level]);
+      if (seededScopes.has(key)) continue;
+      profiles.push(defaultProgramProfile(programName, level));
+      seededScopes.add(key);
+    }
   }
   const now = new Date().toISOString();
   const insert = db.prepare(`
