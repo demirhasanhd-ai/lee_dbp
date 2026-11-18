@@ -57,6 +57,8 @@ Veri koruma testleri taslak, komisyon/ABD onayı bekleyen ve yayımlanmış pake
 
 Ders listesi, öğretim elemanı ataması ve yayımlanan paket içeriği sonraki istekte güncel veritabanı kaydından okunur. Taslak kaydı, onaya gönderme, komisyon/ABD onayı, yeni ders oluşturma, tekli/toplu atama ve görünürlük kaydı toplu istatistik hesabı başlatmaz.
 
+Ders listelerindeki teorik/uygulama (T/U) saatleri son onaylanmış paket kaydından okunur. Yeni taslak veya onay bekleyen değişiklikler önceki onaylı saatleri değiştirmez; ABD/ASD başkanının son onayından sonraki istekte yeni saatler görünür. Onaylı pakette geçerli saat bilgisi bulunmayan alanlar için ders tablosundaki değerler kullanılır. Bu okuma değişikliği veritabanı migration'ı veya mevcut kayıtların yeniden kaydedilmesini gerektirmez.
+
 Ana sayfa istatistikleri ile enstitü/program kalite göstergeleri her gün Türkiye saatiyle (`Europe/Istanbul`) 03.00'te yenilenir. Saat `DBP_HOME_STATS_CACHE_WARMUP_HOUR` ile değiştirilebilir. Kalite anlık görüntüsü veritabanında saklanır; sunucu yeniden başladığında 24 saatten genç görüntü yeniden hesaplanmadan kullanılır. Eksik görüntü ilk kullanımda hazırlanır. Süresi dolmuş veriler arka planda yenilenirken önceki değerler sunulmaya devam eder; eşzamanlı yenilemeler aynı hesabı paylaşır.
 
 Yönetici panelindeki elle kalite yenileme ve veri içe aktarma/geri yükleme/sıfırlama/seed işlemleri istisna olarak yeniden hesaplama başlatır. Ana sayfa cache geçerlilik süresi `DBP_HOME_STATS_CACHE_TTL_MS` ile ayarlanabilir (varsayılan 24 saat; `0` cache'i kapatır). İşlem sonrası 30 saniyelik warmup kaldırıldığı için `DBP_HOME_STATS_CACHE_WARMUP_DEBOUNCE_MS` artık kullanılmaz. Tez, öğrenci ve bibliyometri kaynaklarının güncelleme takvimleri bağımsızdır.

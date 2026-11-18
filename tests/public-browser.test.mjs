@@ -7,6 +7,7 @@ import { withPublicPage } from "./helpers/hydrated-public-page.mjs";
 import { newCourseImportFixture, newCourseImportRow } from "./helpers/course-create-fixtures.mjs";
 import { viewStatisticsTestServer } from "./helpers/view-statistics-fixtures.mjs";
 import { adminQualityFixture } from "./helpers/admin-quality-fixtures.mjs";
+import { publishedHoursFixture, publishedHoursScope } from "./helpers/course-published-hours-fixtures.mjs";
 
 const query = new URLSearchParams({
   ders: "YBS921", bolum: "Yönetim Bilişim Sistemleri ABD",
@@ -697,6 +698,38 @@ test("reopening the public course list reads updated instructor assignments from
     assert.match(await row.innerText(), /Güncellenmiş Test Akademisyeni/u);
     assert.doesNotMatch(await row.innerText(), /İlk Test Akademisyeni/u);
     assert.equal(apiRequests.filter((pathname) => pathname.endsWith("/courses")).length, 2);
+  });
+});
+
+test("program T/U columns read the approved database package after final approval and preserve it during the next draft", async (t) => {
+  const { context, row, save } = publishedHoursFixture(t);
+  const published = { identity: { theory: "3", practice: "0" } };
+  const revision = { identity: { theory: "4", practice: "2" } };
+  save(context.packageJsonForDraft(JSON.stringify(published), revision, "Komisyon Onayı Bekliyor", "teacher", "now", "Public"), "Komisyon Onayı Bekliyor");
+  await withPublicPage("/dbp/mat/tezli?sekme=courses", {
+    preparePage: async (page) => {
+      await page.route("**/dbp/api/dbp/courses?**", async (route) => {
+        const response = await context.handleDbpApi(new Request(route.request().url()));
+        await route.fulfill({ status: response.status, headers: Object.fromEntries(response.headers), body: await response.text() });
+      });
+    },
+  }, async ({ page }) => {
+    const courseRow = page.locator(".public-course-table tbody tr").filter({ has: page.getByText(publishedHoursScope.code, { exact: true }) }).first();
+    const expectHours = async (theory, practice) => {
+      await courseRow.waitFor();
+      assert.equal(await courseRow.locator("td").nth(5).innerText(), theory);
+      assert.equal(await courseRow.locator("td").nth(6).innerText(), practice);
+    };
+    await expectHours("3", "0");
+    assert.equal(context.transitionCoursePackageStatus(publishedHoursScope, "ABD Son Onayı Bekliyor", "committee").ok, true);
+    await page.reload({ waitUntil: "networkidle" });
+    await expectHours("3", "0");
+    assert.equal(context.transitionCoursePackageStatus(publishedHoursScope, "Yayımlandı", "chair").ok, true);
+    await page.reload({ waitUntil: "networkidle" });
+    await expectHours("4", "2");
+    save(context.packageJsonForDraft(row().package_json, { identity: { theory: "9", practice: "8" } }, "Taslak", "teacher", "later", "Yayımlandı"), "Taslak");
+    await page.reload({ waitUntil: "networkidle" });
+    await expectHours("4", "2");
   });
 });
 

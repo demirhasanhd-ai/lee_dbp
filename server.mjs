@@ -6349,6 +6349,22 @@ function courseListKey(course) {
   ].join("|");
 }
 
+function courseWithPublishedHours(course, row) {
+  // List queries project only the approved identity; detail queries have the full package.
+  const identity = Object.hasOwn(row, "published_identity_json")
+    ? parseCoursePackageJson(row.published_identity_json)
+    : publicPackageRecordForRow(row)?.package?.identity;
+  const hours = {};
+  for (const key of ["theory", "practice"]) {
+    const value = identity?.[key];
+    if ((typeof value === "number" || (typeof value === "string" && value.trim())) &&
+        Number.isFinite(Number(value)) && Number(value) >= 0) {
+      hours[key] = Number(value);
+    }
+  }
+  return { ...course, ...hours };
+}
+
 function courseMatchesFilters(course, filters = {}) {
   if (filters.department && normalizeScope(course.department) !== normalizeScope(filters.department)) return false;
   if (filters.programName && normalizeScope(course.programName) !== normalizeScope(filters.programName)) return false;
@@ -6400,6 +6416,17 @@ const courseListSelect = `
       instructor_assigned_at,
       source,
       CASE WHEN package_json IS NOT NULL AND TRIM(package_json) <> '' AND package_json <> '{}' THEN 1 ELSE 0 END AS has_package,
+      CASE WHEN json_valid(package_json) THEN
+        CASE
+          WHEN json_type(package_json, '$.published.package') = 'object'
+            THEN json_extract(package_json, '$.published.package.identity')
+          WHEN status IN ('Yayımlandı', 'Yayınlandı', 'Public')
+            AND json_extract(package_json, '$.publicationModel') IS NOT 'published-draft-v1'
+            AND COALESCE(json_type(package_json, '$.published'), 'null') IN ('null', 'false')
+            AND COALESCE(json_type(package_json, '$.draft'), 'null') IN ('null', 'false')
+            THEN json_extract(package_json, '$.identity')
+        END
+      END AS published_identity_json,
       updated_at
     FROM courses
 `;
@@ -6417,12 +6444,13 @@ function dbCourseListFromRows(rows, filters = {}) {
   for (const row of rows) {
     const normalized = normalizeDbCourseForList(courseFromRow(row));
     if (!normalized) continue;
-    const key = courseListKey(normalized);
+    const course = courseWithPublishedHours(normalized, row);
+    const key = courseListKey(course);
     const current = byKey.get(key);
     const canonicalExact = row.code === normalized.code;
     const currentScore = current ? Number(current.code === normalized.code) + Number(current.hasPackage) : -1;
     const nextScore = Number(canonicalExact) + Number(normalized.hasPackage);
-    if (!current || nextScore >= currentScore) byKey.set(key, normalized);
+    if (!current || nextScore >= currentScore) byKey.set(key, course);
   }
   const latestSubmitByTarget = new Map();
   for (const row of db.prepare(`
@@ -8501,7 +8529,7 @@ function publicCourseForRoute({ routeCode = "", department = "", programName = "
     const edit = courseIdentityEditFor(row);
     if (![course.code, ...(edit?.aliases || [])].some((code) => normalizePublicRouteSegment(code) === normalizedRouteCode)) continue;
     if (options.publicVisibleOnly && !isCoursePubliclyVisible(course)) continue;
-    return { course, row };
+    return { course: courseWithPublishedHours(course, row), row };
   }
   return null;
 }
