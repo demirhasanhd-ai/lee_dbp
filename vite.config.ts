@@ -33,6 +33,10 @@ export default defineConfig(async ({ command }) => {
   }
 
   return {
+    // Keep Lucide client references consistent across the RSC and browser environments.
+    optimizeDeps: {
+      exclude: ["lucide-react"],
+    },
     define: {
       "process.env.NEXT_PUBLIC_APP_VERSION": JSON.stringify(packageJson.version),
     },
