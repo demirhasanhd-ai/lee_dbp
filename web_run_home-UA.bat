@@ -3,15 +3,7 @@ setlocal
 title LEE DBP - Local Web
 
 set "ROOT_DIR=%~dp0"
-set "RUN_ROOT=C:\lee_dbp"
-if not exist "%RUN_ROOT%\package.json" (
-  mklink /J "%RUN_ROOT%" "%ROOT_DIR%" >nul 2>&1
-)
-if exist "%RUN_ROOT%\package.json" (
-  set "APP_DIR=%RUN_ROOT%"
-) else (
-  set "APP_DIR=%ROOT_DIR%"
-)
+set "APP_DIR=%ROOT_DIR%"
 set "HOST=127.0.0.1"
 set "PORT=8081"
 set "LOCAL_URL=http://localhost:%PORT%/dbp/"

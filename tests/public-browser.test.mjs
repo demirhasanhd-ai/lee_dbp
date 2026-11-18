@@ -6,6 +6,7 @@ import { queryAudit, auditCsv, auditExportHeaders, auditExportRows } from "../li
 import { withPublicPage } from "./helpers/hydrated-public-page.mjs";
 import { newCourseImportFixture, newCourseImportRow } from "./helpers/course-create-fixtures.mjs";
 import { viewStatisticsTestServer } from "./helpers/view-statistics-fixtures.mjs";
+import { adminQualityFixture } from "./helpers/admin-quality-fixtures.mjs";
 
 const query = new URLSearchParams({
   ders: "YBS921", bolum: "Yönetim Bilişim Sistemleri ABD",
@@ -794,5 +795,76 @@ test("switching program levels loads the matching saved public profile", async (
     await page.locator('.public-left-sidebar a[href="/dbp/ybs/tezli"]').first().click();
     await page.getByText("API degree: Tezli Yüksek Lisans", { exact: true }).waitFor();
     assert.equal(await page.getByText("API degree: Doktora", { exact: true }).count(), 0);
+  });
+});
+
+test("admin quality report shows every ABD, exports numeric Excel data and fits desktop and mobile", async () => {
+  const { context } = adminQualityFixture();
+  const report = JSON.parse(JSON.stringify(await context.currentAdminQualityReport()));
+  let failReport = false;
+  mkdirSync("local-volume/admin-quality-report", { recursive: true });
+  await withPublicPage("/dbp/panel", {
+    preparePage: async (page) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.addInitScript(() => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Admin", username: "test.admin", role: "admin", department: "LEE" })));
+      await page.route("**/dbp/api/dbp/**", async (route) => {
+        const endpoint = new URL(route.request().url()).pathname.split("/").pop();
+        if (endpoint === "quality-report") {
+          assert.ok(route.request().headers()["x-dbp-session"]);
+          return route.fulfill({ status: failReport ? 503 : 200, contentType: "application/json", body: JSON.stringify(failReport ? { message: "Test rapor hatası" } : report) });
+        }
+        const payloads = {
+          events: { ok: true }, courses: { courses: [], total: 0 }, programs: { programs: report.programCatalog },
+          memberships: { memberships: [] }, "role-module-access": { access: { admin: ["my_courses", "quality_reports"] } },
+        };
+        assert.ok(payloads[endpoint], `Unexpected API: ${endpoint}`);
+        return route.fulfill({ contentType: "application/json", body: JSON.stringify(payloads[endpoint]) });
+      });
+    },
+  }, async ({ page }) => {
+    await page.locator(".panel-sidebar nav").getByRole("button", { name: "Kalite Kontrol Raporları", exact: true }).click();
+    const table = page.locator(".quality-department-table");
+    await table.waitFor();
+    assert.deepEqual(await page.locator(".quality-stats article b").allTextContents().then((values) => values.slice(0, 6)), ["11", "2", "9", "4", "3", "6"]);
+    assert.equal(await table.locator("tbody tr").count(), report.departments.length);
+    assert.equal(await table.getByRole("columnheader", { name: "Komisyon Onayı Bekliyor", exact: true }).count(), 1);
+    assert.equal(await table.getByRole("rowheader", { name: "Boş ASD", exact: true }).count(), 1);
+    const downloadEvent = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Excel indir", exact: true }).click();
+    const download = await downloadEvent;
+    assert.match(download.suggestedFilename(), /^dbp-abd-kalite-raporu-\d{4}-\d{2}-\d{2}\.xlsx$/u);
+    await download.saveAs("local-volume/admin-quality-report/report.xlsx");
+    const buffer = readFileSync("local-volume/admin-quality-report/report.xlsx");
+    assert.equal(buffer.subarray(0, 2).toString(), "PK");
+    assert.match(buffer.toString(), /Enstitü toplamı/u);
+    const overflow = () => page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    assert.equal(await overflow(), false, "desktop page must fit the viewport");
+    await page.screenshot({ path: "local-volume/admin-quality-report/desktop.png", fullPage: true });
+    const scroll = page.getByRole("region", { name: "ABD / ASD ders ve onay tablosu", exact: true });
+    const first = table.getByRole("rowheader").first();
+    const before = await first.boundingBox();
+    await scroll.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+    const after = await first.boundingBox();
+    assert.ok(Math.abs(before.x - after.x) < 1, "ABD names must remain visible when scrolling status columns");
+    await page.locator(".panel-main .theme-toggle").click();
+    await page.screenshot({ path: "local-volume/admin-quality-report/dark.png", fullPage: true });
+    await page.locator(".panel-main .theme-toggle").click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await overflow(), false, "mobile page must fit the viewport");
+    const mobileHeader = await page.locator(".panel-header").boundingBox();
+    const mobileIntro = await page.locator(".quality-report .panel-intro").boundingBox();
+    assert.ok(mobileHeader.y + mobileHeader.height <= mobileIntro.y, "mobile title and report introduction must not overlap");
+    await scroll.evaluate((element) => { element.scrollLeft = 0; });
+    await page.screenshot({ path: "local-volume/admin-quality-report/mobile.png", fullPage: true });
+    await page.screenshot({ path: "local-volume/admin-quality-report/mobile-top.png" });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.locator(".panel-sidebar nav").getByRole("button", { name: "Ders Bilgi Paketlerim", exact: true }).click();
+    failReport = true;
+    await page.locator(".panel-sidebar nav").getByRole("button", { name: "Kalite Kontrol Raporları", exact: true }).click();
+    await page.getByRole("alert").getByText("Test rapor hatası", { exact: true }).waitFor();
+    assert.equal(await table.count(), 0, "failed requests must not display misleading zero counts");
+    failReport = false;
+    await page.getByRole("button", { name: "Tekrar dene", exact: true }).click();
+    await table.waitFor();
   });
 });

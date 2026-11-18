@@ -97,7 +97,8 @@ const navigationModules = (modules: DbpModule[]) => [...new Set(modules.map((mod
   module === "user_roles" ? "permission_matrix" as DbpModule : module,
 ))];
 const courseEntryGuideHref = dbpPath("/ders-bilgi-girisi-kullanim-kilavuzu.pdf");
-const programEntryGuideHref = dbpPath("/program-bilgileri-girisi-kilavuzu.pdf");
+// Use the restored PDF's content hash to bypass cached empty downloads.
+const programEntryGuideHref = dbpPath("/program-bilgileri-girisi-kilavuzu.pdf?v=75345196b534");
 const cloneDefaultRoleAccess = (): RoleAccess =>
   Object.fromEntries(
     DBP_ROLE_KEYS.map((role) => [role, [...DEFAULT_ROLE_ACCESS[role]]]),

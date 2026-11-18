@@ -1,5 +1,7 @@
 import type { LeeProgram } from "../data/programs";
-import type { OfficialCourse } from "../data/officialCourses";
+import type { DbpCourse } from "../data/dbpCourses";
+
+export type QualityCourse = DbpCourse & { awaitingAssignment?: boolean };
 
 export type QualitySeverity = "critical" | "warning" | "info";
 
@@ -91,6 +93,9 @@ const includesAny = (text: string, items: string[]) =>
 export const isGeneralAssignableCourse = (courseName: string) =>
   generalCoursePattern.test(courseName.toLocaleUpperCase("tr-TR"));
 
+const isAwaitingAssignment = (course: QualityCourse) =>
+  course.awaitingAssignment ?? (!course.instructor && !isGeneralAssignableCourse(course.name));
+
 export function evaluateOutcomeText(rawText: string): QualityIssue[] {
   const text = normalize(rawText);
   if (!text) {
@@ -137,7 +142,7 @@ export function evaluateOutcomeText(rawText: string): QualityIssue[] {
   return issues;
 }
 
-export function buildCourseQualityIssues(course: OfficialCourse): QualityIssue[] {
+export function buildCourseQualityIssues(course: QualityCourse): QualityIssue[] {
   const issues: QualityIssue[] = [];
   const generalCourse = isGeneralAssignableCourse(course.name);
 
@@ -174,7 +179,7 @@ export function buildCourseQualityIssues(course: OfficialCourse): QualityIssue[]
       message: "Genel ders dışında teori ve uygulama saatlerinin ikisi de 0 olmamalı.",
     });
   }
-  if (!course.instructor && !generalCourse) {
+  if (isAwaitingAssignment(course)) {
     issues.push({
       severity: "warning",
       field: "Öğretim elemanı",
@@ -201,7 +206,7 @@ export function buildCourseQualityIssues(course: OfficialCourse): QualityIssue[]
 }
 
 export function summarizeQualityByProgram(
-  courses: OfficialCourse[],
+  courses: QualityCourse[],
   programs: LeeProgram[],
 ): ProgramQualitySummary[] {
   return programs.flatMap((program) =>
@@ -216,9 +221,7 @@ export function summarizeQualityByProgram(
       const criticalCount = issues.filter((issue) => issue.severity === "critical").length;
       const warningCount = issues.filter((issue) => issue.severity === "warning").length;
       const infoCount = issues.filter((issue) => issue.severity === "info").length;
-      const missingInstructorCount = programCourses.filter(
-        (course) => !course.instructor && !isGeneralAssignableCourse(course.name),
-      ).length;
+      const missingInstructorCount = programCourses.filter(isAwaitingAssignment).length;
       const penalty = criticalCount * 12 + warningCount * 4 + missingInstructorCount * 3;
       const score = Math.max(0, Math.min(100, 100 - penalty));
 
@@ -241,12 +244,14 @@ export function summarizeQualityByProgram(
 }
 
 export function summarizeQualityByInstructor(
-  courses: OfficialCourse[],
+  courses: QualityCourse[],
 ): InstructorQualitySummary[] {
   const map = new Map<string, InstructorQualitySummary>();
 
   courses.forEach((course) => {
-    const instructor = course.instructor?.trim() || "Atama bekleyen dersler";
+    const instructor = isAwaitingAssignment(course)
+      ? "Atama bekleyen dersler"
+      : course.instructor?.trim() || "Sorumlusu belirtilmeyen süreç dersleri";
     const issues = buildCourseQualityIssues(course);
     const current =
       map.get(instructor) ??
@@ -261,7 +266,7 @@ export function summarizeQualityByInstructor(
     current.courseCount += 1;
     current.criticalCount += issues.filter((issue) => issue.severity === "critical").length;
     current.warningCount += issues.filter((issue) => issue.severity === "warning").length;
-    current.missingInstructorCount += course.instructor ? 0 : 1;
+    current.missingInstructorCount += isAwaitingAssignment(course) ? 1 : 0;
     map.set(instructor, current);
   });
 

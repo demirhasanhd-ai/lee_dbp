@@ -44,7 +44,7 @@ function cacheContext() {
     qualitySnapshotCache: undefined,
     qualitySnapshotRefreshPromise: undefined,
     qualityRefreshTimer: undefined,
-    qualitySnapshotMetadataKey: "quality_indicators_snapshot_v3",
+    qualitySnapshotMetadataKey: "quality_indicators_snapshot_v4",
     db: { prepare: () => ({ get: () => undefined }) },
     parseJsonField: (value, fallback) => value ? JSON.parse(value) : fallback,
     setTimeout: (callback, delay) => {

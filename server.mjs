@@ -7288,9 +7288,18 @@ function scopedInstructorOptions(instructors = [], filters = {}) {
   return scoped.length ? scoped : [];
 }
 
+function qualityCourseAssignment(course, packageData = {}) {
+  const processCourse = isCommonProcessCourse(course);
+  const responsible = repairText(course.instructor || packageData.detailFields?.instructors || "").trim();
+  const responsibleAssigned = isMeaningfulInstructorName(responsible);
+  const awaitingAssignment = !processCourse && (!responsibleAssigned || normalizeScope(course.status || "").includes("atama bekliyor"));
+  return { processCourse, responsible, responsibleAssigned, awaitingAssignment };
+}
+
 function qualityStats(filters = {}, options = {}) {
-  const courses = options.courses || dbCourseList(filters);
   const visibility = options.visibility || getPublicVisibilityMap();
+  const courses = (options.courses || dbCourseList(filters))
+    .filter((course) => visibility[courseVisibilityKeyFor(course)] !== false);
   const termCounts = {};
   const typeCounts = {};
   const levelCounts = {};
@@ -7357,12 +7366,10 @@ function qualityStats(filters = {}, options = {}) {
     sdgLinks += sdgs.length;
     for (const id of sdgs) sdgCounts[id] += 1;
 
-    const processCourse = isCommonProcessCourse(course);
-    const responsible = repairText(course.instructor || details.instructors || "").trim();
-    const responsibleAssigned = isMeaningfulInstructorName(responsible);
+    const { processCourse, responsible, responsibleAssigned, awaitingAssignment } = qualityCourseAssignment(course, packageData);
     if (isPublicCourseStatus(course.status || "")) approvedCourses += 1;
     else unapprovedCourses += 1;
-    if (!processCourse && (!responsibleAssigned || normalizeScope(course.status || "").includes("atama bekliyor"))) awaitingAssignmentCourses += 1;
+    if (awaitingAssignment) awaitingAssignmentCourses += 1;
     if (processCourse) {
       processCourses += 1;
       if (responsibleAssigned) processResponsible += 1;
@@ -7427,7 +7434,87 @@ function qualityStats(filters = {}, options = {}) {
   };
 }
 
-const qualitySnapshotMetadataKey = "quality_indicators_snapshot_v3";
+const qualitySnapshotMetadataKey = "quality_indicators_snapshot_v4";
+const adminQualityReportMetadataKey = "quality_control_report_v1";
+
+function buildAdminQualityReport(allCourses, institute, programs, options = {}) {
+  const visibility = options.visibility || getPublicVisibilityMap();
+  const programCatalog = (options.programCatalog || databaseProgramCatalog()).map((program) => ({ ...program, levels: [...program.levels] }));
+  const counts = () => ({ totalCourses: 0, inactiveCourses: 0, publicCourses: 0, approvedCourses: 0, unapprovedCourses: 0, awaitingAssignmentCourses: 0, statusCounts: {} });
+  const departments = new Map();
+  const ensureDepartment = (name) => {
+    const department = repairText(name || "ABD / ASD belirtilmemiş").trim();
+    const key = normalizeScope(department);
+    if (!departments.has(key)) departments.set(key, { department, ...counts() });
+    return departments.get(key);
+  };
+  const catalogByProgram = new Map(programCatalog.map((program) => [
+    [program.department, program.programName].map(normalizeScope).join("|"), program,
+  ]));
+  for (const program of programCatalog) ensureDepartment(program.mainDepartment || program.department);
+  const courses = [];
+  const totals = counts();
+  for (const course of allCourses) {
+    const programKey = [course.department, course.programName].map(normalizeScope).join("|");
+    let program = catalogByProgram.get(programKey);
+    if (!program) {
+      program = { mainDepartment: course.department, department: course.department, programName: course.programName, levels: [] };
+      catalogByProgram.set(programKey, program);
+      programCatalog.push(program);
+    }
+    if (!program.levels.includes(course.level)) program.levels.push(course.level);
+    const department = ensureDepartment(program?.mainDepartment || course.department);
+    const inactive = visibility[courseVisibilityKeyFor(course)] === false;
+    for (const target of [totals, department]) {
+      target.totalCourses += 1;
+      if (inactive) target.inactiveCourses += 1;
+    }
+    if (inactive) continue;
+    const row = options.rowsByCourse?.get(course) || findExactCourseRow(course);
+    const packageData = qualityPackageRecordForRow(row, visibility)?.package || {};
+    const assignment = qualityCourseAssignment(course, packageData);
+    const approved = isPublicCourseStatus(course.status || "");
+    const status = repairText(course.status || "Belirtilmemiş").trim() || "Belirtilmemiş";
+    for (const target of [totals, department]) {
+      target.publicCourses += 1;
+      if (approved) target.approvedCourses += 1;
+      else {
+        target.unapprovedCourses += 1;
+        target.statusCounts[status] = (target.statusCounts[status] || 0) + 1;
+      }
+      if (assignment.awaitingAssignment) target.awaitingAssignmentCourses += 1;
+    }
+    // Keep only the fields needed by the guide reports; personal identifiers stay out of this snapshot.
+    courses.push({
+      department: program.department, programName: program.programName, level: course.level,
+      code: course.code, name: course.name, type: course.type, term: course.term,
+      ects: course.ects, theory: course.theory, practice: course.practice, status: course.status,
+      instructor: assignment.responsibleAssigned ? assignment.responsible : "",
+      awaitingAssignment: assignment.awaitingAssignment,
+    });
+  }
+  return {
+    institute: { ...totals, publicCourses: institute.totalCourses, approvedCourses: institute.approvedCourses, unapprovedCourses: institute.unapprovedCourses, awaitingAssignmentCourses: institute.awaitingAssignmentCourses },
+    departments: [...departments.values()].sort((left, right) => left.department.localeCompare(right.department, "tr-TR")),
+    programs: programs.map((program) => ({
+      department: program.department, programName: program.programName, level: program.level,
+      publicCourses: program.stats.totalCourses, awaitingAssignmentCourses: program.stats.awaitingAssignmentCourses,
+    })),
+    programCatalog,
+    courses,
+  };
+}
+
+async function currentAdminQualityReport() {
+  const snapshot = await currentQualitySnapshot();
+  const row = db.prepare("SELECT value FROM metadata WHERE key = ?").get(adminQualityReportMetadataKey);
+  const report = parseJsonField(row?.value, null);
+  if (report?.generatedAt === snapshot.generatedAt) return report;
+  // Old installations acquire the admin report together with the public snapshot, at the same data time.
+  await refreshQualitySnapshot("admin-report-bootstrap");
+  const refreshed = db.prepare("SELECT value FROM metadata WHERE key = ?").get(adminQualityReportMetadataKey);
+  return parseJsonField(refreshed?.value, null);
+}
 
 function readQualitySnapshot() {
   if (qualitySnapshotCache) return qualitySnapshotCache;
@@ -7494,6 +7581,8 @@ async function buildQualitySnapshot(actor = "system") {
     };
   });
   const snapshot = { generatedAt, source: "database_snapshot", instructorSource: instructorCatalog.source, schedule: courseStatisticsSchedule(), institute, programs };
+  const adminReport = { generatedAt, ...buildAdminQualityReport(allCourses, institute, programs, { rowsByCourse, visibility }) };
+  db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(adminQualityReportMetadataKey, JSON.stringify(adminReport));
   db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(qualitySnapshotMetadataKey, JSON.stringify(snapshot));
   qualitySnapshotCache = snapshot;
   audit("quality.snapshot.refresh", actor, { generatedAt, programs: programs.length, courses: institute.totalCourses });
@@ -10130,6 +10219,15 @@ async function handleDbpApi(request) {
       if (auth.error) return auth.error;
       upsertSessionUser(auth.session);
       return jsonResponse(adminThesisAwardPayload(url.searchParams.get("year")));
+    }
+
+    if (pathname === "/api/dbp/admin/quality-report" && request.method === "GET") {
+      const auth = requireDbpSession(request);
+      if (auth.error) return auth.error;
+      if (!modulesForRole(auth.session.role).includes("quality_reports")) {
+        return jsonResponse({ message: "Kalite kontrol raporunu görüntüleme yetkiniz yok." }, { status: 403 });
+      }
+      return jsonResponse(await currentAdminQualityReport(), { headers: { "Cache-Control": "no-store" } });
     }
 
     if (!pathname.startsWith("/api/dbp/admin/")) {
