@@ -52,7 +52,7 @@ type AdminStatusOption = {
 };
 
 const workflowSteps = [
-  "Akademisyen Gönderdi",
+  "Akademisyen Hazırlığı",
   "Komisyon İncelemesi",
   "ABD/ASD Son Onayı",
   "Yayımlandı",
@@ -175,17 +175,24 @@ const reviewCourseKey = (course: ReviewCourse, fallbackDepartment: string, fallb
   `${course.department || fallbackDepartment}||${course.programName || fallbackProgramName}||${course.level || ""}||${course.code}`;
 
 function WorkflowStepper({ status, committeeSkipped = false }: { status: string; committeeSkipped?: boolean }) {
-  const activeStage = statusStage(status);
+  const activeStage = normalizeStatus(status).includes("duzeltme") ? 0 : statusStage(status);
+  const completed = activeStage === workflowSteps.length - 1;
   return (
     <div className="dbp-workflow-stepper" aria-label="Ders bilgi paketi onay süreci">
       {workflowSteps.map((step, index) => {
-        const skipped = committeeSkipped && index === 1;
+        const skipped = committeeSkipped && activeStage > 1 && index === 1;
+        const done = !skipped && (index < activeStage || completed);
+        const current = !skipped && !done && index === activeStage;
+        const stateLabel = skipped ? "Atlandı" : done ? "Tamamlandı" : current ? "Devam ediyor" : "Bekliyor";
         return (
           <span
             key={step}
-            className={skipped ? "skipped" : index < activeStage ? "done" : index === activeStage ? "current" : "waiting"}
+            className={skipped ? "skipped" : done ? "done" : current ? "current" : "waiting"}
+            aria-current={current ? "step" : undefined}
+            aria-label={`${step}: ${stateLabel}`}
+            title={`${step}: ${stateLabel}`}
           >
-            <i>{skipped ? "!" : index < activeStage ? <CheckCircle2 size={13} /> : index + 1}</i>
+            <i>{skipped ? "!" : done ? <CheckCircle2 size={13} /> : index + 1}</i>
             <b>{step}</b>
             {skipped && <em>Atlandı</em>}
           </span>

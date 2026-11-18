@@ -1590,8 +1590,6 @@ input {
 }
 
 .dbp-workflow-stepper .done::before,
-.dbp-workflow-stepper .current::before,
-.dbp-workflow-stepper .skipped::before,
 .course-approval-workflow .done::before,
 .course-approval-workflow .current::before,
 .course-approval-workflow .skipped::before {
@@ -1599,12 +1597,17 @@ input {
 }
 
 .dbp-workflow-stepper .done i,
-.dbp-workflow-stepper .current i,
 .course-approval-workflow .done i,
 .course-approval-workflow .current i {
   border-color: var(--success);
   background: var(--success);
   color: white;
+}
+
+.dbp-workflow-stepper .current i {
+  border-color: #c68a13;
+  background: #f5c451;
+  color: #3b2a13;
 }
 
 .dbp-workflow-stepper .skipped i,
