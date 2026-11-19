@@ -4240,7 +4240,7 @@ function normalizePerson(value = "") {
     .replaceAll("û", "u")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\b(prof|doc|dr|ogr|uyesi|gor)\b\.?/gu, " ")
+    .replace(/\b(prof|doc|dr|ogr|uyesi|gor|ars)\b\.?/gu, " ")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -4251,7 +4251,7 @@ function normalizeTcKimlik(value = "") {
 }
 
 function normalizeEmail(value = "") {
-  return repairText(value || "").trim().toLocaleLowerCase("tr-TR");
+  return repairText(value || "").trim().toLowerCase();
 }
 
 function normalizeProgramBase(value = "") {
@@ -4492,19 +4492,25 @@ function canApproveCoursePackage(session, body) {
 }
 
 function memberIdentityKeys(value = {}) {
-  return [
+  const tcKimlik = normalizeTcKimlik(value.tcKimlik || value.tc_kimlik || value.member_tc_kimlik || "");
+  const keys = [
     value.username,
     value.member_username,
     value.tcKimlik,
     value.tc_kimlik,
     value.member_tc_kimlik,
-    value.email,
-    value.member_email,
     value.name,
     value.member_name,
   ]
     .map((item) => normalizeScope(String(item || "")))
     .filter(Boolean);
+  // Email punctuation is part of the identity; department normalization loses it.
+  keys.push(...[value.email, value.member_email].map((email) => normalizeEmail(email || "")).filter(Boolean));
+  // e-Enstitü's public instructor API exposes this ID instead of the raw T.C.
+  if (/^\d{11}$/.test(tcKimlik)) {
+    keys.push(createHash("md5").update(`${tcKimlik}:dbp-instructor`).digest("hex"));
+  }
+  return [...new Set(keys)];
 }
 
 function primaryMemberKey(value = {}) {
@@ -4590,9 +4596,10 @@ function courseReviewAssignmentMembershipsForSession(session) {
         AND (
           member_key IN (${keys.map(() => "?").join(",")})
           OR lower(member_username) IN (${keys.map(() => "?").join(",")})
-          OR lower(member_email) IN (${keys.map(() => "?").join(",")})
+          OR member_tc_kimlik IN (${keys.map(() => "?").join(",")})
+          OR lower(trim(member_email)) IN (${keys.map(() => "?").join(",")})
         )
-    `).all(...keys, ...keys, ...keys)
+    `).all(...keys, ...keys, ...keys, ...keys)
     : [];
   const normalizedName = normalizePerson(session.name || "");
   const byName = normalizedName
@@ -4617,8 +4624,9 @@ function committeeMembershipsForSession(session) {
     FROM committee_members
     WHERE member_key IN (${keys.map(() => "?").join(",")})
        OR lower(member_username) IN (${keys.map(() => "?").join(",")})
-       OR lower(member_email) IN (${keys.map(() => "?").join(",")})
-  `).all(...keys, ...keys, ...keys);
+       OR member_tc_kimlik IN (${keys.map(() => "?").join(",")})
+       OR lower(trim(member_email)) IN (${keys.map(() => "?").join(",")})
+  `).all(...keys, ...keys, ...keys, ...keys);
   const normalizedName = normalizePerson(session.name || "");
   const byName = normalizedName
     ? db.prepare(`
