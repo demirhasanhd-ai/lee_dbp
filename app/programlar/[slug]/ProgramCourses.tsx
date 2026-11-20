@@ -21,6 +21,7 @@ import { publicCourseHref } from "../../../lib/data/publicRoutes";
 import { programViewHref } from "../../../lib/data/programNavigation";
 import { isProcessCourse } from "../../../lib/courseProcess.mjs";
 import { downloadXlsx } from "../../../lib/downloadXlsx";
+import { ProgramAdvisorStatistics } from "./ProgramAdvisorStatistics";
 
 export type PublicCourse = {
   code: string;
@@ -431,7 +432,10 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       />
       <section className="public-program-main">
         {activeView.tab === "profile" ? (
-          <ProgramProfile key={`${activeProgram.visibilityKey}|${activeLevel}`} department={department} programName={activeProgram.programName} activeLevel={activeLevel}/>
+          <>
+            <ProgramProfile key={`${activeProgram.visibilityKey}|${activeLevel}`} department={department} programName={activeProgram.programName} activeLevel={activeLevel}/>
+            <ProgramAdvisorStatistics department={department} programName={activeProgram.programName} level={activeLevel}/>
+          </>
         ) : (
           <>
             <div className="public-course-title">

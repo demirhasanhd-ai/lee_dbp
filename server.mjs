@@ -1,4 +1,5 @@
 import { fetchObsCourseDraft, obsSearchService } from "./lib/obsBologna.mjs";
+import { mergeStudentAdvisorHistory, publicStudentAdvisorHistory } from "./lib/studentAdvisorHistory.mjs";
 import { beginStartupStep, measureStartupAsync, measureStartupSync, observeStartupBackground } from "./lib/runtimeLogging.mjs";
 import { errorMonitor } from "node:events";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
@@ -725,6 +726,12 @@ async function loadEEnstituInstructorOptionsFromApi(filters = {}) {
 }
 
 const studentStatisticsSnapshotKey = "student_statistics_snapshot_v1";
+const studentAdvisorHistoryKey = "student_advisor_history_v1";
+
+function readStudentAdvisorHistory() {
+  const row = db.prepare("SELECT value FROM metadata WHERE key = ?").get(studentAdvisorHistoryKey);
+  return publicStudentAdvisorHistory(parseJsonField(row?.value, []), officialStudentProgramCatalog(), matchingOfficialProgramEntries);
+}
 
 function publicStudentLevel(level = "") {
   const normalized = normalizeScope(level);
@@ -1010,7 +1017,8 @@ function shouldRefreshIncompleteSeparationReasons(snapshot) {
 }
 
 function shouldRefreshStudentStatisticsSource(snapshot) {
-  return !snapshot?.source || snapshot.source === "e_enstitu_student_profiles" || Number(snapshot.snapshotVersion || 0) < 7;
+  const missingAdvisorData = (!snapshot?.advisorRatios || !snapshot?.enrollmentHistory) && Date.now() - Date.parse(snapshot?.generatedAt || "") > 60_000;
+  return !snapshot?.source || snapshot.source === "e_enstitu_student_profiles" || Number(snapshot.snapshotVersion || 0) < 7 || missingAdvisorData;
 }
 
 async function refreshStudentStatisticsSnapshot(actor = "system") {
@@ -1027,7 +1035,7 @@ async function refreshStudentStatisticsSnapshot(actor = "system") {
       if (!response.ok) { lastError = payload?.message || `HTTP ${response.status}`; continue; }
       if (!payload?.institute || !Array.isArray(payload?.programs)) { lastError = "Öğrenci istatistiği yanıtı geçersiz."; continue; }
       const generatedAt = new Date().toISOString();
-      studentStatisticsSnapshotCache = officialStudentStatisticsSnapshot({
+      const nextSnapshot = officialStudentStatisticsSnapshot({
         ...payload,
         snapshotVersion: 7,
         sourceGeneratedAt: payload.generatedAt || "",
@@ -1035,7 +1043,21 @@ async function refreshStudentStatisticsSnapshot(actor = "system") {
         schedule: managedSchedule(),
         nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "",
       });
-      db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(studentStatisticsSnapshotKey, JSON.stringify(studentStatisticsSnapshotCache));
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(studentStatisticsSnapshotKey, JSON.stringify(nextSnapshot));
+        if (payload.advisorRatios) {
+          const previous = db.prepare("SELECT value FROM metadata WHERE key = ?").get(studentAdvisorHistoryKey);
+          const reconstructed = (payload.enrollmentHistory?.history || []).reduce(mergeStudentAdvisorHistory, parseJsonField(previous?.value, []));
+          const history = mergeStudentAdvisorHistory(reconstructed, payload.advisorRatios);
+          db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(studentAdvisorHistoryKey, JSON.stringify(history));
+        }
+        db.exec("COMMIT");
+      } catch (error) {
+        db.exec("ROLLBACK");
+        throw error;
+      }
+      studentStatisticsSnapshotCache = nextSnapshot;
       audit("student.statistics.refresh", actor, { generatedAt, programs: payload.programs.length, totalStudents: payload.institute.totalStudents || 0 });
       return studentStatisticsSnapshotCache;
     } catch (error) {
@@ -9749,7 +9771,7 @@ async function handleDbpApi(request) {
           console.error(`[dbp] Öğrenci istatistiği anlık yenileme hatası: ${error instanceof Error ? error.message : error}`);
         }
       }
-      return jsonResponse({ ...snapshot, schedule: managedSchedule(), nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "" });
+      return jsonResponse({ ...snapshot, advisorRatioHistory: readStudentAdvisorHistory(), schedule: managedSchedule(), nextRefreshAt: nextMainDataRefreshDate()?.toISOString() || "" });
     }
     if (pathname === "/api/dbp/quality-stats" && request.method === "GET") {
       const snapshot = await currentQualitySnapshot();
