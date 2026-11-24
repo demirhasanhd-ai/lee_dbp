@@ -936,76 +936,121 @@ async function advisorQualitySnapshot(program) {
 }
 
 test("quality advisor statistics follow report scope and appear below instructor loads", async () => {
-  const program = { department: "Yönetim Bilişim Sistemleri ABD", programName: "Yönetim Bilişim Sistemleri", suppressed: false, statusDataComplete: true };
-  const advisorRatioHistory = [
-    { year: 2026, observedAt: "2026-11-24T10:00:00.000Z", method: "observed", programs: [
-      { ...program, level: "Doktora", activeStudents: 30, advisorCount: 5, studentsPerAdvisor: 6 },
-      { ...program, level: "Tezli Yüksek Lisans", activeStudents: 60, advisorCount: 5, studentsPerAdvisor: 12 },
-      { ...program, programName: "Başka Program", level: "Doktora", activeStudents: 999, advisorCount: 1, studentsPerAdvisor: 999 },
-      { ...program, department: "Başka ABD", level: "Doktora", activeStudents: 88, advisorCount: 2, studentsPerAdvisor: 44 },
-      { ...program, level: "Tezsiz Yüksek Lisans", activeStudents: 500, advisorCount: 1, studentsPerAdvisor: 500 },
-    ] },
-    { year: 2025, observedAt: "2025-12-31T20:59:59.000Z", method: "enrollment_intervals", programs: [
-      { ...program, level: "Doktora", activeStudents: 18, advisorCount: null, studentsPerAdvisor: null },
-    ] },
-  ];
+  const program = { department: "Yönetim Bilişim Sistemleri ABD", programName: "Yönetim Bilişim Sistemleri" };
   const qualitySnapshot = await advisorQualitySnapshot(program);
-  await withPublicPage("/dbp/kalite", { advisorRatioHistory, qualitySnapshot }, async ({ page, apiRequests }) => {
-    const card = page.getByRole("region", { name: "Yıllara göre öğrenci ve danışman istatistikleri" });
-    await card.getByRole("table").waitFor();
+  const requests = [];
+  await withPublicPage("/dbp/kalite", {
+    qualitySnapshot,
+    advisorWorkloadFor: (url) => {
+      requests.push(Object.fromEntries(url.searchParams));
+      const level = url.searchParams.get("level");
+      const activeStudents = url.searchParams.get("programName") === "Verisiz Program" ? 0
+        : level === "Doktora" ? 4 : level === "Tezli Yüksek Lisans" ? 10 : level === "Tezsiz Yüksek Lisans" ? 1 : 15;
+      const advisorCount = activeStudents === 0 ? 0 : level === "Tezsiz Yüksek Lisans" ? 1 : level ? 2 : 3;
+      return { generatedAt: "2026-11-24T12:00:00.000Z", privateAdvisorName: "Never publish this advisor",
+        summary: { activeStudents, advisorCount, studentsPerAdvisor: advisorCount ? activeStudents / advisorCount : null } };
+    },
+  }, async ({ page, apiRequests }) => {
+    const card = page.getByRole("region", { name: "Güncel öğrenci ve danışman istatistikleri" });
+    const metrics = card.locator(".course-status-summary article b");
+    await metrics.first().waitFor();
     assert.equal(await card.evaluate((element) => element.previousElementSibling.classList.contains("instructor-panel")), true);
-    assert.equal(await card.locator("tbody tr").count(), 5);
-    assert.equal(await card.getByRole("columnheader", { name: "Program", exact: true }).count(), 1);
-    assert.doesNotMatch(await card.locator("tbody").innerText(), /Tezsiz Yüksek Lisans/u);
+    assert.deepEqual(await metrics.allTextContents(), ["15", "3", "5,00"]);
     const scope = page.getByRole("combobox", { name: "Rapor kapsamı" });
     await scope.selectOption("doctorate");
-    assert.deepEqual(await card.locator("tbody th").allTextContents(), ["2025", "2026"]);
-    assert.deepEqual(await card.locator("tbody tr").last().locator("td").allTextContents(), ["24.11.2026", "30", "5", "6,00"]);
-    assert.match(await card.locator("tbody tr").first().innerText(), /Yıllık danışman verisi eksik/u);
+    await card.getByText("2,00", { exact: true }).waitFor();
+    assert.deepEqual(await metrics.allTextContents(), ["4", "2", "2,00"]);
+    assert.deepEqual(requests.at(-1), { ...program, level: "Doktora" });
     await scope.selectOption("masters");
-    await card.getByRole("heading", { name: "Öğretim üyesi başına tezli yüksek lisans öğrenci sayısı" }).waitFor();
-    assert.deepEqual(await card.locator("tbody th").allTextContents(), ["2026"]);
-    assert.deepEqual(await card.locator("tbody td").allTextContents(), ["24.11.2026", "60", "5", "12,00"]);
+    await card.getByText("10", { exact: true }).waitFor();
+    assert.deepEqual(await metrics.allTextContents(), ["10", "2", "5,00"]);
     await scope.selectOption("empty");
-    await card.getByText("Bu program için yıllık öğrenci ve danışman verisi henüz kaydedilmedi.", { exact: true }).waitFor();
+    await card.getByText("Bu kapsamda aktif öğrencisi bulunan danışman yok.", { exact: true }).waitFor();
+    assert.deepEqual(await metrics.allTextContents(), ["0", "0", "—"]);
     await scope.selectOption("non-thesis");
-    await card.getByText("Bu gösterge yalnız tezli yüksek lisans ve doktora programları için hesaplanır.", { exact: true }).waitFor();
-    assert.equal(await card.getByRole("table").count(), 0);
+    await card.getByText("1,00", { exact: true }).waitFor();
+    assert.deepEqual(await metrics.allTextContents(), ["1", "1", "1,00"]);
     await scope.selectOption("institute");
-    assert.equal(await card.locator("tbody tr").count(), 5);
-    assert.equal(apiRequests.filter((path) => path.endsWith("/student-statistics")).length, 1);
+    await card.getByText("15", { exact: true }).waitFor();
+    assert.deepEqual(await metrics.allTextContents(), ["15", "3", "5,00"]);
+    assert.deepEqual(requests.at(-1), {});
+    assert.equal(apiRequests.filter((path) => path.endsWith("/student-statistics")).length, 0);
+    assert.ok(!(await card.innerText()).includes("Never publish this advisor"));
     await page.setViewportSize({ width: 390, height: 844 });
     const widths = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
     assert.ok(widths.document <= widths.viewport, JSON.stringify(widths));
     mkdirSync("local-volume/quality-advisor-statistics", { recursive: true });
     await card.screenshot({ path: "local-volume/quality-advisor-statistics/mobile.png" });
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await card.screenshot({ path: "local-volume/quality-advisor-statistics/desktop.png" });
+    await card.screenshot({ path: "local-volume/quality-advisor-statistics/desktop.png", style: ".oku-header { visibility: hidden; }" });
   });
   await withPublicPage("/dbp/ybs/dr", {}, async ({ page, apiRequests }) => {
     assert.equal(await page.locator(".advisor-panel").count(), 0);
-    assert.equal(apiRequests.filter((path) => path.endsWith("/student-statistics")).length, 0);
+    assert.equal(apiRequests.filter((path) => path.endsWith("/advisor-workload")).length, 0);
   });
 });
 
-test("quality advisor statistics preserve error recovery and institute empty states", async () => {
+test("quality advisor statistics preserve error recovery and show actual zero counts", async () => {
   const qualitySnapshot = await advisorQualitySnapshot({ department: "Test ABD", programName: "Test" });
   let fail = true;
   await withPublicPage("/dbp/kalite", {
     qualitySnapshot,
     preparePage: async (page) => {
-      await page.route("**/dbp/api/dbp/student-statistics", (route) => route.fulfill({
+      await page.route("**/dbp/api/dbp/advisor-workload", (route) => route.fulfill({
         status: fail ? 503 : 200, contentType: "application/json",
-        body: JSON.stringify(fail ? { message: "Kaynak servise ulaşılamadı." } : { advisorRatioHistory: [] }),
+        body: JSON.stringify(fail ? { message: "Kaynak servise ulaşılamadı." } : {
+          generatedAt: "2026-11-24T12:00:00.000Z", summary: { activeStudents: 0, advisorCount: 0, studentsPerAdvisor: null },
+        }),
       }));
     },
   }, async ({ page }) => {
-    const card = page.getByRole("region", { name: "Yıllara göre öğrenci ve danışman istatistikleri" });
+    const card = page.getByRole("region", { name: "Güncel öğrenci ve danışman istatistikleri" });
     await card.getByRole("alert").waitFor();
     assert.match(await card.getByRole("alert").innerText(), /Kaynak servise ulaşılamadı/u);
+    assert.equal(await card.locator(".course-status-summary").count(), 0);
     fail = false;
     await card.getByRole("button", { name: "Yeniden dene" }).click();
-    await card.getByText("Enstitü için yıllık öğrenci ve danışman verisi henüz kaydedilmedi.", { exact: true }).waitFor();
+    await card.getByText("Bu kapsamda aktif öğrencisi bulunan danışman yok.", { exact: true }).waitFor();
+    assert.deepEqual(await card.locator(".course-status-summary b").allTextContents(), ["0", "0", "—"]);
+  });
+});
+
+test("quality advisor scope changes hide old metrics while loading and ignore late responses", async () => {
+  const qualitySnapshot = await advisorQualitySnapshot({ department: "Test ABD", programName: "Test" });
+  let release, requested, completed;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const started = new Promise((resolve) => { requested = resolve; });
+  const done = new Promise((resolve) => { completed = resolve; });
+  await withPublicPage("/dbp/kalite", {
+    qualitySnapshot,
+    preparePage: async (page) => {
+      await page.route("**/dbp/api/dbp/advisor-workload**", async (route) => {
+        const level = new URL(route.request().url()).searchParams.get("level");
+        if (level === "Tezli Yüksek Lisans") { requested(); await gate; }
+        const count = level === "Doktora" ? 4 : 10;
+        try {
+          await route.fulfill({ contentType: "application/json", body: JSON.stringify({
+            generatedAt: "2026-11-24T12:00:00.000Z",
+            summary: { activeStudents: count, advisorCount: 2, studentsPerAdvisor: count / 2 },
+          }) });
+        } finally { if (level === "Tezli Yüksek Lisans") completed(); }
+      });
+    },
+  }, async ({ page }) => {
+    const card = page.getByRole("region", { name: "Güncel öğrenci ve danışman istatistikleri" });
+    await card.getByText("10", { exact: true }).waitFor();
+    const scope = page.getByRole("combobox", { name: "Rapor kapsamı" });
+    try {
+      await scope.selectOption("masters");
+      await started;
+      await card.getByRole("status").waitFor();
+      assert.equal(await card.locator(".course-status-summary").count(), 0);
+      await scope.selectOption("doctorate");
+      await card.getByText("4", { exact: true }).waitFor();
+      release();
+      await done;
+      assert.deepEqual(await card.locator(".course-status-summary b").allTextContents(), ["4", "2", "2,00"]);
+    } finally { release(); }
   });
 });
 

@@ -726,6 +726,37 @@ async function loadEEnstituInstructorOptionsFromApi(filters = {}) {
   return null;
 }
 
+async function loadEEnstituAdvisorWorkload(filters = {}) {
+  let lastError = "e-Enstitü danışman özeti alınamadı.";
+  for (const apiBaseUrl of eEnstituApiBaseUrls()) {
+    try {
+      const endpoint = new URL(`${apiBaseUrl}/api/public/dbp/advisor-workload`);
+      for (const key of ["department", "programName", "level"]) {
+        if (filters[key]) endpoint.searchParams.set(key, filters[key]);
+      }
+      const response = await withTimeout(fetch(endpoint, { cache: "no-store" }), Math.max(eEnstituDbTimeoutMs(), 5_000), lastError);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const { activeStudents, advisorCount } = payload.summary ?? {};
+      if (payload.schemaVersion !== 1 || payload.source !== "e_enstitu_advisor_assignments"
+        || !Number.isFinite(Date.parse(payload.generatedAt))
+        || !Number.isSafeInteger(activeStudents) || !Number.isSafeInteger(advisorCount)
+        || advisorCount < 0 || activeStudents < advisorCount || (!advisorCount && activeStudents !== 0)) {
+        throw new Error("e-Enstitü danışman özeti yanıtı geçersiz.");
+      }
+      // Forward only aggregates, even if the source response later gains other fields.
+      return {
+        generatedAt: payload.generatedAt,
+        source: payload.source,
+        summary: { activeStudents, advisorCount, studentsPerAdvisor: advisorCount ? activeStudents / advisorCount : null },
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+  }
+  throw new Error(lastError);
+}
+
 const studentStatisticsSnapshotKey = "student_statistics_snapshot_v1";
 const studentAdvisorHistoryKey = "student_advisor_history_v1";
 
@@ -9760,6 +9791,20 @@ async function handleDbpApi(request) {
     if (pathname === "/api/dbp/update-plan" && request.method === "GET") {
       const labels = publicDataScheduleLabels(publicDataRefreshPlan);
       return jsonResponse({ settings: publicDataRefreshPlan, labels, nextMainRefreshAt: nextMainDataRefreshDate()?.toISOString() || "", nextCitationRefreshAt: nextCitationDataRefreshDate()?.toISOString() || "" });
+    }
+
+    if (pathname === "/api/dbp/advisor-workload" && request.method === "GET") {
+      const filters = Object.fromEntries(["department", "programName", "level"].map((key) => [key, (url.searchParams.get(key) || "").trim()]));
+      const values = Object.values(filters);
+      if (values.some(Boolean) && !values.every(Boolean)) {
+        return jsonResponse({ message: "Program kapsamı eksik." }, { status: 400 });
+      }
+      try {
+        return jsonResponse(await loadEEnstituAdvisorWorkload(filters));
+      } catch (error) {
+        console.error(`[dbp] Danışman özeti alınamadı: ${error instanceof Error ? error.message : error}`);
+        return jsonResponse({ message: "Öğrenci ve danışman özeti şu anda alınamıyor. Yeniden deneyin." }, { status: 503 });
+      }
     }
 
     if (pathname === "/api/dbp/student-statistics" && request.method === "GET") {

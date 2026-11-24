@@ -46,6 +46,10 @@ export function createPublicFixtures() {
       if (pathname === "/api/dbp/public-visibility") return { visibility: {} };
       if (pathname === "/api/dbp/program-profile") return { profile: options.profileFor?.(url) || null };
       if (pathname === "/api/dbp/student-statistics") return { advisorRatioHistory: options.advisorRatioHistory || [] };
+      if (pathname === "/api/dbp/advisor-workload") return options.advisorWorkloadFor?.(url) || {
+        generatedAt: "2026-11-24T12:00:00.000Z",
+        summary: { activeStudents: 0, advisorCount: 0, studentsPerAdvisor: null },
+      };
       if (pathname === "/api/dbp/quality-stats" && options.qualitySnapshot) return options.qualitySnapshot;
       if (pathname === "/api/dbp/courses") {
         const rows = db.prepare("SELECT course_json FROM courses WHERE (? = '' OR department = ?) AND (? = '' OR program = ?) AND (? = '' OR level = ?)").all(
