@@ -3,7 +3,8 @@ import { DownloadCloud, Plus, Save, Send, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ObsCourseImport } from "./ObsCourseImport";
 import type { ObsDraft, ObsImportSource } from "./obsCourseTypes";
-import { evaluateOutcomeQuality, OutcomeQualityHint } from "./outcomeQuality";
+import { OutcomeQualityHint } from "./outcomeQuality";
+import { courseOutcomePublishIssues, MIN_COURSE_LEARNING_OUTCOMES } from "../../lib/quality/outcomeRules.mjs";
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { SDG_GOALS, findSdgGoal, formatSdgGoal } from "../../lib/sdgGoals";
@@ -56,7 +57,7 @@ type WorkflowSummary = {
 };
 
 const weeks = Array.from({ length: 15 }, (_, index) => index + 1);
-const fixedOutcomeCount = 5;
+const fixedOutcomeCount = MIN_COURSE_LEARNING_OUTCOMES;
 const defaultAssessments: Assessment[] = [
   { id: 1, name: "Ara Sınav", count: 1, weight: 40, fixed: true },
   { id: 2, name: "Yarıyıl Sonu Sınavı", count: 1, weight: 60, fixed: true },
@@ -433,13 +434,7 @@ export function CourseBolognaEditor({
       issues.push("Ön koşul ve ders yardımcısı yoksa ilgili alanlara “Yok” yazılmalıdır.");
     }
 
-    const requiredOutcomes = outcomes.slice(0, fixedOutcomeCount);
-    if (
-      requiredOutcomes.length < fixedOutcomeCount ||
-      requiredOutcomes.some((outcome) => evaluateOutcomeQuality(outcome, "course").status !== "good")
-    ) {
-      issues.push("En az beş öğrenme çıktısı açık, ölçülebilir ve öğrenci odaklı cümlelerle yazılmalıdır.");
-    }
+    issues.push(...courseOutcomePublishIssues(outcomes));
 
     if (weeks.some((week) => !isMeaningfulText(weeklyTopics[week] ?? "", 3, 12))) {
       issues.push("15 haftanın her biri en az üç kelimelik anlamlı bir konu açıklaması içermelidir.");

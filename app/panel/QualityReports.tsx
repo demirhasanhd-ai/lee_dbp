@@ -270,8 +270,8 @@ export function QualityReports() {
       <section className="quality-rule-card">
         <h3>Kontrol edilecek kılavuz başlıkları</h3>
         <div>
-          <span>ÖÇ sayısı {COURSE_LEARNING_OUTCOME_COUNT} maddede sabit tutulmalı.</span>
-          <span>“Bilir, anlar, fark eder” gibi belirsiz fiiller uyarı üretir.</span>
+          <span>En az {COURSE_LEARNING_OUTCOME_COUNT} ÖÇ yazılmalı; tüm çıktılar denetlenir.</span>
+          <span>“Bilir, anlar, öğrenir” gibi belirsiz fiiller uyarı üretir; “fark eder” kabul edilir.</span>
           <span>{COURSE_WEEK_COUNT} haftalık ders planı tekrar/anlamsız dolgu açısından denetlenir.</span>
           <span>Değerlendirme yüzdeleri toplamı %100 olmalı.</span>
           <span>AKTS iş yükü ders AKTS’siyle uyumlu olmalı.</span>

@@ -922,6 +922,93 @@ test("switching program levels loads the matching saved public profile", async (
   });
 });
 
+async function advisorQualitySnapshot(program) {
+  const { context } = adminQualityFixture();
+  const snapshot = JSON.parse(JSON.stringify(await context.buildQualitySnapshot()));
+  snapshot.nextRefreshAt = "2026-11-25T00:00:00.000Z";
+  snapshot.programs = [
+    { ...program, key: "doctorate", level: "Doktora" },
+    { ...program, key: "masters", level: "Tezli Yüksek Lisans" },
+    { ...program, key: "non-thesis", level: "Tezsiz Yüksek Lisans" },
+    { ...program, key: "empty", programName: "Verisiz Program", level: "Doktora" },
+  ].map((scope) => ({ ...scope, label: `${scope.programName} · ${scope.level}`, stats: snapshot.institute }));
+  return snapshot;
+}
+
+test("quality advisor statistics follow report scope and appear below instructor loads", async () => {
+  const program = { department: "Yönetim Bilişim Sistemleri ABD", programName: "Yönetim Bilişim Sistemleri", suppressed: false, statusDataComplete: true };
+  const advisorRatioHistory = [
+    { year: 2026, observedAt: "2026-11-24T10:00:00.000Z", method: "observed", programs: [
+      { ...program, level: "Doktora", activeStudents: 30, advisorCount: 5, studentsPerAdvisor: 6 },
+      { ...program, level: "Tezli Yüksek Lisans", activeStudents: 60, advisorCount: 5, studentsPerAdvisor: 12 },
+      { ...program, programName: "Başka Program", level: "Doktora", activeStudents: 999, advisorCount: 1, studentsPerAdvisor: 999 },
+      { ...program, department: "Başka ABD", level: "Doktora", activeStudents: 88, advisorCount: 2, studentsPerAdvisor: 44 },
+      { ...program, level: "Tezsiz Yüksek Lisans", activeStudents: 500, advisorCount: 1, studentsPerAdvisor: 500 },
+    ] },
+    { year: 2025, observedAt: "2025-12-31T20:59:59.000Z", method: "enrollment_intervals", programs: [
+      { ...program, level: "Doktora", activeStudents: 18, advisorCount: null, studentsPerAdvisor: null },
+    ] },
+  ];
+  const qualitySnapshot = await advisorQualitySnapshot(program);
+  await withPublicPage("/dbp/kalite", { advisorRatioHistory, qualitySnapshot }, async ({ page, apiRequests }) => {
+    const card = page.getByRole("region", { name: "Yıllara göre öğrenci ve danışman istatistikleri" });
+    await card.getByRole("table").waitFor();
+    assert.equal(await card.evaluate((element) => element.previousElementSibling.classList.contains("instructor-panel")), true);
+    assert.equal(await card.locator("tbody tr").count(), 5);
+    assert.equal(await card.getByRole("columnheader", { name: "Program", exact: true }).count(), 1);
+    assert.doesNotMatch(await card.locator("tbody").innerText(), /Tezsiz Yüksek Lisans/u);
+    const scope = page.getByRole("combobox", { name: "Rapor kapsamı" });
+    await scope.selectOption("doctorate");
+    assert.deepEqual(await card.locator("tbody th").allTextContents(), ["2025", "2026"]);
+    assert.deepEqual(await card.locator("tbody tr").last().locator("td").allTextContents(), ["24.11.2026", "30", "5", "6,00"]);
+    assert.match(await card.locator("tbody tr").first().innerText(), /Yıllık danışman verisi eksik/u);
+    await scope.selectOption("masters");
+    await card.getByRole("heading", { name: "Öğretim üyesi başına tezli yüksek lisans öğrenci sayısı" }).waitFor();
+    assert.deepEqual(await card.locator("tbody th").allTextContents(), ["2026"]);
+    assert.deepEqual(await card.locator("tbody td").allTextContents(), ["24.11.2026", "60", "5", "12,00"]);
+    await scope.selectOption("empty");
+    await card.getByText("Bu program için yıllık öğrenci ve danışman verisi henüz kaydedilmedi.", { exact: true }).waitFor();
+    await scope.selectOption("non-thesis");
+    await card.getByText("Bu gösterge yalnız tezli yüksek lisans ve doktora programları için hesaplanır.", { exact: true }).waitFor();
+    assert.equal(await card.getByRole("table").count(), 0);
+    await scope.selectOption("institute");
+    assert.equal(await card.locator("tbody tr").count(), 5);
+    assert.equal(apiRequests.filter((path) => path.endsWith("/student-statistics")).length, 1);
+    await page.setViewportSize({ width: 390, height: 844 });
+    const widths = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
+    assert.ok(widths.document <= widths.viewport, JSON.stringify(widths));
+    mkdirSync("local-volume/quality-advisor-statistics", { recursive: true });
+    await card.screenshot({ path: "local-volume/quality-advisor-statistics/mobile.png" });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await card.screenshot({ path: "local-volume/quality-advisor-statistics/desktop.png" });
+  });
+  await withPublicPage("/dbp/ybs/dr", {}, async ({ page, apiRequests }) => {
+    assert.equal(await page.locator(".advisor-panel").count(), 0);
+    assert.equal(apiRequests.filter((path) => path.endsWith("/student-statistics")).length, 0);
+  });
+});
+
+test("quality advisor statistics preserve error recovery and institute empty states", async () => {
+  const qualitySnapshot = await advisorQualitySnapshot({ department: "Test ABD", programName: "Test" });
+  let fail = true;
+  await withPublicPage("/dbp/kalite", {
+    qualitySnapshot,
+    preparePage: async (page) => {
+      await page.route("**/dbp/api/dbp/student-statistics", (route) => route.fulfill({
+        status: fail ? 503 : 200, contentType: "application/json",
+        body: JSON.stringify(fail ? { message: "Kaynak servise ulaşılamadı." } : { advisorRatioHistory: [] }),
+      }));
+    },
+  }, async ({ page }) => {
+    const card = page.getByRole("region", { name: "Yıllara göre öğrenci ve danışman istatistikleri" });
+    await card.getByRole("alert").waitFor();
+    assert.match(await card.getByRole("alert").innerText(), /Kaynak servise ulaşılamadı/u);
+    fail = false;
+    await card.getByRole("button", { name: "Yeniden dene" }).click();
+    await card.getByText("Enstitü için yıllık öğrenci ve danışman verisi henüz kaydedilmedi.", { exact: true }).waitFor();
+  });
+});
+
 test("admin quality report shows every ABD, exports numeric Excel data and fits desktop and mobile", async () => {
   const { context } = adminQualityFixture();
   const report = JSON.parse(JSON.stringify(await context.currentAdminQualityReport()));

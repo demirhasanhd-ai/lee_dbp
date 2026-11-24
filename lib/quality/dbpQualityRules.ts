@@ -1,5 +1,8 @@
 import type { LeeProgram } from "../data/programs";
 import type { DbpCourse } from "../data/dbpCourses";
+import { MIN_COURSE_LEARNING_OUTCOMES, evaluateOutcomeRules } from "./outcomeRules.mjs";
+
+export { vagueOutcomeVerbs, measurableOutcomeVerbs } from "./outcomeRules.mjs";
 
 export type QualityCourse = DbpCourse & { awaitingAssignment?: boolean };
 
@@ -34,61 +37,11 @@ export type InstructorQualitySummary = {
   missingInstructorCount: number;
 };
 
-export const COURSE_LEARNING_OUTCOME_COUNT = 5;
+export const COURSE_LEARNING_OUTCOME_COUNT = MIN_COURSE_LEARNING_OUTCOMES;
 export const COURSE_WEEK_COUNT = 15;
-
-export const vagueOutcomeVerbs = [
-  "bilir",
-  "anlar",
-  "fark eder",
-  "kavrar",
-  "maruz kalır",
-  "haberdar olur",
-  "bilgi sahibi olur",
-  "fikir sahibi olur",
-  "aşina olur",
-  "öğrenir",
-];
-
-export const measurableOutcomeVerbs = [
-  "açıklar",
-  "uygular",
-  "tasarlar",
-  "değerlendirir",
-  "karşılaştırır",
-  "analiz eder",
-  "çözümler",
-  "problem çözer",
-  "ilişkilendirir",
-  "kullanır",
-  "sıralar",
-  "listeler",
-  "gösterir",
-  "çizer",
-  "eleştirir",
-  "yorumlar",
-  "raporlar",
-  "geliştirir",
-  "üretir",
-  "seçer",
-  "planlar",
-  "yürütür",
-  "sunar",
-  "hesaplar",
-  "modeller",
-];
 
 const generalCoursePattern =
   /SEMİNER|BİLİMSEL ARAŞTIRMA|TEZ ÇALIŞMASI|UZMANLIK ALAN|DANIŞMANLIK|BİTİRME PROJESİ|DOKTORA YETERLİK/u;
-
-const normalize = (value: string) =>
-  value.toLocaleLowerCase("tr-TR").replace(/\s+/g, " ").trim();
-
-const includesAny = (text: string, items: string[]) =>
-  items.some((item) => {
-    const escaped = item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(`(^|[^\\p{L}])${escaped}($|[^\\p{L}])`, "u").test(text);
-  });
 
 export const isGeneralAssignableCourse = (courseName: string) =>
   generalCoursePattern.test(courseName.toLocaleUpperCase("tr-TR"));
@@ -97,49 +50,7 @@ const isAwaitingAssignment = (course: QualityCourse) =>
   course.awaitingAssignment ?? (!course.instructor && !isGeneralAssignableCourse(course.name));
 
 export function evaluateOutcomeText(rawText: string): QualityIssue[] {
-  const text = normalize(rawText);
-  if (!text) {
-    return [
-      {
-        severity: "critical",
-        field: "Çıktı",
-        message: "Çıktı maddesi boş bırakılmamalı.",
-      },
-    ];
-  }
-
-  const issues: QualityIssue[] = [];
-  if (includesAny(text, vagueOutcomeVerbs)) {
-    issues.push({
-      severity: "warning",
-      field: "Çıktı fiili",
-      message:
-        "Belirsiz fiil var. Kılavuz doğrultusunda ölçülebilir aktif fiil kullanılmalı.",
-    });
-  }
-  if (!includesAny(text, measurableOutcomeVerbs)) {
-    issues.push({
-      severity: "warning",
-      field: "Çıktı fiili",
-      message:
-        "Ölçülebilir fiil algılanmadı. Örn. açıklar, analiz eder, değerlendirir, tasarlar.",
-    });
-  }
-  if (text.split(" ").length < 4) {
-    issues.push({
-      severity: "warning",
-      field: "Çıktı ifadesi",
-      message: "İfade konu başlığı gibi duruyor; tam kazanım cümlesi yazılmalı.",
-    });
-  }
-  if (rawText.length > 180) {
-    issues.push({
-      severity: "info",
-      field: "Çıktı uzunluğu",
-      message: "Cümle sadeleştirilebilir; tek yargı/yüklem tercih edilmeli.",
-    });
-  }
-  return issues;
+  return evaluateOutcomeRules(rawText).map(({ severity, field, message }) => ({ severity, field, message }));
 }
 
 export function buildCourseQualityIssues(course: QualityCourse): QualityIssue[] {

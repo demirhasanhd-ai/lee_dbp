@@ -152,6 +152,7 @@ let publicDataRefreshPlanTimer;
 let studentStatisticsSnapshotCache;
 let studentStatisticsRefreshPromise;
 let studentStatisticsRefreshTimer;
+let studentStatisticsRefreshLastAttemptAt = 0;
 
 function openBrowser(url) {
   const child =
@@ -1017,11 +1018,15 @@ function shouldRefreshIncompleteSeparationReasons(snapshot) {
 }
 
 function shouldRefreshStudentStatisticsSource(snapshot) {
-  const missingAdvisorData = (!snapshot?.advisorRatios || !snapshot?.enrollmentHistory) && Date.now() - Date.parse(snapshot?.generatedAt || "") > 60_000;
+  // Older source deployments may omit advisor fields. Back off after both
+  // successful and failed attempts instead of retrying on every public request.
+  const checkedAt = Math.max(Date.parse(snapshot?.generatedAt || "") || 0, studentStatisticsRefreshLastAttemptAt);
+  const missingAdvisorData = (!snapshot?.advisorRatios || !snapshot?.enrollmentHistory) && Date.now() - checkedAt > 5 * 60_000;
   return !snapshot?.source || snapshot.source === "e_enstitu_student_profiles" || Number(snapshot.snapshotVersion || 0) < 7 || missingAdvisorData;
 }
 
 async function refreshStudentStatisticsSnapshot(actor = "system") {
+  studentStatisticsRefreshLastAttemptAt = Date.now();
   const timeout = Math.max(eEnstituDbTimeoutMs(), 5_000);
   let lastError = "e-Enstitü öğrenci istatistiği kaynağına ulaşılamadı.";
   for (const apiBaseUrl of eEnstituApiBaseUrls()) {

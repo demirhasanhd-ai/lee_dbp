@@ -63,3 +63,19 @@ test("OBS enrollment reconstructions keep historical advisor counts unavailable 
   const corrected = { ...reconstructed, generatedAt: "2026-11-20T12:00:00.000Z", programs: [{ ...program, advisorCount: null, activeStudents: 40 }] };
   assert.equal(mergeStudentAdvisorHistory(history, corrected)[0].programs[0].activeStudents, 40);
 });
+
+test("actual observations replace later-generated reconstructions regardless of arrival order", () => {
+  const reconstructed = {
+    ...observation(2025, { advisorCount: null }),
+    observedAt: "2025-12-31T20:59:59.000Z",
+    generatedAt: "2026-11-24T08:00:00.000Z",
+    method: "enrollment_intervals",
+  };
+  const actual = observation(2025);
+  const reconstructedFirst = mergeStudentAdvisorHistory(mergeStudentAdvisorHistory([], reconstructed), actual);
+  const actualFirst = mergeStudentAdvisorHistory(mergeStudentAdvisorHistory([], actual), reconstructed);
+  assert.deepEqual(reconstructedFirst, actualFirst);
+  const row = publicStudentAdvisorHistory(reconstructedFirst, catalog, matches)[0].programs[0];
+  assert.equal(row.advisorCount, 5);
+  assert.equal(row.studentsPerAdvisor, 6);
+});

@@ -4,6 +4,86 @@ import { mkdirSync } from "node:fs";
 import { withPublicPage } from "./helpers/hydrated-public-page.mjs";
 import { COURSE_STRUCTURE_LABELS } from "../lib/courseStructures.mjs";
 
+test("all added learning outcomes block submission until every field meets the shared rules", async () => {
+  const course = { id: 1, code: "GTB811", name: "Öğrenme Çıktısı Deneme Dersi", department: "Gıda Teknolojisi ABD", programName: "Gıda Teknolojisi", level: "Tezli Yüksek Lisans", instructor: "Test Akademisyen", status: "Taslak" };
+  const stored = {
+    identity: { code: course.code, name: course.name, theory: "3", practice: "0", credit: "3", level: course.level, type: "Seçmeli", language: "Türkçe" },
+    detailFields: {
+      purpose: "Temel araştırma yöntemlerini uygulama becerisi kazandırmak.",
+      content: "Temel araştırma yöntemleri ve bilimsel etik ilkeleri.",
+      methods: "Anlatım ve örnek olay incelemesi.", resources: "Temel bilimsel araştırma yöntemleri kitabı.",
+      prerequisites: "Yok", instructors: "Test Akademisyen", coordinator: "Test Akademisyen", assistants: "Yok",
+    },
+    outcomes: Array(5).fill("Alanındaki temel kavramları örneklerle açıklar."),
+    contributionMatrix: Array.from({ length: 5 }, () => ({ P1: 3 })),
+    assessments: [{ id: 1, name: "Ara Sınav", count: 1, weight: 40 }, { id: 2, name: "Yarıyıl Sonu Sınavı", count: 1, weight: 60 }],
+    workloads: { "Ders Süresi": { count: 15, hours: 3 }, "Sınıf Dışı Çalışma": { count: 15, hours: 9 } },
+    weeklyTopics: Object.fromEntries(Array.from({ length: 15 }, (_, i) => [i + 1, "Temel araştırma yöntemleri incelemesi"])),
+    structureValues: { "Alan Bilgisi": 100 }, sdgs: ["4"],
+  };
+  let writes = 0;
+  await withPublicPage("/dbp/panel", { preparePage: async (page) => {
+    await page.addInitScript((department) => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Akademisyen", username: "test.teacher", role: "akademisyen", department })), course.department);
+    await page.route("**/dbp/api/dbp/**", async (route) => {
+      const request = route.request();
+      const endpoint = new URL(request.url()).pathname.split("/").pop();
+      if (endpoint === "course-package" && request.method() !== "GET") writes++;
+      const payloads = {
+        events: { ok: true }, access: { modules: ["my_courses"] }, memberships: { memberships: [] },
+        programs: { programs: [{ ...course, mainDepartment: course.department, levels: [course.level] }] },
+        "my-courses": { courses: [course], total: 1, source: "database" },
+        "course-package": { package: stored, status: "Taslak", programOutcomes: [{ id: "P1", text: "Alanındaki temel bilgileri uygular." }] },
+      };
+      assert.ok(payloads[endpoint], `Unexpected API ${endpoint}`);
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify(payloads[endpoint]) });
+    });
+  } }, async ({ page }) => {
+    await page.locator(".role-course-sections").getByRole("button", { name: "Görüntüle", exact: true }).first().click();
+    const form = page.locator(".course-bologna-form");
+    const submit = form.getByRole("button", { name: "Onaya gönder", exact: true });
+    await form.locator('.outcome-quality.good').nth(4).waitFor();
+    assert.equal(await submit.isEnabled(), true, (await form.locator('.publish-validation').allTextContents()).join(" "));
+
+    await form.getByRole("button", { name: "ÖÇ Ekle", exact: true }).click();
+    const sixth = form.locator('.learning-outcomes>div').nth(5);
+    assert.equal(await submit.isDisabled(), true);
+    assert.match(await sixth.textContent(), /boş bırakılamaz/u);
+    await sixth.locator('textarea').fill("Ders kapsamında temel ilkeleri bilir ve öğrenir.");
+    for (const phrase of ["“bilir”", "“öğrenir”", "“ders kapsamında”", "Kabul edilen ölçülebilir fiillerden biri bulunamadı"]) {
+      assert.ok((await sixth.locator('.outcome-quality-messages').textContent()).includes(phrase), phrase);
+    }
+    assert.equal(await sixth.locator('.outcome-quality-messages>p').count(), 3);
+    await sixth.getByText(/Kabul edilen fiiller/).click();
+    assert.ok((await sixth.locator('.outcome-accepted-verbs').textContent()).includes("fark eder"));
+
+    await form.getByRole("button", { name: "ÖÇ Ekle", exact: true }).click();
+    const seventh = form.locator('.learning-outcomes>div').nth(6);
+    await seventh.locator('textarea').fill("Bu dersin temel ilkelerini açıklar ve uygular.");
+    assert.match(await seventh.textContent(), /2 eylem.*“açıklar”.*“uygular”/u);
+    assert.equal(await form.locator('.publish-validation li').filter({ hasText: /^ÖÇ6:/ }).count(), 1);
+    assert.equal(await form.locator('.publish-validation li').filter({ hasText: /^ÖÇ7:/ }).count(), 1);
+    assert.equal(await submit.isDisabled(), true);
+
+    await sixth.locator('textarea').fill("Çevresindeki temel güvenlik risklerini fark eder.");
+    await seventh.locator('textarea').fill("Temel ilke, kural, yöntem ve araçları açıklar.");
+    await form.getByLabel("ÖÇ6 P1 katkısı", { exact: true }).selectOption("3");
+    await form.getByLabel("ÖÇ7 P1 katkısı", { exact: true }).selectOption("3");
+    assert.equal(await form.locator('.outcome-quality.good').count(), 7);
+    assert.equal(await submit.isEnabled(), true);
+
+    await form.getByRole("button", { name: "ÖÇ Ekle", exact: true }).click();
+    assert.equal(await submit.isDisabled(), true);
+    await form.getByRole("button", { name: "ÖÇ 8 sil", exact: true }).click();
+    assert.equal(await submit.isEnabled(), true);
+    await form.getByRole("button", { name: "ÖÇ 7 sil", exact: true }).click();
+    await form.getByRole("button", { name: "ÖÇ 6 sil", exact: true }).click();
+    assert.equal(await form.locator('.learning-outcomes textarea').count(), 5);
+    assert.equal(await form.getByRole("button", { name: "ÖÇ 5 sil", exact: true }).isDisabled(), true);
+    assert.equal(await submit.isEnabled(), true);
+    assert.equal(writes, 0, "validation must not save or submit application data");
+  });
+});
+
 test("OBS search previews full content without writes, imports only after approval and preserves provenance", async () => {
   const course = { id: 1, code: "GTB811", name: "Gıdalardaki Pestisit Kalıntıları ve Risk Değerlendirmesi", department: "Gıda Teknolojisi ABD", programName: "Gıda Teknolojisi", level: "Tezli Yüksek Lisans", instructor: "Test Akademisyen", status: "Taslak" };
   const program = { id: "1", name: "Gıda Teknolojisi Tezli Yüksek Lisans", faculty: "Lisansüstü Eğitim Enstitüsü", facultyId: "04" };

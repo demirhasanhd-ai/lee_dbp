@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { PublicSiteHeader } from "../PublicSiteHeader";
 import { dbpPath } from "../../lib/dbpPath";
+import { QualityAdvisorStatistics } from "./QualityAdvisorStatistics";
 
 type TitleLoad = {
   title: string;
@@ -223,6 +224,8 @@ export default function QualityIndicatorsPage() {
           <div className="quality-table-scroll"><table className="quality-table"><thead><tr><th>Akademik unvan</th><th>Akademisyen</th><th>Ders görevlendirmesi</th><th>Teorik saat</th><th>Uygulama</th><th>Toplam haftalık saat</th></tr></thead><tbody>{stats.titleLoads.map((item) => <tr key={item.title}><td>{item.title}</td><td>{item.academics}</td><td>{item.assignedCourses}</td><td>{item.theory}</td><td>{item.practice}</td><td><b>{item.weeklyHours}</b></td></tr>)}</tbody></table></div>
           <p className="quality-note">Kişi adı, e-posta veya özlük verisi gösterilmez. {isInstitute ? "Akademisyen sayısı mevcut akademisyen kaynağından; ders ve saatler LEE_DBP görevlendirmelerinden unvan bazında gruplanır." : "Seçili kapsamda ders görevlendirmesi bulunan akademisyenler unvan bazında gruplanır."}</p>
         </section>
+
+        <QualityAdvisorStatistics program={selectedProgram} />
 
         <section className="quality-panel warning-panel">
           <header><div><small>İYİLEŞTİRME GÜNDEMİ</small><h2>Öncelikli incelenecek dersler</h2></div><span className={stats.warnings.length ? "warning-count" : "success-count"}>{stats.warnings.length}</span></header>
