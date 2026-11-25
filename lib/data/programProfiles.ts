@@ -9,7 +9,7 @@ export type ProgramProfileSection = {
 export type ProgramTyycRow = {
   code: string;
   title: string;
-  values: number[];
+  values: (number | null)[];
 };
 
 export type ProgramProfile = {

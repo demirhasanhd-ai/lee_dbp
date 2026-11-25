@@ -6,6 +6,7 @@ import { fetchProgramProfile, saveProgramProfile } from "../../lib/data/programP
 import type { ProgramProfile, ProgramTyycRow } from "../../lib/data/programProfiles";
 import { ProgramTyycMatrix } from "./ProgramTyycMatrix";
 import { OutcomeQualityHint } from "./outcomeQuality";
+import { programTyycValidationMessage } from "../../lib/programTyycMatrix.mjs";
 
 
 const defaultSections=[
@@ -36,6 +37,7 @@ export function ProgramProfileEditor({
  const[loadError,setLoadError]=useState("");
  const[saving,setSaving]=useState(false);
  const[saveError,setSaveError]=useState("");
+ const[matrixError,setMatrixError]=useState("");
  const[programLevel,setProgramLevel]=useState(initialLevel);
  const[correctionOpen,setCorrectionOpen]=useState(false);
  const[correctionNote,setCorrectionNote]=useState("");
@@ -50,6 +52,7 @@ export function ProgramProfileEditor({
      setOutcomes(nextOutcomes);
      setOutcomeIds(nextProfile?.outcomeIds ?? nextOutcomes.map(() => null));
      setTyycRows(nextProfile?.tyycRows ?? []);
+     setMatrixError("");
      setLoadError("");
      setLoadedScope(scope);
    }).catch(() => {
@@ -71,6 +74,13 @@ export function ProgramProfileEditor({
    event.preventDefault();
    if (loadedScope !== scope || loadError || saving) return;
    setSaveError("");
+   const validationError=programTyycValidationMessage({outcomes,tyycRows,level:programLevel},profile?.tyycRows??[]);
+   setMatrixError(validationError);
+   if(validationError){
+     setSaveError("PÇ–TYYÇ matrisindeki eksikleri düzeltin. Kayıt yapılmadı.");
+     event.currentTarget.querySelector(".tyyc-card")?.scrollIntoView({behavior:"smooth",block:"start"});
+     return;
+   }
    setSaving(true);
    const data=new FormData(event.currentTarget);
    try {
@@ -97,7 +107,8 @@ export function ProgramProfileEditor({
   <section className="program-content-card outcomes-card"><div className="card-title-row"><div><label>Program Çıktıları / Öğrenme Kazanımları</label><small>Gerektiğinde yeni çıktı ekleyebilir veya silebilirsiniz.</small></div><button type="button" onClick={addOutcome}><Plus size={14}/>Çıktı Ekle</button></div><ol>{outcomes.map((outcome,index)=><li key={index}><span>{index+1}</span><div className="outcome-input-wrap"><textarea value={outcome} onChange={event=>updateOutcome(index,event.target.value)}/><OutcomeQualityHint text={outcome} kind="program"/></div><button type="button" onClick={()=>removeOutcome(index)} aria-label={`${index+1}. çıktıyı sil`}><Trash2 size={14}/></button></li>)}</ol></section>
   <section className="program-content-card"><label>{sections[8].title}</label><textarea name="section-8" defaultValue={sections[8].text}/></section>
   {sections.slice(2,8).map(({title,text},offset)=><section className="program-content-card" key={title}><label>{title}</label><textarea name={`section-${offset+2}`} defaultValue={text}/></section>)}
-  <ProgramTyycMatrix key={`${programName}-${programLevel}-${profile?.updatedAt??"seed"}-${outcomes.length}`} outcomeCount={outcomes.length} programLevel={programLevel} initialRows={tyycRows.length?tyycRows:profile?.tyycRows} onRowsChange={setTyycRows}/>
+  {profile&&outcomes.length!==profile.outcomes.length&&<p role="status">Program çıktısı sayısı {profile.outcomes.length} → {outcomes.length} olarak değişiyor. Kaydedildiğinde bu program ve düzeydeki dersler Taslak durumuna alınacak; önceki yayınları yeniden onaylanana kadar kapatılacak.</p>}
+  <ProgramTyycMatrix outcomeCount={outcomes.length} programLevel={programLevel} initialRows={tyycRows} error={matrixError} onRowsChange={rows=>{setTyycRows(rows);setMatrixError("");setSaveError("")}}/>
   <div className="sticky-save"><span>{saveError|| (mode==="admin"?"Admin müdahalesi istisnai durumlar için kullanılmalıdır.":mode==="review"?"Enstitü rolleri bilgiyi doğrudan değiştirmez; düzeltme isteği oluşturur.":"Değişiklikler veri tabanına kaydedilir.")}</span><div className="sticky-save-actions">{mode==="admin"?<><button type="button" onClick={()=>setCorrectionOpen(true)}><MessageSquareWarning size={15}/>Düzeltme İste</button><button><Save size={15}/>Kaydet</button></>:mode==="review"?<button type="button" onClick={()=>setCorrectionOpen(true)}><MessageSquareWarning size={15}/>Düzeltme İste</button>:<button><Save size={15}/>Kaydet</button>}</div></div>
  </fieldset></form>}{correctionOpen&&<div className="review-modal-backdrop"><section className="correction-modal"><header><div><small>PROGRAM BİLGİSİ DÜZELTME TALEBİ</small><h2>{programName}</h2></div><button onClick={()=>setCorrectionOpen(false)} aria-label="Kapat"><X size={17}/></button></header><form onSubmit={(event)=>{event.preventDefault();const notifications=JSON.parse(localStorage.getItem("lee-dbp-notifications")||"[]") as Array<Record<string,string>>;notifications.unshift({kind:"Program bilgisi",target:programName,route:"Enstitü rolü → ABD/ASD Başkanı",note:correctionNote,date:new Date().toISOString(),status:"Düzeltme istendi"});localStorage.setItem("lee-dbp-notifications",JSON.stringify(notifications));setCorrectionOpen(false);setCorrectionNote("");onSave();}}><label><span>Düzeltme nedeni ve açıklaması</span><textarea required value={correctionNote} onChange={(event)=>setCorrectionNote(event.target.value)} placeholder="Hangi alanın neden düzeltilmesi gerektiğini yazın. Örn. Program çıktısı 4 ölçülebilir değil; kabul koşulları güncel mevzuatla uyumlu olmalı."/></label><small>Bu talep ABD/ASD başkanı çalışma alanına bildirim olarak düşer.</small><footer><button type="button" onClick={()=>setCorrectionOpen(false)}>Vazgeç</button><button className="request" type="submit"><MessageSquareWarning size={14}/>Düzeltme Talebini Gönder</button></footer></form></section></div>}</section>;
 }

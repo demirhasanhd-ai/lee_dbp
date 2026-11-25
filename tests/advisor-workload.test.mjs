@@ -22,8 +22,14 @@ function fixture(respond = () => ({ ok: true, json: async () => payload() }), ba
     withTimeout: (promise) => promise,
     fetch: async (url, init) => { calls.push({ url: new URL(url), init }); return respond(url, init); },
     console: { error() {} },
+    normalizeScope: (value = "") => value.toLocaleLowerCase("tr-TR"), displayLevel: (value) => value,
+    databaseProgramCatalog: () => [
+      { mainDepartment: "Örnek ABD", department: "Alt A", programName: "Program A", levels: ["Doktora", "Tezli Yüksek Lisans"] },
+      { mainDepartment: "Örnek ABD", department: "Alt B", programName: "Program B", levels: ["Tezli Yüksek Lisans"] },
+      { mainDepartment: "Başka ABD", department: "Başka ABD", programName: "Program C", levels: ["Doktora"] },
+    ],
   });
-  for (const name of ["loadEEnstituAdvisorWorkload", "handleDbpApi"]) vm.runInContext(declarations.get(name), context);
+  for (const name of ["qualityScopeDefinitions", "loadEEnstituAdvisorWorkload", "handleDbpApi"]) vm.runInContext(declarations.get(name), context);
   return { calls, request: (query = "") => context.handleDbpApi(new Request("http://localhost/dbp/api/dbp/advisor-workload" + query)) };
 }
 
@@ -78,4 +84,33 @@ test("an unavailable source candidate falls back to another configured e-Enstit�
   }, ["http://old", "http://current"]);
   assert.equal((await request()).status, 200);
   assert.deepEqual(calls.map(({ url }) => url.hostname), ["old", "current"]);
+});
+
+test("parent ABD filters forward all matching catalog programs and track-only filters stay scoped", async () => {
+  const { request, calls } = fixture((url) => {
+    const query = new URL(url).searchParams;
+    return { ok: true, json: async () => ({ ...payload(), scope: {
+      ...(query.get("level") ? { level: query.get("level") } : {}),
+      ...(query.has("programs") ? { programs: JSON.parse(query.get("programs")) } : {}),
+    } }) };
+  });
+  for (const level of ["", "Tezli Yüksek Lisans", "Doktora"]) {
+    assert.equal((await request("?" + new URLSearchParams({ mainDepartment: "Örnek ABD", level }))).status, 200);
+    const programs = JSON.parse(calls.at(-1).url.searchParams.get("programs"));
+    assert.deepEqual(programs.map((item) => item.programName), level === "Doktora" ? ["Program A"] : level ? ["Program A", "Program B"] : ["Program A", "Program A", "Program B"]);
+    assert.ok(programs.every((item) => !level || item.level === level));
+  }
+  assert.equal((await request("?" + new URLSearchParams({ level: "Doktora" }))).status, 200);
+  assert.deepEqual(Object.fromEntries(calls.at(-1).url.searchParams), { level: "Doktora" });
+  const before = calls.length;
+  for (const query of [{ mainDepartment: "Olmayan ABD" }, { mainDepartment: "Başka ABD", level: "Tezli Yüksek Lisans" }, { level: "Lisans" }]) {
+    assert.equal((await request("?" + new URLSearchParams(query))).status, 400);
+  }
+  assert.equal(calls.length, before, "invalid scopes must never fall back to the institute");
+});
+
+test("sources that silently ignore the new scope cannot return institute counts", async () => {
+  const { request } = fixture();
+  assert.equal((await request("?" + new URLSearchParams({ mainDepartment: "Örnek ABD" }))).status, 503);
+  assert.equal((await request("?" + new URLSearchParams({ level: "Doktora" }))).status, 503);
 });

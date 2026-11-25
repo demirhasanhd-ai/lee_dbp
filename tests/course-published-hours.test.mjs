@@ -4,6 +4,27 @@ import { publishedHoursFixture as fixture, publishedHoursScope as scope } from "
 
 const hours = (course) => [course.theory, course.practice];
 
+test("ordinary revisions stay published in public lists, while an explicit PÇ count reset hides content until approval", async (t) => {
+  const { context, row, save, list } = fixture(t);
+  const published = { identity: { theory: "4", practice: "2" }, detailFields: { purpose: "Onaylı içerik" } };
+  const draft = { identity: { theory: "9", practice: "8" }, detailFields: { purpose: "Son taslak" } };
+  save(context.packageJsonForDraft(JSON.stringify(published), draft, "Komisyon Onayı Bekliyor", "teacher", "now", "Public"), "Komisyon Onayı Bekliyor");
+  assert.equal((await list()).status, "Public");
+  assert.equal(row().status, "Komisyon Onayı Bekliyor", "the public status does not overwrite the internal workflow");
+  const envelope = JSON.parse(row().package_json);
+  envelope.outcomeCountChange = { previousCount: 11, currentCount: 15, changedAt: "now", changedBy: "chair" };
+  envelope.draft.status = "Taslak";
+  save(envelope, "Taslak");
+  assert.equal((await list()).status, "Taslak");
+  assert.deepEqual(hours(await list()), [3, 1], "withdrawn identities must not be projected as approved hours");
+  assert.equal(context.publicPackageRecordForRow(row()), null);
+  assert.equal(context.coursePackagePdfPayload({ ...scope, publicOnly: true }), null);
+  assert.equal(context.editablePackageRecordForRow(row()).package.detailFields.purpose, "Son taslak");
+  save(context.packageJsonForDraft(row().package_json, draft, "Taslak", "teacher", "later", "Taslak"), "Taslak");
+  assert.equal(context.publicPackageRecordForRow(row()), null);
+  assert.deepEqual(JSON.parse(row().package_json).published.package, published, "the old approved package remains archived");
+});
+
 test("course list keeps approved hours through drafts and committee review, then reads final approval on the next request", async (t) => {
   const { context, row, save, list } = fixture(t);
   const published = { identity: { theory: "3", practice: "0" } };

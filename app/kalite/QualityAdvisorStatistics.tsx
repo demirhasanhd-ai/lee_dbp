@@ -3,17 +3,13 @@
 import { useEffect, useState } from "react";
 import { dbpPath } from "../../lib/dbpPath";
 
-type ProgramScope = { department: string; programName: string; level: string };
 type WorkloadResponse = {
   generatedAt: string;
   summary: { activeStudents: number; advisorCount: number; studentsPerAdvisor: number | null };
 };
 
-export function QualityAdvisorStatistics({ program }: { program?: ProgramScope }) {
-  const department = program?.department ?? "";
-  const programName = program?.programName ?? "";
-  const level = program?.level ?? "";
-  const scope = JSON.stringify([department, programName, level]);
+export function QualityAdvisorStatistics({ mainDepartment, level }: { mainDepartment: string; level: string }) {
+  const scope = JSON.stringify([mainDepartment, level]);
   const [loaded, setLoaded] = useState<{ scope: string; data: WorkloadResponse } | null>(null);
   const [error, setError] = useState<{ scope: string; message: string } | null>(null);
   const [retry, setRetry] = useState(0);
@@ -22,11 +18,8 @@ export function QualityAdvisorStatistics({ program }: { program?: ProgramScope }
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort("timeout"), 12_000);
     const query = new URLSearchParams();
-    if (programName) {
-      query.set("department", department);
-      query.set("programName", programName);
-      query.set("level", level);
-    }
+    if (mainDepartment) query.set("mainDepartment", mainDepartment);
+    if (level) query.set("level", level);
     fetch(dbpPath("/api/dbp/advisor-workload" + (query.size ? "?" + query : "")), { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json();
@@ -40,13 +33,13 @@ export function QualityAdvisorStatistics({ program }: { program?: ProgramScope }
       })
       .finally(() => window.clearTimeout(timeout));
     return () => { window.clearTimeout(timeout); controller.abort(); };
-  }, [department, programName, level, scope, retry]);
+  }, [mainDepartment, level, scope, retry]);
 
   const data = loaded?.scope === scope ? loaded.data : null;
   const message = error?.scope === scope ? error.message : "";
   return <section className="quality-panel advisor-panel" aria-label="Güncel öğrenci ve danışman istatistikleri">
     <header><div><small>ÖĞRENCİ VE DANIŞMAN GÖSTERGELERİ</small><h2>Güncel öğrenci ve danışman özeti</h2></div></header>
-    <p className="quality-note">{program ? program.programName + " · " + program.level : "Lisansüstü Eğitim Enstitüsü · Tüm programlar"}</p>
+    <p className="quality-note">{mainDepartment || "Tüm ABD / ASD"} · {level || "Tüm program türleri"}</p>
     {message ? <div role="alert"><p>{message}</p><button className="table-action" type="button" onClick={() => { setError(null); setLoaded(null); setRetry((value) => value + 1); }}>Yeniden dene</button></div>
       : !data ? <p role="status">Öğrenci ve danışman özeti yükleniyor…</p>
         : <>

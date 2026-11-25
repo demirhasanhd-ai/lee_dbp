@@ -721,6 +721,7 @@ test("program T/U columns read the approved database package after final approva
       assert.equal(await courseRow.locator("td").nth(6).innerText(), practice);
     };
     await expectHours("3", "0");
+    assert.equal(await courseRow.locator(".approval-badge.approved").count(), 1);
     assert.equal(context.transitionCoursePackageStatus(publishedHoursScope, "ABD Son Onayı Bekliyor", "committee").ok, true);
     await page.reload({ waitUntil: "networkidle" });
     await expectHours("3", "0");
@@ -730,6 +731,14 @@ test("program T/U columns read the approved database package after final approva
     save(context.packageJsonForDraft(row().package_json, { identity: { theory: "9", practice: "8" } }, "Taslak", "teacher", "later", "Yayımlandı"), "Taslak");
     await page.reload({ waitUntil: "networkidle" });
     await expectHours("4", "2");
+    assert.equal(await courseRow.locator(".approval-badge.approved").count(), 1, "ordinary improvements retain the approved public badge");
+    const withdrawn = JSON.parse(row().package_json);
+    withdrawn.outcomeCountChange = { previousCount: 11, currentCount: 15, changedAt: "later", changedBy: "chair" };
+    save(withdrawn, "Taslak");
+    await page.reload({ waitUntil: "networkidle" });
+    await courseRow.waitFor();
+    assert.equal(await courseRow.locator(".approval-badge.approved").count(), 0);
+    assert.equal(await courseRow.locator(".approval-badge.pending").count(), 1, "a count reset removes the approved public badge");
   });
 });
 
@@ -851,11 +860,84 @@ test("public profiles wait for the database and never display defaults on missin
   });
 });
 
+test("program TYYÇ matrix blocks untouched new columns and saves only after every cell is selected", async () => {
+  const scope = { mainDepartment: "İşletme ABD", department: "İşletme ABD", programName: "İşletme", levels: ["Doktora"] };
+  let profile = {
+    programName: scope.programName, level: "Doktora", degree: "Doktora", manager: "", language: "Türkçe", qualificationRules: "",
+    sections: Array.from({ length: 9 }, (_, index) => ({ title: `Bölüm ${index + 1}`, text: "Açıklama" })),
+    outcomes: Array.from({ length: 11 }, (_, index) => `Alan bilgisini değerlendirir ${index + 1}.`),
+    outcomeIds: Array.from({ length: 11 }, (_, index) => `pc-${index + 1}`),
+    tyycRows: ["T1", "T2"].map((code) => ({ code, title: `${code} yeterliliği`, values: Array.from({ length: 11 }, () => 2) })),
+    updatedAt: "seed",
+  };
+  const writes = [];
+  await withPublicPage("/dbp/panel", { preparePage: async (page) => {
+    await page.addInitScript(() => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Başkan", username: "test.chair", role: "abd_asd_baskani", department: "İşletme ABD" })));
+    await page.route("**/dbp/api/dbp/**", async (route) => {
+      const request = route.request();
+      const endpoint = new URL(request.url()).pathname.split("/").pop();
+      let payload;
+      if (endpoint === "program-profile") {
+        if (request.method() === "PUT") {
+          profile = request.postDataJSON().profile;
+          writes.push(structuredClone(profile));
+          profile.updatedAt = "saved";
+        }
+        payload = { profile };
+      } else payload = {
+        events: { ok: true }, access: { modules: ["program_profile"] }, memberships: { memberships: [] },
+        programs: { programs: [scope] }, "my-courses": { courses: [], total: 0 },
+        courses: { courses: [], total: 0 }, instructors: { instructors: [] },
+      }[endpoint];
+      assert.ok(payload, `Unexpected profile API: ${endpoint}`);
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify(payload) });
+    });
+  } }, async ({ page }) => {
+    await page.locator(".panel-sidebar nav").getByRole("button", { name: "Program Bilgileri", exact: true }).click();
+    await page.getByLabel("T1 ile PÇ11 ilişki düzeyi", { exact: true }).waitFor();
+    for (let index = 0; index < 4; index++) await page.getByRole("button", { name: "Çıktı Ekle", exact: true }).click();
+    for (let index = 11; index < 15; index++) await page.locator(".outcomes-card textarea").nth(index).fill(`Alan bilgisini değerlendirir ${index + 1}.`);
+    assert.equal(await page.getByLabel("T1 ile PÇ12 ilişki düzeyi", { exact: true }).inputValue(), "");
+    assert.equal(await page.getByLabel("T1 ile PÇ11 ilişki düzeyi", { exact: true }).inputValue(), "2");
+    await page.getByRole("button", { name: "Kaydet", exact: true }).click();
+    await page.locator(".tyyc-error").waitFor();
+    assert.match(await page.locator(".tyyc-error").innerText(), /T1: PÇ12, PÇ13, PÇ14, PÇ15/);
+    assert.equal(writes.length, 0);
+    assert.equal(await page.locator('.relation-select[aria-invalid="true"]').count(), 8);
+    await page.getByLabel("T1 ile PÇ12 ilişki düzeyi", { exact: true }).selectOption("0");
+    await page.getByRole("button", { name: "Kaydet", exact: true }).click();
+    assert.match(await page.locator(".tyyc-error").innerText(), /T1: PÇ13, PÇ14, PÇ15/);
+    assert.equal(writes.length, 0, "one edit must not silently fill the remaining cells with zero");
+    for (const code of ["T1", "T2"]) {
+      for (let column = 12; column <= 15; column++) await page.getByLabel(`${code} ile PÇ${column} ilişki düzeyi`, { exact: true }).selectOption("0");
+    }
+    const response = page.waitForResponse((value) => value.url().includes("/program-profile") && value.request().method() === "PUT");
+    await page.getByRole("button", { name: "Kaydet", exact: true }).click();
+    await response;
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].outcomes.length, 15);
+    assert.deepEqual(writes[0].tyycRows.map((row) => row.values), [
+      [...Array(11).fill(2), 0, 0, 0, 0], [...Array(11).fill(2), 0, 0, 0, 0],
+    ]);
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator(".panel-sidebar nav").getByRole("button", { name: "Program Bilgileri", exact: true }).click();
+    await page.getByLabel("T2 ile PÇ15 ilişki düzeyi", { exact: true }).waitFor();
+    assert.equal(await page.getByLabel("T2 ile PÇ15 ilişki düzeyi", { exact: true }).inputValue(), "0");
+    await page.getByRole("button", { name: "12. çıktıyı sil", exact: true }).click();
+    const removedResponse = page.waitForResponse((value) => value.url().includes("/program-profile") && value.request().method() === "PUT");
+    await page.getByRole("button", { name: "Kaydet", exact: true }).click();
+    await removedResponse;
+    assert.equal(writes[1].outcomes.length, 14);
+    assert.ok(writes[1].tyycRows.every((row) => row.values.length === 14));
+  });
+});
+
 test("legacy draft matrix suggestions use current columns once and preserve the teacher's saved blanks", async () => {
   const course = { id: 1, code: "ISL901", name: "Taslak Matris Dersi", department: "İşletme", programName: "İşletme", level: "Doktora", instructor: "Test Akademisyen", status: "Taslak" };
   const originalMatrix = [Object.fromEntries(Array.from({ length: 11 }, (_, index) => [`P${index + 1}`, index % 5 + 1]))];
   let stored = { outcomes: ["Dersin öğrenme çıktısını bilimsel araştırmalarda uygular."], contributionMatrix: originalMatrix };
   let count = 12;
+  let outcomeCountChange = null;
   const writes = [];
   await withPublicPage("/dbp/panel", { preparePage: async (page) => {
     await page.addInitScript((department) => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Akademisyen", username: "test.teacher", role: "akademisyen", department })), course.department);
@@ -869,7 +951,7 @@ test("legacy draft matrix suggestions use current columns once and preserve the 
           writes.push(body);
           stored = body.package;
           payload = { ok: true, status: "Taslak" };
-        } else payload = { package: stored, status: "Taslak", programOutcomes: Array.from({ length: count }, (_, index) => ({ id: `legacy-pc-${index + 1}`, text: `Başkanın çıktısı ${index + 1}` })) };
+        } else payload = { package: stored, status: "Taslak", outcomeCountChange, programOutcomes: Array.from({ length: count }, (_, index) => ({ id: `legacy-pc-${index + 1}`, text: `Başkanın çıktısı ${index + 1}` })) };
       } else payload = {
         events: { ok: true }, access: { modules: ["my_courses"] }, memberships: { memberships: [] },
         programs: { programs: [{ ...course, mainDepartment: "İşletme ABD", levels: [course.level] }] },
@@ -905,6 +987,29 @@ test("legacy draft matrix suggestions use current columns once and preserve the 
     await page.reload({ waitUntil: "networkidle" });
     await open();
     assert.deepEqual(await page.locator(".contribution-wrap select").evaluateAll((elements) => elements.map((element) => element.value)), Object.values(originalMatrix[0]).slice(0, 7).map(String));
+    // A future count reset keeps old scores but requires coverage of the new PÇ column.
+    count = 12;
+    outcomeCountChange = { previousCount: 11, currentCount: 12 };
+    stored = {
+      outcomes: ["Dersin öğrenme çıktısını bilimsel araştırmalarda uygular."],
+      programOutcomes: Array.from({ length: 11 }, (_, index) => ({ id: `legacy-pc-${index + 1}`, text: `Başkanın çıktısı ${index + 1}` })),
+      contributionMatrix: [Object.fromEntries(Object.values(originalMatrix[0]).map((score, index) => [`legacy-pc-${index + 1}`, score]))],
+    };
+    await page.reload({ waitUntil: "networkidle" });
+    await open();
+    assert.match(await page.locator(".course-bologna-form").innerText(), /11 → 12/);
+    assert.equal(await page.getByLabel("ÖÇ1 P12 katkısı", { exact: true }).inputValue(), "");
+    await page.locator(".publish-validation summary").click();
+    assert.match(await page.locator(".publish-validation").innerText(), /PÇ12 hiçbir ders öğrenme çıktısıyla eşleştirilmemiş/);
+    assert.equal(await page.getByRole("button", { name: "Onaya gönder", exact: true }).isDisabled(), true);
+    await page.getByLabel("ÖÇ1 P12 katkısı", { exact: true }).selectOption("4");
+    assert.doesNotMatch(await page.locator(".publish-validation").innerText(), /PÇ12 hiçbir ders öğrenme çıktısıyla eşleştirilmemiş/);
+    assert.equal(await page.getByLabel("ÖÇ1 P2 katkısı", { exact: true }).inputValue(), "2");
+    // Empty course packages must not acquire positional template scores after a count change.
+    stored = null;
+    await page.reload({ waitUntil: "networkidle" });
+    await open();
+    assert.ok((await page.locator(".contribution-wrap select").evaluateAll((elements) => elements.map((element) => element.value))).every((value) => value === ""));
   });
 });
 
@@ -932,8 +1037,93 @@ async function advisorQualitySnapshot(program) {
     { ...program, key: "non-thesis", level: "Tezsiz Yüksek Lisans" },
     { ...program, key: "empty", programName: "Verisiz Program", level: "Doktora" },
   ].map((scope) => ({ ...scope, label: `${scope.programName} · ${scope.level}`, stats: snapshot.institute }));
+  snapshot.filterScopes = ["", program.department].flatMap((mainDepartment) => ["", "Doktora", "Tezli Yüksek Lisans", "Tezsiz Yüksek Lisans"].map((level) => ({ mainDepartment, level, stats: snapshot.institute })));
+  snapshot.filterScopes.push({ mainDepartment: "Verisiz ABD", level: "", stats: snapshot.institute }, { mainDepartment: "Verisiz ABD", level: "Doktora", stats: snapshot.institute });
   return snapshot;
 }
+
+test("quality filters group parent ABD programs and update every visible section", async () => {
+  const { context, catalog, courses } = adminQualityFixture();
+  catalog[0].levels.push("Doktora");
+  const fullPackage = {
+    detailFields: { purpose: "Amaç", content: "İçerik", methods: "Yöntem", resources: "Kaynakça" },
+    outcomes: ["Analiz eder"], weeklyTopics: Array(15).fill("Konu"),
+    programOutcomes: [{ id: "P1" }], contributionMatrix: [{ P1: 3 }],
+    workloads: [{ count: 30, hours: 6 }], assessments: [{ name: "Final", percentage: 100 }], ects: 6,
+  };
+  courses[0].packageData = { ...fullPackage, sdgs: ["4", "9"] };
+  courses[7].packageData = { ...fullPackage, sdgs: ["4"] };
+  courses.push({ ...courses[0], code: "ISL9", level: "Doktora", term: "Bahar", status: "Taslak", packageData: { ...fullPackage, sdgs: ["13"] } });
+  const qualitySnapshot = JSON.parse(JSON.stringify(await context.buildQualitySnapshot()));
+  qualitySnapshot.nextRefreshAt = "2026-11-25T00:00:00.000Z";
+  const requests = [];
+  const ratio = (value, total) => total ? Math.round(value / total * 1000) / 10 : 0;
+  await withPublicPage("/dbp/kalite", {
+    qualitySnapshot,
+    advisorWorkloadFor: (url) => {
+      requests.push(Object.fromEntries(url.searchParams));
+      return { generatedAt: qualitySnapshot.generatedAt, summary: { activeStudents: 0, advisorCount: 0, studentsPerAdvisor: null } };
+    },
+  }, async ({ page }) => {
+    const department = page.getByRole("combobox", { name: "ABD / ASD", exact: true });
+    const level = page.getByRole("combobox", { name: "Program türü", exact: true });
+    await department.waitFor();
+    assert.deepEqual(await department.locator("option").allTextContents(), ["Tüm ABD / ASD", "Boş ASD", "İşletme ABD", "Matematik ABD"]);
+    assert.equal(await department.locator('option[value="Muhasebe ve Finansman"]').count(), 0);
+    const check = async (mainDepartment, track) => {
+      const stats = !mainDepartment && !track ? qualitySnapshot.institute
+        : qualitySnapshot.filterScopes.find((item) => item.mainDepartment === mainDepartment && item.level === track).stats;
+      assert.match(await page.locator(".quality-context-banner").innerText(), new RegExp(`${stats.totalCourses} ders`));
+      assert.deepEqual(await page.locator(".quality-kpis article p").allTextContents(), [
+        `${stats.completePackages}/${stats.totalCourses} ders`, `${stats.workloadConsistent}/${stats.packagedCourses} paket`,
+        `${stats.matrixComplete}/${stats.packagedCourses} paket`, `${stats.weeklyPlanComplete}/${stats.packagedCourses} paket`,
+        `${stats.assessmentComplete}/${stats.packagedCourses} paket`, `${stats.sdgCoverageCourses}/${stats.packagedCourses} paket`,
+      ]);
+      assert.deepEqual(await page.locator(".quality-kpis article strong").allTextContents(), [
+        [stats.completePackages, stats.totalCourses], [stats.workloadConsistent, stats.packagedCourses], [stats.matrixComplete, stats.packagedCourses],
+        [stats.weeklyPlanComplete, stats.packagedCourses], [stats.assessmentComplete, stats.packagedCourses], [stats.sdgCoverageCourses, stats.packagedCourses],
+      ].map(([value, total]) => `%${ratio(value, total)}`));
+      for (const [index, values] of [stats.termCounts, stats.levelCounts, stats.typeCounts].entries()) {
+        assert.deepEqual(await page.locator(".donut-chart").nth(index).locator("li b").allTextContents(), Object.values(values).filter((value) => value > 0).sort((a, b) => b - a).slice(0, 5).map(String));
+      }
+      assert.deepEqual(await page.locator(".quality-overview-grid .course-status-summary b").allTextContents(), [stats.approvedCourses, stats.unapprovedCourses, stats.awaitingAssignmentCourses].map(String));
+      assert.deepEqual(await page.locator(".evidence-bars article b").allTextContents(), [
+        `${stats.completePackages}/${stats.totalCourses}`, ...[stats.outcomesComplete, stats.weeklyPlanComplete, stats.workloadConsistent, stats.matrixComplete, stats.resourcesComplete].map((value) => `${value}/${stats.packagedCourses}`),
+      ]);
+      assert.deepEqual(await page.locator(".sdg-goal-grid strong").allTextContents(), stats.sdgGoals.map((item) => String(item.count)));
+      assert.deepEqual(await page.locator(".instructor-panel tbody tr").evaluateAll((rows) => rows.map((row) => [...row.cells].map((cell) => cell.textContent))), stats.titleLoads.map((row) => [row.title, row.academics, row.assignedCourses, row.theory, row.practice, row.weeklyHours].map(String)));
+      assert.deepEqual(await page.locator(".warning-list article > b").allTextContents(), stats.warnings.map((item) => item.code));
+      await page.locator(".advisor-panel .course-status-summary").waitFor();
+      assert.deepEqual(requests.at(-1), { ...(mainDepartment ? { mainDepartment } : {}), ...(track ? { level: track } : {}) });
+    };
+    await check("", "");
+    await department.selectOption("İşletme ABD");
+    await check("İşletme ABD", "");
+    await level.selectOption("Tezli Yüksek Lisans");
+    await check("İşletme ABD", "Tezli Yüksek Lisans");
+    assert.equal(await page.locator(".instructor-panel tbody tr").first().locator("td").nth(1).innerText(), "1", "the same teacher across branches is counted once");
+    await level.selectOption("Doktora");
+    await check("İşletme ABD", "Doktora");
+    await department.selectOption("");
+    await check("", "Doktora");
+    await department.selectOption("Matematik ABD");
+    assert.equal(await level.inputValue(), "", "an unavailable type resets to all types");
+    assert.deepEqual(await level.locator("option").allTextContents(), ["Tüm program türleri", "Tezli Yüksek Lisans"]);
+    await check("Matematik ABD", "");
+    await department.selectOption("Boş ASD");
+    await check("Boş ASD", "");
+    assert.ok((await page.locator(".quality-kpis article strong").allTextContents()).every((item) => item === "%0"));
+    await department.selectOption("İşletme ABD");
+    await check("İşletme ABD", "");
+    mkdirSync("local-volume/quality-filters", { recursive: true });
+    for (const width of [1440, 1000, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      const sizes = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
+      assert.ok(sizes.document <= sizes.viewport, JSON.stringify(sizes));
+      await page.screenshot({ path: `local-volume/quality-filters/${width}.png`, fullPage: width === 1440 });
+    }
+  });
+});
 
 test("quality advisor statistics follow report scope and appear below instructor loads", async () => {
   const program = { department: "Yönetim Bilişim Sistemleri ABD", programName: "Yönetim Bilişim Sistemleri" };
@@ -944,7 +1134,7 @@ test("quality advisor statistics follow report scope and appear below instructor
     advisorWorkloadFor: (url) => {
       requests.push(Object.fromEntries(url.searchParams));
       const level = url.searchParams.get("level");
-      const activeStudents = url.searchParams.get("programName") === "Verisiz Program" ? 0
+      const activeStudents = url.searchParams.get("mainDepartment") === "Verisiz ABD" ? 0
         : level === "Doktora" ? 4 : level === "Tezli Yüksek Lisans" ? 10 : level === "Tezsiz Yüksek Lisans" ? 1 : 15;
       const advisorCount = activeStudents === 0 ? 0 : level === "Tezsiz Yüksek Lisans" ? 1 : level ? 2 : 3;
       return { generatedAt: "2026-11-24T12:00:00.000Z", privateAdvisorName: "Never publish this advisor",
@@ -956,21 +1146,25 @@ test("quality advisor statistics follow report scope and appear below instructor
     await metrics.first().waitFor();
     assert.equal(await card.evaluate((element) => element.previousElementSibling.classList.contains("instructor-panel")), true);
     assert.deepEqual(await metrics.allTextContents(), ["15", "3", "5,00"]);
-    const scope = page.getByRole("combobox", { name: "Rapor kapsamı" });
-    await scope.selectOption("doctorate");
+    const department = page.getByRole("combobox", { name: "ABD / ASD", exact: true });
+    const scope = page.getByRole("combobox", { name: "Program türü", exact: true });
+    await department.selectOption(program.department);
+    await scope.selectOption("Doktora");
     await card.getByText("2,00", { exact: true }).waitFor();
     assert.deepEqual(await metrics.allTextContents(), ["4", "2", "2,00"]);
-    assert.deepEqual(requests.at(-1), { ...program, level: "Doktora" });
-    await scope.selectOption("masters");
+    assert.deepEqual(requests.at(-1), { mainDepartment: program.department, level: "Doktora" });
+    await scope.selectOption("Tezli Yüksek Lisans");
     await card.getByText("10", { exact: true }).waitFor();
     assert.deepEqual(await metrics.allTextContents(), ["10", "2", "5,00"]);
-    await scope.selectOption("empty");
+    await department.selectOption("Verisiz ABD");
     await card.getByText("Bu kapsamda aktif öğrencisi bulunan danışman yok.", { exact: true }).waitFor();
     assert.deepEqual(await metrics.allTextContents(), ["0", "0", "—"]);
-    await scope.selectOption("non-thesis");
+    await department.selectOption(program.department);
+    await scope.selectOption("Tezsiz Yüksek Lisans");
     await card.getByText("1,00", { exact: true }).waitFor();
     assert.deepEqual(await metrics.allTextContents(), ["1", "1", "1,00"]);
-    await scope.selectOption("institute");
+    await department.selectOption("");
+    await scope.selectOption("");
     await card.getByText("15", { exact: true }).waitFor();
     assert.deepEqual(await metrics.allTextContents(), ["15", "3", "5,00"]);
     assert.deepEqual(requests.at(-1), {});
@@ -1039,13 +1233,13 @@ test("quality advisor scope changes hide old metrics while loading and ignore la
   }, async ({ page }) => {
     const card = page.getByRole("region", { name: "Güncel öğrenci ve danışman istatistikleri" });
     await card.getByText("10", { exact: true }).waitFor();
-    const scope = page.getByRole("combobox", { name: "Rapor kapsamı" });
+    const scope = page.getByRole("combobox", { name: "Program türü", exact: true });
     try {
-      await scope.selectOption("masters");
+      await scope.selectOption("Tezli Yüksek Lisans");
       await started;
       await card.getByRole("status").waitFor();
       assert.equal(await card.locator(".course-status-summary").count(), 0);
-      await scope.selectOption("doctorate");
+      await scope.selectOption("Doktora");
       await card.getByText("4", { exact: true }).waitFor();
       release();
       await done;

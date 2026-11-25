@@ -33,6 +33,8 @@ const detailLabels: Record<string, string> = {
   pageTitle: "Sayfa",
   filters: "Uygulanan filtreler", from: "Başlangıç tarihi", to: "Bitiş tarihi", user: "Kullanıcı", role: "Rol", action: "İşlem", result: "Sonuç", q: "Arama", format: "İndirme biçimi",
   asOf: "Liste üst kayıt numarası",
+  previousCount: "Önceki PÇ sayısı", currentCount: "Yeni PÇ sayısı", affectedCourses: "Taslağa alınan ders sayısı",
+  previousStatus: "Önceki durum", changedAt: "Değişiklik tarihi", changedBy: "Değişikliği yapan",
 };
 
 function detailValue(key: string, value: unknown): string {
@@ -43,7 +45,7 @@ function detailValue(key: string, value: unknown): string {
   if (key === "module" && typeof value === "string") return moduleLabels[value] || value;
   if (typeof value === "boolean") return value ? "Evet" : "Hayır";
   if (value === null || value === undefined) return "—";
-  if (["expiresAt", "generatedAt"].includes(key) && typeof value === "string" && Number.isFinite(Date.parse(value))) return dateLabel(value);
+  if (["expiresAt", "generatedAt", "changedAt"].includes(key) && typeof value === "string" && Number.isFinite(Date.parse(value))) return dateLabel(value);
   if (Array.isArray(value)) return value.map((item) => typeof item === "string" ? moduleLabels[item] || item : JSON.stringify(item)).join(", ");
   if (typeof value === "object") return Object.entries(value).map(([name, entry]) => `${roleLabels[name] || detailLabels[name] || name}: ${detailValue(name, entry)}`).join("\n");
   return String(value);

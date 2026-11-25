@@ -14,6 +14,8 @@ import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
 import { ensureCourseProcessColumn, backfillCourseProcessFlags } from "./lib/courseProcessMigration.mjs";
 import { defaultProgramProfile } from "./lib/programProfileDefaults.mjs";
+import { programTyycValidationMessage } from "./lib/programTyycMatrix.mjs";
+import { initialContributionMatrix, missingProgramOutcomeMappingMessage } from "./lib/courseContributionDefaults.mjs";
 import { deflateRawSync, inflateRawSync } from "node:zlib";
 import {
   displayDepartment,
@@ -387,8 +389,9 @@ function isVersionedCoursePackage(value = {}) {
   );
 }
 
-function compactCoursePackageEnvelope({ published = null, draft = null } = {}) {
+function compactCoursePackageEnvelope({ published = null, draft = null, outcomeCountChange = null } = {}) {
   const envelope = { publicationModel: coursePackagePublicationModel };
+  if (outcomeCountChange) envelope.outcomeCountChange = outcomeCountChange;
   if (published?.package && Object.keys(published.package).length) {
     envelope.published = {
       package: published.package,
@@ -425,6 +428,7 @@ function coursePackageRecords(row = {}) {
 
 function publicPackageRecordForRow(row = {}, visibility = getPublicVisibilityMap()) {
   const records = coursePackageRecords(row);
+  if (records.data.outcomeCountChange) return null;
   if (records.published?.package) return records.published;
   if (records.legacy && (isPublicCourseStatus(row.status || "") || (
     isDepartmentPoolCourseRecord(row) &&
@@ -462,6 +466,7 @@ function packageJsonForDraft(existingJson, packageData = {}, status = "Taslak", 
   } : null);
   return JSON.stringify(compactCoursePackageEnvelope({
     published,
+    outcomeCountChange: records.data.outcomeCountChange,
     draft: {
       package: repairObject(packageData || {}),
       status,
@@ -734,6 +739,7 @@ async function loadEEnstituAdvisorWorkload(filters = {}) {
       for (const key of ["department", "programName", "level"]) {
         if (filters[key]) endpoint.searchParams.set(key, filters[key]);
       }
+      if (filters.programs) endpoint.searchParams.set("programs", JSON.stringify(filters.programs));
       const response = await withTimeout(fetch(endpoint, { cache: "no-store" }), Math.max(eEnstituDbTimeoutMs(), 5_000), lastError);
       const payload = await response.json();
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -743,6 +749,11 @@ async function loadEEnstituAdvisorWorkload(filters = {}) {
         || !Number.isSafeInteger(activeStudents) || !Number.isSafeInteger(advisorCount)
         || advisorCount < 0 || activeStudents < advisorCount || (!advisorCount && activeStudents !== 0)) {
         throw new Error("e-Enstitü danışman özeti yanıtı geçersiz.");
+      }
+      // Older sources ignore the new filters; never serve an institute total for a filtered request.
+      if ((filters.programs && JSON.stringify(payload.scope?.programs) !== JSON.stringify(filters.programs))
+        || (filters.level && !filters.programName && payload.scope?.level !== filters.level)) {
+        throw new Error("e-Enstitü danışman özeti seçili kapsamı desteklemiyor.");
       }
       // Forward only aggregates, even if the source response later gains other fields.
       return {
@@ -4968,6 +4979,13 @@ function transitionCoursePackageStatus(body, status, actor, options = {}) {
       expectedStatus: expected.join(", "),
     };
   }
+  if (!["Taslak", "Düzeltme İstendi"].some((value) => normalizeScope(value) === normalizeScope(status))) {
+    for (const row of rows) {
+      if (!coursePackageRecords(row).data.outcomeCountChange) continue;
+      const message = courseProgramOutcomeMappingError(editablePackageRecordForRow(row)?.package || {}, courseProgramOutcomes(courseFromRow(row)));
+      if (message) return { ok: false, validationError: message };
+    }
+  }
   const now = new Date().toISOString();
   const statement = db.prepare("UPDATE courses SET status = ?, updated_at = ? WHERE id = ?");
   const publishStatement = db.prepare("UPDATE courses SET status = ?, package_json = ?, updated_at = ? WHERE id = ?");
@@ -6484,7 +6502,14 @@ const courseListSelect = `
       source,
       CASE WHEN package_json IS NOT NULL AND TRIM(package_json) <> '' AND package_json <> '{}' THEN 1 ELSE 0 END AS has_package,
       CASE WHEN json_valid(package_json) THEN
+        CASE WHEN json_type(package_json, '$.outcomeCountChange') IS NULL
+          AND json_type(package_json, '$.published.package') = 'object'
+          THEN COALESCE(json_extract(package_json, '$.published.status'), 'Yayımlandı')
+        END
+      END AS public_status,
+      CASE WHEN json_valid(package_json) THEN
         CASE
+          WHEN json_type(package_json, '$.outcomeCountChange') IS NOT NULL THEN NULL
           WHEN json_type(package_json, '$.published.package') = 'object'
             THEN json_extract(package_json, '$.published.package.identity')
           WHEN status IN ('Yayımlandı', 'Yayınlandı', 'Public')
@@ -6511,7 +6536,7 @@ function dbCourseListFromRows(rows, filters = {}) {
   for (const row of rows) {
     const normalized = normalizeDbCourseForList(courseFromRow(row));
     if (!normalized) continue;
-    const course = courseWithPublishedHours(normalized, row);
+    const course = courseWithPublishedHours(filters.publicVisible && row.public_status ? { ...normalized, status: row.public_status } : normalized, row);
     const key = courseListKey(course);
     const current = byKey.get(key);
     const canonicalExact = row.code === normalized.code;
@@ -7529,7 +7554,33 @@ function qualityStats(filters = {}, options = {}) {
   };
 }
 
-const qualitySnapshotMetadataKey = "quality_indicators_snapshot_v4";
+const qualitySnapshotMetadataKey = "quality_indicators_snapshot_v5";
+
+function qualityScopeDefinitions(catalog, programs = []) {
+  const entries = new Map();
+  const identity = (program) => [program.department, program.programName, program.level].map(normalizeScope).join("|");
+  for (const program of catalog) {
+    for (const level of program.levels) {
+      const entry = { mainDepartment: program.mainDepartment || program.department, department: program.department, programName: program.programName, level: displayLevel(level) };
+      entries.set(identity(entry), entry);
+    }
+  }
+  for (const program of programs) {
+    const parent = catalog.find((entry) => normalizeScope(entry.department) === normalizeScope(program.department)
+      && normalizeScope(entry.programName) === normalizeScope(program.programName));
+    const entry = { ...program, mainDepartment: parent?.mainDepartment || parent?.department || program.department };
+    if (!entries.has(identity(entry))) entries.set(identity(entry), entry);
+  }
+  const scopes = new Map();
+  for (const program of entries.values()) {
+    for (const [mainDepartment, level] of [["", program.level], [program.mainDepartment, ""], [program.mainDepartment, program.level]]) {
+      const key = JSON.stringify([mainDepartment, level]);
+      if (!scopes.has(key)) scopes.set(key, { mainDepartment, level, programs: [] });
+      scopes.get(key).programs.push({ department: program.department, programName: program.programName, level: program.level });
+    }
+  }
+  return [...scopes.values()].sort((a, b) => `${a.mainDepartment}|${a.level}`.localeCompare(`${b.mainDepartment}|${b.level}`, "tr"));
+}
 const adminQualityReportMetadataKey = "quality_control_report_v1";
 
 function buildAdminQualityReport(allCourses, institute, programs, options = {}) {
@@ -7675,7 +7726,17 @@ async function buildQualitySnapshot(actor = "system") {
       }),
     };
   });
-  const snapshot = { generatedAt, source: "database_snapshot", instructorSource: instructorCatalog.source, schedule: courseStatisticsSchedule(), institute, programs };
+  const filterScopes = qualityScopeDefinitions(databaseProgramCatalog(), scopes).map((scope) => {
+    const scopedCourses = allCourses.filter((course) => scope.programs.some((program) => courseMatchesFilters(course, program)));
+    return {
+      mainDepartment: scope.mainDepartment,
+      level: scope.level,
+      stats: qualityStats({ mainDepartment: scope.mainDepartment, level: scope.level }, {
+        courses: scopedCourses, rowsByCourse, visibility, includeTitleLoads: true,
+      }),
+    };
+  });
+  const snapshot = { generatedAt, source: "database_snapshot", instructorSource: instructorCatalog.source, schedule: courseStatisticsSchedule(), institute, programs, filterScopes };
   const adminReport = { generatedAt, ...buildAdminQualityReport(allCourses, institute, programs, { rowsByCourse, visibility }) };
   db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(adminQualityReportMetadataKey, JSON.stringify(adminReport));
   db.prepare("INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)").run(qualitySnapshotMetadataKey, JSON.stringify(snapshot));
@@ -9096,53 +9157,103 @@ function getProgramProfile(programName, level) {
   return programProfileFromRow(row);
 }
 
+function resetCoursesForProgramOutcomeCountChange(previous, next, actor, now) {
+  const rows = db.prepare("SELECT * FROM courses WHERE program_name = ?").all(next.programName)
+    .filter((row) => normalizeProfileLevel(row.level) === next.level);
+  const update = db.prepare("UPDATE courses SET status = 'Taslak', package_json = ?, updated_at = ? WHERE id = ?");
+  const previousOutcomes = previous.outcomes.map((text, index) => ({ id: previous.outcomeIds[index], text }));
+  const change = { previousCount: previous.outcomes.length, currentCount: next.outcomes.length, changedAt: now, changedBy: actor };
+  const note = `Program çıktısı sayısı ${change.previousCount} → ${change.currentCount} olarak değiştirildi. Ders Taslak durumuna alındı; güncel PÇ eşleştirmesi ve yeniden onay gerekiyor.`;
+  for (const row of rows) {
+    const records = coursePackageRecords(row);
+    const editable = records.draft || records.published || (records.legacy ? { package: records.legacy } : null);
+    const packageData = editable?.package ? {
+      ...editable.package,
+      contributionMatrix: initialContributionMatrix(editable.package, previousOutcomes, "Taslak"),
+      // Freeze the old identities so removed/reordered columns cannot inherit positional scores.
+      programOutcomes: editable.package.programOutcomes ?? previousOutcomes,
+    } : null;
+    const published = records.published || (records.legacy && isPublicCourseStatus(row.status) ? {
+      package: records.legacy, status: row.status, approvedAt: row.updated_at, approvedBy: "",
+    } : null);
+    update.run(JSON.stringify(compactCoursePackageEnvelope({
+      published,
+      draft: packageData ? { package: packageData, status: "Taslak", updatedAt: now, submittedAt: "", submittedBy: actor } : null,
+      outcomeCountChange: change,
+    })), now, row.id);
+    const body = courseFromRow(row);
+    deactivateCourseReviewAssignees(body);
+    recordWorkflowRequest({ kind: "course-package-outcome-count-change", body, route: "Program bilgileri → Ders sorumlusu", note, status: "Taslak", actor });
+    audit("course.package.outcome-count-reset", actor, {
+      code: row.code, department: row.department, programName: next.programName, level: next.level,
+      previousStatus: row.status, status: "Taslak", ...change, note,
+    });
+  }
+  return rows.length;
+}
+
 function upsertProgramProfile(profile, actor) {
   const normalized = normalizeProgramProfilePayload(profile);
   if (!normalized.programName || !normalized.level) {
     throw new Error("Program adı ve düzeyi zorunludur.");
   }
   const now = new Date().toISOString();
-  const current = getProgramProfile(normalized.programName, normalized.level);
-  const existingIds = new Set(current?.outcomeIds || []);
-  const usedIds = new Set();
-  const outcomeRecords = normalized.outcomes.map((text, index) => {
-    const matchingIndexes = current?.outcomes.flatMap((previous, position) => previous === text ? [position] : []) ?? [];
-    const requestedId = Array.isArray(profile.outcomeIds)
-      ? profile.outcomeIds[index]
-      : matchingIndexes.length === 1 ? current.outcomeIds[matchingIndexes[0]] : null;
-    const id = existingIds.has(requestedId) && !usedIds.has(requestedId) ? requestedId : `pc-${randomUUID()}`;
-    usedIds.add(id);
-    return { id, text };
-  });
-  db.prepare(`
-    INSERT INTO program_profiles(program_name, level, degree, manager, language, qualification_rules, sections_json, outcomes_json, tyyc_rows_json, created_at, updated_at, updated_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(program_name, level) DO UPDATE SET
-      degree = excluded.degree,
-      manager = excluded.manager,
-      language = excluded.language,
-      qualification_rules = excluded.qualification_rules,
-      sections_json = excluded.sections_json,
-      outcomes_json = excluded.outcomes_json,
-      tyyc_rows_json = excluded.tyyc_rows_json,
-      updated_at = excluded.updated_at,
-      updated_by = excluded.updated_by
-  `).run(
-    normalized.programName,
-    normalized.level,
-    normalized.degree,
-    normalized.manager,
-    normalized.language,
-    normalized.qualificationRules,
-    JSON.stringify(normalized.sections),
-    JSON.stringify(outcomeRecords),
-    JSON.stringify(normalized.tyycRows),
-    now,
-    now,
-    actor || "dbp-user",
-  );
-  audit("program_profile.save", actor, { programName: normalized.programName, level: normalized.level });
-  return getProgramProfile(normalized.programName, normalized.level);
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const current = getProgramProfile(normalized.programName, normalized.level);
+    const existingIds = new Set(current?.outcomeIds || []);
+    const usedIds = new Set();
+    const outcomeRecords = normalized.outcomes.map((text, index) => {
+      const matchingIndexes = current?.outcomes.flatMap((previous, position) => previous === text ? [position] : []) ?? [];
+      const requestedId = Array.isArray(profile.outcomeIds)
+        ? profile.outcomeIds[index]
+        : matchingIndexes.length === 1 ? current.outcomeIds[matchingIndexes[0]] : null;
+      const id = existingIds.has(requestedId) && !usedIds.has(requestedId) ? requestedId : `pc-${randomUUID()}`;
+      usedIds.add(id);
+      return { id, text };
+    });
+    db.prepare(`
+      INSERT INTO program_profiles(program_name, level, degree, manager, language, qualification_rules, sections_json, outcomes_json, tyyc_rows_json, created_at, updated_at, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(program_name, level) DO UPDATE SET
+        degree = excluded.degree,
+        manager = excluded.manager,
+        language = excluded.language,
+        qualification_rules = excluded.qualification_rules,
+        sections_json = excluded.sections_json,
+        outcomes_json = excluded.outcomes_json,
+        tyyc_rows_json = excluded.tyyc_rows_json,
+        updated_at = excluded.updated_at,
+        updated_by = excluded.updated_by
+    `).run(
+      normalized.programName,
+      normalized.level,
+      normalized.degree,
+      normalized.manager,
+      normalized.language,
+      normalized.qualificationRules,
+      JSON.stringify(normalized.sections),
+      JSON.stringify(outcomeRecords),
+      JSON.stringify(normalized.tyycRows),
+      now,
+      now,
+      actor || "dbp-user",
+    );
+    const countChanged = Boolean(current && current.outcomes.length !== normalized.outcomes.length);
+    const affectedCourses = countChanged ? resetCoursesForProgramOutcomeCountChange(current, normalized, actor, now) : 0;
+    audit("program_profile.save", actor, {
+      programName: normalized.programName, level: normalized.level,
+      ...(countChanged ? { previousCount: current.outcomes.length, currentCount: normalized.outcomes.length, affectedCourses,
+        note: `Program çıktısı sayısı ${current.outcomes.length} → ${normalized.outcomes.length} olarak değiştirildi; ${affectedCourses} ders Taslak durumuna alındı.` } : {}),
+    });
+    const saved = getProgramProfile(normalized.programName, normalized.level);
+    db.exec("COMMIT");
+    if (countChanged) publicCourseRouteIndexCache = undefined;
+    return saved;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 function courseProgramOutcomes(course) {
@@ -9158,6 +9269,20 @@ function matrixForProgramOutcomes(matrix, programOutcomes) {
       return Number.isInteger(score) && score >= 1 && score <= 5 ? [[id, score]] : [];
     }),
   ));
+}
+
+function courseProgramOutcomeMappingError(packageData, programOutcomes) {
+  if (!Array.isArray(packageData.programOutcomes) ||
+      JSON.stringify(packageData.programOutcomes.map(({ id, text }) => ({ id, text }))) !== JSON.stringify(programOutcomes)) {
+    return "Program çıktıları değişti. Sayfayı yeniden yükleyip katkı matrisini güncel program çıktılarıyla kaydedin.";
+  }
+  const outcomes = Array.isArray(packageData.outcomes) ? packageData.outcomes : [];
+  const matrix = matrixForProgramOutcomes(packageData.contributionMatrix, programOutcomes);
+  if (!programOutcomes.length || !outcomes.some((text) => typeof text === "string" && text.trim()) ||
+      outcomes.some((text, index) => typeof text === "string" && text.trim() && !Object.keys(matrix[index] || {}).length)) {
+    return "Her ders öğrenme çıktısına en az bir program çıktısı için katkı puanı verin.";
+  }
+  return missingProgramOutcomeMappingMessage(programOutcomes, outcomes.map((text) => typeof text === "string" ? text : ""), matrix);
 }
 
 async function listBackups() {
@@ -9795,9 +9920,14 @@ async function handleDbpApi(request) {
 
     if (pathname === "/api/dbp/advisor-workload" && request.method === "GET") {
       const filters = Object.fromEntries(["department", "programName", "level"].map((key) => [key, (url.searchParams.get(key) || "").trim()]));
-      const values = Object.values(filters);
-      if (values.some(Boolean) && !values.every(Boolean)) {
+      const mainDepartment = (url.searchParams.get("mainDepartment") || "").trim();
+      if ((filters.department || filters.programName) && (!filters.department || !filters.programName || !filters.level || mainDepartment)) {
         return jsonResponse({ message: "Program kapsamı eksik." }, { status: 400 });
+      }
+      if (mainDepartment || (filters.level && !filters.programName)) {
+        const scope = qualityScopeDefinitions(databaseProgramCatalog()).find((item) => item.mainDepartment === mainDepartment && item.level === filters.level);
+        if (!scope) return jsonResponse({ message: "Seçilen ABD/ASD veya program türü bulunamadı." }, { status: 400 });
+        if (mainDepartment) filters.programs = [...new Map(scope.programs.map(({ programName, level }) => [JSON.stringify([programName, level]), { programName, level }])).values()];
       }
       try {
         return jsonResponse(await loadEEnstituAdvisorWorkload(filters));
@@ -10104,11 +10234,11 @@ async function handleDbpApi(request) {
       const hasPublicPackage = hasPublicReadableCoursePackage(found.row);
       const publicRecord = publicPackageRecordForRow(found.row);
       return jsonResponse({
-        course: found.course,
+        course: publicRecord ? { ...found.course, status: publicRecord.status } : found.course,
         package: publicRecord?.package
           ? packageWithCourseInstructor(publicRecord.package, found.course)
           : null,
-        status: repairText(found.row.status || ""),
+        status: repairText(publicRecord?.status || found.row.status || ""),
         updatedAt: found.row.updated_at,
         approvedAt: publicRecord?.approvedAt || "",
         packagePending: !hasPublicPackage,
@@ -10146,6 +10276,7 @@ async function handleDbpApi(request) {
         return jsonResponse({
           package: null,
           programOutcomes,
+          ...(!publicOnly ? { outcomeCountChange: coursePackageRecords(latest || {}).data.outcomeCountChange ?? null } : {}),
           status: repairText(latest?.status || ""),
           packagePending: Boolean(publicOnly && latest),
         }, { headers: { "Cache-Control": "no-store" } });
@@ -10155,7 +10286,8 @@ async function handleDbpApi(request) {
       return jsonResponse({
         package: packageRecord?.package ? packageWithCourseInstructor(packageRecord.package, course) : null,
         programOutcomes,
-        status: repairText(row.status || ""),
+        ...(!publicOnly ? { outcomeCountChange: coursePackageRecords(row).data.outcomeCountChange ?? null } : {}),
+        status: repairText((publicOnly ? packageRecord?.status : row.status) || row.status || ""),
         updatedAt: row.updated_at,
         approvedAt: packageRecord?.approvedAt || "",
         workflow: {
@@ -10193,6 +10325,11 @@ async function handleDbpApi(request) {
 
       if (!matchingRows.length) return jsonResponse({ message: "Düzenlenecek ders kaydı bulunamadı." }, { status: 404 });
       const incomingPackage = body.package || {};
+      const outcomeCountChanged = matchingRows.some((row) => Boolean(coursePackageRecords(row).data.outcomeCountChange));
+      if (submittedForCommittee && outcomeCountChanged) {
+        const message = courseProgramOutcomeMappingError(incomingPackage, courseProgramOutcomes(courseFromRow(matchingRows[0])));
+        if (message) return jsonResponse({ message }, { status: 422 });
+      }
       if (Array.isArray(incomingPackage.programOutcomes)) {
         const programOutcomes = courseProgramOutcomes(courseFromRow(matchingRows[0]));
         if (JSON.stringify(incomingPackage.programOutcomes.map((outcome) => ({ id: outcome?.id, text: outcome?.text }))) !== JSON.stringify(programOutcomes)) {
@@ -10268,6 +10405,7 @@ async function handleDbpApi(request) {
       }
       const status = requestedStatus || "Yayımlandı";
       const transition = transitionCoursePackageStatus(body, status, auth.session.name || auth.session.username || "dbp-user", { force: forceStatus });
+      if (transition.validationError) return jsonResponse({ message: transition.validationError }, { status: 422 });
       if (transition.missing) return jsonResponse({ message: "Onaylanacak kayıtlı ders paketi bulunamadı." }, { status: 404 });
       if (transition.conflict) {
         return jsonResponse({
@@ -10332,6 +10470,8 @@ async function handleDbpApi(request) {
         return jsonResponse({ message: "Program profili değişti. Sayfayı yeniden yükleyip tekrar deneyin." }, { status: 409 });
       }
       const actor = auth.session?.username || auth.session?.name || "dbp-user";
+      const matrixError = programTyycValidationMessage(profile, getProgramProfile(profile.programName, profile.level)?.tyycRows ?? []);
+      if (matrixError) return jsonResponse({ message: matrixError }, { status: 400 });
       return jsonResponse({ ok: true, profile: upsertProgramProfile(profile, actor) });
     }
 

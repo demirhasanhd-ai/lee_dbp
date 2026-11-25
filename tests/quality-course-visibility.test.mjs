@@ -62,7 +62,7 @@ function fixture() {
     "courseVisibilityKeyFor", "courseContentVisibilityKeyFor", "isVisibilityKeyPublic", "isProgramLevelVisibleForCourse",
     "isCoursePubliclyVisible", "isPublicCourseStatus", "courseMatchesFilters",
     "academicTitle", "instructorPeople", "titleLoadStats", "workloadMatchesEcts", "scopedInstructorOptions",
-    "qualityCourseAssignment", "qualityStats", "readQualitySnapshot", "buildAdminQualityReport", "buildQualitySnapshot",
+    "qualityCourseAssignment", "qualityStats", "qualityScopeDefinitions", "readQualitySnapshot", "buildAdminQualityReport", "buildQualitySnapshot",
   ];
   vm.runInContext(`const qualitySnapshotMetadataKey = ${snapshotKey};\n${names.map((name) => {
     assert.ok(declarations.has(name), name);
@@ -125,4 +125,40 @@ test("institute and program snapshots persist the same filtered metrics and igno
   assert.deepEqual(program, institute);
   assert.equal(JSON.parse(metadata.get(JSON.parse(snapshotKey))).institute.totalCourses, 2);
   assert.equal(JSON.parse(metadata.get("quality_indicators_snapshot_v3")).institute.totalCourses, 999);
+});
+
+test("two filters aggregate every metric by catalog parent and track, deduplicating teaching staff", async () => {
+  const { context, courses } = fixture();
+  const masters = "Tezli Yüksek Lisans";
+  // Use arbitrary parent/branch names: the grouping must never depend on a special ABD.
+  const catalog = [
+    { mainDepartment: "Örnek ABD", department: "Matematik ABD", programName: "Matematik", levels: [masters, "Doktora"] },
+    { mainDepartment: "Örnek ABD", department: "Alt Dal", programName: "İkinci Program", levels: [masters] },
+    { mainDepartment: "Diğer ASD", department: "Diğer ASD", programName: "Diğer", levels: ["Doktora"] },
+    { mainDepartment: "Boş ABD", department: "Boş ABD", programName: "Boş", levels: [masters] },
+  ];
+  context.databaseProgramCatalog = () => catalog;
+  courses.push(
+    { ...courses[0], code: "SECOND", department: "Alt Dal", programName: "İkinci Program", term: "Bahar", status: "Taslak", packageData: null },
+    { ...courses[0], code: "PHD", level: "Doktora", instructor: "Doç. Dr. Diğer Hoca" },
+    { ...courses[0], code: "OTHER", department: "Diğer ASD", programName: "Diğer", level: "Doktora" },
+  );
+  const snapshot = plain(await context.buildQualitySnapshot());
+  const find = (department, level) => snapshot.filterScopes.find((scope) => scope.mainDepartment === department && scope.level === level)?.stats;
+  for (const [department, level, included] of [
+    ["Örnek ABD", "", [courses[0], courses[1], courses[5], courses[6]]],
+    ["Örnek ABD", masters, [courses[0], courses[1], courses[5]]],
+    ["", "Doktora", [courses[6], courses[7]]],
+    ["Diğer ASD", "Doktora", [courses[7]]],
+    ["Boş ABD", "", []],
+  ]) {
+    const { scope, ...actual } = find(department, level);
+    const { scope: ignored, ...expected } = plain(context.qualityStats({}, { courses: included, includeTitleLoads: true }));
+    assert.deepEqual(actual, expected, `${department} / ${level}: every counter, warning, distribution, SDG and teaching load follows the same courses`);
+  }
+  assert.equal(find("Örnek ABD", masters).titleLoads[0].academics, 1);
+  assert.equal(find("Örnek ABD", masters).titleLoads[0].assignedCourses, 2);
+  assert.equal(find("Örnek ABD", masters).warnings.length, 2);
+  assert.equal(find("", "Doktora").totalCourses, 2);
+  assert.equal(find("Diğer ASD", masters), undefined, "unsupported program types are absent");
 });

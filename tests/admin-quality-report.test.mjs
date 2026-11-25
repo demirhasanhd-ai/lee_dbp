@@ -54,9 +54,9 @@ test("ABD rows include branch programs and empty departments, with exact institu
 
 test("old snapshots bootstrap the admin report once; daily refresh updates both reports together", async () => {
   const { context, metadata, courses } = adminQualityFixture();
-  metadata.set("quality_indicators_snapshot_v4", JSON.stringify({ generatedAt: new Date().toISOString(), institute: { totalCourses: 123 } }));
+  metadata.set("quality_indicators_snapshot_v5", JSON.stringify({ generatedAt: new Date().toISOString(), institute: { totalCourses: 123 } }));
   const report = await context.currentAdminQualityReport();
-  const publicSnapshot = JSON.parse(metadata.get("quality_indicators_snapshot_v4"));
+  const publicSnapshot = JSON.parse(metadata.get("quality_indicators_snapshot_v5"));
   assert.equal(report.generatedAt, publicSnapshot.generatedAt);
   assert.equal(report.institute.publicCourses, publicSnapshot.institute.totalCourses);
   courses[0].status = "Düzeltme İstendi";

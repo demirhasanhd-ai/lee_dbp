@@ -2151,7 +2151,7 @@ test("kalite göstergeleri enstitü ve program kapsamını canlı DB anlık gör
   assert.match(page, /12_000/u, "takılan veri isteği zaman aşımına uğramalı");
   assert.match(page, /Yeniden dene/u, "hata ekranı yeniden deneme olanağı sunmalı");
   assert.doesNotMatch(page, /item\.instructor/u, "public kalite ekranında kişi adı gösterilmemeli");
-  assert.match(server, /quality_indicators_snapshot_v4/u);
+  assert.match(server, /quality_indicators_snapshot_v5/u);
   assert.match(server, /latestMainDataRefreshDate/u);
   assert.match(server, /nextMainDataRefreshDate/u);
   assert.match(server, /refreshRetryDate/u);

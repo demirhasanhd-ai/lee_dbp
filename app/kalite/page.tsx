@@ -63,12 +63,9 @@ type QualityStats = {
   titleLoads: TitleLoad[];
   warnings: QualityWarning[];
 };
-type ProgramSnapshot = {
-  key: string;
-  department: string;
-  programName: string;
+type FilterScope = {
+  mainDepartment: string;
   level: string;
-  label: string;
   stats: QualityStats;
 };
 type QualitySnapshot = {
@@ -78,27 +75,27 @@ type QualitySnapshot = {
   instructorSource: string;
   schedule: string[];
   institute: QualityStats;
-  programs: ProgramSnapshot[];
+  filterScopes: FilterScope[];
 };
 
 const ratio = (value: number, total: number) => total ? Math.round((value / total) * 1000) / 10 : 0;
 
 export default function QualityIndicatorsPage() {
   const [snapshot, setSnapshot] = useState<QualitySnapshot | null>(null);
-  const [selectedKey, setSelectedKey] = useState("institute");
+  const [mainDepartment, setMainDepartment] = useState("");
+  const [level, setLevel] = useState("");
   const [error, setError] = useState("");
   const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort("timeout"), 12_000);
-    setError("");
     fetch(dbpPath("/api/dbp/quality-stats"), { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Kalite göstergeleri veritabanından alınamadı.");
         return response.json() as Promise<QualitySnapshot>;
       })
-      .then(setSnapshot)
+      .then((data) => { if (!controller.signal.aborted) setSnapshot(data); })
       .catch((reason: unknown) => {
         if (controller.signal.reason === "timeout") {
           setError("Kalite göstergeleri zamanında yüklenemedi. Sunucu bağlantısını kontrol edip yeniden deneyin.");
@@ -113,12 +110,12 @@ export default function QualityIndicatorsPage() {
     };
   }, [retryKey]);
 
-  const selectedProgram = useMemo(
-    () => snapshot?.programs.find((program) => program.key === selectedKey),
-    [selectedKey, snapshot],
-  );
-  const stats = selectedProgram?.stats ?? snapshot?.institute;
-  const isInstitute = !selectedProgram;
+  const departments = useMemo(() => [...new Set(snapshot?.filterScopes.map((scope) => scope.mainDepartment).filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr")), [snapshot]);
+  const availableLevels = useMemo(() => [...new Set(snapshot?.filterScopes.filter((scope) => scope.mainDepartment === mainDepartment && scope.level).map((scope) => scope.level))].sort((a, b) => a.localeCompare(b, "tr")), [snapshot, mainDepartment]);
+  const selectedLevel = availableLevels.includes(level) ? level : "";
+  const isInstitute = !mainDepartment && !selectedLevel;
+  const stats = isInstitute ? snapshot?.institute : snapshot?.filterScopes.find((scope) => scope.mainDepartment === mainDepartment && scope.level === selectedLevel)?.stats;
+  const scopeLabel = `${mainDepartment || "Tüm ABD / ASD"} · ${selectedLevel || "Tüm program türleri"}`;
   const approvedCourses = stats?.approvedCourses ?? 0;
   const unapprovedCourses = stats?.unapprovedCourses ?? Math.max((stats?.totalCourses ?? 0) - approvedCourses, 0);
   const awaitingAssignmentCourses = stats?.awaitingAssignmentCourses ?? 0;
@@ -138,23 +135,27 @@ export default function QualityIndicatorsPage() {
       {snapshot && (
         <section className="quality-scope quality-scope-selector">
           <label>
-            <span>Rapor kapsamı</span>
-            <select value={selectedKey} onChange={(event) => setSelectedKey(event.target.value)}>
-              <option value="institute">Lisansüstü Eğitim Enstitüsü · Tüm programlar</option>
-              {snapshot.programs.map((program) => <option key={program.key} value={program.key}>{program.label}</option>)}
+            <span>ABD / ASD</span>
+            <select value={mainDepartment} onChange={(event) => {
+              const department = event.target.value;
+              setMainDepartment(department);
+              if (!snapshot.filterScopes.some((scope) => scope.mainDepartment === department && scope.level === level)) setLevel("");
+            }}>
+              <option value="">Tüm ABD / ASD</option>
+              {departments.map((department) => <option key={department} value={department}>{department}</option>)}
             </select>
           </label>
-          <div><span>Görünüm</span><strong>{isInstitute ? "Enstitü geneli" : `${selectedProgram.department} / ${selectedProgram.level}`}</strong></div>
+          <label><span>Program türü</span><select value={selectedLevel} onChange={(event) => setLevel(event.target.value)}><option value="">Tüm program türleri</option>{availableLevels.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           <div><span>Son veri yenileme</span><strong>{new Date(snapshot.generatedAt).toLocaleString("tr-TR")}</strong></div>
           <div><span>Sonraki otomatik yenileme</span><strong>{new Date(snapshot.nextRefreshAt).toLocaleString("tr-TR")}</strong></div>
         </section>
       )}
 
       {!snapshot && !error && <section className="quality-loading">Kalite ve SKA göstergeleri hazırlanıyor…</section>}
-      {error && <section className="quality-error"><AlertTriangle size={18} /><span>{error}</span><button type="button" onClick={() => setRetryKey((value) => value + 1)}>Yeniden dene</button></section>}
+      {error && <section className="quality-error"><AlertTriangle size={18} /><span>{error}</span><button type="button" onClick={() => { setError(""); setRetryKey((value) => value + 1); }}>Yeniden dene</button></section>}
       {snapshot && stats && <>
         <section className="quality-context-banner">
-          <div><Layers3 size={18} /><span>{isInstitute ? "Tüm programlar" : selectedProgram.programName}</span></div>
+          <div><Layers3 size={18} /><span>{scopeLabel}</span></div>
           <p>{stats.totalCourses.toLocaleString("tr-TR")} ders · {stats.packagedCourses.toLocaleString("tr-TR")} bilgi paketi · {stats.sdgLinks.toLocaleString("tr-TR")} SKA ilişkisi</p>
         </section>
 
@@ -184,7 +185,7 @@ export default function QualityIndicatorsPage() {
               <article><span>Onaysız / süreçte</span><b>{unapprovedCourses}</b></article>
               <article><span>Atama bekleyen</span><b>{awaitingAssignmentCourses}</b><small>{stats.totalCourses} ders içinde</small></article>
             </div>
-            <small>Rapor kapsamı değiştikçe onay durumu ve öğretim elemanı ataması aynı program filtresine göre güncellenir.</small>
+            <small>Onay durumu ve öğretim elemanı ataması seçilen ABD/ASD ve program türüne göre güncellenir.</small>
           </article>
         </section>
 
@@ -225,7 +226,7 @@ export default function QualityIndicatorsPage() {
           <p className="quality-note">Kişi adı, e-posta veya özlük verisi gösterilmez. {isInstitute ? "Akademisyen sayısı mevcut akademisyen kaynağından; ders ve saatler LEE_DBP görevlendirmelerinden unvan bazında gruplanır." : "Seçili kapsamda ders görevlendirmesi bulunan akademisyenler unvan bazında gruplanır."}</p>
         </section>
 
-        <QualityAdvisorStatistics program={selectedProgram} />
+        <QualityAdvisorStatistics mainDepartment={mainDepartment} level={selectedLevel} />
 
         <section className="quality-panel warning-panel">
           <header><div><small>İYİLEŞTİRME GÜNDEMİ</small><h2>Öncelikli incelenecek dersler</h2></div><span className={stats.warnings.length ? "warning-count" : "success-count"}>{stats.warnings.length}</span></header>
@@ -244,7 +245,13 @@ function Kpi({ icon, label, percent, detail, tone }: { icon: ReactNode; label: s
 function DonutChart({ title, values, total }: { title: string; values: Record<string, number>; total: number }) {
   const entries = Object.entries(values).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]);
   let cursor = 0;
-  const stops = entries.map(([, value], index) => { const start = cursor; cursor += ratio(value, total); return `var(--chart-${(index % 5) + 1}) ${start}% ${cursor}%`; }).join(", ");
+  const segments: string[] = [];
+  for (const [index, [, value]] of entries.entries()) {
+    const start = cursor;
+    cursor += ratio(value, total);
+    segments.push(`var(--chart-${(index % 5) + 1}) ${start}% ${cursor}%`);
+  }
+  const stops = segments.join(", ");
   return <figure className="donut-chart"><figcaption>{title}</figcaption><div className="donut-visual" style={{ background: `conic-gradient(${stops || "var(--muted) 0 100%"})` }} role="img" aria-label={`${title} dağılımı, toplam ${total} ders`}><span><b>{total}</b><small>ders</small></span></div><ul>{entries.slice(0, 5).map(([label, value], index) => <li key={label}><i className={`tone-${(index % 5) + 1}`} /><span>{label}</span><b>{value}</b><small>%{ratio(value, total)}</small></li>)}</ul></figure>;
 }
 

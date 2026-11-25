@@ -5,6 +5,9 @@ import test from "node:test";
 import vm from "node:vm";
 import { randomUUID } from "node:crypto";
 import ts from "typescript";
+import { programTyycGroups, programTyycValidationMessage } from "../lib/programTyycMatrix.mjs";
+import { initialContributionMatrix, missingProgramOutcomeMappingMessage } from "../lib/courseContributionDefaults.mjs";
+import { recordAudit } from "../lib/auditTrail.mjs";
 
 const source = readFileSync(new URL("../server.mjs", import.meta.url), "utf8");
 const declarations = [...source.matchAll(/^(?:async )?function (\w+)\([^\n]*\) \{[\s\S]*?^\}/gm)];
@@ -20,7 +23,7 @@ const instructor = { username: "teacher", name: "Ders Hocası", role: "akademisy
 function fixture(t, department = chair.department) {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
-  for (const table of ["metadata", "programs", "program_profiles", "courses", "committee_members", "course_review_assignees", "workflow_requests", "public_visibility"]) {
+  for (const table of ["metadata", "programs", "program_profiles", "courses", "committee_members", "course_review_assignees", "workflow_requests", "public_visibility", "audit_logs"]) {
     const schema = source.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n    \\);`));
     assert.ok(schema, table);
     db.exec(schema[0]);
@@ -33,14 +36,14 @@ function fixture(t, department = chair.department) {
       .run(program.mainDepartment, program.department, program.programName, JSON.stringify(program.levels));
   }
   let session = instructor;
-  const context = vm.createContext({ db, URL, Request, Response, console, randomUUID });
+  const context = vm.createContext({ db, URL, Request, Response, console, randomUUID, programTyycValidationMessage, initialContributionMatrix, missingProgramOutcomeMappingMessage });
   vm.runInContext('const coursePackagePublicationModel = "published-draft-v1";\n' +
     source.match(/const courseListSelect = `[\s\S]*?`;/)[0] + "\n" +
     declarations.map(([declaration]) => declaration).join("\n"), context);
   Object.assign(context, {
     repairText: (value = "") => String(value), repairObject: (value) => value,
     isMeaningfulInstructorName: (value) => Boolean(value),
-    ensureDb() {}, upsertSessionUser() {}, audit() {},
+    ensureDb() {}, upsertSessionUser() {}, audit: (action, actor, payload) => recordAudit(db, action, actor, payload),
     stripBasePath: (pathname) => pathname.replace(/^\/dbp/, ""),
     requireDbpSession: () => ({ session }),
     readJsonBody: (request) => request.json(), jsonResponse: (value, init) => Response.json(value, init),
@@ -50,6 +53,7 @@ function fixture(t, department = chair.department) {
       return edit ? { ...course, code: edit.code, name: edit.name } : course;
     },
     courseCodeCandidates: (code) => [code], courseCodeMatchesLevel: () => true,
+    publicCourseRouteIndexCache: undefined, canonicalCourseCode: (code) => code, isCoursePubliclyVisible: () => true,
     // Keep fixtures focused on routing; production list rendering is tested separately.
     dbCourseListFromRows: (rows) => rows.map((row) => ({
       id: row.id, department: row.department, programName: row.program_name,
@@ -81,8 +85,9 @@ test("İşletme profile revisions preserve course scores by outcome and freeze t
   const [course, otherLevel] = identities.filter(({ programName }) => programName === "İşletme");
   const initial = Array.from({ length: 11 }, (_, i) => `Başlangıç çıktısı ${i + 1}`);
   for (const identity of [course, otherLevel]) {
-    db.prepare("INSERT INTO program_profiles(program_name, level, outcomes_json, created_at, updated_at, updated_by) VALUES (?, ?, ?, 'seed', 'seed', 'seed')")
-      .run(identity.programName, identity.level, JSON.stringify(initial));
+    const rows = programTyycGroups(identity.level).flatMap((group) => group.items.map((item) => ({ ...item, values: initial.map(() => 0) })));
+    db.prepare("INSERT INTO program_profiles(program_name, level, outcomes_json, tyyc_rows_json, created_at, updated_at, updated_by) VALUES (?, ?, ?, ?, 'seed', 'seed', 'seed')")
+      .run(identity.programName, identity.level, JSON.stringify(initial), JSON.stringify(rows));
   }
   const params = (value) => new URLSearchParams(value).toString();
   const readCourse = async (identity = course, user = instructor) =>
@@ -98,6 +103,7 @@ test("İşletme profile revisions preserve course scores by outcome and freeze t
   assert.equal((await saveProfile(profile, { ...chair, department: "Matematik ABD" })).status, 403);
   const savedResponse = await saveProfile({
     ...profile, outcomes: [...initial, "Yeni çıktı"], outcomeIds: [...profile.outcomeIds, null],
+    tyycRows: profile.tyycRows.map((row) => ({ ...row, values: [...row.values, 0] })),
   });
   assert.equal(savedResponse.status, 200);
   const added = (await savedResponse.json()).profile;
@@ -110,6 +116,7 @@ test("İşletme profile revisions preserve course scores by outcome and freeze t
 
   const revised = await saveProfile({
     ...added, outcomes: ["Revize edilen ikinci çıktı", ...added.outcomes.slice(2)], outcomeIds: added.outcomeIds.slice(1),
+    tyycRows: added.tyycRows.map((row) => ({ ...row, values: row.values.slice(1) })),
   });
   assert.equal(revised.status, 200);
   assert.equal((await savePackage({ ...editing.package, programOutcomes: editing.programOutcomes })).status, 409);
@@ -119,12 +126,12 @@ test("İşletme profile revisions preserve course scores by outcome and freeze t
   assert.equal(refreshed.package.contributionMatrix[0].P2, 5);
   const submission = {
     ...refreshed.package, programOutcomes: refreshed.programOutcomes,
-    contributionMatrix: [{ ...refreshed.package.contributionMatrix[0], [newId]: 4 }],
+    contributionMatrix: [Object.fromEntries(refreshed.programOutcomes.map(({ id }) => [id, id === newId ? 4 : refreshed.package.contributionMatrix[0][id] || 3]))],
   };
   assert.equal((await savePackage(submission, "Komisyon Onayı Bekliyor")).status, 200);
   const review = (await readCourse(course, member)).package;
   assert.deepEqual(review.programOutcomes, refreshed.programOutcomes);
-  assert.deepEqual(review.contributionMatrix, [{ P2: 5, [newId]: 4 }]);
+  assert.deepEqual(review.contributionMatrix, submission.contributionMatrix);
   assert.equal((await request(member, "course-package/status", { ...course, status: "ABD Son Onayı Bekliyor" })).status, 200);
   assert.equal((await request(chair, "course-package/status", { ...course, status: "Yayımlandı" })).status, 200);
   const latest = await readProfile();
@@ -132,6 +139,173 @@ test("İşletme profile revisions preserve course scores by outcome and freeze t
   const published = JSON.parse(db.prepare("SELECT package_json FROM courses WHERE code = ?").get(course.code).package_json).published.package;
   assert.deepEqual(published.programOutcomes, review.programOutcomes);
   assert.deepEqual(published.contributionMatrix, review.contributionMatrix);
+});
+
+test("profile saves reject incomplete TYYÇ cells without changing stored data and accept explicit zeroes", async (t) => {
+  const { db, identities, request } = fixture(t);
+  const scope = identities.find(({ programName }) => programName === "İşletme");
+  const outcomes = Array.from({ length: 11 }, (_, index) => `Çıktı ${index + 1}`);
+  const rows = ["T1", "T2"].map((code) => ({ code, title: `${code} yeterliliği`, values: outcomes.map(() => 2) }));
+  db.prepare("INSERT INTO program_profiles(program_name, level, outcomes_json, tyyc_rows_json, created_at, updated_at, updated_by) VALUES (?, ?, ?, ?, 'seed', 'seed', 'seed')")
+    .run(scope.programName, scope.level, JSON.stringify(outcomes), JSON.stringify(rows));
+  const before = db.prepare("SELECT * FROM program_profiles").get();
+  const profile = { ...scope, outcomes: Array.from({ length: 15 }, (_, index) => `Çıktı ${index + 1}`), tyycRows: rows };
+  const save = (value) => request(chair, "program-profile", { profile: value }, "PUT");
+  const untouched = await save(profile);
+  assert.equal(untouched.status, 400);
+  assert.match((await untouched.json()).message, /T1: PÇ12, PÇ13, PÇ14, PÇ15/);
+  assert.deepEqual(db.prepare("SELECT * FROM program_profiles").get(), before);
+
+  profile.tyycRows = rows.map((row) => ({ ...row, values: [...row.values, 0, null, null, null] }));
+  const partial = await save(profile);
+  assert.equal(partial.status, 400);
+  const partialMessage = (await partial.json()).message;
+  assert.match(partialMessage, /T2: PÇ13, PÇ14, PÇ15/);
+  assert.doesNotMatch(partialMessage, /PÇ12/);
+  assert.deepEqual(db.prepare("SELECT * FROM program_profiles").get(), before);
+
+  profile.tyycRows = rows.map((row) => ({ ...row, values: [...row.values, 0, 0, 0, 0] }));
+  assert.equal((await save({ ...profile, tyycRows: profile.tyycRows.slice(0, 1) })).status, 400, "omitting a saved row must not bypass validation");
+  assert.equal((await save({ ...profile, tyycRows: [] })).status, 400);
+  assert.equal((await save({ ...profile, tyycRows: [{ ...profile.tyycRows[0], values: [4, ...profile.tyycRows[0].values.slice(1)] }, profile.tyycRows[1]] })).status, 400);
+  assert.deepEqual(db.prepare("SELECT * FROM program_profiles").get(), before);
+  const complete = await save(profile);
+  assert.equal(complete.status, 200);
+  assert.deepEqual((await complete.json()).profile.tyycRows, profile.tyycRows);
+  assert.equal(JSON.parse(db.prepare("SELECT outcomes_json FROM program_profiles").get().outcomes_json).length, 15);
+});
+
+function seedCountChangeProfile(db, scope, count = 3) {
+  const outcomes = Array.from({ length: count }, (_, index) => ({ id: `P${index + 1}`, text: `Alan çıktısı ${index + 1}` }));
+  db.prepare("INSERT INTO program_profiles(program_name, level, outcomes_json, tyyc_rows_json, created_at, updated_at, updated_by) VALUES (?, ?, ?, ?, 'seed', 'seed', 'seed')")
+    .run(scope.programName, scope.level, JSON.stringify(outcomes), JSON.stringify([{ code: "T1", title: "Yeterlilik", values: outcomes.map(() => 2) }]));
+  return outcomes;
+}
+
+async function changeOutcomeCount(request, scope, count) {
+  const profile = (await (await request(chair, `program-profile?${new URLSearchParams(scope)}`)).json()).profile;
+  return request(chair, "program-profile", { profile: {
+    ...profile,
+    outcomes: Array.from({ length: count }, (_, index) => profile.outcomes[index] ?? `Eklenen çıktı ${index + 1}`),
+    outcomeIds: Array.from({ length: count }, (_, index) => profile.outcomeIds[index] ?? null),
+    tyycRows: profile.tyycRows.map((row) => ({ ...row, values: Array.from({ length: count }, (_, index) => row.values[index] ?? 0) })),
+  } }, "PUT");
+}
+
+test("a future PÇ count increase resets only the matching scope, withdraws old publications and requires complete mapping before a fresh approval cycle", async (t) => {
+  const { db, context, identities, request } = fixture(t);
+  const scope = identities.find(({ programName }) => programName === "İşletme");
+  const programOutcomes = seedCountChangeProfile(db, scope);
+  const published = { outcomes: ["Ders çıktısı 1", "Ders çıktısı 2"], programOutcomes, contributionMatrix: [{ P1: 2, P2: 3 }, { P3: 4 }], detailFields: { purpose: "Eski onaylı içerik" } };
+  const draft = { ...published, detailFields: { purpose: "Öğretim elemanının son değişikliği" } };
+  const statuses = ["Yayımlandı", "Komisyon Onayı Bekliyor", "ABD Son Onayı Bekliyor", "Düzeltme İstendi", "Taslak"];
+  const courses = statuses.map((status, index) => ({ ...scope, code: index ? `COUNT${index}801` : scope.code, status }));
+  for (const [index, course] of courses.entries()) {
+    const envelope = index === 0 ? published : { publicationModel: "published-draft-v1", published: { package: published, status: "Yayımlandı" }, draft: { package: draft, status: course.status } };
+    if (index) db.prepare("INSERT INTO courses(department, program_name, level, code, name, instructor, status, package_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'before', 'before')")
+      .run(course.department, course.programName, course.level, course.code, course.name, instructor.name, course.status, JSON.stringify(envelope));
+    else db.prepare("UPDATE courses SET status = ?, package_json = ? WHERE code = ?").run(course.status, JSON.stringify(envelope), course.code);
+    context.replaceCourseReviewAssignees({ body: course, members: [member], actor: chair.username });
+    context.recordWorkflowRequest({ kind: "course-package-submit", body: course, route: "Akademisyen -> DBP Komisyonu", status: course.status, actor: instructor.name });
+  }
+  const otherScopesBefore = db.prepare("SELECT * FROM courses WHERE program_name <> ? OR level <> ? ORDER BY id").all(scope.programName, scope.level);
+  const getRow = (course = scope) => db.prepare("SELECT * FROM courses WHERE code = ?").get(course.code);
+  const priorPublic = context.publicCourseForRoute({ ...scope, routeCode: scope.code });
+  assert.ok(context.publicPackageRecordForRow(priorPublic.row));
+  const result = await changeOutcomeCount(request, scope, 4);
+  assert.equal(result.status, 200, await result.clone().text());
+  assert.deepEqual(db.prepare("SELECT * FROM courses WHERE program_name <> ? OR level <> ? ORDER BY id").all(scope.programName, scope.level), otherScopesBefore);
+  for (const [index, course] of courses.entries()) {
+    const row = getRow(course), data = JSON.parse(row.package_json);
+    assert.equal(row.status, "Taslak");
+    assert.equal(data.draft.status, "Taslak");
+    assert.equal(data.outcomeCountChange.previousCount, 3);
+    assert.equal(data.outcomeCountChange.currentCount, 4);
+    assert.deepEqual(data.draft.package.contributionMatrix, published.contributionMatrix);
+    assert.equal(data.draft.package.detailFields.purpose, index ? draft.detailFields.purpose : published.detailFields.purpose);
+    assert.deepEqual(data.published.package, published);
+    assert.equal(context.publicPackageRecordForRow(row), null);
+    assert.equal(context.courseReviewAssigneesForTarget(course).length, 0);
+    const cached = context.publicCourseForRoute({ ...course, routeCode: course.code });
+    assert.equal(cached.row.status, "Taslak", "previously cached public rows must be refreshed");
+    const publicResponse = await request(null, `public-course?${new URLSearchParams(course)}`);
+    assert.equal(publicResponse.status, 200);
+    const publicData = await publicResponse.json();
+    assert.equal(publicData.status, "Taslak");
+    assert.equal(publicData.package, null);
+    assert.equal(publicData.packagePending, true);
+  }
+  const resets = db.prepare("SELECT * FROM audit_logs WHERE action = 'course.package.outcome-count-reset'").all();
+  assert.equal(resets.length, courses.length);
+  const profileLog = JSON.parse(db.prepare("SELECT payload_json FROM audit_logs WHERE action = 'program_profile.save' ORDER BY id DESC LIMIT 1").get().payload_json);
+  assert.equal(profileLog.previousCount, 3);
+  assert.equal(profileLog.currentCount, 4);
+  assert.equal(profileLog.affectedCourses, courses.length);
+  assert.match(profileLog.note, /3 → 4/);
+  assert.equal((await request(member, "course-package/status", { ...scope, status: "ABD Son Onayı Bekliyor" })).status, 409);
+  assert.equal((await request(chair, "course-package/status", { ...scope, status: "Yayımlandı" })).status, 409);
+  const loaded = await (await request(instructor, `course-package?${new URLSearchParams(scope)}`)).json();
+  const packageData = { ...loaded.package, programOutcomes: loaded.programOutcomes };
+  const submit = (pkg, status = "Komisyon Onayı Bekliyor") => request(instructor, "course-package", { ...scope, status, package: pkg });
+  const incomplete = await submit(packageData);
+  assert.equal(incomplete.status, 422);
+  assert.match((await incomplete.json()).message, /PÇ4 hiçbir ders öğrenme çıktısıyla eşleştirilmemiş/);
+  const bypass = { ...packageData };
+  delete bypass.programOutcomes;
+  assert.equal((await submit(bypass)).status, 422, "omitting the outcome snapshot cannot bypass the check");
+  assert.equal((await submit(packageData, "Taslak")).status, 200);
+  assert.equal(context.publicPackageRecordForRow(getRow()), null, "saving the draft must not restore the archived publication");
+  const newId = loaded.programOutcomes[3].id;
+  packageData.contributionMatrix = [{ ...packageData.contributionMatrix[0], [newId]: 5 }, packageData.contributionMatrix[1]];
+  assert.equal((await submit(packageData)).status, 200);
+  assert.equal(context.courseReviewAssigneesForTarget(scope).length, 1, "resubmission creates a new committee assignment");
+  assert.equal(context.publicPackageRecordForRow(getRow()), null);
+  assert.equal((await request(member, "course-package/status", { ...scope, status: "ABD Son Onayı Bekliyor" })).status, 200);
+  assert.equal(context.publicPackageRecordForRow(getRow()), null);
+  assert.equal((await request(chair, "course-package/status", { ...scope, status: "Yayımlandı" })).status, 200);
+  assert.equal(context.publicPackageRecordForRow(getRow()).package.contributionMatrix[0][newId], 5);
+  assert.equal(JSON.parse(getRow().package_json).outcomeCountChange, undefined);
+
+  // Ordinary teacher improvements keep the newly approved publication available.
+  const improved = { ...packageData, detailFields: { purpose: "Yeni iyileştirme" } };
+  assert.equal((await submit(improved, "Taslak")).status, 200);
+  assert.equal(context.publicPackageRecordForRow(getRow()).package.detailFields.purpose, published.detailFields.purpose);
+  assert.equal((await submit(improved)).status, 200);
+  const publicData = await (await request(null, `public-course?${new URLSearchParams(scope)}`)).json();
+  assert.equal(publicData.status, "Yayımlandı");
+  assert.equal(publicData.package.detailFields.purpose, published.detailFields.purpose);
+});
+
+test("PÇ text, ordering and other profile edits leave every course byte-for-byte unchanged; a count decrease still withdraws it", async (t) => {
+  const { db, context, identities, request } = fixture(t);
+  const scope = identities.find(({ programName }) => programName === "İşletme");
+  const programOutcomes = seedCountChangeProfile(db, scope);
+  const published = { outcomes: ["Ders çıktısı"], programOutcomes, contributionMatrix: [{ P1: 2, P2: 3, P3: 4 }] };
+  db.prepare("UPDATE courses SET status = 'Yayımlandı', package_json = ? WHERE code = ?").run(JSON.stringify(published), scope.code);
+  const before = db.prepare("SELECT * FROM courses ORDER BY id").all();
+  const profile = (await (await request(chair, `program-profile?${new URLSearchParams(scope)}`)).json()).profile;
+  for (const changed of [profile, { ...profile, manager: "Yeni yönetici", outcomes: profile.outcomes.map((text) => `${text} revizyon`) },
+    { ...profile, outcomes: [...profile.outcomes].reverse(), outcomeIds: [...profile.outcomeIds].reverse() }]) {
+    delete changed.updatedAt;
+    assert.equal((await request(chair, "program-profile", { profile: changed }, "PUT")).status, 200);
+    assert.deepEqual(db.prepare("SELECT * FROM courses ORDER BY id").all(), before);
+  }
+  assert.equal((await changeOutcomeCount(request, scope, 2)).status, 200);
+  const row = db.prepare("SELECT * FROM courses WHERE code = ?").get(scope.code);
+  assert.equal(row.status, "Taslak");
+  assert.equal(context.publicPackageRecordForRow(row), null);
+  assert.deepEqual(JSON.parse(row.package_json).draft.package.contributionMatrix, published.contributionMatrix);
+});
+
+test("a failed count-change reset rolls back profile, courses, reviewers, workflow and audit records together", async (t) => {
+  const { db, identities, request } = fixture(t);
+  const scope = identities.find(({ programName }) => programName === "İşletme");
+  seedCountChangeProfile(db, scope);
+  const snapshot = () => JSON.stringify(["program_profiles", "courses", "course_review_assignees", "workflow_requests", "audit_logs"].map((table) => db.prepare(`SELECT * FROM ${table} ORDER BY id`).all()));
+  const before = snapshot();
+  db.exec("CREATE TRIGGER reject_count_reset BEFORE INSERT ON workflow_requests WHEN NEW.kind = 'course-package-outcome-count-change' BEGIN SELECT RAISE(ABORT, 'test reset failure'); END");
+  assert.equal((await changeOutcomeCount(request, scope, 4)).status, 500);
+  assert.equal(snapshot(), before);
 });
 
 test("all seven levels route from instructor to the shared İşletme committee and then to its chair for publication", async (t) => {

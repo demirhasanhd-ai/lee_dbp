@@ -10,8 +10,9 @@ const names = new Set([
   "normalizePublicRouteSegment", "visibilitySlug", "programVisibilityKeyFor", "programLevelVisibilityKeyFromKey", "courseVisibilityKeyFor",
   "isPublicCourseStatus", "workloadMatchesEcts", "qualityCourseAssignment", "qualityStats", "buildAdminQualityReport",
   "readQualitySnapshot", "refreshQualitySnapshot", "currentQualitySnapshot", "buildQualitySnapshot", "currentAdminQualityReport",
-  "scopedInstructorOptions", "courseMatchesFilters", "qualitySnapshotMetadataKey", "adminQualityReportMetadataKey",
+  "scopedInstructorOptions", "courseMatchesFilters", "qualityScopeDefinitions", "qualitySnapshotMetadataKey", "adminQualityReportMetadataKey",
   "handleDbpApi", "requireDbpSession", "parseSession",
+  "titleLoadStats", "academicTitle", "instructorPeople", "normalizeInstructorScope",
 ]);
 const declarations = ast.statements.filter((statement) => ts.isFunctionDeclaration(statement)
   ? names.has(statement.name?.text)

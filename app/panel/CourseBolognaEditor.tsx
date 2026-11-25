@@ -10,7 +10,7 @@ import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { SDG_GOALS, findSdgGoal, formatSdgGoal } from "../../lib/sdgGoals";
 import { getCoursePackage, type CoursePackage } from "../../lib/data/coursePackages";
 import type { ProgramOutcome } from "../../lib/programOutcomes";
-import { initialContributionMatrix } from "../../lib/courseContributionDefaults.mjs";
+import { initialContributionMatrix, missingProgramOutcomeMappingMessage } from "../../lib/courseContributionDefaults.mjs";
 import { COURSE_STRUCTURE_LABELS as structures, courseStructureTotal, normalizeCourseStructures } from "../../lib/courseStructures.mjs";
 import {
   assessmentWorkloadName,
@@ -266,6 +266,7 @@ export function CourseBolognaEditor({
   onPublish: (status: string) => void;
 }) {
   const [workflowStatus, setWorkflowStatus] = useState("Taslak");
+  const [outcomeCountChange, setOutcomeCountChange] = useState<{ previousCount: number; currentCount: number } | null>(null);
   const [committeeSkipped, setCommitteeSkipped] = useState(false);
   const [identity, setIdentity] = useState(() => defaultIdentity(course));
   const [detailFields, setDetailFields] = useState(defaultDetailFields);
@@ -386,6 +387,7 @@ export function CourseBolognaEditor({
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || "Kayıtlı ders paketi yüklenemedi.");
+        setOutcomeCountChange(data.outcomeCountChange ?? null);
         return data;
       })
       .then((data) => {
@@ -395,7 +397,9 @@ export function CourseBolognaEditor({
         const defaultRows = staticPackage?.contributionMatrix.map((row) =>
           Object.fromEntries(row.values.map((score, index) => [`P${index + 1}`, score])),
         ) ?? [];
-        const matrixPackage = data.package ?? { contributionMatrix: defaultRows };
+        const matrixPackage = data.package ?? (data.outcomeCountChange
+          ? { programOutcomes: data.programOutcomes ?? [], contributionMatrix: [] }
+          : { contributionMatrix: defaultRows });
         setContributionMatrix(normalizeContributionRows(initialContributionMatrix(
           matrixPackage, data.programOutcomes ?? [], data.status || course.status, defaultRows,
         )));
@@ -463,6 +467,10 @@ export function CourseBolognaEditor({
     ) {
       issues.push("Her öğrenme çıktısı en az bir program çıktısıyla 1–5 düzeyinde eşleştirilmelidir.");
     }
+    if (outcomeCountChange) {
+      const message = missingProgramOutcomeMappingMessage(programOutcomes, outcomes, contributionMatrix);
+      if (message) issues.push(message);
+    }
 
     if (totalWorkload <= 0 || Number(ects) <= 0) {
       issues.push("AKTS iş yükü tablosunda geçerli etkinlik süreleri bulunmalıdır.");
@@ -475,6 +483,7 @@ export function CourseBolognaEditor({
     assessments,
     contributionMatrix,
     programOutcomes,
+    outcomeCountChange,
     detailFields,
     ects,
     identity.code,
@@ -934,6 +943,7 @@ export function CourseBolognaEditor({
       </section>
       <section className="course-form-card">
         <h3>Dersin Program Çıktılarına Katkısı</h3>
+        {outcomeCountChange && <p className="form-help" role="status">Program çıktısı sayısı {outcomeCountChange.previousCount} → {outcomeCountChange.currentCount} olarak değiştirildiği için ders taslağa alındı ve önceki yayını kapatıldı. Eski puanlar korunmuştur. Güncel program çıktılarının eşleştirmelerini tamamlayıp dersi yeniden onaya gönderin.</p>}
         <p className="form-help">{programOutcomes.length ? "Her ders öğrenme çıktısının program çıktılarına katkısını 1–5 arasında belirtin." : "Bu program ve düzey için kayıtlı program çıktısı bulunamadı. Program çıktıları kaydedildikten sonra matrisi doldurabilirsiniz."}</p>
         {programOutcomes.length > 0 && <><ol>{programOutcomes.map(({ id, text }, index) => <li key={id}><b>PÇ{index + 1}</b> {text}</li>)}</ol>
         <div className="contribution-wrap">
