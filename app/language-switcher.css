@@ -1,0 +1,138 @@
+.oku-header .institution-inner {
+  direction: ltr;
+}
+
+.header-tools .language-switcher {
+  position: relative;
+  display: flex;
+  direction: ltr;
+}
+
+.header-tools .language-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 74px;
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid color-mix(in srgb, var(--primary) 15%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--secondary-foreground);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.language-trigger > svg {
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
+.language-trigger:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.language-trigger:disabled {
+  cursor: progress;
+  opacity: .65;
+}
+
+.language-flag {
+  display: block;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 13px;
+  object-fit: cover;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px #0000000d;
+}
+
+.language-trigger[aria-expanded="true"] .language-chevron {
+  transform: rotate(180deg);
+}
+
+.language-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  width: 150px;
+  max-height: min(330px, calc(100dvh - 70px));
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 10px 30px #0003;
+}
+
+.header-tools .language-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: 500 13px / 1.3 var(--font-sans, Inter, "Segoe UI", sans-serif);
+  text-align: left;
+}
+
+.language-menu button span {
+  flex: 1;
+}
+
+.header-tools .language-menu button:hover,
+.header-tools .language-menu button:focus-visible,
+.header-tools .language-menu button[aria-checked="true"] {
+  background: color-mix(in srgb, var(--primary) 9%, var(--card));
+  color: var(--primary);
+  outline: none;
+}
+
+.language-error {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  width: min(260px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 8px 24px #0002;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 650px) {
+  .oku-header .institution-inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    height: auto;
+    min-height: 44px;
+    padding-block: 5px;
+  }
+
+  .oku-header .institution-inner > strong {
+    min-width: 0;
+    padding-right: 0;
+    text-align: left;
+    letter-spacing: .04em;
+    line-height: 1.4;
+  }
+
+  .oku-header .header-tools {
+    position: static;
+    align-items: center;
+    gap: 5px;
+    transform: none;
+  }
+}

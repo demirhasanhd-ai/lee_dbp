@@ -59,6 +59,7 @@
 @import "./responsive-type-scale.css";
 @import "./header-consistency.css";
 @import "./student-indicators.css";
+@import "./language-switcher.css";
 
 :where(a,button,summary,select,[role="button"],[role="link"]){cursor:pointer}
 @font-face {

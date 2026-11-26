@@ -1,5 +1,6 @@
 import { BarChart3, Bell, CircleHelp, Eye, GraduationCap, House, LibraryBig, PieChart } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { BibliometricsMenu } from "./BibliometricsMenu";
 import { PublicNavigation } from "./PublicNavigation";
 import { dbpPath } from "../lib/dbpPath";
@@ -13,7 +14,7 @@ export function PublicSiteHeader({ active = "home", bibliometricsSource }: { act
           <span />
           <strong>OSMANİYE KORKUT ATA ÜNİVERSİTESİ</strong>
           <div className="header-tools">
-            <button type="button">TR / EN</button>
+            <LanguageSwitcher />
             <ThemeToggle />
           </div>
         </div>
