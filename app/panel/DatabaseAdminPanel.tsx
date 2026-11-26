@@ -48,6 +48,7 @@ type DbSummary = {
     updated_at: string;
   }[];
   backups: BackupInfo[];
+  sqliteBackups?: BackupInfo[];
   qualitySnapshot: {
     generatedAt: string;
     nextRefreshAt: string;
@@ -76,12 +77,34 @@ function jsonHeaders() {
   };
 }
 
+async function checkSqliteResponse(response: Response) {
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.message || "SQLite işlemi tamamlanamadı.");
+  }
+  return response;
+}
+
+async function saveSqliteDownload(response: Response, fallbackName: string) {
+  await checkSqliteResponse(response);
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const fileName = disposition.match(/filename="([^"]+)"/u)?.[1] || fallbackName;
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export function DatabaseAdminPanel() {
   const [summary, setSummary] = useState<DbSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [selectedBackup, setSelectedBackup] = useState("");
+  const [selectedSqliteBackup, setSelectedSqliteBackup] = useState("");
   const [resetConfirm, setResetConfirm] = useState("");
 
   const loadSummary = async () => {
@@ -93,11 +116,13 @@ export function DatabaseAdminPanel() {
     const data = (await response.json()) as DbSummary;
     setSummary(data);
     setSelectedBackup((current) => data.backups.some((backup) => backup.fileName === current) ? current : data.backups[0]?.fileName || "");
+    const sqliteBackups = data.sqliteBackups || [];
+    setSelectedSqliteBackup((current) => sqliteBackups.some((backup) => backup.fileName === current) ? current : sqliteBackups[0]?.fileName || "");
     setLoading(false);
   };
 
   useEffect(() => {
-    loadSummary().catch((error) => {
+    void Promise.resolve().then(loadSummary).catch((error) => {
       setMessage(error instanceof Error ? error.message : "Veri tabani yuklenemedi.");
       setLoading(false);
     });
@@ -223,6 +248,54 @@ export function DatabaseAdminPanel() {
       if (!response.ok) throw new Error("Kalite göstergeleri yenilenemedi.");
     });
 
+  const sqliteRequest = async (endpoint: string, method = "GET", body?: { fileName: string }) =>
+    checkSqliteResponse(await fetch(dbpPath(`/api/dbp/admin/sqlite/${endpoint}`), {
+      method,
+      headers: jsonHeaders(),
+      body: body ? JSON.stringify(body) : undefined,
+    }));
+
+  const createSqlite = () => runAction("SQLite yedeği oluşturuldu.", async () => {
+    await sqliteRequest("backup", "POST");
+  });
+
+  const downloadCurrentSqlite = () => runAction("Güncel SQLite yedeği için indirme başlatıldı.", async () => {
+    await saveSqliteDownload(await sqliteRequest("export"), `dbp-export-${new Date().toISOString().slice(0, 10)}.sqlite`);
+  });
+
+  const downloadSelectedSqlite = () => runAction("Seçili SQLite yedeği için indirme başlatıldı.", async () => {
+    if (!selectedSqliteBackup) throw new Error("Önce bir SQLite yedeği seçin.");
+    const params = new URLSearchParams({ fileName: selectedSqliteBackup });
+    await saveSqliteDownload(await sqliteRequest(`backup/download?${params}`), selectedSqliteBackup);
+  });
+
+  const deleteSelectedSqlite = () => {
+    if (!selectedSqliteBackup || !window.confirm(`${selectedSqliteBackup} yedek dosyası silinsin mi? Bu işlem veri tabanını etkilemez.`)) return;
+    void runAction("Seçili SQLite yedeği silindi.", async () => {
+      await sqliteRequest("backup", "DELETE", { fileName: selectedSqliteBackup });
+    });
+  };
+
+  const restoreSelectedSqlite = () => {
+    if (!selectedSqliteBackup || !window.confirm(`${selectedSqliteBackup} geri yüklensin mi? Mevcut veritabanının tamamı bu yedekle değiştirilecek. İşlem öncesinde mevcut durumun SQLite yedeği otomatik alınır.`)) return;
+    void runAction("SQLite yedeği geri yüklendi. İşlem öncesindeki durum da SQLite yedek listesine kaydedildi.", async () => {
+      await sqliteRequest("restore", "POST", { fileName: selectedSqliteBackup });
+    });
+  };
+
+  const importSqlite = (file?: File) => {
+    if (!file) return;
+    if (!window.confirm(`${file.name} dosyası geri yüklensin mi? Mevcut veritabanının tamamı değiştirilecek. İşlem öncesinde mevcut durumun SQLite yedeği otomatik alınır.`)) return;
+    void runAction("SQLite dosyası geri yüklendi. İşlem öncesindeki durum da SQLite yedek listesine kaydedildi.", async () => {
+      if (file.size > 512 * 1024 * 1024) throw new Error("SQLite yedeği en fazla 512 MB olabilir.");
+      await checkSqliteResponse(await fetch(dbpPath("/api/dbp/admin/sqlite/import"), {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream", "X-DBP-Session": sessionHeader() },
+        body: file,
+      }));
+    });
+  };
+
   return (
     <section className="database-admin">
       <div className="panel-intro">
@@ -255,7 +328,7 @@ export function DatabaseAdminPanel() {
             <article>
               <Archive size={18} />
               <b>{summary.counts.backups}</b>
-              <span>Yedek</span>
+              <span>Yedek{summary.counts.jsonBackups !== undefined ? ` (${summary.counts.jsonBackups} JSON · ${summary.counts.sqliteBackups || 0} SQLite)` : ""}</span>
             </article>
             <article>
               <HardDrive size={18} />
@@ -265,7 +338,7 @@ export function DatabaseAdminPanel() {
           </div>
 
           <div className="database-grid">
-            <section className="database-panel">
+            <section className="database-panel database-location-panel">
               <header>
                 <h3>Kalıcı Konum</h3>
                 <small>Portainer volume bu dizine bağlanmalı.</small>
@@ -277,22 +350,22 @@ export function DatabaseAdminPanel() {
               </dl>
             </section>
 
-            <section className="database-panel">
+            <section className="database-panel" aria-label="JSON Yedek ve Geri Yükleme">
               <header>
-                <h3>Yedek ve Geri Yükleme</h3>
+                <h3>JSON Yedek ve Geri Yükleme</h3>
                 <small>İçe aktarma ve reset öncesinde otomatik yedek alınır.</small>
               </header>
               <div className="database-actions">
                 <button onClick={createBackup} disabled={busy}><Archive size={15} /> Yedek Al</button>
                 <button onClick={() => runAction("JSON yedegi indirildi.", downloadExport)} disabled={busy}><Download size={15} /> JSON İndir</button>
-                <label>
+                <label aria-disabled={busy}>
                   <Upload size={15} />
                   Dosyadan Yükle
-                  <input type="file" accept="application/json,.json" onChange={(event) => importFile(event.target.files?.[0])} />
+                  <input type="file" accept="application/json,.json" disabled={busy} onChange={(event) => importFile(event.target.files?.[0])} />
                 </label>
               </div>
               <div className="database-restore-row">
-                <select value={selectedBackup} onChange={(event) => setSelectedBackup(event.target.value)} disabled={busy}>
+                <select aria-label="JSON yedekleri" value={selectedBackup} onChange={(event) => setSelectedBackup(event.target.value)} disabled={busy}>
                   <option value="">Yedek seçiniz</option>
                   {summary.backups.map((backup) => (
                     <option key={backup.fileName} value={backup.fileName}>
@@ -303,6 +376,39 @@ export function DatabaseAdminPanel() {
                 <button onClick={downloadSelectedBackup} disabled={busy || !selectedBackup}><Download size={15} /> Yedeği İndir</button>
                 <button onClick={restoreSelected} disabled={busy || !selectedBackup}><RotateCcw size={15} /> Geri Yükle</button>
                 <button className="danger-action" onClick={deleteSelectedBackup} disabled={busy || !selectedBackup}><Trash2 size={15} /> Yedeği Sil</button>
+              </div>
+            </section>
+
+            <section className="database-panel" aria-label="SQLite Yedek ve Geri Yükleme">
+              <header>
+                <h3>SQLite Yedek ve Geri Yükleme</h3>
+                <small>Veritabanının tamamını yedekler. Geri yükleme öncesinde mevcut durum otomatik yedeklenir.</small>
+              </header>
+              <div className="database-actions">
+                <button onClick={createSqlite} disabled={busy}><Archive size={15} /> Yedek Al</button>
+                <button onClick={downloadCurrentSqlite} disabled={busy}><Download size={15} /> SQLite İndir</button>
+                <label aria-disabled={busy}>
+                  <Upload size={15} />
+                  Dosyadan Yükle
+                  <input type="file" aria-label="SQLite dosyasından geri yükle" accept=".sqlite,.sqlite3,.db,application/vnd.sqlite3,application/x-sqlite3" disabled={busy} onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = "";
+                    importSqlite(file);
+                  }} />
+                </label>
+              </div>
+              <div className="database-restore-row">
+                <select aria-label="SQLite yedekleri" value={selectedSqliteBackup} onChange={(event) => setSelectedSqliteBackup(event.target.value)} disabled={busy}>
+                  <option value="">SQLite yedeği seçiniz</option>
+                  {(summary.sqliteBackups || []).map((backup) => (
+                    <option key={backup.fileName} value={backup.fileName}>
+                      {backup.fileName} - {formatBackupDate(backup.createdAt)} ({formatBytes(backup.size)})
+                    </option>
+                  ))}
+                </select>
+                <button onClick={downloadSelectedSqlite} disabled={busy || !selectedSqliteBackup}><Download size={15} /> Yedeği İndir</button>
+                <button onClick={restoreSelectedSqlite} disabled={busy || !selectedSqliteBackup}><RotateCcw size={15} /> Geri Yükle</button>
+                <button className="danger-action" onClick={deleteSelectedSqlite} disabled={busy || !selectedSqliteBackup}><Trash2 size={15} /> Yedeği Sil</button>
               </div>
             </section>
 

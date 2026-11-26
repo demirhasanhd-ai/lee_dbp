@@ -3,7 +3,7 @@ import { mergeStudentAdvisorHistory, publicStudentAdvisorHistory } from "./lib/s
 import { beginStartupStep, measureStartupAsync, measureStartupSync, observeStartupBackground } from "./lib/runtimeLogging.mjs";
 import { errorMonitor } from "node:events";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
-import { mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
@@ -12,6 +12,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
+import { createSqliteBackup, listSqliteBackups, restoreSqliteBackup, sqliteBackupPath, sqliteUploadLimit } from "./lib/sqliteBackups.mjs";
 import { ensureCourseProcessColumn, backfillCourseProcessFlags } from "./lib/courseProcessMigration.mjs";
 import { defaultProgramProfile } from "./lib/programProfileDefaults.mjs";
 import { programTyycValidationMessage } from "./lib/programTyycMatrix.mjs";
@@ -9345,6 +9346,16 @@ async function listBackups() {
   for (const name of names.filter((item) => item.endsWith(".json"))) {
     const file = path.join(backupDir, name);
     const info = await stat(file);
+    if (!info.isFile()) continue;
+    // Maintenance reports also use .json; only application exports belong here.
+    const handle = await open(file, "r");
+    let header;
+    try {
+      const buffer = Buffer.alloc(4096);
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+      header = buffer.toString("utf8", 0, bytesRead);
+    } finally { await handle.close(); }
+    if (!/^\s*\{\s*"version"\s*:\s*\d+\s*,\s*"exportedAt"\s*:\s*"[^"\r\n]+"\s*,\s*"tables"\s*:\s*\{/u.test(header)) continue;
     backups.push({ fileName: name, size: info.size, createdAt: info.mtime.toISOString() });
   }
   return backups.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -9600,6 +9611,8 @@ async function databaseSize() {
 
 async function adminSummary() {
   await ensureDb();
+  const backups = await listBackups();
+  const sqliteBackups = listSqliteBackups(backupDir, dbPath);
   const qualitySnapshot = readQualitySnapshot();
   const latestCourses = db.prepare(`
     SELECT id, code, name, department, program_name, level, status, instructor, updated_at
@@ -9643,12 +9656,15 @@ async function adminSummary() {
       thesisPublications: countRows("thesis_publications"),
       thesisAcademicActivities: countRows("thesis_academic_activities"),
       thesisJuryEvaluations: countRows("thesis_jury_evaluations"),
-      backups: (await listBackups()).length,
+      backups: backups.length + sqliteBackups.length,
+      jsonBackups: backups.length,
+      sqliteBackups: sqliteBackups.length,
     },
     statusRows,
     latestCourses,
     latestPrograms,
-    backups: await listBackups(),
+    backups,
+    sqliteBackups,
     qualitySnapshot: {
       generatedAt: qualitySnapshot?.generatedAt || "",
       nextRefreshAt: nextHomeStatsCacheWarmupDate().toISOString(),
@@ -9708,6 +9724,66 @@ async function deleteBackup(fileName, actor) {
   const file = backupFilePath(fileName);
   await unlink(file);
   audit("backup.delete", actor, { fileName });
+}
+
+function sqliteDownloadResponse(file, fileName, { removeAfterDownload = false } = {}) {
+  const stream = createReadStream(file);
+  if (removeAfterDownload) stream.once("close", () => {
+    unlink(file).catch((error) => { if (error.code !== "ENOENT") console.error("[dbp] Geçici SQLite yedeği temizlenemedi:", error); });
+  });
+  const encodedName = encodeURIComponent(fileName).replace(/['()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+  return new Response(stream, { headers: {
+    "Content-Type": "application/vnd.sqlite3",
+    "Content-Disposition": `attachment; filename="${fileName.replace(/[^a-zA-Z0-9._-]/g, "_")}"; filename*=UTF-8''${encodedName}`,
+    "Cache-Control": "private, no-store",
+    "X-Content-Type-Options": "nosniff",
+  } });
+}
+
+async function receiveSqliteUpload(request) {
+  if (Number(request.headers.get("content-length")) > sqliteUploadLimit) {
+    throw Object.assign(new Error("SQLite yedeği en fazla 512 MB olabilir."), { statusCode: 413 });
+  }
+  if (!request.body) throw Object.assign(new Error("SQLite yedek dosyası seçin."), { statusCode: 400 });
+  await mkdir(backupDir, { recursive: true });
+  const file = path.join(backupDir, `.sqlite-upload-${randomUUID()}.partial`);
+  const handle = await open(file, "wx", 0o600);
+  let complete = false;
+  try {
+    let size = 0;
+    for await (const chunk of request.body) {
+      size += chunk.byteLength;
+      if (size > sqliteUploadLimit) throw Object.assign(new Error("SQLite yedeği en fazla 512 MB olabilir."), { statusCode: 413 });
+      await handle.writeFile(chunk);
+    }
+    if (!size) throw Object.assign(new Error("SQLite dosyası boş."), { statusCode: 400 });
+    complete = true;
+    return file;
+  } finally {
+    await handle.close();
+    if (!complete) await unlink(file);
+  }
+}
+
+function restoreSqliteDatabase(file, actor, fileName) {
+  if (homeStatsRefreshPromise || qualitySnapshotRefreshPromise || studentStatisticsRefreshPromise ||
+      thesisSyncPromise || scopusSyncPromise || trDizinSyncPromise) {
+    throw Object.assign(new Error("Veri güncellemesi devam ediyor. Tamamlandıktan sonra SQLite yedeğini tekrar yükleyin."), { statusCode: 409 });
+  }
+  const safetyBackup = restoreSqliteBackup(file, db, backupDir, dbPath);
+  courseIdentityEdits.cache = undefined;
+  publicCourseRouteIndexCache = undefined;
+  homeStatsCache = undefined;
+  homeStatsCacheCreatedAt = 0;
+  qualitySnapshotCache = undefined;
+  studentStatisticsSnapshotCache = readStudentStatisticsSnapshot();
+  thesisSnapshotCache = readThesisSnapshot(db);
+  scopusSnapshotCache = readScopusSnapshot(db);
+  trDizinSnapshotCache = readTrDizinSnapshot(db);
+  audit("backup.restore", actor, { fileName, format: "sqlite", safetyBackup: safetyBackup.fileName });
+  queueHomeStatsCacheRefresh("admin.sqlite.restore");
+  queueQualitySnapshotRefresh("admin.sqlite.restore");
+  return safetyBackup;
 }
 
 
@@ -10623,6 +10699,57 @@ async function handleDbpApi(request) {
       const access = normalizeRoleAccessPayload(body);
       replaceRoleAccess(access, actor);
       return jsonResponse({ ok: true, access: roleAccessMap() });
+    }
+
+    if (pathname === "/api/dbp/admin/sqlite/backup" && request.method === "POST") {
+      const backup = createSqliteBackup(backupDir, dbPath);
+      audit("backup.create", actor, { fileName: backup.fileName, format: "sqlite" });
+      return jsonResponse({ backup, backups: listSqliteBackups(backupDir, dbPath) });
+    }
+
+    if (pathname === "/api/dbp/admin/sqlite/backups" && request.method === "GET") {
+      return jsonResponse({ backups: listSqliteBackups(backupDir, dbPath) });
+    }
+
+    if (pathname === "/api/dbp/admin/sqlite/export" && request.method === "GET") {
+      const backup = createSqliteBackup(backupDir, dbPath, { temporary: true });
+      audit("database.export", actor, { format: "sqlite" });
+      return sqliteDownloadResponse(path.join(backupDir, backup.fileName), backup.fileName.slice(1), { removeAfterDownload: true });
+    }
+
+    if (pathname === "/api/dbp/admin/sqlite/backup/download" && request.method === "GET") {
+      const fileName = url.searchParams.get("fileName");
+      const file = sqliteBackupPath(backupDir, fileName, dbPath);
+      const response = sqliteDownloadResponse(file, fileName);
+      audit("backup.download", actor, { fileName, format: "sqlite" });
+      return response;
+    }
+
+    if (pathname === "/api/dbp/admin/sqlite/backup" && request.method === "DELETE") {
+      const body = await readJsonBody(request);
+      const file = sqliteBackupPath(backupDir, body.fileName, dbPath);
+      await unlink(file);
+      audit("backup.delete", actor, { fileName: body.fileName, format: "sqlite" });
+      return jsonResponse({ ok: true, backups: listSqliteBackups(backupDir, dbPath) });
+    }
+
+    if (pathname === "/api/dbp/admin/sqlite/restore" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      const file = sqliteBackupPath(backupDir, body.fileName, dbPath);
+      const safetyBackup = restoreSqliteDatabase(file, actor, body.fileName);
+      return jsonResponse({ ok: true, safetyBackup });
+    }
+
+    if (pathname === "/api/dbp/admin/sqlite/import" && request.method === "POST") {
+      const file = await receiveSqliteUpload(request);
+      try {
+        const safetyBackup = restoreSqliteDatabase(file, actor, "Bilgisayardan yüklenen SQLite yedeği");
+        return jsonResponse({ ok: true, safetyBackup });
+      } finally {
+        for (const suffix of ["", "-wal", "-shm", "-journal"]) {
+          try { await unlink(`${file}${suffix}`); } catch (error) { if (error.code !== "ENOENT") throw error; }
+        }
+      }
     }
 
     if (pathname === "/api/dbp/admin/export" && request.method === "GET") {
