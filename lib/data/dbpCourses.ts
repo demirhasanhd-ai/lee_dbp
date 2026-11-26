@@ -44,6 +44,7 @@ export type DbpCourseFilters = {
   level?: string;
   instructor?: string;
   publicVisible?: boolean;
+  scope?: "program";
   limit?: number;
 };
 
@@ -77,6 +78,13 @@ export async function fetchDbpCourses(filters: DbpCourseFilters = {}, init?: Req
   const response = await fetch(dbpPath(`/api/dbp/courses${params.size ? `?${params}` : ""}`), init);
   if (!response.ok) throw new Error("Ders katalog verisi veritabanından alınamadı.");
   return response.json() as Promise<DbpCoursesResponse>;
+}
+
+export function fetchManagedDbpCourses(
+  filters: Pick<DbpCourseFilters, "department" | "programName" | "level">,
+  init?: RequestInit,
+) {
+  return fetchDbpCourses({ ...filters, scope: "program" }, init);
 }
 
 export async function fetchMyDbpCourses(filters: DbpCourseFilters = {}, init?: RequestInit) {

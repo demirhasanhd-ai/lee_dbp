@@ -161,8 +161,45 @@ test("management list requests continue using the existing path", async (t) => {
   const { add, context, request, legacy } = fixture(t);
   add();
   add({ department: "Matematik ABD", programName: "Matematik", code: "MAT801" });
-  context.publicCourseListRows = () => assert.fail("non-public requests must not use the optimized public path");
+  context.scopedCourseListRows = () => assert.fail("ordinary management requests must retain their existing path");
   for (const filters of [{}, { department: "İşletme ABD" }, { publicVisible: false, limit: 5000 }]) {
     assert.deepEqual(await request(filters), legacy(filters));
   }
+});
+
+test("authenticated central program lists use SQL scope without applying public visibility or dropping drafts", async (t) => {
+  const { add, context, visibility, queries, request, legacy } = fixture(t);
+  const hidden = add({ status: "Taslak" });
+  add({ level: "Tezli YL", code: "ISL802" });
+  add({ level: "Doktora", code: "ISL901" });
+  add({ department: "Matematik ABD", programName: "Matematik", code: "MAT801" });
+  visibility(context.programVisibilityKeyFor(hidden), false);
+  visibility(context.courseVisibilityKeyFor(hidden), false);
+  for (const role of ["admin", "enstitu_yoneticisi", "enstitu_sekreteri", "lee_ogrenci_isleri"]) {
+    context.requireDbpSession = () => ({ session: { role } });
+    for (const level of [undefined, "Tezli Yüksek Lisans"]) {
+      const filters = { department: "ISLETME ANABILIM DALI", programName: "İşletme", ...(level ? { level } : {}) };
+      const expected = legacy(filters);
+      queries.length = 0;
+      assert.deepEqual(await request({ ...filters, scope: "program", publicVisible: true }), expected);
+      assert.equal(queries[0].rows, level ? 2 : 3);
+      assert.equal(expected.courses.find((course) => course.code === "ISL801").status, "Taslak");
+    }
+  }
+});
+
+test("central scoped requests reject invalid sessions, unauthorized roles and missing program scope before reading courses", async (t) => {
+  const { context, queries } = fixture(t);
+  const request = (filters = {}) => context.handleDbpApi(new Request(`http://localhost/dbp/api/dbp/courses?${new URLSearchParams({ scope: "program", ...filters })}`));
+  context.requireDbpSession = () => ({ error: Response.json({ message: "Unauthorized" }, { status: 401 }) });
+  assert.equal((await request()).status, 401);
+  for (const role of ["akademisyen", "abd_asd_baskani", "abd_sekreteri"]) {
+    context.requireDbpSession = () => ({ session: { role } });
+    assert.equal((await request({ department: "İşletme ABD", programName: "İşletme" })).status, 403);
+  }
+  context.requireDbpSession = () => ({ session: { role: "admin" } });
+  for (const filters of [{}, { department: "İşletme ABD" }, { programName: "İşletme" }, { department: "  ", programName: "İşletme" }]) {
+    assert.equal((await request(filters)).status, 400);
+  }
+  assert.equal(queries.length, 0);
 });

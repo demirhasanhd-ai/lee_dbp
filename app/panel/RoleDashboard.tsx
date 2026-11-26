@@ -42,7 +42,7 @@ import { ThemeToggle } from "../ThemeToggle";
 import type { LeeProgram } from "../../lib/data/programs";
 import { fetchDbpPrograms } from "../../lib/data/programCatalog";
 import { isDepartmentPoolCourse } from "../../lib/data/courseRules";
-import { fetchDbpCourses, fetchMyDbpCourses, type DbpCourse } from "../../lib/data/dbpCourses";
+import { fetchDbpCourses, fetchManagedDbpCourses, fetchMyDbpCourses, type DbpCourse } from "../../lib/data/dbpCourses";
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { getEEnstituUrl } from "../../lib/eEnstituUrl";
@@ -327,10 +327,6 @@ const createLocalDevelopmentSession = (): Session => ({
 const catalogKeyForSession = (value: Session) =>
   `${value.username}|${value.role}|${value.department}`;
 const shouldUseScopedCourseList = (session: Session) => !centralRoles.includes(session.role);
-const fetchCatalogCoursesForSession = (session: Session, init?: RequestInit) =>
-  shouldUseScopedCourseList(session)
-    ? fetchMyDbpCourses({ limit: 5000 }, init)
-    : fetchDbpCourses({ limit: 5000 }, init);
 
 export function RoleDashboard() {
   const [session, setSession] = useState<Session | null>(null);
@@ -349,11 +345,27 @@ export function RoleDashboard() {
   const [assignmentMessage, setAssignmentMessage] = useState("");
   const [catalogCourses, setCatalogCourses] = useState<Course[]>([]);
   const [catalogPrograms, setCatalogPrograms] = useState<LeeProgram[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogMessage, setCatalogMessage] = useState("");
   const [catalogSessionKey, setCatalogSessionKey] = useState("");
+  const [programCatalogKey, setProgramCatalogKey] = useState("");
+  const [programCatalogMessage, setProgramCatalogMessage] = useState("");
+  const [catalogRevision, setCatalogRevision] = useState(0);
+  const [downloadBusy, setDownloadBusy] = useState(false);
+  const [downloadMessage, setDownloadMessage] = useState("");
   const [instructorOptions, setInstructorOptions] = useState<InstructorOption[]>([]);
   const [committeeMemberships, setCommitteeMemberships] = useState<CommitteeMembership[]>([]);
+  const sessionCatalogKey = session ? catalogKeyForSession(session) : "";
+  const programsRequestKey = session ? `${sessionCatalogKey}|${catalogRevision}` : "";
+  const needsProgramCourses = Boolean(session && !shouldUseScopedCourseList(session) && !showCourseManagement &&
+    selectedProgram && ["my_courses", "review_queue"].includes(active));
+  const needsFullCommitteeCatalog = Boolean(session && !shouldUseScopedCourseList(session) && !showCourseManagement && active === "commission_review");
+  const courseDepartment = needsProgramCourses ? selectedProgram!.department : "";
+  const courseProgramName = needsProgramCourses ? selectedProgram!.programName : "";
+  const coursesRequestKey = !session ? "" : shouldUseScopedCourseList(session)
+    ? `${sessionCatalogKey}|${catalogRevision}`
+    : needsProgramCourses
+      ? JSON.stringify([sessionCatalogKey, selectedProgram!.department, selectedProgram!.programName, catalogRevision])
+      : needsFullCommitteeCatalog ? `${sessionCatalogKey}|committee|${catalogRevision}` : "";
   const eEnstituDbpUrl = `${getEEnstituUrl()}/#/modul/ders-bilgi-paketi`;
   useEffect(() => {
     let cancelled = false;
@@ -451,57 +463,54 @@ export function RoleDashboard() {
       cancelled = true;
     };
   }, [eEnstituDbpUrl]);
-  const refreshCatalogCourses = async () => {
-    if (!session) return;
-    const requestKey = catalogKeyForSession(session);
-    setCatalogLoading(true);
-    setCatalogMessage("");
-    try {
-      const init = { headers: { "X-DBP-Session": dbpSessionHeader(session) } };
-      const [data, programs] = await Promise.all([
-        fetchCatalogCoursesForSession(session, init), fetchDbpPrograms(init),
-      ]);
-      setCatalogCourses(data.courses.map(toPanelCourse));
-      setCatalogPrograms(programs);
-      setCatalogSessionKey(requestKey);
-      setCatalogMessage("");
-    } catch {
-      setCatalogMessage("Ders ve program kataloğu veritabanından alınamadı. Lütfen bağlantınızı kontrol edip tekrar deneyin.");
-      setCatalogCourses([]);
-      setCatalogPrograms([]);
-      setCatalogSessionKey(requestKey);
-    } finally {
-      setCatalogLoading(false);
-    }
-  };
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
-    const requestKey = catalogKeyForSession(session);
-    const loadCatalogCourses = async () => {
-      try {
-        const init = { headers: { "X-DBP-Session": dbpSessionHeader(session) } };
-        const [data, programs] = await Promise.all([
-          fetchCatalogCoursesForSession(session, init), fetchDbpPrograms(init),
-        ]);
+    const controller = new AbortController();
+    const init = { headers: { "X-DBP-Session": dbpSessionHeader(session) }, signal: controller.signal };
+    fetchDbpPrograms(init)
+      .then((programs) => {
         if (cancelled) return;
-        setCatalogCourses(data.courses.map(toPanelCourse));
         setCatalogPrograms(programs);
-        setCatalogSessionKey(requestKey);
-        setCatalogMessage("");
-      } catch {
+        setProgramCatalogKey(programsRequestKey);
+        setProgramCatalogMessage("");
+      }).catch(() => {
         if (cancelled) return;
-        setCatalogMessage("Ders ve program kataloğu veritabanından alınamadı. Lütfen bağlantınızı kontrol edip tekrar deneyin.");
-        setCatalogCourses([]);
         setCatalogPrograms([]);
-        setCatalogSessionKey(requestKey);
-      }
-    };
-    void loadCatalogCourses();
+        setProgramCatalogKey(programsRequestKey);
+        setProgramCatalogMessage("Program kataloğu veritabanından alınamadı. Lütfen tekrar deneyin.");
+      });
     return () => {
       cancelled = true;
+      controller.abort();
     };
-  }, [session?.username, session?.role, session?.department]);
+  }, [session, programsRequestKey]);
+  useEffect(() => {
+    if (!session || !coursesRequestKey) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    const init = { headers: { "X-DBP-Session": dbpSessionHeader(session) }, signal: controller.signal };
+    const request = shouldUseScopedCourseList(session)
+      ? fetchMyDbpCourses({ limit: 5000 }, init)
+      : needsProgramCourses
+        ? fetchManagedDbpCourses({ department: courseDepartment, programName: courseProgramName }, init)
+        : fetchDbpCourses({}, init);
+    request.then((data) => {
+      if (cancelled) return;
+      setCatalogCourses(data.courses.map(toPanelCourse));
+      setCatalogSessionKey(coursesRequestKey);
+      setCatalogMessage("");
+    }).catch(() => {
+      if (cancelled) return;
+      setCatalogCourses([]);
+      setCatalogSessionKey(coursesRequestKey);
+      setCatalogMessage("Ders listesi veritabanından alınamadı. Lütfen tekrar deneyin.");
+    });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [session, coursesRequestKey, needsProgramCourses, courseDepartment, courseProgramName]);
   useEffect(() => {
     if (!session || !assignCourse || instructorOptions.length > 0) return;
     const controller = new AbortController();
@@ -552,11 +561,10 @@ export function RoleDashboard() {
   }, [session, active]);
   if (!session)
     return <main className="panel-loading">Panel hazırlanıyor…</main>;
-  const currentCatalogKey = catalogKeyForSession(session);
-  const catalogIsCurrent = catalogSessionKey === currentCatalogKey;
+  const catalogIsCurrent = Boolean(coursesRequestKey) && catalogSessionKey === coursesRequestKey;
   const displayedCatalogCourses = catalogIsCurrent ? catalogCourses : [];
-  const displayedCatalogPrograms = catalogIsCurrent ? catalogPrograms : [];
-  const catalogBusy = catalogLoading || !catalogIsCurrent;
+  const displayedCatalogPrograms = programCatalogKey === programsRequestKey ? catalogPrograms : [];
+  const catalogBusy = programCatalogKey !== programsRequestKey || Boolean(coursesRequestKey && !catalogIsCurrent);
   const baseModules = navigationModules(roleAccess[session.role] ?? DEFAULT_ROLE_ACCESS[session.role]);
   const showingPermissionMatrix = !showCourseManagement && active === "permission_matrix";
   const modules = committeeMemberships.length > 0 && !baseModules.includes("commission_review")
@@ -565,7 +573,7 @@ export function RoleDashboard() {
   const save = (message = "Değişiklikler kaydedildi.") => {
     setSaveMessage(message);
     setSaved(true);
-    void refreshCatalogCourses();
+    setCatalogRevision((current) => current + 1);
     setTimeout(() => setSaved(false), 1800);
   };
   const toggleRoleAccess = (role: DbpRole, module: DbpModule, checked: boolean) => {
@@ -606,7 +614,7 @@ export function RoleDashboard() {
   const canEditAcademicContent = session.role === "admin";
   const isCentralRole = centralRoles.includes(session.role);
   const canDownloadAllProgramCourses = allProgramCourseDownloadRoles.includes(session.role);
-  const useDemoFallback = !catalogBusy && displayedCatalogCourses.length === 0 && isLocalDevelopmentHost();
+  const useDemoFallback = !isCentralRole && !catalogBusy && displayedCatalogCourses.length === 0 && isLocalDevelopmentHost();
   const scopedPrograms = isCentralRole
     ? displayedCatalogPrograms
     : displayedCatalogPrograms.filter((program) => {
@@ -726,52 +734,62 @@ export function RoleDashboard() {
       : displayedCatalogCourses.length ? displayedCatalogCourses : useDemoFallback ? courses : [];
   const reviewCourses = allReviewCourses;
   const pickerDepartments = [...new Set(scopedPrograms.map((program) => program.mainDepartment))];
-  const downloadAllProgramCourseList = () => {
-    const headers = [
-      "ABD / ASD",
-      "Program",
-      "Düzey",
-      "Dersin Kodu",
-      "Dersin Adı",
-      "Dönem",
-      "Zorunlu / Seçmeli",
-      "Öğretim Elemanı",
-      "T",
-      "U",
-      "AKTS",
-      "Onay",
-    ];
-    const sortedCourses = [...displayedCatalogCourses].sort((first, second) =>
-      [
-        first.department || "",
-        first.programName || "",
-        first.level,
-        first.code,
-      ].join("|").localeCompare(
+  const downloadAllProgramCourseList = async () => {
+    if (downloadBusy) return;
+    setDownloadBusy(true);
+    setDownloadMessage("");
+    try {
+      const data = await fetchDbpCourses({}, { headers: { "X-DBP-Session": dbpSessionHeader(session) } });
+      const headers = [
+        "ABD / ASD",
+        "Program",
+        "Düzey",
+        "Dersin Kodu",
+        "Dersin Adı",
+        "Dönem",
+        "Zorunlu / Seçmeli",
+        "Öğretim Elemanı",
+        "T",
+        "U",
+        "AKTS",
+        "Onay",
+      ];
+      const sortedCourses = data.courses.map(toPanelCourse).sort((first, second) =>
         [
-          second.department || "",
-          second.programName || "",
-          second.level,
-          second.code,
-        ].join("|"),
-        "tr-TR",
-      ),
-    );
-    const rows = sortedCourses.map((course) => [
-      repairText(course.department || ""),
-      repairText(course.programName || ""),
-      course.level,
-      course.code,
-      repairText(course.name),
-      repairText(course.term || ""),
-      repairText(course.type || ""),
-      formatInstructor(course.instructor),
-      course.theory ?? 0,
-      course.practice ?? 0,
-      course.ects ?? 0,
-      isApprovedCourseStatus(course.status) ? "Onaylandı" : "Onay tamamlanmadı",
-    ]);
-    downloadXlsx([headers, ...rows], `${filenamePart("tum-programlar")}-ders-listesi.xlsx`);
+          first.department || "",
+          first.programName || "",
+          first.level,
+          first.code,
+        ].join("|").localeCompare(
+          [
+            second.department || "",
+            second.programName || "",
+            second.level,
+            second.code,
+          ].join("|"),
+          "tr-TR",
+        ),
+      );
+      const rows = sortedCourses.map((course) => [
+        repairText(course.department || ""),
+        repairText(course.programName || ""),
+        course.level,
+        course.code,
+        repairText(course.name),
+        repairText(course.term || ""),
+        repairText(course.type || ""),
+        formatInstructor(course.instructor),
+        course.theory ?? 0,
+        course.practice ?? 0,
+        course.ects ?? 0,
+        isApprovedCourseStatus(course.status) ? "Onaylandı" : "Onay tamamlanmadı",
+      ]);
+      downloadXlsx([headers, ...rows], `${filenamePart("tum-programlar")}-ders-listesi.xlsx`);
+    } catch {
+      setDownloadMessage("Ders listesi indirilemedi. Lütfen tekrar deneyin.");
+    } finally {
+      setDownloadBusy(false);
+    }
   };
   const openCourseManagement = () => {
     setShowCourseManagement(true);
@@ -800,10 +818,10 @@ export function RoleDashboard() {
               className="table-action public-course-download"
               type="button"
               onClick={downloadAllProgramCourseList}
-              disabled={catalogBusy || displayedCatalogCourses.length === 0}
+              disabled={downloadBusy}
             >
               <Download size={15} />
-              <span>Ders listesini indir</span>
+              <span>{downloadBusy ? "İndiriliyor…" : "Ders listesini indir"}</span>
             </button>
           )}
           <span>{scopedPrograms.length} program</span>
@@ -963,13 +981,15 @@ export function RoleDashboard() {
             {saveMessage}
           </div>
         )}
-        {catalogMessage && <div className="database-message">{catalogMessage}</div>}
+        {programCatalogKey === programsRequestKey && programCatalogMessage && <div className="database-message">{programCatalogMessage}</div>}
+        {catalogIsCurrent && catalogMessage && <div className="database-message">{catalogMessage}</div>}
+        {downloadMessage && <div className="database-message">{downloadMessage}</div>}
         <CourseManagementPage
           active={showCourseManagement && canManageCourses}
           onBack={() => changeModule("my_courses")}
           onSaved={save}
           session={session}
-          catalogCourses={displayedCatalogCourses}
+          refreshKey={catalogRevision}
         />
         {!showCourseManagement && <>
         {showProgramCreate && (
@@ -1277,7 +1297,7 @@ export function RoleDashboard() {
                 Programlara Dön
               </button>
             )}
-            <ReviewQueue
+            {catalogBusy ? <div className="course-loading-state" role="status">Dersler yükleniyor…</div> : <ReviewQueue
               courses={reviewCourses}
               role={session.role}
               session={session}
@@ -1285,7 +1305,7 @@ export function RoleDashboard() {
               programName={(selectedProgram ?? scopedDefaultProgram)?.programName ?? session.department}
               mode={session.role === "abd_asd_baskani" ? "chair" : "institute"}
               onAction={save}
-            />
+            />}
           </section>
         )}
         {active === "publish_control" && <ProgramPublishControl onSave={save} session={session} />}

@@ -16,6 +16,111 @@ const query = new URLSearchParams({
 const packagePath = `/dbp/katalog?${query}`;
 const programPath = "/dbp/programlar/yonetim-bilisim-sistemleri-abd-yonetim-bilisim-sistemleri?duzey=Doktora&sekme=courses";
 
+test("central panels load courses only after program selection and export the complete catalog on demand", async () => {
+  for (const role of ["admin", "enstitu_yoneticisi", "enstitu_sekreteri", "lee_ogrenci_isleri"]) {
+    const courses = [
+      { code: "MAT801", department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans" },
+      { code: "MAT901", department: "Matematik ABD", programName: "Matematik", level: "Doktora" },
+      { code: "FZK801", department: "Fizik ABD", programName: "Fizik", level: "Tezli Yüksek Lisans" },
+    ].map((course) => ({ ...course, name: `Örnek ${course.code} dersi`, status: "Taslak", term: "Güz", instructor: "Test Hoca" }));
+    const requests = [];
+    await withPublicPage("/dbp/panel", {
+      preparePage: async (page) => {
+        await page.addInitScript((role) => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Yönetici", username: "test.manager", role, department: "LEE" })), role);
+        await page.route("**/dbp/api/dbp/**", async (route) => {
+          const url = new URL(route.request().url());
+          const endpoint = url.pathname.split("/").pop();
+          const modules = ["my_courses", "program_profile"];
+          let payload = { events: { ok: true }, access: { modules }, "role-module-access": { access: { [role]: modules } }, memberships: { memberships: [] },
+            programs: { programs: [
+              { mainDepartment: "Matematik ABD", department: "Matematik ABD", programName: "Matematik", levels: ["Tezli Yüksek Lisans", "Doktora"] },
+              { mainDepartment: "Fizik ABD", department: "Fizik ABD", programName: "Fizik", levels: ["Tezli Yüksek Lisans"] },
+            ] } }[endpoint];
+          if (endpoint === "courses") {
+            requests.push(url.searchParams);
+            const selected = courses.filter((course) => !url.searchParams.has("department") ||
+              (course.department === url.searchParams.get("department") && course.programName === url.searchParams.get("programName")));
+            payload = { courses: selected, total: selected.length, source: "database" };
+          }
+          assert.ok(payload, `Unexpected central panel API: ${endpoint}`);
+          return route.fulfill({ contentType: "application/json", body: JSON.stringify(payload) });
+        });
+      },
+    }, async ({ page }) => {
+      await page.getByRole("button", { name: "Dersleri Aç: Matematik", exact: true }).waitFor();
+      assert.equal(requests.length, 0, "opening a central panel must not load any courses");
+      await page.locator(".panel-sidebar").getByRole("button", { name: "Program Bilgileri", exact: true }).click();
+      await page.getByRole("button", { name: "Programı Aç: Matematik", exact: true }).waitFor();
+      assert.equal(requests.length, 0, "program information does not need course lists");
+      await page.locator(".panel-sidebar").getByRole("button", { name: "Ders Bilgi Paketlerim", exact: true }).click();
+      await page.getByRole("button", { name: "Dersleri Aç: Matematik", exact: true }).click();
+      for (const code of ["MAT801", "MAT901"]) await page.locator(".program-course-list").getByText(code, { exact: true }).waitFor();
+      assert.equal(requests.length, 1);
+      assert.equal(requests[0].get("scope"), "program");
+      assert.equal(requests[0].get("department"), "Matematik ABD");
+      assert.equal(requests[0].get("programName"), "Matematik");
+      assert.equal(requests[0].has("publicVisible"), false, "management must also receive unpublished courses");
+      assert.equal(await page.locator(".program-course-list").getByText("FZK801", { exact: true }).count(), 0);
+      await page.getByRole("button", { name: "Programlara Dön", exact: true }).click();
+      if (role !== "enstitu_sekreteri") {
+        const downloading = page.waitForEvent("download");
+        await page.getByRole("button", { name: "Ders listesini indir", exact: true }).click();
+        const download = await downloading;
+        const chunks = [];
+        for await (const chunk of await download.createReadStream()) chunks.push(chunk);
+        const workbook = Buffer.concat(chunks).toString("utf8");
+        for (const course of courses) assert.ok(workbook.includes(course.code), "the download must contain every program and level");
+        assert.equal(requests.length, 2);
+        assert.equal(requests[1].has("scope"), false);
+        assert.equal(requests[1].has("department"), false);
+        assert.equal(requests[1].has("limit"), false, "the complete download must not be truncated");
+      }
+    });
+  }
+});
+
+test("central program switching ignores a late response from the previous selection", async () => {
+  let releaseSlow;
+  const slow = new Promise((resolve) => { releaseSlow = resolve; });
+  let finishSlow;
+  const finished = new Promise((resolve) => { finishSlow = resolve; });
+  await withPublicPage("/dbp/panel", {
+    preparePage: async (page) => {
+      await page.addInitScript(() => localStorage.setItem("lee-dbp-session", JSON.stringify({ name: "Test Yönetici", username: "test.manager", role: "enstitu_yoneticisi", department: "LEE" })));
+      await page.route("**/dbp/api/dbp/**", async (route) => {
+        const url = new URL(route.request().url());
+        const endpoint = url.pathname.split("/").pop();
+        const programs = ["Matematik", "Fizik"].map((name) => ({ mainDepartment: "Matematik ABD", department: `${name} ABD`, programName: name, levels: ["Tezli Yüksek Lisans"] }));
+        if (endpoint === "courses") {
+          assert.equal(url.searchParams.get("scope"), "program");
+          const name = url.searchParams.get("programName");
+          if (name === "Matematik") await slow;
+          try {
+            await route.fulfill({ contentType: "application/json", body: JSON.stringify({ courses: [{ code: name === "Matematik" ? "MAT801" : "FZK801", name, department: `${name} ABD`, programName: name, level: "Tezli Yüksek Lisans", status: "Taslak" }], total: 1 }) });
+          } finally {
+            if (name === "Matematik") finishSlow();
+          }
+          return;
+        }
+        const payload = { events: { ok: true }, access: { modules: ["my_courses"] }, memberships: { memberships: [] }, programs: { programs } }[endpoint];
+        assert.ok(payload, `Unexpected switching API: ${endpoint}`);
+        return route.fulfill({ contentType: "application/json", body: JSON.stringify(payload) });
+      });
+    },
+  }, async ({ page }) => {
+    const started = page.waitForRequest((request) => new URL(request.url()).searchParams.get("programName") === "Matematik");
+    await page.getByRole("button", { name: "Dersleri Aç: Matematik", exact: true }).click();
+    await started;
+    await page.getByRole("button", { name: "Programlara Dön", exact: true }).click();
+    await page.getByRole("button", { name: "Dersleri Aç: Fizik", exact: true }).click();
+    await page.locator(".program-course-list").getByText("FZK801", { exact: true }).waitFor();
+    releaseSlow();
+    await finished;
+    assert.equal(await page.locator(".program-course-list").getByText("MAT801", { exact: true }).count(), 0);
+    assert.equal(await page.locator(".program-course-list").getByText("FZK801", { exact: true }).count(), 1);
+  });
+});
+
 test("permission matrix has one menu and one aligned checkbox per cell, with preserved legacy grants", async () => {
   const ts = await import("typescript");
   const vm = await import("node:vm");
@@ -407,7 +512,14 @@ test("institute manager creates courses with explicit terms and corrects existin
           case "access": payload = { modules: ["my_courses"] }; break;
           case "programs": payload = { programs: [{ mainDepartment: "Matematik ABD", department: "Matematik ABD", programName: "Matematik", flags: "", levels: ["Tezli Yüksek Lisans"] }] }; break;
           case "memberships": payload = { memberships: [] }; break;
-          case "courses": payload = { courses, total: courses.length, source: "database" }; break;
+          case "courses": {
+            assert.equal(url.searchParams.get("scope"), "program");
+            assert.equal(url.searchParams.get("department"), "Matematik ABD");
+            assert.equal(url.searchParams.get("programName"), "Matematik");
+            assert.equal(url.searchParams.get("level"), "Tezli Yüksek Lisans");
+            assert.equal(url.searchParams.has("limit"), false);
+            payload = { courses, total: courses.length, source: "database" }; break;
+          }
           case "instructors": payload = { instructors: [], source: "e_enstitu_api" }; break;
           case "course-management": {
             assert.equal(request.method(), "POST");

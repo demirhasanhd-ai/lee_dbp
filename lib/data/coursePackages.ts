@@ -9,9 +9,13 @@ export type CourseQualityCheck = {
 };
 
 export type CoursePackage = {
+  academicYear?: string;
+  programCode?: string;
   programOutcomes?: import("../programOutcomes").ProgramOutcome[];
   code: string;
   name?: string;
+  type?: "Zorunlu" | "Seçmeli";
+  term?: "Güz" | "Bahar" | "Güz ve Bahar";
   aliases?: string[];
   department?: string;
   programName?: string;

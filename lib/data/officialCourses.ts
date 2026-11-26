@@ -13,7 +13,7 @@ export type OfficialCourse = {
   ects: number;
   theory: number;
   practice: number;
-  term: "Güz" | "Bahar";
+  term: "Güz" | "Bahar" | "Güz ve Bahar";
   instructor?: string;
   status: "Taslak" | "İncelemede" | "Onaylandı" | "Atama Bekliyor";
   source: "official_excel";

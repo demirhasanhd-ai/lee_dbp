@@ -10,6 +10,7 @@ import {
 import { dbpPath } from "../../lib/dbpPath";
 import { dbpSessionHeader } from "../../lib/dbpSessionHeader";
 import { isProcessCourse } from "../../lib/courseProcess.mjs";
+import { fetchManagedDbpCourses } from "../../lib/data/dbpCourses";
 
 type CatalogCourseOption = {
   id?: number;
@@ -98,9 +99,6 @@ type NewCoursePreview = {
 const trustedInstructorSources = new Set(["e_enstitu_api", "e_enstitu_database", "dbp_course_catalog"]);
 const unassignedInstructorLabel = "Şimdilik boş / atama bekliyor";
 
-const sameText = (left = "", right = "") =>
-  left.trim().toLocaleLowerCase("tr-TR") === right.trim().toLocaleLowerCase("tr-TR");
-
 const foldTurkishText = (value: string) =>
   value
     .toLocaleLowerCase("tr-TR")
@@ -182,13 +180,13 @@ export function CourseManagementPage({
   onBack,
   onSaved,
   session,
-  catalogCourses = [],
+  refreshKey = 0,
 }: {
   active: boolean;
   onBack: () => void;
   onSaved: () => void;
   session: { username: string; name: string; role: string; department: string };
-  catalogCourses?: CatalogCourseOption[];
+  refreshKey?: number;
 }) {
   const [mode, setMode] = useState<"create" | "assign" | "bulk">("create");
   const [main, setMain] = useState(MAIN_DEPARTMENTS[0]);
@@ -207,6 +205,7 @@ export function CourseManagementPage({
   const [newCourseFile, setNewCourseFile] = useState<File | null>(null);
   const [newCoursePreview, setNewCoursePreview] = useState<NewCoursePreview | null>(null);
   const [newCourseMessage, setNewCourseMessage] = useState("");
+  const [courseLoadState, setCourseLoadState] = useState<{ key: string; courses: CatalogCourseOption[]; error?: string }>();
   const instructorListId = useId();
 
   const programs = useMemo(
@@ -225,15 +224,32 @@ export function CourseManagementPage({
     [programs, selectedProgramKey],
   );
 
-  const curriculumCourses = selectedProgram
-    ? catalogCourses.filter((course) =>
-        sameText(course.department, selectedProgram.department) &&
-        sameText(course.programName, selectedProgram.programName) &&
-        sameText(course.level, level),
-      )
-    : [];
+  const courseDepartment = active && mode !== "bulk" ? selectedProgram?.department || "" : "";
+  const courseProgramName = active && mode !== "bulk" ? selectedProgram?.programName || "" : "";
+  const courseRequestKey = courseDepartment && courseProgramName
+    ? JSON.stringify([session.username, session.role, session.department, courseDepartment, courseProgramName, level, refreshKey]) : "";
+  const curriculumCourses = courseRequestKey && courseLoadState?.key === courseRequestKey ? courseLoadState.courses : [];
+  const coursesLoading = Boolean(courseRequestKey && courseLoadState?.key !== courseRequestKey);
+  const coursesError = courseLoadState?.key === courseRequestKey ? courseLoadState.error : "";
   const selectedCourse = curriculumCourses.find((course) => course.code === selectedCourseCode);
   const selectedCourseKey = `${selectedProgramKey}-${level}-${selectedCourseCode}-${selectedCourse ? "loaded" : "loading"}-${selectedCourse?.type ?? ""}-${selectedCourse?.credit ?? ""}`;
+
+  useEffect(() => {
+    if (!courseRequestKey) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    fetchManagedDbpCourses({ department: courseDepartment, programName: courseProgramName, level }, {
+      headers: { "X-DBP-Session": dbpSessionHeader(session) }, signal: controller.signal,
+    }).then((data) => {
+      if (!cancelled) setCourseLoadState({ key: courseRequestKey, courses: data.courses });
+    }).catch(() => {
+      if (!cancelled) setCourseLoadState({ key: courseRequestKey, courses: [], error: "Ders listesi yüklenemedi. Programı yeniden seçerek tekrar deneyin." });
+    });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [courseRequestKey, courseDepartment, courseProgramName, level, session]);
 
   useEffect(() => {
     if (!active) return;
@@ -542,7 +558,7 @@ export function CourseManagementPage({
         ) : (
           <form onSubmit={async (event) => {
             event.preventDefault();
-            if (!selectedProgram) return;
+            if (!selectedProgram || (mode === "assign" && (!selectedCourse || coursesLoading || coursesError))) return;
             setBusy(true);
             setMessage("");
             try {
@@ -677,7 +693,7 @@ export function CourseManagementPage({
               {mode === "assign" ? (
                 <><label className="wide">
                   <span>Müfredattaki ders</span>
-                  <select required disabled={!selectedProgram} name="code" value={selectedCourseCode} onChange={(event) => setSelectedCourseCode(event.target.value)}>
+                  <select required disabled={busy || !selectedProgram || coursesLoading || Boolean(coursesError)} name="code" value={selectedCourseCode} onChange={(event) => setSelectedCourseCode(event.target.value)}>
                     <option value="">{selectedProgram ? "Dersi seçin" : "Önce program seçin"}</option>
                     {curriculumCourses.map((course) => <option key={course.code} value={course.code}>{course.code} — {course.name}</option>)}
                   </select>
@@ -735,7 +751,9 @@ export function CourseManagementPage({
             </div>
 
             {programs.length === 0 && <p className="no-program-warning">Seçilen ana ABD/ASD için bu düzeyde program bulunmuyor.</p>}
-            {mode === "assign" && selectedProgram && curriculumCourses.length === 0 && <p className="no-program-warning">Bu programda henüz müfredat dersi bulunmuyor; önce Excel importu veya ders açma ekranından ders oluşturulmalı.</p>}
+            {mode === "assign" && coursesLoading && <p className="no-program-warning" role="status">Dersler yükleniyor…</p>}
+            {mode === "assign" && coursesError && <p className="no-program-warning" role="alert">{coursesError}</p>}
+            {mode === "assign" && selectedProgram && !coursesLoading && !coursesError && curriculumCourses.length === 0 && <p className="no-program-warning">Bu programda henüz müfredat dersi bulunmuyor; önce Excel importu veya ders açma ekranından ders oluşturulmalı.</p>}
             {instructorsMessage && <p className="no-program-warning">{instructorsMessage}</p>}
             {message && <p className="no-program-warning" role="status">{message}</p>}
 

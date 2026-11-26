@@ -2423,9 +2423,9 @@ async function loadEEnstituInstructorCount() {
   }
 }
 
-function courseListPayload(filters = {}, limit = 0) {
-  const courses = filters.publicVisible
-    ? dbCourseListFromRows(publicCourseListRows(filters), filters)
+function courseListPayload(filters = {}, limit = 0, scopeToProgram = false) {
+  const courses = filters.publicVisible || scopeToProgram
+    ? dbCourseListFromRows(scopedCourseListRows(filters), filters)
     : dbCourseList(filters);
   return {
     courses: limit ? courses.slice(0, limit) : courses,
@@ -6587,7 +6587,7 @@ function dbCourseRows(where = "", params = []) {
   `).all(...params);
 }
 
-function publicCourseListRows(filters = {}) {
+function scopedCourseListRows(filters = {}) {
   const clauses = [];
   const params = [];
   for (const [filter, column, normalize] of [
@@ -9931,7 +9931,19 @@ async function handleDbpApi(request) {
         publicVisible: ["1", "true"].includes((url.searchParams.get("publicVisible") || "").toLocaleLowerCase("tr-TR")),
       };
       const limit = Math.max(0, Number(url.searchParams.get("limit") || 0));
-      const payload = courseListPayload(filters, limit);
+      const scopeToProgram = url.searchParams.get("scope") === "program";
+      if (scopeToProgram) {
+        const auth = requireDbpSession(request);
+        if (auth.error) return auth.error;
+        if (!["admin", "enstitu_yoneticisi", "enstitu_sekreteri", "lee_ogrenci_isleri"].includes(auth.session.role)) {
+          return jsonResponse({ message: "Program ders listesini görüntüleme yetkiniz yok." }, { status: 403 });
+        }
+        if (!filters.department.trim() || !filters.programName.trim()) {
+          return jsonResponse({ message: "ABD / ASD ve program zorunludur." }, { status: 400 });
+        }
+        filters.publicVisible = false;
+      }
+      const payload = courseListPayload(filters, limit, scopeToProgram);
       return jsonResponse(payload, {
         headers: {
           "Cache-Control": "no-store",
