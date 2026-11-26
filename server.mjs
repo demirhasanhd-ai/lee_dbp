@@ -2424,7 +2424,9 @@ async function loadEEnstituInstructorCount() {
 }
 
 function courseListPayload(filters = {}, limit = 0) {
-  const courses = dbCourseList(filters);
+  const courses = filters.publicVisible
+    ? dbCourseListFromRows(publicCourseListRows(filters), filters)
+    : dbCourseList(filters);
   return {
     courses: limit ? courses.slice(0, limit) : courses,
     total: courses.length,
@@ -6583,6 +6585,30 @@ function dbCourseRows(where = "", params = []) {
     ${where}
     ORDER BY department, program_name, level, code, id
   `).all(...params);
+}
+
+function publicCourseListRows(filters = {}) {
+  const clauses = [];
+  const params = [];
+  for (const [filter, column, normalize] of [
+    ["department", "department", normalizeScope],
+    ["programName", "program_name", normalizeScope],
+    ["level", "level", levelKey],
+  ]) {
+    if (!filters[filter]) continue;
+    const requested = normalize(filters[filter]);
+    // Resolve existing spelling/level aliases using only the small indexed scope columns.
+    // The expensive package projection and list processing then run only for matching rows.
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const aliases = db.prepare(`SELECT DISTINCT ${column} AS value FROM courses ${where}`)
+      .all(...params)
+      .map((row) => row.value)
+      .filter((value) => normalize(value) === requested);
+    if (!aliases.length) return [];
+    clauses.push(`${column} IN (${aliases.map(() => "?").join(", ")})`);
+    params.push(...aliases);
+  }
+  return dbCourseRows(clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", params);
 }
 
 function dbCourseListFromRows(rows, filters = {}) {
