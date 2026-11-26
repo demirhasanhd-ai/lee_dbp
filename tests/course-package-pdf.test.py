@@ -11,6 +11,16 @@ generator = runpy.run_path(str(ROOT / "scripts" / "generate_public_course_pdfs.p
 
 
 class CoursePackagePdfTests(unittest.TestCase):
+    def test_administrative_type_and_credit_override_conflicting_package_identity(self):
+        for credit in [0, 2.5]:
+            course = generator["course_from_payload"](
+                generator["synthetic_course"]("MMB863", "Sürdürülebilir Bina Tasarımı"),
+                {"course": {"type": "Seçmeli", "credit": credit},
+                 "package": {"identity": {"type": "Zorunlu", "credit": "9"}}},
+            )
+            self.assertEqual(course.course_type, "Seçmeli")
+            self.assertEqual(course.credit, credit)
+
     def render_text(self, details, name="DANIŞMANLIK"):
         payload = {
             "course": {

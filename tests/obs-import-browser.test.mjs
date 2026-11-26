@@ -85,7 +85,7 @@ test("all added learning outcomes block submission until every field meets the s
 });
 
 test("OBS search previews full content without writes, imports only after approval and preserves provenance", async () => {
-  const course = { id: 1, code: "GTB811", name: "Gıdalardaki Pestisit Kalıntıları ve Risk Değerlendirmesi", department: "Gıda Teknolojisi ABD", programName: "Gıda Teknolojisi", level: "Tezli Yüksek Lisans", instructor: "Test Akademisyen", status: "Taslak" };
+  const course = { id: 1, code: "GTB811", name: "Gıdalardaki Pestisit Kalıntıları ve Risk Değerlendirmesi", department: "Gıda Teknolojisi ABD", programName: "Gıda Teknolojisi", level: "Tezli Yüksek Lisans", instructor: "Test Akademisyen", status: "Taslak", type: "Zorunlu", credit: 0 };
   const program = { id: "1", name: "Gıda Teknolojisi Tezli Yüksek Lisans", faculty: "Lisansüstü Eğitim Enstitüsü", facultyId: "04" };
   const draft = { sourceUrl: "https://obs.osmaniye.edu.tr/oibs/bologna/progCourseDetails.aspx?curCourse=123&lang=tr", obsCourseId: "123", code: course.code, name: course.name,
     semester: 1, theory: 3, practice: 0, lab: 0, credit: 3, ects: 6, updatedAt: "29.10.2026", totalWorkload: 180,
@@ -123,7 +123,7 @@ test("OBS search previews full content without writes, imports only after approv
         case "course-package":
           if (request.method() === "POST") { const body = request.postDataJSON(); writes.push(body); stored = body.package; payload = { ok: true, status: "Taslak" }; }
           else payload = {
-            package: stored, status: "Taslak",
+            package: stored, course, status: "Taslak",
             programOutcomes: Array.from({ length: programOutcomeCount }, (_, i) => ({ id: `P${i + 1}`, text: `Program çıktısı ${i + 1}` })),
           };
           break;
@@ -149,6 +149,10 @@ test("OBS search previews full content without writes, imports only after approv
     assert.equal(await form.locator('input[name="Alan Bilgisi"]').inputValue(), "60");
     assert.equal(await form.getByRole("button", { name: "Onaya gönder", exact: true }).isDisabled(), true);
     assert.equal(writes.length, 0, "opening an existing package must not save it");
+    assert.equal(await form.locator('input[name="Dersin türü"]').inputValue(), "Zorunlu");
+    assert.equal(await form.locator('input[name="Dersin türü"]').getAttribute("readonly"), "");
+    assert.equal(await form.locator('input[name="Kredi"]').inputValue(), "0");
+    assert.equal(await form.locator('input[name="Kredi"]').getAttribute("readonly"), "");
     await form.locator('input[name="Matematik ve Temel Bilimler"]').fill("25");
     assert.equal(await form.getByText(/Ders yapısı oranlarının toplamı/).count(), 0);
     await form.locator('input[name="Matematik ve Temel Bilimler"]').fill("0");
@@ -189,6 +193,8 @@ test("OBS search previews full content without writes, imports only after approv
     await form.getByRole("button", { name: "Taslağı Kaydet", exact: true }).click();
     await page.waitForFunction(() => !document.querySelector('.course-submit-actions button.draft')?.disabled);
     assert.equal(writes.length, 1);
+    assert.equal(writes[0].package.identity.type, "Zorunlu", "OBS cannot override the managed course type");
+    assert.equal(writes[0].package.identity.credit, "0", "OBS cannot override zero credit");
     assert.deepEqual(Object.keys(writes[0].package.structureValues), COURSE_STRUCTURE_LABELS);
     assert.equal(writes[0].package.structureValues["Fen Bilimleri"], 15);
     assert.equal(writes[0].package.structureValues["Alan Bilgisi"], 60);

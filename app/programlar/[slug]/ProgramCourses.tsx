@@ -28,7 +28,7 @@ export type PublicCourse = {
   level: string;
   isProcessCourse?: boolean | null;
   term: "Güz" | "Bahar" | "Güz ve Bahar";
-  type: "Zorunlu" | "Seçmeli";
+  type: string;
   theory: number;
   practice: number;
   ects: number;
@@ -63,11 +63,11 @@ function toPublicCourse(course: DbpCourse): PublicCourse {
     name: course.name,
     level: course.level,
     term: repairText(course.term || "") === "Güz ve Bahar" ? "Güz ve Bahar" : repairText(course.term || "") === "Bahar" ? "Bahar" : "Güz",
-    type: repairText(course.type || "") === "Seçmeli" ? "Seçmeli" : "Zorunlu",
+    type: repairText(course.type || ""),
     theory: Number(course.theory || 0),
     practice: Number(course.practice || 0),
     ects: Number(course.ects || 0),
-    credit: Number(course.credit ?? course.theory + course.practice),
+    credit: course.credit ?? undefined,
     instructor: course.instructor,
     programCode: course.programCode,
     updatedAt: course.updatedAt,
@@ -344,7 +344,7 @@ export function ProgramCourses({ visibilityKey, department, programName, levels,
       tur: repairText(course.type),
       t: String(course.theory),
       u: String(course.practice),
-      kredi: String(course.credit ?? course.theory + course.practice),
+      kredi: String(course.credit ?? ""),
       akts: String(course.ects),
       sdg: DEFAULT_COURSE_SDG_IDS.join(","),
     });

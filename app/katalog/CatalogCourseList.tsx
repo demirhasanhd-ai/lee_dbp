@@ -20,7 +20,7 @@ function courseHref(course: DbpCourse) {
     tur: course.type,
     t: String(course.theory),
     u: String(course.practice),
-    kredi: String(course.credit ?? course.theory + course.practice),
+    kredi: String(course.credit ?? ""),
     akts: String(course.ects),
     bolum: course.department,
     program: course.programName,

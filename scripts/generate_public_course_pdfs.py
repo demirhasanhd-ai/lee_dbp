@@ -70,7 +70,7 @@ class Course:
     level: str
     term: str
     course_type: str
-    credit: int
+    credit: float | None
     theory: int
     practice: int
     ects: int
@@ -532,8 +532,8 @@ def course_from_payload(course: Course, payload: dict | None) -> Course:
         program=repair_text(row.get("programName") or course.program),
         level=repair_text(identity.get("level") or row.get("level") or course.level),
         term=repair_text(row.get("term") or course.term),
-        course_type=repair_text(identity.get("type") or row.get("type") or course.course_type),
-        credit=int(number(identity.get("credit"), number(row.get("credit"), course.credit))),
+        course_type=repair_text(row.get("type", course.course_type)),
+        credit=(None if row.get("credit") in (None, "") else number(row["credit"])) if "credit" in row else course.credit,
         theory=int(number(identity.get("theory"), number(row.get("theory"), course.theory))),
         practice=int(number(identity.get("practice"), number(row.get("practice"), course.practice))),
         ects=int(number(package_data.get("ects"), number(row.get("ects"), course.ects))),
@@ -609,7 +609,7 @@ def story(course: Course, package_data: dict | None = None):
                 ["Öğrenim Dili", language, "Ders Düzeyi", course.level],
                 ["Öğretim Şekli", teaching_mode, "Ders Türü", course.course_type],
                 ["Teorik", format_number(course.theory), "Uygulama", format_number(course.practice)],
-                ["Kredi", format_number(course.credit), "AKTS", format_number(course.ects)],
+                ["Kredi", "" if course.credit is None else format_number(course.credit), "AKTS", format_number(course.ects)],
             ],
             [35 * mm, 60 * mm, 35 * mm, 45 * mm],
         )

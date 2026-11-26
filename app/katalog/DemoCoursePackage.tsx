@@ -127,10 +127,10 @@ const formatApprovalDate = (value?: string) => {
 export function DemoCoursePackage({
   code,
   name,
-  type = "Seçmeli",
+  type = "",
   theory = "3",
   practice = "0",
-  credit = "3",
+  credit = "",
   ects = "6",
   instructor,
   sdgs,
@@ -145,11 +145,13 @@ export function DemoCoursePackage({
     [department, lookupCode, programName],
   );
   const [saved, setSaved] = useState<PublicSavedPackage | null>(null);
+  const [managedMetadata, setManagedMetadata] = useState<{ type: string; credit: number | null } | null>(null);
   const displayCode = repairText(saved?.package.code || lookupCode);
   const hasPublicIdentity = Boolean(department && programName && level);
   const [publicLookupComplete, setPublicLookupComplete] = useState(!hasPublicIdentity);
   useEffect(() => {
     setSaved(null);
+    setManagedMetadata(null);
     if (!hasPublicIdentity) {
       setPublicLookupComplete(true);
       return;
@@ -160,6 +162,7 @@ export function DemoCoursePackage({
     fetch(`${dbpPath("/api/dbp/course-package")}?${query}`, { signal: controller.signal })
       .then(async (response) => response.ok ? response.json() : null)
       .then((data) => {
+        if (data?.course) setManagedMetadata({ type: data.course.type || "", credit: data.course.credit ?? null });
         if (data?.package) {
           setSaved({
             ...toPublicCoursePackage(data.package as Record<string, unknown>, staticPackage, name),
@@ -176,7 +179,8 @@ export function DemoCoursePackage({
     return () => controller.abort();
   }, [department, lookupCode, hasPublicIdentity, level, name, programName, staticPackage]);
   const displayName = repairText(saved?.name ?? staticPackage?.name ?? name);
-  const displayType = repairText(type);
+  const displayType = repairText(managedMetadata?.type ?? type);
+  const displayCredit = managedMetadata ? String(managedMetadata.credit ?? "") : credit;
   if (hasPublicIdentity && !saved) {
     const loading = !publicLookupComplete;
     return (
@@ -203,7 +207,7 @@ export function DemoCoursePackage({
               <Field label="Ders Türü" value={displayType} />
               <Field label="Teorik" value={theory} />
               <Field label="Uygulama" value={practice} />
-              <Field label="Kredi" value={credit} />
+              <Field label="Kredi" value={displayCredit} />
               <Field label="AKTS" value={ects} />
             </div>
           </section>
@@ -260,7 +264,7 @@ export function DemoCoursePackage({
             <Field label="Ders Türü" value={displayType} />
             <Field label="Teorik" value={String(coursePackage?.theory ?? theory)} />
             <Field label="Uygulama" value={String(coursePackage?.practice ?? practice)} />
-            <Field label="Kredi" value={String(coursePackage?.credit ?? credit)} />
+            <Field label="Kredi" value={displayCredit} />
             <Field label="AKTS" value={String(coursePackage?.ects ?? ects)} />
           </div>
         </section>

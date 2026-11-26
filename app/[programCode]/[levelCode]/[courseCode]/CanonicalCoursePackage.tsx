@@ -59,7 +59,7 @@ export function CanonicalCoursePackage({
       type={course.type}
       theory={String(course.theory)}
       practice={String(course.practice)}
-      credit={String(course.credit ?? course.theory + course.practice)}
+      credit={String(course.credit ?? "")}
       ects={String(course.ects)}
       instructor={course.instructor}
       pdfHref={pdfHref}

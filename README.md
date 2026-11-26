@@ -73,6 +73,12 @@ API/arka plan istekleri, RSC, ön yüklemeler, bilinen tarayıcı botları, sağ
 
 Geçmiş olaylar ve aylık özetler otomatik silinmez veya yeniden yazılmaz; önceki şişmiş kayıtlar korunur. Yeni kural sürüm yayınlandıktan sonraki ziyaretlere uygulanır. Veritabanı şeması veya migration gerekmez.
 
+## Ders türü ve kredi yönetimi
+
+Ders türü (Zorunlu / Seçmeli) ve yerel kredi için tek kaynak `courses.type` / `courses.credit` alanlarıdır. Ders Düzenleme → Mevcut Ders ekranında bu değerler LEE Öğrenci İşleri, Enstitü Yöneticisi ve Admin tarafından düzenlenebilir. Katalog, yayımlanmış paket/PDF ve paket düzenleyicisi güncel ders ana kaydını gösterir; paket düzenleyicisinde bu iki alan salt okunurdur. ÖBS aktarımı veya paket kaydı bu değerleri değiştirmez. Kredi teorik/uygulama saatlerinden hesaplanmaz; 0 kredi geçerlidir.
+
+Canlıya geçmeden önce mevcut veritabanının yedeği alınmalıdır. İlk başlangıçta `course_managed_metadata_backfill_v1` geçişi yalnız NULL/boş tür ve kredi alanlarını mevcut paket kimliğinden bir kez tamamlar (öncelik: yayımlanmış paket, taslak, eski paket). Dolu ana kayıtlar, 0 kredi ve çelişkili paket değerleri korunur; güvenilir bilgi yoksa alan boş kalır. Paket içerikleri, atamalar ve onay geçmişi yeniden yazılmaz. Sonraki seed paket geçişleri dolu krediyi değiştirmez. Yeni veritabanı alanı, veri sıfırlama veya tekrar seed yükleme gerekmez; yanlış mevcut değerler Ders Düzenleme ekranından düzeltilir.
+
 ## Excel ile toplu yeni ders ekleme
 
 **Ders Düzenleme → Yeni Ders** sekmesinde ABD/ASD, program ve düzey seçildikten sonra **Excel ile Toplu Yeni Ders** alanı kullanılabilir. **Boş Şablon** düğmesi ders kodu/adı, dönem, zorunlu-seçmeli, teorik/uygulama, kredi, AKTS ve danışman T.C./unvan/isim/e-posta sütunlarını içeren `.xlsx` dosyasını indirir. Program seçimi dosyanın tüm satırları için geçerlidir. Dönem ve ders bilgileri zorunludur; danışman bilgileri boş bırakılabilir ve bu dersler **Atama bekliyor** görünür. T.C. ve ders kodu alanları Excel'de metin biçimindedir.

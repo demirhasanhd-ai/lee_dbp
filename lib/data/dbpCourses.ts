@@ -10,7 +10,7 @@ export type DbpCourse = {
   code: string;
   name: string;
   type: string;
-  credit?: number;
+  credit?: number | null;
   ects: number;
   theory: number;
   practice: number;

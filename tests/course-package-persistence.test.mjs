@@ -65,6 +65,24 @@ test("all seed package revisions preserve saved drafts, published revisions and 
   } finally { db.close(); }
 });
 
+test("all seed revisions preserve populated administrative credits, including zero, even on untouched seeds", () => {
+  const db = new DatabaseSync(":memory:");
+  schema(db);
+  try {
+    for (const { name, sql } of seedUpdates) {
+      const query = vm.runInContext(sql, context);
+      const update = db.prepare(query);
+      const count = (query.match(/\?/g) || []).length;
+      const params = [...Array(count - 3).fill(9), JSON.stringify({ staticSeed: true }), "tomorrow", 1];
+      for (const credit of [0, 2.5, 3]) {
+        db.prepare("INSERT OR REPLACE INTO courses(id, credit, package_json) VALUES (1, ?, '{}')").run(credit);
+        assert.equal(update.run(...params).changes, 1, name);
+        assert.equal(db.prepare("SELECT credit FROM courses WHERE id = 1").get().credit, credit, name);
+      }
+    }
+  } finally { db.close(); }
+});
+
 test("startup package bootstrap preserves current drafts, approvals, assignments and workflow history", () => {
   const db = new DatabaseSync(":memory:");
   schema(db);

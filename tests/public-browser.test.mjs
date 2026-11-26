@@ -386,7 +386,7 @@ test("institute manager creates courses with explicit terms and corrects existin
   const courses = [
     { code: "MAT864", name: "ANALİZDEN SEÇME KONULAR II", term: "", instructor: "Prof. Dr. Mevcut Hoca" },
     { code: "MAT866", name: "CEBİRSEL TOPOLOJİYE GİRİŞ", term: "Bahar", instructor: "Doç. Dr. Diğer Hoca", isProcessCourse: true },
-  ].map((course, index) => ({ id: index + 1, ...course, department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans", status: "Komisyon Onayı Bekliyor", type: "Seçmeli", theory: 3, practice: 0, ects: 6 }));
+  ].map((course, index) => ({ id: index + 1, ...course, department: "Matematik ABD", programName: "Matematik", level: "Tezli Yüksek Lisans", status: "Komisyon Onayı Bekliyor", type: "Seçmeli", credit: 3, theory: 3, practice: 0, ects: 6 }));
   const writes = [];
   await withPublicPage("/dbp/panel", {
     preparePage: async (page) => {
@@ -418,6 +418,8 @@ test("institute manager creates courses with explicit terms and corrects existin
               ...(body.newCode ? { code: body.newCode } : {}),
               ...(body.name ? { name: body.name } : {}),
               ...(Object.hasOwn(body, "isProcessCourse") ? { isProcessCourse: body.isProcessCourse } : {}),
+              ...(Object.hasOwn(body, "type") ? { type: body.type } : {}),
+              ...(Object.hasOwn(body, "credit") ? { credit: Number(body.credit) } : {}),
             });
             payload = { ok: true };
             break;
@@ -453,6 +455,8 @@ test("institute manager creates courses with explicit terms and corrects existin
     assert.equal(writes[0].term, "Bahar");
     assert.equal(Object.hasOwn(writes[0], "instructor"), false, "term-only edits preserve the latest instructor and identity fields");
     assert.equal(Object.hasOwn(writes[0], "isProcessCourse"), false, "unrelated edits preserve the latest group");
+    assert.equal(Object.hasOwn(writes[0], "type"), false);
+    assert.equal(Object.hasOwn(writes[0], "credit"), false);
     await open();
     assert.equal(await dialog.getByLabel("Dersin dönemi").inputValue(), "Bahar");
     await dialog.getByRole("tab", { name: "Yeni Ders", exact: true }).click();
@@ -507,6 +511,19 @@ test("institute manager creates courses with explicit terms and corrects existin
     assert.equal(writes[4].isProcessCourse, true);
     await open();
     assert.equal(await dialog.getByLabel("Ders grubu").inputValue(), "true");
+    assert.equal(await dialog.getByLabel("Zorunlu / Seçmeli").inputValue(), "Seçmeli");
+    assert.equal(await dialog.getByLabel("Kredi", { exact: true }).inputValue(), "3");
+    await dialog.getByLabel("Zorunlu / Seçmeli").selectOption("Zorunlu");
+    await dialog.getByLabel("Kredi", { exact: true }).fill("0");
+    await dialog.getByRole("button", { name: "Değişiklikleri Kaydet" }).click();
+    await dialog.getByRole("status").getByText("Ders bilgileri kaydedildi.", { exact: true }).waitFor();
+    assert.equal(writes[5].type, "Zorunlu");
+    assert.equal(Number(writes[5].credit), 0);
+    assert.equal(Object.hasOwn(writes[5], "instructor"), false);
+    assert.equal(Object.hasOwn(writes[5], "term"), false);
+    await open();
+    assert.equal(await dialog.getByLabel("Zorunlu / Seçmeli").inputValue(), "Zorunlu");
+    assert.equal(await dialog.getByLabel("Kredi", { exact: true }).inputValue(), "0");
   });
 });
 
@@ -682,6 +699,36 @@ test("an approved package stays public while a new revision is awaiting committe
     await page.getByText(approved, { exact: true }).waitFor();
     assert.equal(await page.locator(".week-grid b").count(), 15);
     assert.equal(await page.getByRole("heading", { name: "Ders bilgi paketi onay sürecinde" }).count(), 0);
+  });
+});
+
+test("public list and package show the same managed type and credit after changes, ignoring old package values", async () => {
+  let type = "Zorunlu", credit = 0;
+  const options = {
+    courseTransform: (course) => course.code === "YBS921" ? { ...course, type, credit } : course,
+    packageTransform: (stored) => ({ ...stored, identity: { ...stored.identity, type: "Seçmeli", credit: "9" } }),
+  };
+  await withPublicPage(programPath, options, async ({ page }) => {
+    const row = page.locator(".public-course-table tbody tr").filter({ has: page.getByText("YBS921", { exact: true }) }).first();
+    await row.waitFor();
+    assert.equal(await row.locator(".course-type").innerText(), "Zorunlu");
+    type = "Seçmeli";
+    credit = 2.5;
+    await page.reload({ waitUntil: "networkidle" });
+    await row.waitFor();
+    assert.equal(await row.locator(".course-type").innerText(), "Seçmeli");
+  });
+  await withPublicPage(packagePath, options, async ({ page }) => {
+    const field = (label) => page.locator(".package-field").filter({ has: page.getByText(label, { exact: true }) }).first().locator("strong");
+    await page.locator(".week-grid").waitFor();
+    assert.equal(await field("Ders Türü").innerText(), "Seçmeli");
+    assert.equal(await field("Kredi").innerText(), "2.5");
+    type = "Zorunlu";
+    credit = 0;
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator(".week-grid").waitFor();
+    assert.equal(await field("Ders Türü").innerText(), "Zorunlu");
+    assert.equal(await field("Kredi").innerText(), "0");
   });
 });
 

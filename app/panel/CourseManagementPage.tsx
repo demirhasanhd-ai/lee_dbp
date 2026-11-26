@@ -19,6 +19,8 @@ type CatalogCourseOption = {
   code: string;
   name: string;
   term?: string;
+  type?: string;
+  credit?: number | null;
   isProcessCourse?: boolean | null;
   instructor?: string;
 };
@@ -231,7 +233,7 @@ export function CourseManagementPage({
       )
     : [];
   const selectedCourse = curriculumCourses.find((course) => course.code === selectedCourseCode);
-  const selectedCourseKey = `${selectedProgramKey}-${level}-${selectedCourseCode}-${selectedCourse ? "loaded" : "loading"}`;
+  const selectedCourseKey = `${selectedProgramKey}-${level}-${selectedCourseCode}-${selectedCourse ? "loaded" : "loading"}-${selectedCourse?.type ?? ""}-${selectedCourse?.credit ?? ""}`;
 
   useEffect(() => {
     if (!active) return;
@@ -550,9 +552,12 @@ export function CourseManagementPage({
               const codeChanged = mode === "assign" && String(form.get("newCode") || "").trim() !== selectedCourse?.code;
               const nameChanged = mode === "assign" && String(form.get("name") || "").trim() !== selectedCourse?.name;
               const termChanged = mode === "create" || String(form.get("term") || "") !== (selectedCourse?.term || "");
+              const typeChanged = mode === "create" || String(form.get("type") || "") !== (selectedCourse?.type || "");
+              const creditValue = String(form.get("credit") ?? "").trim();
+              const creditChanged = mode === "create" || creditValue !== String(selectedCourse?.credit ?? "");
               const processCourse = form.get("isProcessCourse") === "true";
               const processChanged = mode === "create" || processCourse !== isProcessCourse({ ...selectedCourse, department: selectedProgram.department });
-              if (mode === "assign" && !codeChanged && !nameChanged && !termChanged && !instructorChanged && !processChanged) {
+              if (mode === "assign" && !codeChanged && !nameChanged && !termChanged && !typeChanged && !creditChanged && !instructorChanged && !processChanged) {
                 setMessage("Kaydedilecek değişiklik bulunamadı.");
                 return;
               }
@@ -573,10 +578,10 @@ export function CourseManagementPage({
                     ...(codeChanged ? { newCode: form.get("newCode") } : {}),
                     ...(nameChanged ? { name: form.get("name") } : {}),
                   } : { name: form.get("name") }),
-                  type: form.get("type"),
+                  ...(typeChanged ? { type: form.get("type") } : {}),
                   theory: Number(form.get("theory") || 0),
                   practice: Number(form.get("practice") || 0),
-                  credit: Number(form.get("credit") || 0),
+                  ...(creditChanged ? { credit: creditValue } : {}),
                   ects: Number(form.get("ects") || 0),
                   ...(termChanged ? { term: form.get("term") } : {}),
                   ...(processChanged ? { isProcessCourse: processCourse } : {}),
@@ -683,13 +688,23 @@ export function CourseManagementPage({
                 <>
                   <label><span>Ders kodu</span><input required name="code" placeholder="Örn. BLM 505" /></label>
                   <label><span>Ders adı</span><input required name="name" placeholder="Ders adını yazın" /></label>
-                  <label><span>Zorunlu / Seçmeli</span><select required name="type" defaultValue="Seçmeli"><option>Zorunlu</option><option>Seçmeli</option></select></label>
                   <label><span>Teorik</span><input required name="theory" inputMode="numeric" placeholder="T" /></label>
                   <label><span>Uygulama</span><input required name="practice" inputMode="numeric" placeholder="U" /></label>
-                  <label><span>Kredi</span><input required name="credit" inputMode="numeric" placeholder="Kredi" /></label>
                   <label><span>AKTS</span><input required name="ects" inputMode="numeric" placeholder="AKTS" /></label>
                 </>
               )}
+
+              <label key={`type-${mode}-${selectedCourseKey}`}>
+                <span>Zorunlu / Seçmeli</span>
+                <select required={mode === "create"} name="type" defaultValue={mode === "assign" ? selectedCourse?.type || "" : "Seçmeli"} disabled={busy || (mode === "assign" && !selectedCourse)}>
+                  <option value="" disabled>Ders türü belirtilmemiş</option>
+                  <option>Zorunlu</option><option>Seçmeli</option>
+                </select>
+              </label>
+              <label key={`credit-${mode}-${selectedCourseKey}`}>
+                <span>Kredi</span>
+                <input required={mode === "create"} name="credit" type="number" min="0" step="any" defaultValue={mode === "assign" ? selectedCourse?.credit ?? "" : ""} disabled={busy || (mode === "assign" && !selectedCourse)} placeholder="Kredi" />
+              </label>
 
               <label key={`term-${mode}-${selectedCourseKey}`}>
                 <span>Dersin dönemi</span>

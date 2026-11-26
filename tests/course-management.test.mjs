@@ -58,6 +58,36 @@ function fixture(t, role = "enstitu_yoneticisi", courseIdentity = identity) {
   return { db, request, row, context, resolutions: () => resolutions };
 }
 
+test("course managers edit type and credit without changing packages, approvals, assignments or other courses", async (t) => {
+  for (const role of ["admin", "enstitu_yoneticisi", "lee_ogrenci_isleri"]) {
+    const { db, request, row } = fixture(t, role);
+    const original = row();
+    db.exec("INSERT INTO courses (id, code, type, credit) VALUES (2, 'MAT866', 'Seçmeli', 3)");
+    const other = db.prepare("SELECT * FROM courses WHERE id = 2").get();
+    const approvals = db.prepare("SELECT * FROM workflow_requests").all();
+    for (const [type, credit] of [["Seçmeli", 0], ["Zorunlu", 2.5]]) {
+      const response = await request({ ...identity, action: "assign", type, credit });
+      assert.equal(response.status, 200, await response.clone().text());
+      assert.equal(row().type, type);
+      assert.equal(row().credit, credit);
+      assert.deepEqual({ ...row(), type: original.type, credit: original.credit, updated_at: original.updated_at }, { ...original });
+      assert.deepEqual(db.prepare("SELECT * FROM courses WHERE id = 2").get(), other);
+      assert.deepEqual(db.prepare("SELECT * FROM workflow_requests").all(), approvals);
+    }
+    for (const invalid of [{ type: "" }, { type: null }, { type: "elective" }, { credit: "" }, { credit: " " }, { credit: null }, { credit: -1 }, { credit: "NaN" }, { credit: true }, { credit: [] }]) {
+      const before = row();
+      assert.equal((await request({ ...identity, action: "assign", ...invalid })).status, 422);
+      assert.deepEqual(row(), before);
+    }
+  }
+  for (const role of ["akademisyen", "abd_asd_baskani", "enstitu_sekreteri"]) {
+    const { request, row } = fixture(t, role);
+    const before = row();
+    assert.equal((await request({ ...identity, action: "assign", type: "Seçmeli", credit: 0 })).status, 403);
+    assert.deepEqual(row(), before);
+  }
+});
+
 test("term-only correction preserves instructor identity, both package revisions, approvals and other courses", async (t) => {
   const { db, request, row, context, resolutions } = fixture(t);
   const before = row();

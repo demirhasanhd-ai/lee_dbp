@@ -31,6 +31,8 @@ type CourseIdentity = {
   level: string;
   department?: string;
   programName?: string;
+  type?: string;
+  credit?: number | null;
 };
 type SessionIdentity = {
   username: string;
@@ -235,9 +237,9 @@ function defaultIdentity(course: CourseIdentity) {
     code: course.code,
     theory: "3",
     practice: "0",
-    credit: "3",
+    credit: course.credit == null ? "" : String(course.credit),
     level: course.level.includes("Doktora") ? "Doktora" : course.level.includes("Tezsiz") ? "Tezsiz Yüksek Lisans" : "Yüksek Lisans",
-    type: "Zorunlu",
+    type: course.type || "",
     language: "Türkçe",
   };
 }
@@ -302,9 +304,9 @@ export function CourseBolognaEditor({
         code: course.code,
         theory: String(value.theory ?? 0),
         practice: String(value.practice ?? 0),
-        credit: String(value.credit ?? 0),
+        credit: course.credit == null ? "" : String(course.credit),
         level: value.level,
-        type: "Zorunlu",
+        type: course.type || "",
         language: value.language,
       });
       setDetailFields({
@@ -394,6 +396,13 @@ export function CourseBolognaEditor({
         if (controller.signal.aborted) return;
         setProgramOutcomes(data.programOutcomes ?? []);
         if (data.package) applySavedPackage(data.package, data.status, data.workflow || null);
+        // Administrative fields are current even when the saved package is an older revision.
+        const managedCourse = data.course ?? course;
+        setIdentity((current) => ({
+          ...current,
+          type: managedCourse.type || "",
+          credit: managedCourse.credit == null ? "" : String(managedCourse.credit),
+        }));
         const defaultRows = staticPackage?.contributionMatrix.map((row) =>
           Object.fromEntries(row.values.map((score, index) => [`P${index + 1}`, score])),
         ) ?? [];
@@ -409,7 +418,7 @@ export function CourseBolognaEditor({
       })
       .finally(() => { if (!controller.signal.aborted) setPackageLoading(false); });
     return () => controller.abort();
-  }, [course.code, course.department, course.level, course.name, course.programName, course.status, session]);
+  }, [course.code, course.department, course.level, course.name, course.programName, course.status, course.type, course.credit, session]);
 
   const workloadNames = useMemo(() => Object.keys(workloads), [workloads]);
   const totalWorkload = workloadTotalHours(workloads);
@@ -590,9 +599,9 @@ export function CourseBolognaEditor({
       code: current.code,
       theory: shouldFill(current.theory, initialIdentity.theory, mode) ? String(obsDraft.theory ?? current.theory) : current.theory,
       practice: shouldFill(current.practice, initialIdentity.practice, mode) ? String(obsDraft.practice ?? current.practice) : current.practice,
-      credit: shouldFill(current.credit, initialIdentity.credit, mode) ? String(obsDraft.credit ?? current.credit) : current.credit,
+      credit: current.credit,
       level: shouldFill(current.level, initialIdentity.level, mode) ? obsDraft.details.level || current.level : current.level,
-      type: shouldFill(current.type, initialIdentity.type, mode) ? obsDraft.details.type || current.type : current.type,
+      type: current.type,
       language: shouldFill(current.language, initialIdentity.language, mode) ? obsDraft.details.language || current.language : current.language,
     }));
     setDetailFields((current) => {
@@ -754,7 +763,7 @@ export function CourseBolognaEditor({
           </label>
           <label>
             <span>Kredi</span>
-            <input name="Kredi" type="number" value={identity.credit} onChange={(event) => setIdentity((current) => ({ ...current, credit: event.target.value }))} />
+            <input name="Kredi" type="number" value={identity.credit} readOnly />
           </label>
           <label>
             <span>AKTS</span>
@@ -775,10 +784,7 @@ export function CourseBolognaEditor({
           </label>
           <label>
             <span>Dersin türü</span>
-            <select name="Dersin türü" value={identity.type} onChange={(event) => setIdentity((current) => ({ ...current, type: event.target.value }))}>
-              <option>Zorunlu</option>
-              <option>Seçmeli</option>
-            </select>
+            <input name="Dersin türü" value={identity.type} readOnly />
           </label>
           <label>
             <span>Öğrenim dili</span>
