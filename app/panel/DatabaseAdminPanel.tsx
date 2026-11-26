@@ -27,26 +27,6 @@ type DbSummary = {
   backupDir: string;
   size: number;
   counts: Record<string, number>;
-  statusRows: { status: string; count: number }[];
-  latestCourses: {
-    id: number;
-    code: string;
-    name: string;
-    department: string;
-    program_name: string;
-    level: string;
-    status: string;
-    instructor: string;
-    updated_at: string;
-  }[];
-  latestPrograms: {
-    id: number;
-    main_department: string;
-    department: string;
-    program_name: string;
-    levels: string[];
-    updated_at: string;
-  }[];
   backups: BackupInfo[];
   sqliteBackups?: BackupInfo[];
   qualitySnapshot: {
@@ -338,18 +318,6 @@ export function DatabaseAdminPanel() {
           </div>
 
           <div className="database-grid">
-            <section className="database-panel database-location-panel">
-              <header>
-                <h3>Kalıcı Konum</h3>
-                <small>Portainer volume bu dizine bağlanmalı.</small>
-              </header>
-              <dl className="database-paths">
-                <div><dt>DB</dt><dd>{summary.dbPath}</dd></div>
-                <div><dt>Data</dt><dd>{summary.dataDir}</dd></div>
-                <div><dt>Yedek</dt><dd>{summary.backupDir}</dd></div>
-              </dl>
-            </section>
-
             <section className="database-panel" aria-label="JSON Yedek ve Geri Yükleme">
               <header>
                 <h3>JSON Yedek ve Geri Yükleme</h3>
@@ -412,7 +380,7 @@ export function DatabaseAdminPanel() {
               </div>
             </section>
 
-            <section className="database-panel">
+            <section className="database-panel database-maintenance-panel">
               <header>
                 <h3>Bakım</h3>
                 <small>Riskli işlemler öncesinde yedek alınır.</small>
@@ -431,49 +399,16 @@ export function DatabaseAdminPanel() {
               </div>
             </section>
 
-            <section className="database-panel">
+            <section className="database-panel database-location-panel">
               <header>
-                <h3>Ders Durumları</h3>
-                <small>Veri tabanındaki son durum dağılımı.</small>
+                <h3>Kalıcı Konum</h3>
+                <small>Portainer volume bu dizine bağlanmalı.</small>
               </header>
-              <div className="database-status-list">
-                {summary.statusRows.map((row) => (
-                  <p key={row.status}><span>{row.status || "Belirsiz"}</span><b>{row.count}</b></p>
-                ))}
-              </div>
-            </section>
-          </div>
-
-          <div className="database-tables">
-            <section className="database-panel">
-              <header>
-                <h3>Son Programlar</h3>
-                <small>DB kayıtlarından örnek görünüm.</small>
-              </header>
-              <div className="database-mini-table">
-                {summary.latestPrograms.map((program) => (
-                  <article key={program.id}>
-                    <b>{program.department}</b>
-                    <span>{program.program_name}</span>
-                    <small>{program.levels.join(", ")}</small>
-                  </article>
-                ))}
-              </div>
-            </section>
-            <section className="database-panel">
-              <header>
-                <h3>Son Dersler</h3>
-                <small>DB kayıtlarından örnek görünüm.</small>
-              </header>
-              <div className="database-mini-table">
-                {summary.latestCourses.map((course) => (
-                  <article key={course.id}>
-                    <b>{course.code} - {course.name}</b>
-                    <span>{course.program_name}</span>
-                    <small>{course.level} / {course.status}</small>
-                  </article>
-                ))}
-              </div>
+              <dl className="database-paths">
+                <div><dt>DB</dt><dd>{summary.dbPath}</dd></div>
+                <div><dt>Data</dt><dd>{summary.dataDir}</dd></div>
+                <div><dt>Yedek</dt><dd>{summary.backupDir}</dd></div>
+              </dl>
             </section>
           </div>
         </>
